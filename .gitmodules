@@ -1,0 +1,3 @@
+[submodule "jwin"]
+	path = jwin
+	url = git@github.com:PowerTravel/jwin.git
