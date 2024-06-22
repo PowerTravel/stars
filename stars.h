@@ -12,6 +12,15 @@ struct application_state
   float FontRelativeScale = 1;
   jfont::sdf_font Font;
   camera Camera;
+
+
+  u32 PhongProgram;
+  u32 PlaneStarProgram;
+  u32 SphereStarProgram;
+  u32 Plane;
+  u32 Sphere;
+  u32 PlaneTexture;
+  u32 SphereTexture;
 };
 
 application_state* GlobalState = 0;

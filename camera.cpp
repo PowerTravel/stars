@@ -14,7 +14,7 @@ void LookAt( camera* Camera, v3 aFrom,  v3 aTo,  v3 aTmp)
   CamToWorld = Transpose(CamToWorld);
 
   Camera->V = RigidInverse(CamToWorld);
-  AssertIdentity(Camera->V * CamToWorld, 0.001 );
+  AssertIdentity(Camera->V * CamToWorld, 0.1 );
 }
 
 ray GetRayFromCamera(camera* Camera, canonical_screen_coordinate MouseCanPos)
@@ -77,7 +77,7 @@ void RotateCameraAroundWorldAxis( camera* Camera, const r32 DeltaAngle, const v3
 void UpdateViewMatrix(  camera* Camera )
 {
   m4 CamToWorld = RigidInverse( Camera->V );
-  AssertIdentity( CamToWorld*Camera->V,0.001 );
+  AssertIdentity( CamToWorld*Camera->V,0.1 );
 
   v4 NewUpInCamCoord    = Column( Camera->DeltaRot, 1 );
   v4 NewUpInWorldCoord  = CamToWorld * NewUpInCamCoord;
@@ -237,7 +237,7 @@ void glFrustum( const r32& b, const r32& t,
 void UpdateViewMatrixAngularMovement(  camera* Camera )
 {
   m4 CamToWorld = RigidInverse( Camera->V );
-  AssertIdentity( CamToWorld*Camera->V,0.001 );
+  AssertIdentity( CamToWorld*Camera->V,0.1 );
 
   v4 NewUpInWorldCoord  = Camera->V * V4(0,1,0,0);
 

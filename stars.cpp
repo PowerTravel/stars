@@ -256,43 +256,90 @@ opengl_buffer_data MapObjToOpenGLMesh(memory_arena* Arena, obj_loaded_file* Obj)
   return Result;
 }
 
-void LoadShaders(application_render_commands* RenderCommands)
+char* LoadShader(char* CodePath)
 {
-  debug_read_file_result phongVertex = Platform.DEBUGPlatformReadEntireFile("..\\jwin\\shaders\\PhongVertexCameraView.glsl");
-  debug_read_file_result phongFragment = Platform.DEBUGPlatformReadEntireFile("..\\jwin\\shaders\\PhongFragmentCameraView.glsl");
-  
-  if(phongVertex.Contents && phongFragment.Contents)
+  debug_read_file_result Shader = Platform.DEBUGPlatformReadEntireFile(CodePath);
+  char* Result = 0;
+  if(Shader.Contents)
   {
-    RenderCommands->OpenGL.PhongVertexShaderCode = (char*) PushCopy(GlobalTransientArena, phongVertex.ContentSize, phongVertex.Contents);
-    RenderCommands->OpenGL.PhongFragmentShaderCode = (char*) PushCopy(GlobalTransientArena, phongFragment.ContentSize, phongFragment.Contents);
+    Result = (char*) PushCopy(GlobalTransientArena, Shader.ContentSize, Shader.Contents);
+    Platform.DEBUGPlatformFreeFileMemory(Shader.Contents);
   }
+  return Result;
+}
 
-  if(phongVertex.Contents)
-  {
-    Platform.DEBUGPlatformFreeFileMemory(phongVertex.Contents);
-  }
-  if(phongFragment.Contents)
-  {
-    Platform.DEBUGPlatformFreeFileMemory(phongFragment.Contents);
-  }
 
-  debug_read_file_result starPlaneVertex = Platform.DEBUGPlatformReadEntireFile("..\\jwin\\shaders\\StarPlaneVertex.glsl");
-  debug_read_file_result starPlaneFragment = Platform.DEBUGPlatformReadEntireFile("..\\jwin\\shaders\\StarPlaneFragment.glsl");
-  if(starPlaneVertex.Contents && starPlaneFragment.Contents)
-  {
-    RenderCommands->OpenGL.StarPlaneVertexShaderCode = (char*) PushCopy(GlobalTransientArena, starPlaneVertex.ContentSize, starPlaneVertex.Contents);
-    RenderCommands->OpenGL.StarPlaneFragmentShaderCode = (char*) PushCopy(GlobalTransientArena, starPlaneFragment.ContentSize, starPlaneFragment.Contents);
-  }
+internal gl_shader_program* GetProgram(open_gl* OpenGL, u32 Handle)
+{
+  jwin_Assert(Handle < ArrayCount(OpenGL->Programs));
+  gl_shader_program* Program = OpenGL->Programs + Handle;
+  return Program;
+}
 
-  if(starPlaneVertex.Contents)
-  {
-    Platform.DEBUGPlatformFreeFileMemory(starPlaneVertex.Contents);
-  }
-  if(starPlaneFragment.Contents)
-  {
-    Platform.DEBUGPlatformFreeFileMemory(starPlaneFragment.Contents);
-  }
+void DeclareUniform(open_gl* OpenGL, u32 ProgramHandle, char* Name, GlUniformType Type)
+{
+  gl_shader_program* Program = GetProgram(OpenGL, ProgramHandle);
+  u32 Handle = Program->UniformCount++;
+  jwin_Assert(Handle < ArrayCount(Program->Uniforms));
+  gl_uniform* Uniform = Program->Uniforms + Handle;
+  Uniform->Handle = Handle;
+  Uniform->Type = Type;
+  jwin_Assert(jstr::StringLength(Name) < ArrayCount(Uniform->Name));
+  jstr::CopyStringsUnchecked(Name, Uniform->Name);
+}
 
+u32 ReloadShaderProgram(open_gl* OpenGL, u32 ProgramHandle, char* VertexShader, char* FragmentShader)
+{
+  gl_shader_program* Program = GetProgram(OpenGL, ProgramHandle);
+  jwin_Assert(Program->Handle == ProgramHandle);
+  Program->State = GlProgramState::NEW;
+  Program->VertexCode = VertexShader;
+  Program->FragmentCode = FragmentShader;
+  return ProgramHandle;
+}
+
+u32 NewProgram(open_gl* OpenGL, c8* Name, char* VertexShader, char* FragmentShader)
+{
+  u32 ProgramHandle = OpenGL->ProgramCount++;
+  gl_shader_program* Result = GetProgram(OpenGL, ProgramHandle);
+  *Result = {};
+  Result->Handle = ProgramHandle;
+  Result->State = GlProgramState::NEW;
+  Result->VertexCode = VertexShader;
+  Result->FragmentCode = FragmentShader;
+  jwin_Assert(jstr::StringLength(Name) < ArrayCount(Result->Name));
+  jstr::CopyStringsUnchecked(Name, Result->Name);
+  return ProgramHandle;
+}
+
+u32 CreatePhongProgram(open_gl* OpenGL, u32 ProgramHandle)
+{
+  DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "NormalView", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "LightDirection", GlUniformType::V3);
+  DeclareUniform(OpenGL, ProgramHandle, "LightColor", GlUniformType::V3);
+  DeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", GlUniformType::V4);
+  DeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", GlUniformType::V4);
+  DeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", GlUniformType::V4);
+  DeclareUniform(OpenGL, ProgramHandle, "Shininess", GlUniformType::R32);
+  return ProgramHandle;
+}
+
+u32 CreatePlaneStarProgram(open_gl* OpenGL, u32 ProgramHandle)
+{
+  DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
+  //DeclareUniform(OpenGL, Program, "NormalView", GlUniformType::M4);
+  return ProgramHandle;
+}
+
+u32 CreateSphereStarProgram(open_gl* OpenGL, u32 ProgramHandle)
+{
+  DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
+  //DeclareUniform(OpenGL, Program, "NormalView", GlUniformType::M4);
+  return ProgramHandle;
 }
 
 opengl_bitmap MapObjBitmapToOpenGLBitmap(memory_arena* Arena, obj_bitmap* texture)
@@ -307,6 +354,42 @@ opengl_bitmap MapObjBitmapToOpenGLBitmap(memory_arena* Arena, obj_bitmap* textur
   return Result;
 }
 
+u32 GetUniformHandle(open_gl* OpenGL, u32 ProgramHandle, c8* Name)
+{
+  gl_shader_program* Program = GetProgram(OpenGL, ProgramHandle);
+  for (int i = 0; i < Program->UniformCount; ++i)
+  {
+    gl_uniform* Uniform = Program->Uniforms + i;
+    if(jstr::Compare(Name,Uniform->Name) == 0)
+    {
+      return Uniform->Handle;
+    }
+  }
+  // No Uniform found
+  INVALID_CODE_PATH;
+  return 0;
+}
+
+u32 PushMeshToOpenGl(open_gl* OpenGL, opengl_buffer_data BufferData)
+{
+  u32 BufferIndex = OpenGL->BufferKeeperCount++;
+  jwin_Assert(BufferIndex < ArrayCount(OpenGL->BufferKeepers));
+  buffer_keeper* NewKeeper = OpenGL->BufferKeepers + BufferIndex;
+  NewKeeper->Handle = BufferIndex;
+  NewKeeper->BufferData = BufferData;
+  return BufferIndex;
+}
+
+u32 PushTextureToOpenGl(open_gl* OpenGL, opengl_bitmap TextureData)
+{
+  u32 TextureIndex = OpenGL->TextureKeeperCount++;
+  jwin_Assert(TextureIndex < ArrayCount(OpenGL->TextureKeepers));
+  texture_keeper* NewKeeper = OpenGL->TextureKeepers + TextureIndex;
+  NewKeeper->Handle = TextureIndex;
+  NewKeeper->TextureData = TextureData;
+  return TextureIndex;
+}
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -318,6 +401,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   int OnedgeValue = 128;
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   local_persist v3 LightPosition = V3(1,1,0);
+  open_gl* OpenGL = &RenderCommands->OpenGL;
   if(!GlobalState->Initialized)
   {
     obj_loaded_file* obj1 = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
@@ -325,10 +409,19 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     obj_bitmap* texture = LoadTGA(GlobalPersistentArena, "..\\data\\textures\\brick_wall_base.tga");
 
     // This memory only needs to exist until the data is loaded to the GPU
-    RenderCommands->OpenGL.Plane  = MapObjToOpenGLMesh(GlobalTransientArena, obj1);
-    RenderCommands->OpenGL.Sphere = MapObjToOpenGLMesh(GlobalTransientArena, obj2);
-    RenderCommands->OpenGL.BaseColorTexturePlane = MapObjBitmapToOpenGLBitmap(GlobalTransientArena, obj1->MaterialData->Materials[0].MapKd);
-    RenderCommands->OpenGL.BaseColorTextureSphere = MapObjBitmapToOpenGLBitmap(GlobalTransientArena, texture);
+    GlobalState->PlaneStarProgram = CreatePlaneStarProgram(OpenGL, NewProgram(OpenGL, "PlaneStar",
+      LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
+      LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl")));
+    GlobalState->PhongProgram = CreatePhongProgram(OpenGL, NewProgram(OpenGL, "PhongShading",
+      LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
+      LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl")));
+    //GlobalState->SphereStarProgram = CreateSphereStarProgram(OpenGL, NewProgram(OpenGL, "SphereStar",
+    // LoadShader("..\\jwin\\shaders\\StarSphereVertex.glsl"),
+    // LoadShader("..\\jwin\\shaders\\StarSphereFragment.glsl")));
+    GlobalState->Plane = PushMeshToOpenGl(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, obj1));
+    GlobalState->Sphere = PushMeshToOpenGl(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, obj2));
+    GlobalState->PlaneTexture = PushTextureToOpenGl(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, obj1->MaterialData->Materials[0].MapKd));
+    GlobalState->SphereTexture = PushTextureToOpenGl(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, texture));
 
     GlobalState->OnedgeValue = 128;  // "Brightness" of the sdf. Higher value makes the SDF bigger and brighter.
                                      // Has no impact on TextPixelSize since the char then is also bigger.
@@ -346,24 +439,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     LookAt(&GlobalState->Camera, V3(0,0,10), V3(0,0,0));
     RenderCommands->RenderGroup = InitiateRenderGroup();
 
-    LoadShaders(RenderCommands);
-
-    RenderCommands->RenderGroup->LightPosition = V3(1, 1, 0);
+    
 
   }
   r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
   ResetRenderGroup(RenderCommands->RenderGroup);
-  r32 Angle = 22.5f*Sin(Input->Time) + 45 + 22.5;
-  Angle = 90;
-
-  r32 Ar = 0.5f*Sin(Input->Time) + 1;
-  //LookAt(&GlobalState->Camera, V3(-1,2,3), V3(-1,1,0));
 
 
-  //RenderCommands->RenderGroup->LightPosition = V3(0, 0, 11);
-  RenderCommands->RenderGroup->LightColor = V3(1, 1, 1);
+
   camera* Camera = &GlobalState->Camera;
-  //Platform.DEBUGPrint("%f %f %f\n", Sin(Input->Time) ,Cos(Input->Time), AspectRatio);
   local_persist r32 near = 1;
   if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
   {
@@ -555,13 +639,92 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   if(jwin::Pushed(Input->Keyboard.Key_ENTER))
   {
-    LoadShaders(RenderCommands);
+    GlobalState->PlaneStarProgram = ReloadShaderProgram(OpenGL, GlobalState->PlaneStarProgram,
+      LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
+      LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
+    GlobalState->PhongProgram = ReloadShaderProgram(OpenGL, GlobalState->PhongProgram,
+      LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
+      LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
+    //GlobalState->SphereStarProgram = CreateSphereStarProgram(&RenderCommands->OpenGL, GlobalState->SphereStarProgram);
   }
 
   UpdateViewMatrix(Camera);
-  RenderCommands->RenderGroup->ProjectionMatrix = Camera->P;
-  RenderCommands->RenderGroup->ViewMatrix = Camera->V;
-  RenderCommands->RenderGroup->LightPosition = LightPosition;
 
-  
+
+  // Model data
+  local_persist b32 ModelLoaded = false;
+  local_persist m4 Plane = M4Identity();
+  local_persist m4 ModelMatSphere = M4Identity();
+  if(!ModelLoaded)
+  {
+    // Plane
+    Scale( V4(10,0.1,10,0), Plane );
+    Translate( V4(0,-1,0,0), Plane);
+    Translate( V4(-10,0,0,0), ModelMatSphere);
+    ModelLoaded = true;
+  }
+
+  v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
+
+  // Floor
+  m4 ModelViewPlane = Camera->V*Plane;
+  m4 NormalViewPlane = Camera->V*Transpose(RigidInverse(Plane));
+
+  render_object* Floor = PushNewRenderObject(RenderCommands->RenderGroup);
+  Floor->ProgramHandle = GlobalState->PhongProgram;
+  Floor->MeshHandle = GlobalState->Plane;
+  Floor->TextureHandle = GlobalState->PlaneTexture;
+
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelViewPlane);
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalViewPlane);
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
+  PushUniform(Floor, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
+
+  // Textured Sphere
+  Rotate( 1/120.f, -V4(0,1,0,0), ModelMatSphere );
+
+  m4 ModelViewSphere = Camera->V*ModelMatSphere;
+  m4 NormalViewSphere = Camera->V*Transpose(RigidInverse(ModelMatSphere));
+
+  render_object* Sphere = PushNewRenderObject(RenderCommands->RenderGroup);
+  Sphere->ProgramHandle = GlobalState->PhongProgram;
+  Sphere->MeshHandle = GlobalState->Sphere;
+  Sphere->TextureHandle = GlobalState->SphereTexture;
+
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelViewSphere);
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalViewSphere);
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.2,0.2,0.2,1));
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
+  PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
+
+
+  // PlaneStar
+  v3 To = V3(Column(RigidInverse(Camera->V),3));
+  v3 ToProjXY = V3(To.X, 0, To.Z);
+  r32 Angle = GetAngleBetweenVectors(V3(0,0,1),ToProjXY);
+  v4 RotQuat1 = GetRotation(V3(0,1,0), Normalize(To));
+  v4 RotQuat2 = RotateQuaternion(Angle, V3(0,1,0));
+  m4 PlaneRotation = GetRotationMatrix(QuaternionMultiplication( RotQuat2,RotQuat1) );
+  m4 ModelMatPlaneStar1 = M4Identity();
+  ModelMatPlaneStar1 = PlaneRotation*ModelMatPlaneStar1;
+  m4 ModelViewPlaneStar1 = Camera->V*ModelMatPlaneStar1;
+  m4 NormalViewPlaneStar1 = Camera->V*Transpose(RigidInverse(ModelMatPlaneStar1));
+
+  render_object* PlaneStar = PushNewRenderObject(RenderCommands->RenderGroup);
+  PlaneStar->ProgramHandle = GlobalState->PlaneStarProgram;
+  PlaneStar->MeshHandle = GlobalState->Plane;
+
+  PushUniform(PlaneStar, GetUniformHandle(OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+  PushUniform(PlaneStar, GetUniformHandle(OpenGL, GlobalState->PlaneStarProgram, "ModelView"), ModelViewPlaneStar1);
+
+
 }
