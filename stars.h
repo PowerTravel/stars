@@ -24,6 +24,7 @@ struct application_state
   u32 Triangle;
   u32 Cone;
   u32 Cube;
+  u32 Billboard;
   u32 Cylinder;
   u32 PlaneTexture;
   u32 SphereTexture;

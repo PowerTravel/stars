@@ -362,7 +362,12 @@ u32 CreatePlaneStarProgram(open_gl* OpenGL)
       1, LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
       1, LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
   DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
-  DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "ModelMat", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "ViewMat", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "Color", GlUniformType::V4);
+  DeclareUniform(OpenGL, ProgramHandle, "Radius", GlUniformType::R32);
+  DeclareUniform(OpenGL, ProgramHandle, "FadeDist", GlUniformType::R32);
+  DeclareUniform(OpenGL, ProgramHandle, "Center", GlUniformType::V3);
   return ProgramHandle;
 }
 
@@ -498,6 +503,42 @@ void PushVectorToGpu(application_render_commands* RenderCommands, v3 From, v3 Di
   PushUniform(VecTop, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
 }
 
+void CastRay(application_render_commands* RenderCommands, camera* Camera, r32 Angle, r32 Width, r32 Length)
+{
+  v3 Forward, Up, Right;
+  GetCameraDirections(Camera, &Up, &Right, &Forward);
+  v3 CamPos = GetCameraPosition(Camera);
+  m4 StaticAngle = GetRotationMatrix(Angle, V4(0,0,1,0));
+  m4 BillboardRotation = CoordinateSystemTransform(CamPos,-CrossProduct(Right, Forward));
+  m4 ModelMat = M4Identity();
+
+  r32 Top = 1.161060;
+  r32 Bot = 0.580535;
+  r32 Middle = (Top + Bot) / 2.f;
+  Translate(V4(0,Bot-Middle-Sqrt(3)/2.f,0,0), ModelMat);
+  ModelMat = GetScaleMatrix(V4(Width,Length,1,1)) * ModelMat;
+  ModelMat = StaticAngle*ModelMat;
+  ModelMat = BillboardRotation*ModelMat;
+
+  v4 A = BillboardRotation * V4(1,0,0,0);
+  v4 B = BillboardRotation * V4(0,1,0,0);
+  v4 C = BillboardRotation * V4(0,0,1,0);
+
+  m4 ModelView = Camera->V*ModelMat;
+
+  render_object* Ray = PushNewRenderObject(RenderCommands->RenderGroup);
+  Ray->ProgramHandle = GlobalState->PlaneStarProgram;
+  Ray->MeshHandle = GlobalState->Triangle;
+
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ModelMat"), ModelMat);
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Color"), V4(254.0/255.0, 254.0/255.0, 255/255, 0.3));
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Radius"), 3.f);
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "FadeDist"), 2.f);
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Center"), V3(0,0,0));
+}
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -513,6 +554,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   if(!GlobalState->Initialized)
   {
     obj_loaded_file* plane = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
+    obj_loaded_file* billboard = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\plane.obj");
     obj_loaded_file* sphere = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\sphere.obj");
     obj_loaded_file* triangle = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\triangle.obj");
     obj_loaded_file* cone = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\cone.obj");
@@ -532,6 +574,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Cone = PushMeshToOpenGl(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, cone));
     GlobalState->Cylinder = PushMeshToOpenGl(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, cylinder));
     GlobalState->Triangle = PushMeshToOpenGl(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, triangle));
+    GlobalState->Billboard = PushMeshToOpenGl(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena,  billboard));
     GlobalState->PlaneTexture = PushTextureToOpenGl(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, plane->MaterialData->Materials[0].MapKd));
     GlobalState->SphereTexture = PushTextureToOpenGl(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, texture));
     GlobalState->OnedgeValue = 128;  // "Brightness" of the sdf. Higher value makes the SDF bigger and brighter.
@@ -559,7 +602,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
   camera* Camera = &GlobalState->Camera;
-  local_persist r32 near = 1;
+  local_persist r32 near = 0.001;
   if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
   {
     if(Pushed(Input->Keyboard.Key_UP))
@@ -692,30 +735,30 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     }
   }
   
-
+  r32 CamSpeed = 0.05;
   if(jwin::Active(Input->Keyboard.Key_W))
   {
-    TranslateCamera(Camera, V3(0,0,-0.1));
+    TranslateCamera(Camera, V3(0,0,-CamSpeed));
   }
   if(jwin::Active(Input->Keyboard.Key_S))
   {
-    TranslateCamera(Camera, V3(0,0,0.1));
+    TranslateCamera(Camera, V3(0,0,CamSpeed));
   }
   if(jwin::Active(Input->Keyboard.Key_A))
   {
-    TranslateCamera(Camera, V3(-0.1,0,0));
+    TranslateCamera(Camera, V3(-CamSpeed,0,0));
   }
   if(jwin::Active(Input->Keyboard.Key_D))
   {
-    TranslateCamera(Camera, V3(0.1,0,0));
+    TranslateCamera(Camera, V3(CamSpeed,0,0));
   }
   if(jwin::Active(Input->Keyboard.Key_R))
   {
-    TranslateCamera(Camera, V3(0,0.1,0));
+    TranslateCamera(Camera, V3(0,CamSpeed,0));
   }
   if(jwin::Active(Input->Keyboard.Key_F))
   {
-    TranslateCamera(Camera, V3(0,-0.1,0));
+    TranslateCamera(Camera, V3(0,-CamSpeed,0));
   }
   if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
   {
@@ -825,30 +868,48 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
   PushUniform(Sphere, GetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
 
-/*
-  // PlaneStar
-  v3 To = V3(Column(RigidInverse(Camera->V),3));
-  v3 ToProjXY = V3(To.X, 0, To.Z);
-  r32 Angle = GetAngleBetweenVectors(V3(0,0,1),ToProjXY);
-  v4 RotQuat1 = GetRotation(V3(0,1,0), Normalize(To));
-  v4 RotQuat2 = RotateQuaternion(Angle, V3(0,1,0));
-  m4 PlaneRotation = GetRotationMatrix(QuaternionMultiplication( RotQuat2,RotQuat1) );
-  m4 ModelMatPlaneStar1 = M4Identity();
-  ModelMatPlaneStar1 = PlaneRotation*ModelMatPlaneStar1;
-  m4 ModelViewPlaneStar1 = Camera->V*ModelMatPlaneStar1;
-  m4 NormalViewPlaneStar1 = Camera->V*Transpose(RigidInverse(ModelMatPlaneStar1));
 
-  render_object* PlaneStar = PushNewRenderObject(RenderCommands->RenderGroup);
-  PlaneStar->ProgramHandle = GlobalState->PlaneStarProgram;
-  PlaneStar->MeshHandle = GlobalState->Plane;
+  local_persist r32 Time = 0;
+  local_persist r32 Angle2 = 0;
 
-  PushUniform(PlaneStar, GetUniformHandle(OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
-  PushUniform(PlaneStar, GetUniformHandle(OpenGL, GlobalState->PlaneStarProgram, "ModelView"), ModelViewPlaneStar1);
-*/
+  // Ray
+  r32 RayCount = 15;
+  for (r32 i = 0; i < RayCount; ++i)
+  {
+    r32 RayAngle = 0.06*Input->Time + i*Tau32/RayCount;
+    CastRay(RenderCommands, Camera, RayAngle , 0.3, 4);
+  }
+  RayCount = 7;
+  for (r32 i = 0; i < RayCount; ++i)
+  {
+    r32 RayAngle = -0.04*Input->Time + i*Tau32/RayCount + Pi32/3.f + 0.03*Sin(Input->Time);
+    CastRay(RenderCommands, Camera, RayAngle, 1, 4);
+  }
+  
+  #if 1
 
-const float Thickness1 = 0.6;
-const float Thickness2 = 0.25;
-const float Thickness3 = 0.1;
+  v3 Forward, Up, Right;
+  GetCameraDirections(Camera, &Up, &Right, &Forward);
+  v3 CamPos = GetCameraPosition(Camera);
+  m4 BillboardRotation = CoordinateSystemTransform(CamPos,-CrossProduct(Right, Forward));
+  m4 HaloModelMat = M4Identity();
+  HaloModelMat = GetRotationMatrix(Pi32/2.f, V4(1,0,0,0))* HaloModelMat;
+  HaloModelMat = GetScaleMatrix(V4(2,2,2,1)) * HaloModelMat;
+  HaloModelMat = BillboardRotation*HaloModelMat;
+
+  render_object* Halo = PushNewRenderObject(RenderCommands->RenderGroup);
+  Halo->ProgramHandle = GlobalState->PlaneStarProgram;
+  Halo->MeshHandle = GlobalState->Plane;
+
+  PushUniform(Halo, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+  PushUniform(Halo, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+  PushUniform(Halo, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ModelMat"), HaloModelMat);
+  PushUniform(Halo, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Color"), V4(254.0/255.0, 254.0/255.0, 255/255, 0.3));
+  PushUniform(Halo, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Radius"), (r32)( 1.3f + 0.07 * Sin(Input->Time)));
+  PushUniform(Halo, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "FadeDist"), 0.3f);
+  PushUniform(Halo, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Center"), V3(0,0,0));
+#endif
+
 #if 1
   render_object* FinalSphere = PushNewRenderObject(RenderCommands->RenderGroup);
   FinalSphere->ProgramHandle = GlobalState->SolidSphereProgram;
@@ -902,12 +963,12 @@ const float Thickness3 = 0.1;
   SphereStar->ProgramHandle = GlobalState->SphereStarProgram;
   SphereStar->MeshHandle = GlobalState->Sphere;
 
-  local_persist r32 Time = 0;
-  local_persist r32 Angle2 = 0;
 
   PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
   PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V*FMSS);
   PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "Time"), Time);
+  //PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "Time"), Time);
+  #endif
   Time+=0.03*Input->deltaTime;
   if(Time > 1)
   {
@@ -920,38 +981,16 @@ const float Thickness3 = 0.1;
   }
 
 
-  // Ray
-  v3 Forward, Up, Right;
-  GetCameraDirections(Camera, &Up, &Right, &Forward);
-  v3 CamPos = GetCameraPosition(Camera);
-  m4 CoordTrans = CoordinateSystemTransform(CamPos,-CrossProduct(Right, Forward));
-
-  v4 A = CoordTrans * V4(1,0,0,0);
-  v4 B = CoordTrans * V4(0,1,0,0);
-  v4 C = CoordTrans * V4(0,0,1,0);
-
-  m4 ModelViewPlaneStar1 = Camera->V*CoordTrans;
 
   //PushVectorToGpu(RenderCommands, V3(0,0,0), ToProjZX, LightDirection, 0, Camera->P, Camera->V, 0.4);
   //PushVectorToGpu(RenderCommands, V3(0,0,0), To, LightDirection, 2, Camera->P, Camera->V, 0.4);
 
-  PushVectorToGpu(RenderCommands, V3(0,0,0), V3(A), LightDirection, V3(1,0,0), Camera->P, Camera->V, 0.4);
-  PushVectorToGpu(RenderCommands, V3(0,0,0), V3(B), LightDirection, V3(0,1,0), Camera->P, Camera->V, 0.4);
-  PushVectorToGpu(RenderCommands, V3(0,0,0), V3(C), LightDirection, V3(0,0,1), Camera->P, Camera->V, 0.4);
+  //PushVectorToGpu(RenderCommands, V3(0,0,0), V3(A), LightDirection, V3(1,0,0), Camera->P, Camera->V, 0.4);
+  //PushVectorToGpu(RenderCommands, V3(0,0,0), V3(B), LightDirection, V3(0,1,0), Camera->P, Camera->V, 0.4);
+  //PushVectorToGpu(RenderCommands, V3(0,0,0), V3(C), LightDirection, V3(0,0,1), Camera->P, Camera->V, 0.4);
 
   
   //ModelViewPlaneStar1 = M4Identity();
-
-  render_object* Ray = PushNewRenderObject(RenderCommands->RenderGroup);
-  Ray->ProgramHandle = GlobalState->SolidSphereProgram;
-  Ray->MeshHandle = GlobalState->Triangle;
-
-  PushUniform(Ray, GetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
-  PushUniform(Ray, GetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), ModelViewPlaneStar1);
-  PushUniform(SmallSphere, GetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(254.0/255.0, 254.0/255.0, 255/255, 0.3));
-
-#endif
-
 
     //PushVectorToGpu(RenderCommands, V3(0,0,0), V3(1,0,0), LightDirection, 0, Camera->P, Camera->V, 0.4);
     //PushVectorToGpu(RenderCommands, V3(0,0,0), V3(0,1,0), LightDirection, 1, Camera->P, Camera->V, 0.4);
