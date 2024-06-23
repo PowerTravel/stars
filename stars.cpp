@@ -262,7 +262,9 @@ char* LoadShader(char* CodePath)
   char* Result = 0;
   if(Shader.Contents)
   {
-    Result = (char*) PushCopy(GlobalTransientArena, Shader.ContentSize, Shader.Contents);
+    Result = (char*) PushSize(GlobalTransientArena, Shader.ContentSize+2);
+    utils::Copy(Shader.ContentSize, Shader.Contents, Result);
+    Result[Shader.ContentSize+1] = '\n';
     Platform.DEBUGPlatformFreeFileMemory(Shader.Contents);
   }
   return Result;
@@ -312,8 +314,11 @@ u32 NewProgram(open_gl* OpenGL, c8* Name, char* VertexShader, char* FragmentShad
   return ProgramHandle;
 }
 
-u32 CreatePhongProgram(open_gl* OpenGL, u32 ProgramHandle)
+u32 CreatePhongProgram(open_gl* OpenGL)
 {
+  u32 ProgramHandle = NewProgram(OpenGL, "PhongShading",
+      LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
+      LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
   DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "NormalView", GlUniformType::M4);
@@ -326,18 +331,25 @@ u32 CreatePhongProgram(open_gl* OpenGL, u32 ProgramHandle)
   return ProgramHandle;
 }
 
-u32 CreatePlaneStarProgram(open_gl* OpenGL, u32 ProgramHandle)
+u32 CreatePlaneStarProgram(open_gl* OpenGL)
 {
+  u32 ProgramHandle = NewProgram(OpenGL, "PlaneStar",
+      LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
+      LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
   DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
   //DeclareUniform(OpenGL, Program, "NormalView", GlUniformType::M4);
   return ProgramHandle;
 }
 
-u32 CreateSphereStarProgram(open_gl* OpenGL, u32 ProgramHandle)
+u32 CreateSphereStarProgram(open_gl* OpenGL)
 {
+  u32 ProgramHandle = NewProgram(OpenGL, "SphereStar",
+     LoadShader("..\\jwin\\shaders\\StarSphereVertex.glsl"),
+     LoadShader("..\\jwin\\shaders\\StarSphereFragment.glsl"));
   DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
+  DeclareUniform(OpenGL, ProgramHandle, "Time", GlUniformType::R32);
   //DeclareUniform(OpenGL, Program, "NormalView", GlUniformType::M4);
   return ProgramHandle;
 }
@@ -409,15 +421,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     obj_bitmap* texture = LoadTGA(GlobalPersistentArena, "..\\data\\textures\\brick_wall_base.tga");
 
     // This memory only needs to exist until the data is loaded to the GPU
-    GlobalState->PlaneStarProgram = CreatePlaneStarProgram(OpenGL, NewProgram(OpenGL, "PlaneStar",
-      LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
-      LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl")));
-    GlobalState->PhongProgram = CreatePhongProgram(OpenGL, NewProgram(OpenGL, "PhongShading",
-      LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
-      LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl")));
-    //GlobalState->SphereStarProgram = CreateSphereStarProgram(OpenGL, NewProgram(OpenGL, "SphereStar",
-    // LoadShader("..\\jwin\\shaders\\StarSphereVertex.glsl"),
-    // LoadShader("..\\jwin\\shaders\\StarSphereFragment.glsl")));
+    GlobalState->PlaneStarProgram = CreatePlaneStarProgram(OpenGL);
+    GlobalState->PhongProgram = CreatePhongProgram(OpenGL);
+    GlobalState->SphereStarProgram = CreateSphereStarProgram(OpenGL);
     GlobalState->Plane = PushMeshToOpenGl(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, obj1));
     GlobalState->Sphere = PushMeshToOpenGl(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, obj2));
     GlobalState->PlaneTexture = PushTextureToOpenGl(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, obj1->MaterialData->Materials[0].MapKd));
@@ -637,15 +643,17 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     }
   }
 
-  if(jwin::Pushed(Input->Keyboard.Key_ENTER))
+  if(jwin::Pushed(Input->Keyboard.Key_ENTER) || Input->ExecutableReloaded)
   {
-    GlobalState->PlaneStarProgram = ReloadShaderProgram(OpenGL, GlobalState->PlaneStarProgram,
-      LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
-      LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
     GlobalState->PhongProgram = ReloadShaderProgram(OpenGL, GlobalState->PhongProgram,
       LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
       LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
-    //GlobalState->SphereStarProgram = CreateSphereStarProgram(&RenderCommands->OpenGL, GlobalState->SphereStarProgram);
+    GlobalState->PlaneStarProgram = ReloadShaderProgram(OpenGL, GlobalState->PlaneStarProgram,
+      LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
+      LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
+    GlobalState->SphereStarProgram = ReloadShaderProgram(OpenGL, GlobalState->SphereStarProgram,
+     LoadShader("..\\jwin\\shaders\\StarSphereVertex.glsl"),
+     LoadShader("..\\jwin\\shaders\\StarSphereFragment.glsl"));
   }
 
   UpdateViewMatrix(Camera);
@@ -726,5 +734,22 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   PushUniform(PlaneStar, GetUniformHandle(OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
   PushUniform(PlaneStar, GetUniformHandle(OpenGL, GlobalState->PlaneStarProgram, "ModelView"), ModelViewPlaneStar1);
 
+
+
+  // PlaneStar
+  render_object* SphereStar = PushNewRenderObject(RenderCommands->RenderGroup);
+  SphereStar->ProgramHandle = GlobalState->SphereStarProgram;
+  SphereStar->MeshHandle = GlobalState->Sphere;
+
+  local_persist r32 Time = 0;
+
+  PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
+  PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V);
+  PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "Time"), Time);
+  Time+=0.5*Input->deltaTime;
+  if(Time > 1.2)
+  {
+    Time = -2;
+  }
 
 }
