@@ -9,6 +9,8 @@
 #include "math/AABB.cpp"
 #include "camera.cpp"
 
+#define SPOTCOUNT 120
+
 internal void BlendPixel(platform_offscreen_buffer* OffscreenBuffer, s32 x, s32 y, u8 Red, u8 Green, u8 Blue, u8 alpha)
 {
   u32* Pixel = ((u32*) OffscreenBuffer->Memory) + x + y * OffscreenBuffer->Width;
@@ -379,6 +381,8 @@ u32 CreateSphereStarProgram(open_gl* OpenGL)
   DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "Time", GlUniformType::R32);
+  DeclareUniform(OpenGL, ProgramHandle, "Radius", GlUniformType::R32);
+  DeclareUniform(OpenGL, ProgramHandle, "StarPos", GlUniformType::V2);
   return ProgramHandle;
 }
 
@@ -539,6 +543,18 @@ void CastRay(application_render_commands* RenderCommands, camera* Camera, r32 An
   PushUniform(Ray, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Center"), V3(0,0,0));
 }
 
+void Eruption(application_render_commands* RenderCommands, camera* Camera, m4 ModelMat, r32 Radius, r32 Time, r32 Theta, r32 Phi) {
+    render_object* SphereStar = PushNewRenderObject(RenderCommands->RenderGroup);
+    SphereStar->ProgramHandle = GlobalState->SphereStarProgram;
+    SphereStar->MeshHandle = GlobalState->Sphere;
+
+    PushUniform(SphereStar, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
+    PushUniform(SphereStar, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V*ModelMat);
+    PushUniform(SphereStar, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "Radius"), Radius);
+    PushUniform(SphereStar, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "Time"), Time);
+    PushUniform(SphereStar, GetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "StarPos"), V2(Theta,Phi));  
+  }
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -594,7 +610,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     RenderCommands->RenderGroup = InitiateRenderGroup();
 
     
-
+    GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
   }
   r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
   ResetRenderGroup(RenderCommands->RenderGroup);
@@ -957,17 +973,40 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   PushUniform(SmallSphere, GetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
   PushUniform(SmallSphere, GetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(107.0/255.0, 196.0/255, 1, 1));
 
+  local_persist b32 randomInit = false;
+  local_persist r32 StartTimes[SPOTCOUNT] = {};
+  local_persist r32 Speed[SPOTCOUNT] = {};
+  local_persist v2 Angles[SPOTCOUNT] = {};
+  local_persist r32 Radii[SPOTCOUNT] = {};
+  local_persist r32 TimeVec[SPOTCOUNT] = {};
 
   // PlaneStar
-  render_object* SphereStar = PushNewRenderObject(RenderCommands->RenderGroup);
-  SphereStar->ProgramHandle = GlobalState->SphereStarProgram;
-  SphereStar->MeshHandle = GlobalState->Sphere;
+  if(!randomInit)
+  {
+    for (int i = 0; i < ArrayCount(StartTimes); ++i)
+    {
+      StartTimes[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), -1,0);
+      TimeVec[i] = StartTimes[i];
+      Speed[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0.05,0.2);
+      Angles[i] = V2(
+        Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0,2*Pi32),
+        Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0,Pi32));
+      Radii[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0.04,0.15);
+    }
+    randomInit = true;
+  }
 
-
-  PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
-  PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V*FMSS);
-  PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "Time"), Time);
-  //PushUniform(SphereStar, GetUniformHandle(OpenGL, GlobalState->SphereStarProgram, "Time"), Time);
+  for (int i = 0; i < ArrayCount(StartTimes); ++i)
+  {
+    Eruption(RenderCommands, Camera, FMSS, Radii[i], TimeVec[i], Angles[i].X, Angles[i].Y);
+    TimeVec[i]+=Speed[i] * Input->deltaTime;
+    if(TimeVec[i] > 1)
+    {
+      TimeVec[i] = StartTimes[i];
+    }
+  }
+  
+  
   #endif
   Time+=0.03*Input->deltaTime;
   if(Time > 1)

@@ -1,6 +1,7 @@
 #pragma once
 #include "platform/jwin_platform.h"
 #include "platform/jfont.h"
+#include "commons/random.h"
 #include "camera.h"
 
 struct application_state
@@ -13,6 +14,7 @@ struct application_state
   jfont::sdf_font Font;
   camera Camera;
 
+  random_generator RandomGenerator;
 
   u32 PhongProgram;
   u32 PhongProgramNoTex;
