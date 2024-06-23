@@ -256,16 +256,19 @@ opengl_buffer_data MapObjToOpenGLMesh(memory_arena* Arena, obj_loaded_file* Obj)
   return Result;
 }
 
-char* LoadShader(char* CodePath)
+char** LoadShader(char* CodePath)
 {
+  char** Result = 0; 
   debug_read_file_result Shader = Platform.DEBUGPlatformReadEntireFile(CodePath);
-  char* Result = 0;
+  char* ShaderCode = 0;
   if(Shader.Contents)
   {
-    Result = (char*) PushSize(GlobalTransientArena, Shader.ContentSize+2);
-    utils::Copy(Shader.ContentSize, Shader.Contents, Result);
-    Result[Shader.ContentSize+1] = '\n';
+    ShaderCode = (char*) PushSize(GlobalTransientArena, Shader.ContentSize+2);
+    utils::Copy(Shader.ContentSize, Shader.Contents, ShaderCode);
+    ShaderCode[Shader.ContentSize+1] = '\n';
     Platform.DEBUGPlatformFreeFileMemory(Shader.Contents);
+    Result = PushStruct(GlobalTransientArena, char*);
+    *Result = ShaderCode;
   }
   return Result;
 }
@@ -290,24 +293,28 @@ void DeclareUniform(open_gl* OpenGL, u32 ProgramHandle, char* Name, GlUniformTyp
   jstr::CopyStringsUnchecked(Name, Uniform->Name);
 }
 
-u32 ReloadShaderProgram(open_gl* OpenGL, u32 ProgramHandle, char* VertexShader, char* FragmentShader)
+u32 ReloadShaderProgram(open_gl* OpenGL, u32 ProgramHandle, u32 VertexCodeCount, char** VertexShader, u32 FragmentCodeCount, char** FragmentShader)
 {
   gl_shader_program* Program = GetProgram(OpenGL, ProgramHandle);
   jwin_Assert(Program->Handle == ProgramHandle);
   Program->State = GlProgramState::NEW;
+  Program->VertexCodeCount = VertexCodeCount;
   Program->VertexCode = VertexShader;
+  Program->FragmentCodeCount = FragmentCodeCount;
   Program->FragmentCode = FragmentShader;
   return ProgramHandle;
 }
 
-u32 NewProgram(open_gl* OpenGL, c8* Name, char* VertexShader, char* FragmentShader)
+u32 NewProgram(open_gl* OpenGL, c8* Name, u32 VertexCodeCount, char** VertexShader, u32 FragmentCodeCount, char** FragmentShader)
 {
   u32 ProgramHandle = OpenGL->ProgramCount++;
   gl_shader_program* Result = GetProgram(OpenGL, ProgramHandle);
   *Result = {};
   Result->Handle = ProgramHandle;
   Result->State = GlProgramState::NEW;
+  Result->VertexCodeCount = VertexCodeCount;
   Result->VertexCode = VertexShader;
+  Result->FragmentCodeCount = FragmentCodeCount;
   Result->FragmentCode = FragmentShader;
   jwin_Assert(jstr::StringLength(Name) < ArrayCount(Result->Name));
   jstr::CopyStringsUnchecked(Name, Result->Name);
@@ -317,8 +324,8 @@ u32 NewProgram(open_gl* OpenGL, c8* Name, char* VertexShader, char* FragmentShad
 u32 CreatePhongProgram(open_gl* OpenGL)
 {
   u32 ProgramHandle = NewProgram(OpenGL, "PhongShading",
-      LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
-      LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
+      1, LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
+      1, LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
   DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "NormalView", GlUniformType::M4);
@@ -334,8 +341,8 @@ u32 CreatePhongProgram(open_gl* OpenGL)
 u32 CreatePlaneStarProgram(open_gl* OpenGL)
 {
   u32 ProgramHandle = NewProgram(OpenGL, "PlaneStar",
-      LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
-      LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
+      1, LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
+      1, LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
   DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
   //DeclareUniform(OpenGL, Program, "NormalView", GlUniformType::M4);
@@ -345,8 +352,8 @@ u32 CreatePlaneStarProgram(open_gl* OpenGL)
 u32 CreateSphereStarProgram(open_gl* OpenGL)
 {
   u32 ProgramHandle = NewProgram(OpenGL, "SphereStar",
-     LoadShader("..\\jwin\\shaders\\StarSphereVertex.glsl"),
-     LoadShader("..\\jwin\\shaders\\StarSphereFragment.glsl"));
+     1, LoadShader("..\\jwin\\shaders\\StarSphereVertex.glsl"),
+     1, LoadShader("..\\jwin\\shaders\\StarSphereFragment.glsl"));
   DeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
   DeclareUniform(OpenGL, ProgramHandle, "Time", GlUniformType::R32);
@@ -646,14 +653,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   if(jwin::Pushed(Input->Keyboard.Key_ENTER) || Input->ExecutableReloaded)
   {
     GlobalState->PhongProgram = ReloadShaderProgram(OpenGL, GlobalState->PhongProgram,
-      LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
-      LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
+      1, LoadShader("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
+      1, LoadShader("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
     GlobalState->PlaneStarProgram = ReloadShaderProgram(OpenGL, GlobalState->PlaneStarProgram,
-      LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
-      LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
+      1, LoadShader("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
+      1, LoadShader("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
     GlobalState->SphereStarProgram = ReloadShaderProgram(OpenGL, GlobalState->SphereStarProgram,
-     LoadShader("..\\jwin\\shaders\\StarSphereVertex.glsl"),
-     LoadShader("..\\jwin\\shaders\\StarSphereFragment.glsl"));
+      1, LoadShader("..\\jwin\\shaders\\StarSphereVertex.glsl"),
+      1, LoadShader("..\\jwin\\shaders\\StarSphereFragment.glsl"));
   }
 
   UpdateViewMatrix(Camera);
