@@ -9,7 +9,7 @@
 #include "math/AABB.cpp"
 #include "camera.cpp"
 
-#define SPOTCOUNT 120
+#define SPOTCOUNT 200
 
 internal void BlendPixel(platform_offscreen_buffer* OffscreenBuffer, s32 x, s32 y, u8 Red, u8 Green, u8 Blue, u8 alpha)
 {
@@ -424,9 +424,9 @@ u32 CreateSphereStarProgram(open_gl* OpenGL)
      "SphereStar");
   GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Time", GlUniformType::R32);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Radius", GlUniformType::R32);
-  GlDeclareUniform(OpenGL, ProgramHandle, "StarPos", GlUniformType::V2);
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::R32,  "Time");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::R32,  "Radius");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::V2,   "StarPos");
   return ProgramHandle;
 }
 
@@ -614,20 +614,12 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
 
 struct eruption {
   r32 Time;
-  r32 Speed;
-  r32 FinalRadius;
+  r32 radius;
+  v2 StarPos;
 };
 
 void Eruption(application_render_commands* RenderCommands, camera* Camera, m4 ModelMat, r32 Radius, r32 Time, r32 Theta, r32 Phi) {
-    render_object* SphereStar = PushNewRenderObject(RenderCommands->RenderGroup);
-    SphereStar->ProgramHandle = GlobalState->SphereStarProgram;
-    SphereStar->MeshHandle = GlobalState->Sphere;
-
-    PushUniform(SphereStar, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
-    PushUniform(SphereStar, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V*ModelMat);
-    PushUniform(SphereStar, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "Radius"), Radius);
-    PushUniform(SphereStar, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "Time"), Time);
-    PushUniform(SphereStar, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "StarPos"), V2(Theta,Phi));  
+    
   }
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
@@ -1062,9 +1054,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     randomInit = true;
   }
 
+  eruption* EruptionData = PushArray(GlobalTransientArena, SPOTCOUNT, eruption);
   for (int i = 0; i < ArrayCount(StartTimes); ++i)
   {
-    Eruption(RenderCommands, Camera, FMSS, Radii[i], TimeVec[i], Angles[i].X, Angles[i].Y);
+    EruptionData[i].Time= TimeVec[i];
+    EruptionData[i].radius = Radii[i];
+    EruptionData[i].StarPos = Angles[i];
     TimeVec[i]+=Speed[i] * Input->deltaTime;
     if(TimeVec[i] > 1)
     {
@@ -1072,6 +1067,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     }
   }
   
+  render_object* Eruptions = PushNewRenderObject(RenderCommands->RenderGroup);
+  Eruptions->ProgramHandle = GlobalState->SphereStarProgram;
+  Eruptions->MeshHandle = GlobalState->Sphere;
+  PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
+  PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V*FMSS);
+  PushInstanceData(Eruptions, SPOTCOUNT, SPOTCOUNT * sizeof(eruption), (void*) EruptionData);
   
   #endif
   Time+=0.03*Input->deltaTime;
