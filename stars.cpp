@@ -11,6 +11,9 @@
 
 #define SPOTCOUNT 200
 
+local_persist render_state NoDepthTest = {false,true};
+local_persist render_state DepthTest = {true,true};
+
 internal void BlendPixel(platform_offscreen_buffer* OffscreenBuffer, s32 x, s32 y, u8 Red, u8 Green, u8 Blue, u8 alpha)
 {
   u32* Pixel = ((u32*) OffscreenBuffer->Memory) + x + y * OffscreenBuffer->Width;
@@ -523,6 +526,7 @@ void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Directi
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
+  PushRenderState(Vec, {true});
 
   m4 ModelMatVecTop = M4Identity();
   Scale(V4(0.2,0.2,0.2,0),ModelMatVecTop);
@@ -550,6 +554,7 @@ void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Directi
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
+  PushRenderState(VecTop, {true});
 }
 
 struct ray_cast
@@ -586,6 +591,37 @@ ray_cast CastRay(camera* Camera, r32 Angle, r32 Width, r32 Length)
   return Result;
 }
 
+void CastConeRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera)
+{
+  ray_cast* Ray = PushStruct(GlobalTransientArena, ray_cast);
+
+  m4 StaticAngle = GetRotationMatrix(Pi32, V4(0,0,1,0));
+
+  r32 Top = 1.161060;
+  r32 Bot = 0.580535;
+  m4 ModelMat = M4Identity();
+  //r32 Middle = (Top + Bot) / 2.f;
+  Translate(V4(0,-1,0,0), ModelMat);
+  //ModelMat = GetScaleMatrix(V4(Width,Length,1,1)) * ModelMat;
+  ModelMat = StaticAngle*ModelMat;
+  Ray->ModelMat = ModelMat;
+  Ray->Color = V4(254.0/255.0, 254.0/255.0, 255/255, 1);
+  Ray->Radius = 2.f;
+  Ray->FaceDist = 1.f;
+  Ray->Center = V3(0,0,0);
+
+  render_object* RayObj = PushNewRenderObject(RenderCommands->RenderGroup);
+  RayObj->ProgramHandle = GlobalState->PlaneStarProgram;
+  RayObj->MeshHandle = GlobalState->Cone;
+
+  PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+  PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+  //PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ModelMat"), M4Identity());
+  //PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
+  PushInstanceData(RayObj, 1, sizeof(ray_cast), (void*) Ray);
+  PushRenderState(RayObj, {true,true});
+}
+
 void CastRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera)
 {
   r32 ThinRayCount = 15;
@@ -610,6 +646,7 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
   PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
   u32 InstanceCount = ThinRayCount + ThickRayCount;
   PushInstanceData(Ray, InstanceCount, InstanceCount * sizeof(ray_cast), (void*) Rays);
+  PushRenderState(Ray, {false,true});
 }
 
 struct eruption {
@@ -617,10 +654,6 @@ struct eruption {
   r32 radius;
   v2 StarPos;
 };
-
-void Eruption(application_render_commands* RenderCommands, camera* Camera, m4 ModelMat, r32 Radius, r32 Time, r32 Theta, r32 Phi) {
-    
-  }
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
@@ -895,6 +928,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(Camera);
 
+  
 
   // Model data
   local_persist b32 ModelLoaded = false;
@@ -912,169 +946,193 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
 
   // Floor
-  m4 ModelViewPlane = Camera->V*Plane;
-  m4 NormalViewPlane = Camera->V*Transpose(RigidInverse(Plane));
+  {
+    m4 ModelViewPlane = Camera->V*Plane;
+    m4 NormalViewPlane = Camera->V*Transpose(RigidInverse(Plane));
 
-  render_object* Floor = PushNewRenderObject(RenderCommands->RenderGroup);
-  Floor->ProgramHandle = GlobalState->PhongProgram;
-  Floor->MeshHandle = GlobalState->Plane;
-  Floor->TextureHandle = GlobalState->PlaneTexture;
+    render_object* Floor = PushNewRenderObject(RenderCommands->RenderGroup);
+    Floor->ProgramHandle = GlobalState->PhongProgram;
+    Floor->MeshHandle = GlobalState->Plane;
+    Floor->TextureHandle = GlobalState->PlaneTexture;
 
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelViewPlane);
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalViewPlane);
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
-  PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelViewPlane);
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalViewPlane);
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
+    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
+    PushRenderState(Floor, DepthTest);
+  }
 
   // Textured Sphere
-  Rotate( 1/120.f, -V4(0,1,0,0), ModelMatSphere );
+  {
+    Rotate( 1/120.f, -V4(0,1,0,0), ModelMatSphere );
 
-  m4 ModelViewSphere = Camera->V*ModelMatSphere;
-  m4 NormalViewSphere = Camera->V*Transpose(RigidInverse(ModelMatSphere));
+    m4 ModelViewSphere = Camera->V*ModelMatSphere;
+    m4 NormalViewSphere = Camera->V*Transpose(RigidInverse(ModelMatSphere));
 
-  render_object* Sphere = PushNewRenderObject(RenderCommands->RenderGroup);
-  Sphere->ProgramHandle = GlobalState->PhongProgram;
-  Sphere->MeshHandle = GlobalState->Sphere;
-  Sphere->TextureHandle = GlobalState->SphereTexture;
+    render_object* Sphere = PushNewRenderObject(RenderCommands->RenderGroup);
+    Sphere->ProgramHandle = GlobalState->PhongProgram;
+    Sphere->MeshHandle = GlobalState->Sphere;
+    Sphere->TextureHandle = GlobalState->SphereTexture;
 
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelViewSphere);
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalViewSphere);
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.2,0.2,0.2,1));
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
-  PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
-
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelViewSphere);
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalViewSphere);
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.2,0.2,0.2,1));
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
+    PushRenderState(Sphere, DepthTest);
+  }
 
   local_persist r32 Time = 0;
   local_persist r32 Angle2 = 0;
 
   // Ray
   CastRays(RenderCommands, Input, Camera);
-  
-  #if 1
-
-  v3 Forward, Up, Right;
-  GetCameraDirections(Camera, &Up, &Right, &Forward);
-  v3 CamPos = GetCameraPosition(Camera);
-  m4 BillboardRotation = CoordinateSystemTransform(CamPos,-CrossProduct(Right, Forward));
-  m4 HaloModelMat = M4Identity();
-  HaloModelMat = GetRotationMatrix(Pi32/2.f, V4(1,0,0,0))* HaloModelMat;
-  HaloModelMat = GetScaleMatrix(V4(2,2,2,1)) * HaloModelMat;
-  HaloModelMat = BillboardRotation*HaloModelMat;
-
-  render_object* Halo = PushNewRenderObject(RenderCommands->RenderGroup);
-  Halo->ProgramHandle = GlobalState->PlaneStarProgram;
-  Halo->MeshHandle = GlobalState->Plane;
-
-  PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
-  PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
-  ray_cast* HaloRay = PushStruct(GlobalTransientArena, ray_cast);
-  HaloRay->ModelMat = HaloModelMat;
-  HaloRay->Color = V4(254.0/255.0, 254.0/255.0, 255/255, 0.3);
-  HaloRay->Radius = (r32)( 1.3f + 0.07 * Sin(Input->Time));
-  HaloRay->FaceDist =  0.3f;
-  HaloRay->Center = V3(0,0,0);
-  PushInstanceData(Halo, 1, sizeof(ray_cast), (void*) HaloRay);
-#endif
-
-#if 1
-  render_object* FinalSphere = PushNewRenderObject(RenderCommands->RenderGroup);
-  FinalSphere->ProgramHandle = GlobalState->SolidSphereProgram;
-  FinalSphere->MeshHandle = GlobalState->Sphere;
-  r32 FinalSize = 1;
-  r32 FinalSizeOscillation = FinalSize * ( 1 + 0.01* Sin(0.05*Input->Time));
-  m4 FMSS = GetScaleMatrix(V4(FinalSizeOscillation,FinalSizeOscillation,FinalSizeOscillation,1));
-
-  PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
-  PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*FMSS);
-  PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
-
-  render_object* LargeSphere = PushNewRenderObject(RenderCommands->RenderGroup);
-  LargeSphere->ProgramHandle = GlobalState->SolidSphereProgram;
-  LargeSphere->MeshHandle = GlobalState->Sphere;
-  r32 LargeSize = 0.95;
-  r32 LargeSizeOscillation = LargeSize * ( 1 + 0.02* Sin(0.1 * Input->Time+ 1.1));
-  m4 MSS = GetScaleMatrix(V4(LargeSizeOscillation,LargeSizeOscillation,LargeSizeOscillation,1));
-
-  PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
-  PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
-  PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(56.0/255.0, 75.0/255, 220.0/255.0, 1));
 
 
-  render_object* MediumSphere = PushNewRenderObject(RenderCommands->RenderGroup);
-  MediumSphere->ProgramHandle = GlobalState->SolidSphereProgram;
-  MediumSphere->MeshHandle = GlobalState->Sphere;
-  r32 MediumSize = 0.85;
-  r32 MediumScaleOccilation = MediumSize * ( 1 + 0.02* Sin(Input->Time+Pi32/4.f));
-  MSS = GetScaleMatrix(V4(MediumScaleOccilation,MediumScaleOccilation,MediumScaleOccilation,1));
-
-  PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
-  PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
-  PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(57.0/255.0, 110.0/255, 247.0/255.0, 1));
-
-
-  render_object* SmallSphere = PushNewRenderObject(RenderCommands->RenderGroup);
-  SmallSphere->ProgramHandle = GlobalState->SolidSphereProgram;
-  SmallSphere->MeshHandle = GlobalState->Sphere;
-  r32 SmallSize = 0.65;
-  r32 SmallScaleOccilation = SmallSize * ( 1 + 0.03* Sin(Input->Time+3/4.f *Pi32));
-  MSS = GetScaleMatrix(V4(SmallScaleOccilation,SmallScaleOccilation,SmallScaleOccilation,1));
-
-  PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
-  PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
-  PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(107.0/255.0, 196.0/255, 1, 1));
-
-  local_persist b32 randomInit = false;
-  local_persist r32 StartTimes[SPOTCOUNT] = {};
-  local_persist r32 Speed[SPOTCOUNT] = {};
-  local_persist v2 Angles[SPOTCOUNT] = {};
-  local_persist r32 Radii[SPOTCOUNT] = {};
-  local_persist r32 TimeVec[SPOTCOUNT] = {};
-
-  // PlaneStar
-  if(!randomInit)
   {
+    v3 Forward, Up, Right;
+    GetCameraDirections(Camera, &Up, &Right, &Forward);
+    v3 CamPos = GetCameraPosition(Camera);
+    m4 BillboardRotation = CoordinateSystemTransform(CamPos,-CrossProduct(Right, Forward));
+    m4 HaloModelMat = M4Identity();
+    HaloModelMat = GetRotationMatrix(Pi32/2.f, V4(1,0,0,0))* HaloModelMat;
+    HaloModelMat = GetScaleMatrix(V4(2,2,2,1)) * HaloModelMat;
+    HaloModelMat = BillboardRotation*HaloModelMat;
+
+    render_object* Halo = PushNewRenderObject(RenderCommands->RenderGroup);
+    Halo->ProgramHandle = GlobalState->PlaneStarProgram;
+    Halo->MeshHandle = GlobalState->Plane;
+
+    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+    ray_cast* HaloRay = PushStruct(GlobalTransientArena, ray_cast);
+    HaloRay->ModelMat = HaloModelMat;
+    HaloRay->Color = V4(254.0/255.0, 254.0/255.0, 255/255, 0.3);
+    HaloRay->Radius = (r32)( 1.3f + 0.07 * Sin(Input->Time));
+    HaloRay->FaceDist =  0.3f;
+    HaloRay->Center = V3(0,0,0);
+    PushInstanceData(Halo, 1, sizeof(ray_cast), (void*) HaloRay);
+    PushRenderState(Halo, NoDepthTest);
+  }
+
+  m4 FMSS = {};
+  {
+    render_object* FinalSphere = PushNewRenderObject(RenderCommands->RenderGroup);
+    FinalSphere->ProgramHandle = GlobalState->SolidSphereProgram;
+    FinalSphere->MeshHandle = GlobalState->Sphere;
+    r32 FinalSize = 1;
+    r32 FinalSizeOscillation = FinalSize * ( 1 + 0.01* Sin(0.05*Input->Time));
+    FMSS = GetScaleMatrix(V4(FinalSizeOscillation,FinalSizeOscillation,FinalSizeOscillation,1));
+
+    PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
+    PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*FMSS);
+    PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
+    PushRenderState(FinalSphere, NoDepthTest);
+  }
+
+  // Ray
+  //CastConeRays(RenderCommands, Input, Camera);
+
+  m4 MSS = {};
+  {
+    render_object* LargeSphere = PushNewRenderObject(RenderCommands->RenderGroup);
+    LargeSphere->ProgramHandle = GlobalState->SolidSphereProgram;
+    LargeSphere->MeshHandle = GlobalState->Sphere;
+    r32 LargeSize = 0.95;
+    r32 LargeSizeOscillation = LargeSize * ( 1 + 0.02* Sin(0.1 * Input->Time+ 1.1));
+    MSS = GetScaleMatrix(V4(LargeSizeOscillation,LargeSizeOscillation,LargeSizeOscillation,1));
+
+    PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
+    PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
+    PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(56.0/255.0, 75.0/255, 220.0/255.0, 1));
+    PushRenderState(LargeSphere, NoDepthTest);
+  }
+
+  {
+    render_object* MediumSphere = PushNewRenderObject(RenderCommands->RenderGroup);
+    MediumSphere->ProgramHandle = GlobalState->SolidSphereProgram;
+    MediumSphere->MeshHandle = GlobalState->Sphere;
+    r32 MediumSize = 0.85;
+    r32 MediumScaleOccilation = MediumSize * ( 1 + 0.02* Sin(Input->Time+Pi32/4.f));
+    MSS = GetScaleMatrix(V4(MediumScaleOccilation,MediumScaleOccilation,MediumScaleOccilation,1));
+
+    PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
+    PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
+    PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(57.0/255.0, 110.0/255, 247.0/255.0, 1));
+    PushRenderState(MediumSphere, NoDepthTest);
+  }
+
+
+  {
+    render_object* SmallSphere = PushNewRenderObject(RenderCommands->RenderGroup);
+    SmallSphere->ProgramHandle = GlobalState->SolidSphereProgram;
+    SmallSphere->MeshHandle = GlobalState->Sphere;
+    r32 SmallSize = 0.65;
+    r32 SmallScaleOccilation = SmallSize * ( 1 + 0.03* Sin(Input->Time+3/4.f *Pi32));
+    MSS = GetScaleMatrix(V4(SmallScaleOccilation,SmallScaleOccilation,SmallScaleOccilation,1));
+
+    PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
+    PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
+    PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(107.0/255.0, 196.0/255, 1, 1));
+    PushRenderState(SmallSphere, NoDepthTest);
+  }
+
+
+  {
+    local_persist b32 randomInit = false;
+    local_persist r32 StartTimes[SPOTCOUNT] = {};
+    local_persist r32 Speed[SPOTCOUNT] = {};
+    local_persist v2 Angles[SPOTCOUNT] = {};
+    local_persist r32 Radii[SPOTCOUNT] = {};
+    local_persist r32 TimeVec[SPOTCOUNT] = {};
+
+    // PlaneStar
+    if(!randomInit)
+    {
+      for (int i = 0; i < ArrayCount(StartTimes); ++i)
+      {
+        StartTimes[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), -1,0);
+        TimeVec[i] = StartTimes[i];
+        Speed[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0.05,0.2);
+        Angles[i] = V2(
+          Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0,2*Pi32),
+          Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0,Pi32));
+        Radii[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0.04,0.15);
+      }
+      randomInit = true;
+    }
+
+    eruption* EruptionData = PushArray(GlobalTransientArena, SPOTCOUNT, eruption);
     for (int i = 0; i < ArrayCount(StartTimes); ++i)
     {
-      StartTimes[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), -1,0);
-      TimeVec[i] = StartTimes[i];
-      Speed[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0.05,0.2);
-      Angles[i] = V2(
-        Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0,2*Pi32),
-        Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0,Pi32));
-      Radii[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0.04,0.15);
+      EruptionData[i].Time= TimeVec[i];
+      EruptionData[i].radius = Radii[i];
+      EruptionData[i].StarPos = Angles[i];
+      TimeVec[i]+=Speed[i] * Input->deltaTime;
+      if(TimeVec[i] > 1)
+      {
+        TimeVec[i] = StartTimes[i];
+      }
     }
-    randomInit = true;
+    
+    render_object* Eruptions = PushNewRenderObject(RenderCommands->RenderGroup);
+    Eruptions->ProgramHandle = GlobalState->SphereStarProgram;
+    Eruptions->MeshHandle = GlobalState->Sphere;
+    PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V*FMSS);
+    PushInstanceData(Eruptions, SPOTCOUNT, SPOTCOUNT * sizeof(eruption), (void*) EruptionData);
+    PushRenderState(Eruptions, NoDepthTest);
   }
 
-  eruption* EruptionData = PushArray(GlobalTransientArena, SPOTCOUNT, eruption);
-  for (int i = 0; i < ArrayCount(StartTimes); ++i)
-  {
-    EruptionData[i].Time= TimeVec[i];
-    EruptionData[i].radius = Radii[i];
-    EruptionData[i].StarPos = Angles[i];
-    TimeVec[i]+=Speed[i] * Input->deltaTime;
-    if(TimeVec[i] > 1)
-    {
-      TimeVec[i] = StartTimes[i];
-    }
-  }
-  
-  render_object* Eruptions = PushNewRenderObject(RenderCommands->RenderGroup);
-  Eruptions->ProgramHandle = GlobalState->SphereStarProgram;
-  Eruptions->MeshHandle = GlobalState->Sphere;
-  PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
-  PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V*FMSS);
-  PushInstanceData(Eruptions, SPOTCOUNT, SPOTCOUNT * sizeof(eruption), (void*) EruptionData);
-  
-  #endif
   Time+=0.03*Input->deltaTime;
   if(Time > 1)
   {
@@ -1085,7 +1143,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   {
     Angle2 -= Tau32;
   }
-
 
 
   //DrawVector(RenderCommands, V3(0,0,0), ToProjZX, LightDirection, 0, Camera->P, Camera->V, 0.4);
