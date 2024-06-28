@@ -705,7 +705,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     GlobalState->Camera = {};
     r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32)RenderCommands->ScreenHeightPixels;
-    InitiateCamera(&GlobalState->Camera, 70, AspectRatio, 0.001);
+    InitiateCamera(&GlobalState->Camera, 70, AspectRatio, 0.1);
     LookAt(&GlobalState->Camera, V3(0,0,10), V3(0,0,0));
     RenderCommands->RenderGroup = InitiateRenderGroup();
 
@@ -934,12 +934,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   local_persist b32 ModelLoaded = false;
   local_persist m4 Plane = M4Identity();
   local_persist m4 ModelMatSphere = M4Identity();
+  local_persist m4 ModelMatSphere2 = M4Identity();
   if(!ModelLoaded)
   {
     // Plane
     Scale( V4(10,0.1,10,0), Plane );
     Translate( V4(0,-1,0,0), Plane);
-    Translate( V4(-10,0,0,0), ModelMatSphere);
+    Translate( V4(-1,0,0,0), ModelMatSphere);
+    Translate( V4(1,0,0,0), ModelMatSphere2);
     ModelLoaded = true;
   }
 
@@ -991,8 +993,33 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushRenderState(Sphere, DepthTest);
   }
 
+  // Textured Sphere
+  {
+    Rotate( 1/120.f, V4(0,1,0,0), ModelMatSphere2 );
+
+    m4 ModelViewSphere = Camera->V*ModelMatSphere2;
+    m4 NormalViewSphere = Camera->V*Transpose(RigidInverse(ModelMatSphere2));
+
+    render_object* Sphere = PushNewRenderObject(RenderCommands->RenderGroup);
+    Sphere->ProgramHandle = GlobalState->PhongProgram;
+    Sphere->MeshHandle = GlobalState->Sphere;
+    Sphere->TextureHandle = GlobalState->SphereTexture;
+
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelViewSphere);
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalViewSphere);
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.2,0.2,0.2,1));
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
+    PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
+    PushRenderState(Sphere, DepthTest);
+  }
+
   local_persist r32 Time = 0;
   local_persist r32 Angle2 = 0;
+/*
 
   // Ray
   CastRays(RenderCommands, Input, Camera);
@@ -1041,7 +1068,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   // Ray
   //CastConeRays(RenderCommands, Input, Camera);
-
   m4 MSS = {};
   {
     render_object* LargeSphere = PushNewRenderObject(RenderCommands->RenderGroup);
@@ -1132,7 +1158,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushInstanceData(Eruptions, SPOTCOUNT, SPOTCOUNT * sizeof(eruption), (void*) EruptionData);
     PushRenderState(Eruptions, NoDepthTest);
   }
-
+*/
   Time+=0.03*Input->deltaTime;
   if(Time > 1)
   {
