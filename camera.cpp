@@ -201,7 +201,7 @@ void InitiateCamera(camera* Camera, r32 AngleOfView, r32 AspectRatio, r32 near )
   Camera->DeltaPos = V3(0,0,0);
   Camera->V = M4Identity();
   Camera->P = M4Identity();
-  SetPerspectiveProj( Camera, near, 100 );
+  SetPerspectiveProj( Camera, near, 500 );
 }
 
 void gluPerspective(

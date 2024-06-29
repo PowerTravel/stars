@@ -11,8 +11,10 @@
 
 #define SPOTCOUNT 200
 
-local_persist render_state NoDepthTest = {false,true};
-local_persist render_state DepthTest = {true,true};
+local_persist render_state NoDepthTestNoCulling = {false,false};
+local_persist render_state DepthTestNoCulling = {true,false};
+local_persist render_state NoDepthTestCulling = {false,true};
+local_persist render_state DepthTestCulling = {true,true};
 
 internal void BlendPixel(platform_offscreen_buffer* OffscreenBuffer, s32 x, s32 y, u8 Red, u8 Green, u8 Blue, u8 alpha)
 {
@@ -528,7 +530,7 @@ void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Directi
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(Vec, DepthTest);
+  PushRenderState(Vec, DepthTestCulling);
 
   m4 ModelMatVecTop = M4Identity();
   Scale(V4(0.2,0.2,0.2,0),ModelMatVecTop);
@@ -556,7 +558,7 @@ void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Directi
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(VecTop, DepthTest);
+  PushRenderState(VecTop, DepthTestCulling);
 }
 
 struct ray_cast
@@ -568,7 +570,7 @@ struct ray_cast
   v3 Center;
 };
 
-ray_cast CastRay(camera* Camera, r32 Angle, r32 Width, r32 Length)
+ray_cast CastRay(camera* Camera, r32 Angle, r32 Width, r32 Length, v4 Color)
 {
   ray_cast Result = {};
   v3 Forward, Up, Right;
@@ -586,7 +588,7 @@ ray_cast CastRay(camera* Camera, r32 Angle, r32 Width, r32 Length)
   ModelMat = StaticAngle*ModelMat;
   ModelMat = BillboardRotation*ModelMat;
   Result.ModelMat = ModelMat;
-  Result.Color = V4(254.0/255.0, 254.0/255.0, 255/255, 0.3);
+  Result.Color = Color;
   Result.Radius = 3.f;
   Result.FaceDist = 2.f;
   Result.Center = V3(0,0,0);
@@ -607,9 +609,9 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
   //ModelMat = GetScaleMatrix(V4(Width,Length,1,1)) * ModelMat;
   ModelMat = StaticAngle*ModelMat;
   Ray->ModelMat = ModelMat;
-  Ray->Color = V4(254.0/255.0, 254.0/255.0, 255/255, 1);
+  Ray->Color = V4(0.52, 1, 0.51, 0.5);
   Ray->Radius = 2.f;
-  Ray->FaceDist = 1.f;
+  Ray->FaceDist = 2.f;
   Ray->Center = V3(0,0,0);
 
   render_object* RayObj = PushNewRenderObject(RenderCommands->RenderGroup);
@@ -624,7 +626,7 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
   //PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ModelMat"), M4Identity());
   //PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
   PushInstanceData(RayObj, 1, sizeof(ray_cast), (void*) Ray);
-  PushRenderState(RayObj, DepthTest);
+  PushRenderState(RayObj, DepthTestNoCulling);
   RayObj->Transparent = true;
 }
 
@@ -636,12 +638,12 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
   for (r32 i = 0; i < ThinRayCount; ++i)
   {
     r32 RayAngle = 0.06f*Input->Time + i*Tau32 / ThinRayCount;
-    Rays[(u32)i] = CastRay(Camera, RayAngle, 0.3, 4);
+    Rays[(u32)i] = CastRay(Camera, RayAngle, 0.3, 4, V4(1-i/ThinRayCount, i/ThinRayCount, 0.81, 0.6));
   }
   for (r32 i = 0; i < ThickRayCount; ++i)
   {
     r32 RayAngle = -0.04*Input->Time + i*Tau32/ThickRayCount + Pi32/3.f + 0.03*Sin(Input->Time);
-    Rays[(u32)(i + ThinRayCount)] = CastRay(Camera, RayAngle, 1, 4);
+    Rays[(u32)(i + ThinRayCount)] = CastRay(Camera, RayAngle, 1, 4, V4(i/ThickRayCount, 1-i/ThickRayCount, 0.81, 0.6));
   }
 
   render_object* Ray = PushNewRenderObject(RenderCommands->RenderGroup);
@@ -655,7 +657,7 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
   PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "RevealTex"), (u32)3);
   u32 InstanceCount = ThinRayCount + ThickRayCount;
   PushInstanceData(Ray, InstanceCount, InstanceCount * sizeof(ray_cast), (void*) Rays);
-  PushRenderState(Ray, DepthTest);
+  PushRenderState(Ray, DepthTestCulling);
 }
 
 struct eruption {
@@ -975,7 +977,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
     PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
     PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
-    PushRenderState(Floor, DepthTest);
+    PushRenderState(Floor, DepthTestCulling);
   }
 
   // Textured Sphere
@@ -999,7 +1001,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
     PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
     PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
-    PushRenderState(Sphere, DepthTest);
+    PushRenderState(Sphere, DepthTestCulling);
   }
 
   // Textured Sphere
@@ -1023,7 +1025,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
     PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
     PushUniform(Sphere, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
-    PushRenderState(Sphere, DepthTest);
+    PushRenderState(Sphere, DepthTestCulling);
   }
 
   local_persist r32 Time = 0;
@@ -1043,7 +1045,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
     PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*FMSS);
     PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
-    PushRenderState(FinalSphere, DepthTest);
+    PushRenderState(FinalSphere, DepthTestCulling);
   }
 
   // Second Largest Sphere
@@ -1059,7 +1061,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
     PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
     PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(56.0/255.0, 75.0/255, 220.0/255.0, 1));
-    PushRenderState(LargeSphere, DepthTest);
+    PushRenderState(LargeSphere, DepthTestCulling);
   }
 
   {
@@ -1073,7 +1075,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
     PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
     PushUniform(MediumSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(57.0/255.0, 110.0/255, 247.0/255.0, 1));
-    PushRenderState(MediumSphere, NoDepthTest);
+    PushRenderState(MediumSphere, NoDepthTestCulling);
   }
 
   // Smallest Sphere
@@ -1088,7 +1090,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
     PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
     PushUniform(SmallSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(107.0/255.0, 196.0/255, 1, 1));
-    PushRenderState(SmallSphere, NoDepthTest);
+    PushRenderState(SmallSphere, NoDepthTestCulling);
   }
 
 
@@ -1135,7 +1137,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ProjectionMat"), Camera->P);
     PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->SphereStarProgram, "ModelView"), Camera->V*FMSS);
     PushInstanceData(Eruptions, SPOTCOUNT, SPOTCOUNT * sizeof(eruption), (void*) EruptionData);
-    PushRenderState(Eruptions, NoDepthTest);
+    PushRenderState(Eruptions, NoDepthTestCulling);
   }
 
   // Transparen objects last
@@ -1170,7 +1172,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     HaloRay->FaceDist =  0.3f;
     HaloRay->Center = V3(0,0,0);
     PushInstanceData(Halo, 1, sizeof(ray_cast), (void*) HaloRay);
-    PushRenderState(Halo, DepthTest);
+    PushRenderState(Halo, DepthTestCulling);
   }
 
   CastConeRays(RenderCommands, Input, Camera);
