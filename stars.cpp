@@ -411,6 +411,8 @@ u32 CreatePlaneStarProgram(open_gl* OpenGL)
        "PlaneStar");
   GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   GlDeclareUniform(OpenGL, ProgramHandle, "ViewMat", GlUniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "AccumTex",  GlUniformType::U32);
+  GlDeclareUniform(OpenGL, ProgramHandle, "RevealTex",  GlUniformType::U32);
   GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::M4,   "ModelMat");
   GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::V4,   "Color");
   GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::R32,  "Radius");
@@ -526,7 +528,7 @@ void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Directi
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(Vec, {true});
+  PushRenderState(Vec, DepthTest);
 
   m4 ModelMatVecTop = M4Identity();
   Scale(V4(0.2,0.2,0.2,0),ModelMatVecTop);
@@ -554,7 +556,7 @@ void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Directi
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(VecTop, {true});
+  PushRenderState(VecTop, DepthTest);
 }
 
 struct ray_cast
@@ -616,10 +618,14 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
 
   PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
   PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+    PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "AccumTex"), (u32)2);
+    PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "RevealTex"), (u32)3);
+
   //PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ModelMat"), M4Identity());
   //PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
   PushInstanceData(RayObj, 1, sizeof(ray_cast), (void*) Ray);
-  PushRenderState(RayObj, {true,true});
+  PushRenderState(RayObj, DepthTest);
+  RayObj->Transparent = true;
 }
 
 void CastRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera)
@@ -641,12 +647,15 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
   render_object* Ray = PushNewRenderObject(RenderCommands->RenderGroup);
   Ray->ProgramHandle = GlobalState->PlaneStarProgram;
   Ray->MeshHandle = GlobalState->Triangle;
+  Ray->Transparent = true;
 
   PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
-  PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+  PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);  
+  PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "AccumTex"), (u32)2);
+  PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "RevealTex"), (u32)3);
   u32 InstanceCount = ThinRayCount + ThickRayCount;
   PushInstanceData(Ray, InstanceCount, InstanceCount * sizeof(ray_cast), (void*) Rays);
-  PushRenderState(Ray, {false,true});
+  PushRenderState(Ray, DepthTest);
 }
 
 struct eruption {
@@ -940,8 +949,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     // Plane
     Scale( V4(10,0.1,10,0), Plane );
     Translate( V4(0,-1,0,0), Plane);
-    Translate( V4(-1,0,0,0), ModelMatSphere);
-    Translate( V4(1,0,0,0), ModelMatSphere2);
+    Translate( V4(-10,0,0,0), ModelMatSphere);
+    Translate( V4(-11,0,0,0), ModelMatSphere2);
     ModelLoaded = true;
   }
 
@@ -1019,38 +1028,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   local_persist r32 Time = 0;
   local_persist r32 Angle2 = 0;
-/*
-
-  // Ray
-  CastRays(RenderCommands, Input, Camera);
 
 
-  {
-    v3 Forward, Up, Right;
-    GetCameraDirections(Camera, &Up, &Right, &Forward);
-    v3 CamPos = GetCameraPosition(Camera);
-    m4 BillboardRotation = CoordinateSystemTransform(CamPos,-CrossProduct(Right, Forward));
-    m4 HaloModelMat = M4Identity();
-    HaloModelMat = GetRotationMatrix(Pi32/2.f, V4(1,0,0,0))* HaloModelMat;
-    HaloModelMat = GetScaleMatrix(V4(2,2,2,1)) * HaloModelMat;
-    HaloModelMat = BillboardRotation*HaloModelMat;
-
-    render_object* Halo = PushNewRenderObject(RenderCommands->RenderGroup);
-    Halo->ProgramHandle = GlobalState->PlaneStarProgram;
-    Halo->MeshHandle = GlobalState->Plane;
-
-    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
-    ray_cast* HaloRay = PushStruct(GlobalTransientArena, ray_cast);
-    HaloRay->ModelMat = HaloModelMat;
-    HaloRay->Color = V4(254.0/255.0, 254.0/255.0, 255/255, 0.3);
-    HaloRay->Radius = (r32)( 1.3f + 0.07 * Sin(Input->Time));
-    HaloRay->FaceDist =  0.3f;
-    HaloRay->Center = V3(0,0,0);
-    PushInstanceData(Halo, 1, sizeof(ray_cast), (void*) HaloRay);
-    PushRenderState(Halo, NoDepthTest);
-  }
-
+  // Bigest Sphere
   m4 FMSS = {};
   {
     render_object* FinalSphere = PushNewRenderObject(RenderCommands->RenderGroup);
@@ -1063,11 +1043,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
     PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*FMSS);
     PushUniform(FinalSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
-    PushRenderState(FinalSphere, NoDepthTest);
+    PushRenderState(FinalSphere, DepthTest);
   }
 
-  // Ray
-  //CastConeRays(RenderCommands, Input, Camera);
+  // Second Largest Sphere
   m4 MSS = {};
   {
     render_object* LargeSphere = PushNewRenderObject(RenderCommands->RenderGroup);
@@ -1080,7 +1059,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ProjectionMat"), Camera->P);
     PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "ModelView"), Camera->V*MSS);
     PushUniform(LargeSphere, GlGetUniformHandle(OpenGL, GlobalState->SolidSphereProgram, "Color"), V4(56.0/255.0, 75.0/255, 220.0/255.0, 1));
-    PushRenderState(LargeSphere, NoDepthTest);
+    PushRenderState(LargeSphere, DepthTest);
   }
 
   {
@@ -1097,7 +1076,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushRenderState(MediumSphere, NoDepthTest);
   }
 
-
+  // Smallest Sphere
   {
     render_object* SmallSphere = PushNewRenderObject(RenderCommands->RenderGroup);
     SmallSphere->ProgramHandle = GlobalState->SolidSphereProgram;
@@ -1158,7 +1137,44 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushInstanceData(Eruptions, SPOTCOUNT, SPOTCOUNT * sizeof(eruption), (void*) EruptionData);
     PushRenderState(Eruptions, NoDepthTest);
   }
-*/
+
+  // Transparen objects last
+
+  // Ray
+  CastRays(RenderCommands, Input, Camera);
+
+  // Halo
+  {
+    v3 Forward, Up, Right;
+    GetCameraDirections(Camera, &Up, &Right, &Forward);
+    v3 CamPos = GetCameraPosition(Camera);
+    m4 BillboardRotation = CoordinateSystemTransform(CamPos,-CrossProduct(Right, Forward));
+    m4 HaloModelMat = M4Identity();
+    HaloModelMat = GetRotationMatrix(Pi32/2.f, V4(1,0,0,0))* HaloModelMat;
+    HaloModelMat = GetScaleMatrix(V4(2,2,2,1)) * HaloModelMat;
+    HaloModelMat = BillboardRotation*HaloModelMat;
+
+    render_object* Halo = PushNewRenderObject(RenderCommands->RenderGroup);
+    Halo->ProgramHandle = GlobalState->PlaneStarProgram;
+    Halo->MeshHandle = GlobalState->Plane;
+    Halo->Transparent = true;
+
+    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "AccumTex"), (u32)2);
+    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "RevealTex"), (u32)3);
+    ray_cast* HaloRay = PushStruct(GlobalTransientArena, ray_cast);
+    HaloRay->ModelMat = HaloModelMat;
+    HaloRay->Color = V4(254.0/255.0, 254.0/255.0, 255/255, 0.3);
+    HaloRay->Radius = (r32)( 1.3f + 0.07 * Sin(Input->Time));
+    HaloRay->FaceDist =  0.3f;
+    HaloRay->Center = V3(0,0,0);
+    PushInstanceData(Halo, 1, sizeof(ray_cast), (void*) HaloRay);
+    PushRenderState(Halo, DepthTest);
+  }
+
+  CastConeRays(RenderCommands, Input, Camera);
+
   Time+=0.03*Input->deltaTime;
   if(Time > 1)
   {
