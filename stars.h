@@ -21,6 +21,7 @@ struct application_state
   u32 PlaneStarProgram;
   u32 SphereStarProgram;
   u32 SolidSphereProgram;
+  u32 EruptionBandProgram;
   u32 Plane;
   u32 Sphere;
   u32 Triangle;
