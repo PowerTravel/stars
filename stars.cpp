@@ -617,21 +617,18 @@ ray_cast CastRay(camera* Camera, r32 Angle, r32 Width, r32 Length, v4 Color)
   return Result;
 }
 
-void CastConeRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera, r32 Scale)
+void CastConeRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera, v3 PointOnUitSphere, r32 AngleOnSphere, r32 MaxAngleOnSphere)
 {
   ray_cast* Ray = PushStruct(GlobalTransientArena, ray_cast);
 
-  m4 StaticAngle = GetRotationMatrix(Pi32/2.f, V4(-1,0,0,0));
+  m4 StaticAngle = QuaternionAsMatrix(GetRotation(V3(0,-1,0), PointOnUitSphere));
 
-  r32 Top = 1.161060;
-  r32 Bot = 0.580535;
   m4 ModelMat = M4Identity();
-  //r32 Middle = (Top + Bot) / 2.f;
   Translate(V4(0,-1,0,0), ModelMat);
-  ModelMat = GetScaleMatrix(V4(Scale,1,Scale,1)) * ModelMat;
+  ModelMat = GetScaleMatrix(V4(AngleOnSphere,1,AngleOnSphere,1)) * ModelMat;
   ModelMat = StaticAngle*ModelMat;
   Ray->ModelMat = ModelMat;
-  Ray->Color = V4(1, 1, 1, 0.5);
+  Ray->Color = V4(1, 1, 1, LinearRemap(MaxAngleOnSphere-AngleOnSphere, 0, MaxAngleOnSphere, 0.26,0.5));
   Ray->Radius = 2.f;
   Ray->FaceDist = 2.f;
   Ray->Center = V3(0,0,0);
@@ -645,8 +642,6 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
   PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "AccumTex"), (u32)2);
   PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "RevealTex"), (u32)3);
 
-  //PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ModelMat"), M4Identity());
-  //PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
   PushInstanceData(RayObj, 1, sizeof(ray_cast), (void*) Ray);
   PushRenderState(RayObj, DepthTestNoCulling);
   RayObj->Transparent = true;
@@ -691,21 +686,67 @@ v4 LerpColor(r32 t, v4 StartColor, v4 EndColor)
   return Result;
 }
 
-struct eruption {
-  r32 Time;
-  r32 radius;
-  v2 StarPos;
+struct eruption_params {
+  r32 MaxEruptionBandWidthRad;
+  r32 MaxEruptionSizeRad;
+  v3 PointOnUnitSphere;
+  u32 MaxEruptionBandCount;
+  r32* RadiiIncrements;
+  v4* Colors;
+  r32 TimeParameter;
 };
+
+void DrawEruption(application_render_commands* RenderCommands, jwin::device_input* Input, eruption_params* Params, m4 StarModelMat) {
+
+  r32 OuterBandRadii = Lerp(Params->TimeParameter, 0, Params->MaxEruptionSizeRad);
+  r32 InnerBandRadii = Maximum(0,
+    LinearRemap(OuterBandRadii - Params->MaxEruptionBandWidthRad,
+      0, Params->MaxEruptionSizeRad-Params->MaxEruptionBandWidthRad,
+      0, Params->MaxEruptionSizeRad));
+
+  u32 ActiveBandCount = 0;
+  r32 IncrementSum = 0;
+  u32 Index = 0;
+  do
+  {
+    ActiveBandCount++;
+    IncrementSum+=Params->RadiiIncrements[Index++];
+  }while(ActiveBandCount<Params->MaxEruptionBandCount && OuterBandRadii > IncrementSum * Params->MaxEruptionBandWidthRad);
+
+
+  r32 Radii = OuterBandRadii;
+  eurption_band* EruptionBands = PushArray(GlobalTransientArena, ActiveBandCount, eurption_band);
+  for (int i = 0; i < ActiveBandCount; ++i)
+  {
+    eurption_band* EruptionBand = EruptionBands + i;
+    EruptionBand->Color = Params->Colors[i];
+    EruptionBand->Center = Params->PointOnUnitSphere;
+    EruptionBand->OuterRadii = Radii;
+    EruptionBand->InnerRadii = BranchlessArithmatic(InnerBandRadii > 0,
+      Radii - (OuterBandRadii-InnerBandRadii) * Params->RadiiIncrements[i],
+      Maximum(0, Radii - Params->RadiiIncrements[i] * Params->MaxEruptionBandWidthRad));
+    Radii = EruptionBand->InnerRadii;
+  }
+
+  render_object* Eruptions = PushNewRenderObject(RenderCommands->RenderGroup);
+  Eruptions->ProgramHandle = GlobalState->EruptionBandProgram;
+  Eruptions->MeshHandle = GlobalState->Sphere;
+  PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->EruptionBandProgram, "ProjectionMat"), GlobalState->Camera.P);
+  PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->EruptionBandProgram, "ModelView"), GlobalState->Camera.V*StarModelMat);
+  PushInstanceData(Eruptions, ActiveBandCount, ActiveBandCount * sizeof(eurption_band), (void*) EruptionBands);
+  PushRenderState(Eruptions, NoDepthTestCulling);
+  
+  if(InnerBandRadii > 0)
+  {
+    CastConeRays(RenderCommands, Input, &GlobalState->Camera, Params->PointOnUnitSphere, 2*InnerBandRadii,  Params->MaxEruptionSizeRad);
+  }
+}
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
   GlobalState = JwinBeginFrameMemory(application_state);
 
-  u32 CharCount = 0x100;
-  int Padding = 3;
-  char FontPath[] = "C:\\Windows\\Fonts\\consola.ttf";
-  int OnedgeValue = 128;
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   local_persist v3 LightPosition = V3(1,1,0);
   open_gl* OpenGL = &RenderCommands->OpenGL;
@@ -736,6 +777,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Billboard = GlLoadMesh(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena,  billboard));
     GlobalState->PlaneTexture = GlLoadTexture(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, plane->MaterialData->Materials[0].MapKd));
     GlobalState->SphereTexture = GlLoadTexture(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, texture));
+    
+
+    u32 CharCount = 0x100;
+    char FontPath[] = "C:\\Windows\\Fonts\\consola.ttf";
     GlobalState->OnedgeValue = 128;  // "Brightness" of the sdf. Higher value makes the SDF bigger and brighter.
                                      // Has no impact on TextPixelSize since the char then is also bigger.
     GlobalState->TextPixelSize = 64; // Size of the SDF
@@ -743,7 +788,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
                                             // Lower PixelDistanceScale and Higher OnedgeValue gives a 'sharper' sdf.
     GlobalState->FontRelativeScale = 1.f;
     GlobalState->Font = jfont::LoadSDFFont(PushArray(GlobalPersistentArena, CharCount, jfont::sdf_fontchar),
-      CharCount, FontPath, GlobalState->TextPixelSize, Padding, GlobalState->OnedgeValue, GlobalState->PixelDistanceScale);
+      CharCount, FontPath, GlobalState->TextPixelSize, 3, GlobalState->OnedgeValue, GlobalState->PixelDistanceScale);
     GlobalState->Initialized = true;
 
     GlobalState->Camera = {};
@@ -1129,119 +1174,49 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushRenderState(SmallSphere, NoDepthTestCulling);
   }
 
+  r32 Theta = 0;
+  r32 Phi = Pi32/2;
   v4 StartColor = V4(153.0/255.0, 173.0/255, 254.0/255.0,1);
   v4 EndColor = V4(254.0/255.0, 254.0/255.0, 255/255,1);
+  v4 Colors[] ={
+    LerpColor(0/3.f, StartColor, EndColor),
+    LerpColor(1/3.f, StartColor, EndColor),
+    LerpColor(2/3.f, StartColor, EndColor),
+    LerpColor(3/3.f, StartColor, EndColor)
+  };
+  r32 RadiiIncrements[] = {0.1, 0.2, 0.3, 0.4};
 
-  
+  eruption_params Params = {};
+  Params.MaxEruptionBandWidthRad = 0.05;
+  Params.MaxEruptionSizeRad = 0.07;
+  Params.PointOnUnitSphere = V3(Cos(Theta)*Sin(Phi), Sin(Theta)*Sin(Phi), Cos(Phi));
+  Params.MaxEruptionBandCount = 4;
+  Params.RadiiIncrements = (r32*) RadiiIncrements;
+  Params.Colors = (v4*)Colors;
 
-  local_persist float t = 0;
+  r32 tStart = -4;
+  r32 tEnd = 4;
+  r32 TimeLoop = LoopParam(Input->Time, tStart, tEnd - tStart);
+  Params.TimeParameter = Unlerp(TimeLoop, tStart, tEnd);
 
-  {
-    #if 1
-    r32 Theta = 0;
-    r32 Phi = Pi32/2.f;
-    r32 MaxBandWidthAngle = 0.05;
-    r32 MaxAngle = 0.1;
-
-    r32 Speed = 0.1 * Pi32 / 60.f;
-
-    // Given t : [Start time, End Time] -> TParameter: [0, 1]
-    r32 tStart = 0;
-    r32 tEnd = MaxAngle / Speed;
-    r32 TParameter = Unlerp(t, tStart, tEnd);
-
-    r32 OuterRadii = Lerp(TParameter, 0, MaxAngle);
-    r32 InnerRadiiParam = LinearRemap(OuterRadii - MaxBandWidthAngle, 0, MaxAngle-MaxBandWidthAngle, 0, 1);
-    r32 InnerRadii = Maximum(0, LinearRemap(OuterRadii - MaxBandWidthAngle, 0, MaxAngle-MaxBandWidthAngle, 0, MaxAngle));
-
-
-    r32 RadiiIncrements[] = {0.1, 0.2, 0.3, 0.4};
-    v4 BandColors[] = {0.1, 0.2, 0.3, 0.4};
-    r32 MaxEruptions = ArrayCount(RadiiIncrements);
-    u32 ActiveEruptionBandCount = 0;//(u32) Ciel(Minimum(((OuterRadii) / (MaxBandWidthAngle*BandWidthRatio)), MaxEruptions));
-    r32 IncrementSum = 0;
-    u32 Index = 0;
-    do
+#if 0
+    if(!randomInit)
     {
-      ActiveEruptionBandCount++;
-      IncrementSum+=RadiiIncrements[Index];
-      Index++;
-    }while (ActiveEruptionBandCount<MaxEruptions && OuterRadii > IncrementSum * MaxBandWidthAngle);
-    
-    if(TParameter > 0.05)
-    {
-      int a = 10;
-    }
-    if(ActiveEruptionBandCount == 1)
-    {
-      int a = 10;
-    }else if(ActiveEruptionBandCount == 2)
-    {
-      int a = 10;
-    }else if(ActiveEruptionBandCount == 3)
-    {
-      int a = 10;
-    }else if(ActiveEruptionBandCount == 4)
-    {
-      int a = 10;
-    }
-
-    Platform.DEBUGPrint("%d %f\n",ActiveEruptionBandCount, TParameter);
-    v4 c  =LerpColor(TParameter, EndColor, StartColor);
-    //Platform.DEBUGPrint("%d, %f, %f, %f\n",ActiveEruptionBandCount, c.X,c.Y,c.Z);
-
-
-    r32 Radii = OuterRadii;
-
-    if(InnerRadii > 0)
-    {
-      eurption_band* EruptionBands = PushArray(GlobalTransientArena, ActiveEruptionBandCount, eurption_band);
-      for (int i = 0; i < ActiveEruptionBandCount; ++i)
+      for (int i = 0; i < ArrayCount(StartTimes); ++i)
       {
-        eurption_band* EruptionBand = EruptionBands + i;
-        EruptionBand->Color = LerpColor(i/(r32)ActiveEruptionBandCount, StartColor, EndColor);
-        EruptionBand->Center = V3(Cos(Theta)*Sin(Phi), Sin(Theta)*Sin(Phi), Cos(Phi));
-
-        EruptionBand->OuterRadii = Radii;
-
-        Radii -= (OuterRadii-InnerRadii) * RadiiIncrements[i];
-        EruptionBand->InnerRadii = Radii;
-      } 
-      render_object* Eruptions = PushNewRenderObject(RenderCommands->RenderGroup);
-      Eruptions->ProgramHandle = GlobalState->EruptionBandProgram;
-      Eruptions->MeshHandle = GlobalState->Sphere;
-      PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->EruptionBandProgram, "ProjectionMat"), Camera->P);
-      PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->EruptionBandProgram, "ModelView"), Camera->V*FMSS);
-      PushInstanceData(Eruptions, ActiveEruptionBandCount, ActiveEruptionBandCount * sizeof(eurption_band), (void*) EruptionBands);
-      PushRenderState(Eruptions, NoDepthTestCulling);
-    }else{
-      eurption_band* EruptionBands = PushArray(GlobalTransientArena, ActiveEruptionBandCount, eurption_band);
-      for (int i = 0; i < ActiveEruptionBandCount; ++i)
-      {
-        eurption_band* EruptionBand = EruptionBands + i;
-        EruptionBand->Color = LerpColor(i/(r32)MaxEruptions, StartColor, EndColor);
-        EruptionBand->Center = V3(Cos(Theta)*Sin(Phi), Sin(Theta)*Sin(Phi), Cos(Phi));
-        EruptionBand->OuterRadii = Radii;
-        EruptionBand->InnerRadii = Maximum(0, Radii - RadiiIncrements[i] * MaxBandWidthAngle );
-        Radii = EruptionBand->InnerRadii;
+        StartTimes[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), -1,0);
+        TimeVec[i] = StartTimes[i];
+        Speed[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0.05,0.2);
+        Angles[i] = V2(
+          Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0,2*Pi32),
+          Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0,Pi32));
+        Radii[i] = Lerp((r32) GetRandomRealNorm(&GlobalState->RandomGenerator), 0.04,0.15);
       }
-      render_object* Eruptions = PushNewRenderObject(RenderCommands->RenderGroup);
-      Eruptions->ProgramHandle = GlobalState->EruptionBandProgram;
-      Eruptions->MeshHandle = GlobalState->Sphere;
-      PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->EruptionBandProgram, "ProjectionMat"), Camera->P);
-      PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->EruptionBandProgram, "ModelView"), Camera->V*FMSS);
-      PushInstanceData(Eruptions, ActiveEruptionBandCount, ActiveEruptionBandCount * sizeof(eurption_band), (void*) EruptionBands);
-      PushRenderState(Eruptions, NoDepthTestCulling);
+      randomInit = true;
     }
-
-    t += Input->deltaTime;
-    if(t > tEnd)
-    {
-      t = 0;
-    }
-#endif
-    
-    
+#endif    
+  DrawEruption(RenderCommands, Input, &Params, FMSS);
+  
 
     /*
 
@@ -1348,7 +1323,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushInstanceData(Eruptions, SPOTCOUNT, SPOTCOUNT * sizeof(eruption), (void*) EruptionData);
     PushRenderState(Eruptions, NoDepthTestCulling);
     */
-  }
 
   // Transparen objects last
 
