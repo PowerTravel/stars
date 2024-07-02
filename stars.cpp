@@ -9,7 +9,7 @@
 #include "math/AABB.cpp"
 #include "camera.cpp"
 
-#define SPOTCOUNT 50
+#define SPOTCOUNT 120
 
 local_persist render_state NoDepthTestNoCulling = {false,false};
 local_persist render_state DepthTestNoCulling = {true,false};
@@ -687,9 +687,9 @@ v4 LerpColor(r32 t, v4 StartColor, v4 EndColor)
 }
 
 struct eruption_params {
-  r32 MaxEruptionBandWidthRad;
-  r32 MaxEruptionSizeRad;
+  r32 EruptionSize;
   v3 PointOnUnitSphere;
+  r32 PopTime;
   u32 MaxEruptionBandCount;
   r32 RadiiIncrements[4];
   v4 Colors[4];
@@ -700,17 +700,23 @@ struct eruption_params {
 
 void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device_input* Input, u32 ParamCounts, eruption_params* Params, m4 StarModelMat) {
 
-  eurption_band* EruptionBands = PushArray(GlobalTransientArena, 4*ParamCounts, eurption_band);
+  u32 MaxBandCount = 0;
+  for (int ParamIndex = 0; ParamIndex < ParamCounts; ++ParamIndex)
+  {
+    MaxBandCount+=Params[ParamIndex].MaxEruptionBandCount;
+  }
+
+  eurption_band* EruptionBands = PushArray(GlobalTransientArena, MaxBandCount, eurption_band);
   u32 BandCount = 0;
   for (int ParamIndex = 0; ParamIndex < ParamCounts; ++ParamIndex)
   {
     eruption_params* Param = Params + ParamIndex;
+    r32 EruptionSize = Param->PopTime * Param->EruptionSize;
     r32 TimeParameter = Unlerp(Param->Time, 0, Param->Duration);
-    r32 OuterBandRadii = Lerp(TimeParameter, 0, Param->MaxEruptionSizeRad);
-    r32 InnerBandRadii = Maximum(0,
-      LinearRemap(OuterBandRadii - Param->MaxEruptionBandWidthRad,
-        0, Param->MaxEruptionSizeRad-Param->MaxEruptionBandWidthRad,
-        0, Param->MaxEruptionSizeRad));
+    r32 OuterBandRadii = Lerp(TimeParameter, 0, EruptionSize);
+    r32 InnerBandRadii = BranchlessArithmatic( TimeParameter < Param->PopTime,
+      0,
+      LinearRemap(TimeParameter, Param->PopTime, 1, 0, EruptionSize));
 
     u32 ActiveBandCount = 0;
     r32 IncrementSum = 0;
@@ -718,9 +724,8 @@ void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device
     do
     {
       ActiveBandCount++;
-      IncrementSum+=Param->RadiiIncrements[Index++];
-    }while(ActiveBandCount<Param->MaxEruptionBandCount && OuterBandRadii > IncrementSum * Param->MaxEruptionBandWidthRad);
-
+      IncrementSum+=Param->RadiiIncrements[Index++] * Param->PopTime;
+    }while(ActiveBandCount<Param->MaxEruptionBandCount && TimeParameter > IncrementSum);
 
     r32 Radii = OuterBandRadii;
     for (int BandIndex = 0; BandIndex < ActiveBandCount; ++BandIndex)
@@ -729,15 +734,17 @@ void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device
       EruptionBand->Color = Param->Colors[BandIndex];
       EruptionBand->Center = Param->PointOnUnitSphere;
       EruptionBand->OuterRadii = Radii;
-      EruptionBand->InnerRadii = BranchlessArithmatic(InnerBandRadii > 0,
-        Radii - (OuterBandRadii-InnerBandRadii) * Param->RadiiIncrements[BandIndex],
-        Maximum(0, Radii - Param->RadiiIncrements[BandIndex] * Param->MaxEruptionBandWidthRad));
+      EruptionBand->InnerRadii = BranchlessArithmatic(TimeParameter < Param->PopTime,
+        Maximum(0, Radii - Param->RadiiIncrements[BandIndex] * EruptionSize*Param->PopTime),
+        Radii - (OuterBandRadii-InnerBandRadii) * Param->RadiiIncrements[BandIndex]);
       Radii = EruptionBand->InnerRadii;
+      EruptionBand->Color.W = Minimum(1, LinearRemap(Param->Time, Param->Duration-0.3f, Param->Duration, 1,0));
     }
     BandCount += ActiveBandCount;
-    if(Param->HasRayCone && InnerBandRadii > 0)
+    if(Param->HasRayCone && ActiveBandCount == Param->MaxEruptionBandCount && EruptionBands[BandCount-1].InnerRadii > 0)
     {
-      CastConeRays(RenderCommands, Input, &GlobalState->Camera, Param->PointOnUnitSphere, 2*InnerBandRadii,  Param->MaxEruptionSizeRad);
+      CastConeRays(RenderCommands, Input, &GlobalState->Camera, Param->PointOnUnitSphere,
+        2*EruptionBands[BandCount-1].InnerRadii, EruptionSize);
     }
   }
 
@@ -750,43 +757,36 @@ void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device
   PushRenderState(Eruptions, NoDepthTestCulling);
 }
 
-void InitializeEruption(eruption_params* Param, random_generator* Generator, v4 StartColor, v4 EndColor)
-{
-  r32 Phi         = GetRandomReal(Generator, 0, Pi32);
-  r32 Theta       = GetRandomReal(Generator, 0,2*Pi32);
-  Param->Duration = GetRandomReal(Generator, 10, 30);
-  Param->Time     = 0;
-  Param->MaxEruptionSizeRad      = GetRandomReal(Generator, 0, 0.2);
-  Param->MaxEruptionBandWidthRad = GetRandomRealNorm(Generator) * Param->MaxEruptionSizeRad;
-  Param->PointOnUnitSphere       = V3(Cos(Theta)*Sin(Phi), Sin(Theta)*Sin(Phi), Cos(Phi));
-  Param->MaxEruptionBandCount    = 4;
-  Param->HasRayCone = GetRandomRealNorm(Generator) < 0.1f; 
 
-  r32 IncrementSums[4] = {};
-  IncrementSums[0] = GetRandomRealNorm(Generator);
-  Param->RadiiIncrements[0] = IncrementSums[0];
-  /*
-  for (int i = 1; i < 4; ++i)
+void InitializeEruption(eruption_params* Param, random_generator* Generator, u32 BandCount, v4* Colors, r32 MinEruptionSize, r32 MaxEruptionSize, r32 MaxRayProbability)
+{
+  r32 Phi                         = GetRandomReal(Generator, 0, Pi32);
+  r32 Theta                       = GetRandomReal(Generator, 0,2*Pi32);
+  Param->EruptionSize             = GetRandomReal(Generator, MinEruptionSize, MaxEruptionSize);
+  Param->Duration                 = LinearRemap(Param->EruptionSize, MinEruptionSize, MaxEruptionSize, 10, 30);
+  Param->Time                     = 0;
+  Param->PointOnUnitSphere        = V3(Cos(Theta)*Sin(Phi), Sin(Theta)*Sin(Phi), Cos(Phi));
+  Param->PopTime                  = LinearRemap(Param->EruptionSize, MinEruptionSize, MaxEruptionSize, 0.7, 0.5);
+  Param->MaxEruptionBandCount     = BandCount;
+  Param->HasRayCone               = GetRandomRealNorm(Generator) < LinearRemap(Param->EruptionSize, MinEruptionSize, MaxEruptionSize, 0,MaxRayProbability);
+
+  Param->RadiiIncrements[0] = GetRandomRealNorm(Generator);
+  r32 TotSum = Param->RadiiIncrements[0];
+  for (int i = 1; i < Param->MaxEruptionBandCount-1; ++i)
   {
-    Param->RadiiIncrements[i] = Param->RadiiIncrements[i-1] + GetRandomRealNorm(Generator);
-    //Param->RadiiIncrements[i] = GetRandomRealNorm(&GlobalState->RandomGenerator);
-    IncrementSums[i] = IncrementSums[i-1] + Param->RadiiIncrements[i];
+    Param->RadiiIncrements[i] = Param->RadiiIncrements[i-1] + 2*GetRandomRealNorm(Generator);
+    TotSum += Param->RadiiIncrements[i];
   }
-  r32 TotSum = IncrementSums[3];
-  for (int i = 0; i < 4; ++i)
+  for (int i = 0; i < Param->MaxEruptionBandCount-1; ++i)
   {
     Param->RadiiIncrements[i] /= TotSum;
-    IncrementSums[i] /= TotSum;
   }
-  */
-  Param->RadiiIncrements[0] = 0.1;
-  Param->RadiiIncrements[1] = 0.2;
-  Param->RadiiIncrements[2] = 0.3;
-  Param->RadiiIncrements[3] = 0.6;
-  Param->Colors[0] = StartColor;
-  Param->Colors[1] = LerpColor(GetRandomRealNorm(Generator), StartColor, EndColor),
-  Param->Colors[2] = LerpColor(GetRandomRealNorm(Generator), StartColor, EndColor),
-  Param->Colors[3] = EndColor;
+  Param->RadiiIncrements[Param->MaxEruptionBandCount-1] = LinearRemap(Param->EruptionSize, MinEruptionSize, MaxEruptionSize, 1, 3);
+  for (int i = 0; i < Param->MaxEruptionBandCount; ++i)
+  {
+    Param->Colors[i] = Colors[i];
+  }
+  
 }
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
@@ -849,8 +849,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
   r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
   ResetRenderGroup(RenderCommands->RenderGroup);
-
-
 
   camera* Camera = &GlobalState->Camera;
   local_persist r32 near = 0.001;
@@ -1224,15 +1222,28 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   local_persist b32 RndomInit = false;
   local_persist eruption_params Params[SPOTCOUNT] = {};
-
+  v4 Colors1[] = {
+    V4(153.0/255.0, 173.0/255, 254.0/255.0, 1),
+    V4(191.0/255.0, 238.0/255, 254.0/255.0, 1),
+    V4(254.0/255.0, 254.0/255.0, 255/255, 1)
+  };
+  v4 Colors2[] = {
+    V4(79/255.f, 187/255.f, 255/255.f, 1),
+    V4(50/255.f, 156/255.f, 185/255.f, 1),
+    V4(48.f/255.f, 51/255.f, 211/255.f, 1)
+  };
   if(!RndomInit)
   {
-    v4 StartColor = V4(153.0/255.0, 173.0/255, 254.0/255.0,1);
-    v4 EndColor = V4(254.0/255.0, 254.0/255.0, 255/255,1);
-    for (int i = 0; i < SPOTCOUNT; ++i)
+    for (int i = 0; i < 2*SPOTCOUNT/3; ++i)
     {
       eruption_params* Param = Params + i;
-      InitializeEruption(Params + i, &GlobalState->RandomGenerator, StartColor, EndColor);
+      InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors1), Colors1,0.1, 0.275, 0.7);
+      Param->Time     = GetRandomReal(&GlobalState->RandomGenerator, 0, Param->Duration);
+    }
+    for (int i = 2*SPOTCOUNT/3; i < SPOTCOUNT; ++i)
+    {
+      eruption_params* Param = Params + i;
+      InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors2), Colors2, 0.05, 0.14, 0);
       Param->Time     = GetRandomReal(&GlobalState->RandomGenerator, 0, Param->Duration);
     }
     RndomInit = true;
@@ -1244,9 +1255,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Param->Time += Input->deltaTime;
     if(Param->Time > Param->Duration)
     {
-      InitializeEruption(Param, &GlobalState->RandomGenerator, Param->Colors[0], Param->Colors[3]);
-    }else{
-      int a = 10;
+      if(GetRandomRealNorm(&GlobalState->RandomGenerator) < 0.7)
+      {
+        InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors1), Colors1,0.1, 0.275, 0.7);
+      }else{
+        InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors2), Colors2, 0.05, 0.14, 0);
+      }
     }
   }
 
