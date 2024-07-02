@@ -696,6 +696,7 @@ struct eruption_params {
   b32 HasRayCone;
   r32 Duration;
   r32 Time;
+  u32 RegionIndex;
 };
 
 void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device_input* Input, u32 ParamCounts, eruption_params* Params, m4 StarModelMat) {
@@ -758,10 +759,8 @@ void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device
 }
 
 
-void InitializeEruption(eruption_params* Param, random_generator* Generator, u32 BandCount, v4* Colors, r32 MinEruptionSize, r32 MaxEruptionSize, r32 MaxRayProbability)
+void InitializeEruption(eruption_params* Param, random_generator* Generator, u32 BandCount, v4* Colors, r32 MinEruptionSize, r32 MaxEruptionSize, r32 MaxRayProbability, r32 Theta, r32 Phi)
 {
-  r32 Phi                         = GetRandomReal(Generator, 0, Pi32);
-  r32 Theta                       = GetRandomReal(Generator, 0,2*Pi32);
   Param->EruptionSize             = GetRandomReal(Generator, MinEruptionSize, MaxEruptionSize);
   Param->Duration                 = LinearRemap(Param->EruptionSize, MinEruptionSize, MaxEruptionSize, 10, 30);
   Param->Time                     = 0;
@@ -1220,33 +1219,62 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 
 
-  local_persist b32 RndomInit = false;
+  local_persist b32 RandomInit = false;
   local_persist eruption_params Params[SPOTCOUNT] = {};
-  v4 Colors1[] = {
+  local_persist v4 Colors1[] = {
     V4(153.0/255.0, 173.0/255, 254.0/255.0, 1),
     V4(191.0/255.0, 238.0/255, 254.0/255.0, 1),
     V4(254.0/255.0, 254.0/255.0, 255/255, 1)
   };
-  v4 Colors2[] = {
+  local_persist v4 Colors2[] = {
     V4(79/255.f, 187/255.f, 255/255.f, 1),
     V4(50/255.f, 156/255.f, 185/255.f, 1),
     V4(48.f/255.f, 51/255.f, 211/255.f, 1)
   };
-  if(!RndomInit)
+
+  local_persist r32 FillRates[8] = {};
+  local_persist r32 AngleSpans[8][4]
   {
-    for (int i = 0; i < 2*SPOTCOUNT/3; ++i)
+    // Min Theta, Min Phi, Max Theta, Max Phi
+    {0 * Tau32/4.f,        0, 1 * Tau32/4.f, Pi32/2.f},
+    {1 * Tau32/4.f,        0, 2 * Tau32/4.f, Pi32/2.f},
+    {2 * Tau32/4.f,        0, 3 * Tau32/4.f, Pi32/2.f},
+    {3 * Tau32/4.f,        0, 4 * Tau32/4.f, Pi32/2.f},
+    {0 * Tau32/4.f, Pi32/2.f, 1 * Tau32/4.f, Pi32},
+    {1 * Tau32/4.f, Pi32/2.f, 2 * Tau32/4.f, Pi32},
+    {2 * Tau32/4.f, Pi32/2.f, 3 * Tau32/4.f, Pi32},
+    {3 * Tau32/4.f, Pi32/2.f, 4 * Tau32/4.f, Pi32}
+  };
+
+  if(!RandomInit)
+  {
+    for (int i = 0; i < SPOTCOUNT; ++i)
     {
       eruption_params* Param = Params + i;
-      InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors1), Colors1,0.1, 0.275, 0.7);
+
+      u32 EmptiestRegionIndex = 0;
+      r32 EmptiestRegionFillRate = R32Max;
+      for (int i = 0; i < ArrayCount(FillRates); ++i)
+      {
+        if(FillRates[i] < EmptiestRegionFillRate)
+        {
+          EmptiestRegionFillRate = FillRates[i];
+          EmptiestRegionIndex = i;
+        }
+      }
+
+      r32 Theta = GetRandomReal(&GlobalState->RandomGenerator, AngleSpans[EmptiestRegionIndex][0], AngleSpans[EmptiestRegionIndex][2]);
+      r32 Phi   = GetRandomReal(&GlobalState->RandomGenerator, AngleSpans[EmptiestRegionIndex][1], AngleSpans[EmptiestRegionIndex][3]);
+      if(GetRandomRealNorm(&GlobalState->RandomGenerator) < 0.7) {
+        InitializeEruption(Param, &GlobalState->RandomGenerator, ArrayCount(Colors1), Colors1,0.1, 0.275, 0.7, Theta, Phi);
+      }else{
+        InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors2), Colors2, 0.05, 0.14, 0, Theta, Phi);
+      }
       Param->Time     = GetRandomReal(&GlobalState->RandomGenerator, 0, Param->Duration);
+      FillRates[EmptiestRegionIndex] += Param->EruptionSize;
+      Param->RegionIndex = EmptiestRegionIndex;
     }
-    for (int i = 2*SPOTCOUNT/3; i < SPOTCOUNT; ++i)
-    {
-      eruption_params* Param = Params + i;
-      InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors2), Colors2, 0.05, 0.14, 0);
-      Param->Time     = GetRandomReal(&GlobalState->RandomGenerator, 0, Param->Duration);
-    }
-    RndomInit = true;
+    RandomInit = true;
   }
   
   for (int i = 0; i < SPOTCOUNT; ++i)
@@ -1255,15 +1283,36 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Param->Time += Input->deltaTime;
     if(Param->Time > Param->Duration)
     {
+      u32 EmptiestRegionIndex = 0;
+      r32 EmptiestRegionFillRate = R32Max;
+      FillRates[Param->RegionIndex] -= Param->EruptionSize;
+      for (int i = 0; i < ArrayCount(FillRates); ++i)
+      {
+        if(FillRates[i] < EmptiestRegionFillRate)
+        {
+          EmptiestRegionFillRate = FillRates[i];
+          EmptiestRegionIndex = i;
+        }
+      }
+      r32 Theta = GetRandomReal(&GlobalState->RandomGenerator, AngleSpans[EmptiestRegionIndex][0], AngleSpans[EmptiestRegionIndex][2]);
+      r32 Phi   = GetRandomReal(&GlobalState->RandomGenerator, AngleSpans[EmptiestRegionIndex][1], AngleSpans[EmptiestRegionIndex][3]);
+      eruption_params* Param = Params + i;
       if(GetRandomRealNorm(&GlobalState->RandomGenerator) < 0.7)
       {
-        InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors1), Colors1,0.1, 0.275, 0.7);
+        InitializeEruption(Param, &GlobalState->RandomGenerator, ArrayCount(Colors1), Colors1,  0.1, 0.275, 0.7, Theta, Phi);
       }else{
-        InitializeEruption(Params + i, &GlobalState->RandomGenerator, ArrayCount(Colors2), Colors2, 0.05, 0.14, 0);
+        InitializeEruption(Param, &GlobalState->RandomGenerator, ArrayCount(Colors2), Colors2, 0.05, 0.14, 0, Theta, Phi);
       }
+      FillRates[EmptiestRegionIndex] += Param->EruptionSize;
+      Param->RegionIndex = EmptiestRegionIndex;
     }
   }
 
+  for (int i = 0; i < ArrayCount(FillRates); ++i)
+  {
+    Platform.DEBUGPrint("%1.2f ", FillRates[i]);
+  }
+  Platform.DEBUGPrint("\n");
   DrawEruptionBands(RenderCommands, Input,SPOTCOUNT, Params, FMSS);
   
 
