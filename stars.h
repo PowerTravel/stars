@@ -18,9 +18,10 @@ struct application_state
 
   u32 PhongProgram;
   u32 PhongProgramNoTex;
+  u32 PhongProgramTransparent;
   u32 PlaneStarProgram;
   u32 SphereStarProgram;
-  u32 SolidSphereProgram;
+  u32 SolidColorProgram;
   u32 EruptionBandProgram;
   u32 Plane;
   u32 Sphere;
@@ -29,8 +30,11 @@ struct application_state
   u32 Cube;
   u32 Billboard;
   u32 Cylinder;
-  u32 PlaneTexture;
-  u32 SphereTexture;
+  u32 CheckerBoardTexture;
+  u32 BrickWallTexture;
+  u32 FadedRayTexture;
+  u32 EarthTexture;
+  u32 WhitePixelTexture;
 };
 
 application_state* GlobalState = 0;
