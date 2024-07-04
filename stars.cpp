@@ -423,8 +423,6 @@ u32 CreatePhongTransparentProgram(open_gl* OpenGL)
   GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", GlUniformType::V4);
   GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", GlUniformType::V4);
   GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", GlUniformType::R32);
-  GlDeclareUniform(OpenGL, ProgramHandle, "AccumTex",  GlUniformType::U32);
-  GlDeclareUniform(OpenGL, ProgramHandle, "RevealTex",  GlUniformType::U32);
   return ProgramHandle;
 }
 
@@ -436,8 +434,6 @@ u32 CreatePlaneStarProgram(open_gl* OpenGL)
        "StarPlane");
   GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   GlDeclareUniform(OpenGL, ProgramHandle, "ViewMat", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "AccumTex",  GlUniformType::U32);
-  GlDeclareUniform(OpenGL, ProgramHandle, "RevealTex",  GlUniformType::U32);
   GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::M4,   "ModelMat");
   GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::V4,   "Color");
   GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::R32,  "Radius");
@@ -621,13 +617,13 @@ ray_cast CastRay(camera* Camera, r32 Angle, r32 Width, r32 Length, v4 Color, v3 
   Translate(V4(Position,1),ModelMat);
   Result.ModelMat = ModelMat;
   Result.Color = Color;
-  Result.Radius = 3.f;
-  Result.FaceDist = 2.f;
+  Result.Radius = 2.f;
+  Result.FaceDist = 1.f;
   Result.Center = Position;
   return Result;
 }
 
-void CastConeRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera, v3 PointOnUitSphere, r32 AngleOnSphere, r32 MaxAngleOnSphere, m4 StarModelMat)
+void CastConeRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera, v3 PointOnUitSphere, r32 AngleOnSphere, r32 MaxAngleOnSphere, v4 Translation, m4 RotationMatrix)
 {
   ray_cast* Ray = PushStruct(GlobalTransientArena, ray_cast);
 
@@ -636,14 +632,13 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
   m4 ModelMat = M4Identity();
   Translate(V4(0,-1,0,0), ModelMat);
   ModelMat = GetScaleMatrix(V4(Sin(AngleOnSphere)*1.01,1,Sin(AngleOnSphere+0.01)*1.01,1)) * ModelMat;
-  v4 Position = GetTranslationFromMatrix(StarModelMat);
-  m4 TransMat = GetTranslationMatrix(Position);
-  ModelMat =  TransMat * StaticAngle * ModelMat;
+  m4 TransMat = GetTranslationMatrix(Translation);
+  ModelMat =  TransMat * RotationMatrix * StaticAngle * ModelMat;
   Ray->ModelMat = ModelMat;
-  Ray->Color = V4(1, 1, 1, LinearRemap(MaxAngleOnSphere-AngleOnSphere, 0, MaxAngleOnSphere, 0.26,1));
+  Ray->Color = V4(1, 1, 1, LinearRemap(MaxAngleOnSphere-AngleOnSphere, 0, MaxAngleOnSphere, 0.5,1));
   Ray->Radius = 2.f;
-  Ray->FaceDist = 2.f;
-  Ray->Center = V3(Position);
+  Ray->FaceDist = 0.4f;
+  Ray->Center = V3(Translation);
 
   render_object* RayObj = PushNewRenderObject(RenderCommands->RenderGroup);
   RayObj->ProgramHandle = GlobalState->PlaneStarProgram;
@@ -651,8 +646,6 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
 
   PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
   PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
-  PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "AccumTex"), (u32)2);
-  PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "RevealTex"), (u32)3);
 
   PushInstanceData(RayObj, 1, sizeof(ray_cast), (void*) Ray);
   PushRenderState(RayObj, DepthTestNoCulling);
@@ -684,8 +677,6 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
 
   PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
   PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
-  PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "AccumTex"), (u32)2);
-  PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "RevealTex"), (u32)3);
   u32 InstanceCount = ThinRayCount + ThickRayCount;
   PushInstanceData(Ray, InstanceCount, InstanceCount * sizeof(ray_cast), (void*) Rays);
   PushRenderState(Ray, DepthTestCulling);
@@ -711,7 +702,7 @@ struct eruption_params {
   u32 RegionIndex;
 };
 
-void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device_input* Input, u32 ParamCounts, eruption_params* Params, m4 StarModelMat) {
+void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device_input* Input, u32 ParamCounts, eruption_params* Params, m4 StarModelMat, v4 Translation, m4 RotationMatrix) {
 
   u32 MaxBandCount = 0;
   for (int ParamIndex = 0; ParamIndex < ParamCounts; ++ParamIndex)
@@ -757,7 +748,7 @@ void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device
     if(Param->HasRayCone && ActiveBandCount == Param->MaxEruptionBandCount && EruptionBands[BandCount-1].InnerRadii > 0)
     {
       CastConeRays(RenderCommands, Input, &GlobalState->Camera, Param->PointOnUnitSphere,
-        2*EruptionBands[BandCount-1].InnerRadii, EruptionSize, StarModelMat);
+        2*EruptionBands[BandCount-1].InnerRadii, EruptionSize, Translation, RotationMatrix);
     }
   }
 
@@ -807,12 +798,13 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   camera* Camera = &GameState->Camera;
   open_gl* OpenGL = &RenderCommands->OpenGL;
   m4 Sphere1ModelMat = {};
+  m4 Sphere1RotationMatrix = GetRotationMatrix(Input->Time/20.f, V4(0,1,0,0));
   {
     render_object* Sphere1 = PushNewRenderObject(RenderCommands->RenderGroup);
     Sphere1->ProgramHandle = GlobalState->SolidColorProgram;
     Sphere1->MeshHandle = GlobalState->Sphere;
     r32 FinalSizeOscillation = StarSize * ( 1 + 0.01* Sin(0.05*Input->Time));
-    Sphere1ModelMat = GetTranslationMatrix(V4(Position, 1)) * GetScaleMatrix(V4(FinalSizeOscillation,FinalSizeOscillation,FinalSizeOscillation,1));
+    Sphere1ModelMat = GetTranslationMatrix(V4(Position, 1))*  Sphere1RotationMatrix * GetScaleMatrix(V4(FinalSizeOscillation,FinalSizeOscillation,FinalSizeOscillation,1));
 
     PushUniform(Sphere1, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
     PushUniform(Sphere1, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere1ModelMat);
@@ -954,7 +946,7 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
     }
   }
 
-  DrawEruptionBands(RenderCommands, Input, SPOTCOUNT, Params, Sphere1ModelMat);
+  DrawEruptionBands(RenderCommands, Input, SPOTCOUNT, Params, Sphere1ModelMat, V4(Position,1), Sphere1RotationMatrix);
   
   // Ray
   CastRays(RenderCommands, Input, Camera, Position);
@@ -977,8 +969,6 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
 
     PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GameState->PlaneStarProgram, "ProjectionMat"), Camera->P);
     PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GameState->PlaneStarProgram, "ViewMat"), Camera->V);
-    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GameState->PlaneStarProgram, "AccumTex"), (u32)2);
-    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GameState->PlaneStarProgram, "RevealTex"), (u32)3);
     ray_cast* HaloRay = PushStruct(GlobalTransientArena, ray_cast);
     HaloRay->ModelMat = HaloModelMat;
     HaloRay->Color = V4(254.0/255.0, 254.0/255.0, 255/255, 0.3);
@@ -1334,7 +1324,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushRenderState(Floor, DepthTestCulling);
   }
 
-  r32 Alpha = 1;
+  r32 Alpha1 = 0.1;
+  r32 Alpha2 = 0.5;
+  r32 Alpha3 = 0.8;
 
   {
     // Sphere
@@ -1354,11 +1346,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0,  0.0, 0.01, Alpha));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0,  0.0, 0.25, Alpha));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0,  Alpha));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0,  0.0, 0.01, Alpha1));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0,  0.0, 0.25, Alpha1));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0,  Alpha1));
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
-    PushRenderState(Object, DepthTestNoCulling);
+    PushRenderState(Object, DepthTestCulling);
   }
 
   {
@@ -1379,11 +1371,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.01, 0.0, 0.0, Alpha));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.25, 0.0, 0.0, Alpha));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.01, 0.0, 0.0, Alpha2));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.25, 0.0, 0.0, Alpha2));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha2));
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
-    PushRenderState(Object, DepthTestNoCulling);
+    PushRenderState(Object, DepthTestCulling);
   }
   {
     // Cube
@@ -1403,11 +1395,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0, 0.01, 0.0, Alpha));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0, 0.25, 0.0, Alpha));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0, 0.01, 0.0, Alpha3));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0, 0.25, 0.0, Alpha3));
+    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha3));
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
-    PushRenderState(Object, DepthTestNoCulling);
+    PushRenderState(Object, DepthTestCulling);
   }
 
   // Solid Cone
