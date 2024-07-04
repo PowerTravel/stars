@@ -1058,8 +1058,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     InitiateCamera(&GlobalState->Camera, 70, AspectRatio, 0.1);
     LookAt(&GlobalState->Camera, V3(0,0,10), V3(0,0,0));
     RenderCommands->RenderGroup = InitiateRenderGroup();
-
+    RenderCommands->LoadDebugCode = true;
     
+
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
   }
   r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
@@ -1257,6 +1258,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   if(jwin::Pushed(Input->Keyboard.Key_ENTER) || Input->ExecutableReloaded)
   {
+    Platform.DEBUGPrint("We should reload debug code\n");
+    RenderCommands->LoadDebugCode = true;
     GlobalState->PhongProgram = GlReloadProgram(OpenGL, GlobalState->PhongProgram,
       1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
       1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
