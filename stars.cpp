@@ -637,7 +637,7 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
   Ray->ModelMat = ModelMat;
   Ray->Color = V4(1, 1, 1, LinearRemap(MaxAngleOnSphere-AngleOnSphere, 0, MaxAngleOnSphere, 0.5,1));
   Ray->Radius = 2.f;
-  Ray->FaceDist = 0.4f;
+  Ray->FaceDist = 1.f;
   Ray->Center = V3(Translation);
 
   render_object* RayObj = PushNewRenderObject(RenderCommands->RenderGroup);
@@ -776,7 +776,7 @@ void InitializeEruption(eruption_params* Param, random_generator* Generator, u32
   r32 TotSum = Param->RadiiIncrements[0];
   for (int i = 1; i < Param->MaxEruptionBandCount-1; ++i)
   {
-    Param->RadiiIncrements[i] = Param->RadiiIncrements[i-1] + 2*GetRandomRealNorm(Generator);
+    Param->RadiiIncrements[i] = Param->RadiiIncrements[i-1] + GetRandomRealNorm(Generator);
     TotSum += Param->RadiiIncrements[i];
   }
   for (int i = 0; i < Param->MaxEruptionBandCount-1; ++i)
@@ -801,7 +801,8 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   m4 Sphere1RotationMatrix = GetRotationMatrix(Input->Time/20.f, V4(0,1,0,0));
   {
     render_object* Sphere1 = PushNewRenderObject(RenderCommands->RenderGroup);
-    Sphere1->ProgramHandle = GlobalState->SolidColorProgram;
+    Sphere1->ProgramHandle 
+    = GlobalState->SolidColorProgram;
     Sphere1->MeshHandle = GlobalState->Sphere;
     r32 FinalSizeOscillation = StarSize * ( 1 + 0.01* Sin(0.05*Input->Time));
     Sphere1ModelMat = GetTranslationMatrix(V4(Position, 1))*  Sphere1RotationMatrix * GetScaleMatrix(V4(FinalSizeOscillation,FinalSizeOscillation,FinalSizeOscillation,1));
@@ -978,6 +979,71 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
     PushInstanceData(Halo, 1, sizeof(ray_cast), (void*) HaloRay);
     PushRenderState(Halo, DepthTestCulling);
   }
+}
+
+
+struct skybox_params
+{
+  u32 TextureHeight; // Textures pixel size height
+  u32 TextureWidth; // Textures pixel size width
+  u32 SideSize; // Textures pixel size one side of the of skybox
+};
+
+v3 GetCubeCoordinateFromTexture(u32 PixelX, u32 PixelY, skybox_params* Params)
+{
+  u32 TextureGridX = PixelX % Params->SideSize;
+  u32 TextureGridY = PixelY % Params->SideSize;
+  u32 GridX = PixelX / Params->SideSize;
+  u32 GridY = PixelY / Params->SideSize;
+  u32 GridIndex = GridY * 3 + GridX;
+  r32 X = (2.f*TextureGridX - Params->SideSize) / ((r32)Params->SideSize);
+  r32 Y = (2.f*TextureGridY - Params->SideSize) / ((r32)Params->SideSize);
+
+  // Maps the direction of the plane in world-space to the direction of the texture
+  // 0,1,2 is the top half of the texture, 
+  //  It starts at face -X and wraps around to +X via -Z with top of the texture being in +Y dir.
+  // 3,4,5 is the bot half of the texture,
+  // It starts at face +Y and wraps around to -Y via +Z with top of texture being in +X dir.
+  switch(GridIndex)
+  {
+    case 0: {return V3(-1.0f,   -Y,   -X);} break; // Cube Normal -X, TextureY -> -Y
+    case 1: {return V3(    X,   -Y,-1.0f);} break; // Cube Normal -Z, TextureY -> -Y
+    case 2: {return V3( 1.0f,   -Y,    X);} break; // Cube Normal +X, TextureY -> -Y
+    case 3: {return V3(   -Y, 1.0f,    X);} break; // Cube Normal +Y, TextureY -> -X
+    case 4: {return V3(   -Y,   -X, 1.0f);} break; // Cube Normal +Z, TextureY -> -X
+    case 5: {return V3(   -Y,-1.0f,   -X);} break; // Cube Normal -Y, TextureY -> -X
+  }
+  INVALID_CODE_PATH;
+  return {};
+}
+
+v3 GetSphereCoordinateFromCube(v3 PointOnUnitCube)
+{
+  // (x*r)^2 + (y*r)^2 + (z*r)^2 = 1
+  // x^2*r^2 + y^2*r^2 + z^2*r^2 = 1
+  // (x^2 + y^2 + z^2)*r^2 = 1
+  // r^2 = 1 / (x^2 + y^2 + z^2)
+  // r = sqrt(1/(x^2 + y^2 + z^2))
+  r32 r = sqrt(1.f/(PointOnUnitCube.X*PointOnUnitCube.X +
+                    PointOnUnitCube.Y*PointOnUnitCube.Y +
+                    PointOnUnitCube.Z*PointOnUnitCube.Z));
+  return r * PointOnUnitCube;
+}
+
+u32 GetColorFromUnitVector(v3 UnitVec)
+{
+  v3 P = (V3(1,1,1) + UnitVec) / 2;
+  //P.X = Clamp(LinearRemap(UnitVec.X, -1,1, -1,1),0,1);
+  //P.Y = Clamp(LinearRemap(UnitVec.Y, -1,1, -1,1),0,1);
+  //P.Z = Clamp(LinearRemap(UnitVec.Z, -1,1, -1,1),0,1);
+  //jwin_Assert(P.X >= 0);
+  //P.X = 0;
+  //P.Y = 0;
+  //P.Z = 0;
+  return 0xFF << 24 | 
+         ((u32)(P.X * 0xFF)) << 16 |
+         ((u32)(P.Y * 0xFF)) <<  8 |
+         ((u32)(P.Z * 0xFF)) <<  0;
 }
 
 
@@ -1324,7 +1390,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushRenderState(Floor, DepthTestCulling);
   }
 
-  r32 Alpha1 = 0.1;
+  r32 Alpha1 = 0.3;
   r32 Alpha2 = 0.5;
   r32 Alpha3 = 0.8;
 
@@ -1335,6 +1401,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     m4 ModelView = Camera->V*ModelMat;
     m4 NormalView = Transpose(RigidInverse(ModelView));
+
 
     render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
     Object->ProgramHandle = GlobalState->PhongProgramTransparent;
@@ -1427,6 +1494,82 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushRenderState(Object, DepthTestCulling);
   }
 
+  {
+    if(!GlobalState->Skybox || 
+      jwin::Pushed(Input->Keyboard.Key_L))
+    {
+      u32 Sides = 6;
+      u32 SideSize = 256;
+      void* Pixels = PushSize(GlobalTransientArena, sizeof(u32) * Sides*SideSize*SideSize);
+      opengl_bitmap Skybox = {};
+      Skybox.BPP = 32;
+      Skybox.Width = SideSize*Sides/2;
+      Skybox.Height = SideSize*Sides/3;
+      Skybox.Pixels = Pixels;
+
+      skybox_params Params = {};
+      Params.SideSize = SideSize;
+      Params.TextureWidth = Skybox.Width;
+      Params.TextureHeight = Skybox.Height;
+      // SideMapping: (Mapping done in graphics layer when setting up texture coordinates,
+      //               At some point move that part here since theyre linked)
+      //  Number is the index in the Colors array, x,y,z is the direction of the cube face normal
+      //  ___________________
+      //  |     |     |     |
+      //  |0,-x |1,-z |2,+x |
+      //  |_____|_____|_____|
+      //  |     |     |     |
+      //  |3,+y |4,+z |5,-y |
+      //  |_____|_____|_____|
+
+      // We want to iterate over each pixel in the cube and on that poin sample the sphere.
+      // Given a pixel value, we want to find the corresponding coordinate on the cube
+      // from that cube coordinate get the sphere coordinate
+
+      u32* Pixel = (u32*) Pixels;
+      for (int y = 0; y < Params.TextureHeight; ++y)
+      {
+        for (int x = 0; x < Params.TextureWidth; ++x)
+        {
+          v3 CubeCoord = GetCubeCoordinateFromTexture(x, y, &Params);
+          v3 SphereCoord = GetSphereCoordinateFromCube(CubeCoord);
+          u32 CubeColor = GetColorFromUnitVector(CubeCoord / Sqrt(3));
+          u32 SphereColor = GetColorFromUnitVector(SphereCoord);
+         // Platform.DEBUGPrint("Cube [%1.2f,%1.2f,%1.2f] - Sphere [%1.2f,%1.2f,%1.2f]\n", 
+         //   CubeCoord.X,CubeCoord.Y,CubeCoord.Z, 
+         //   SphereCoord.X,SphereCoord.Y,SphereCoord.Z);
+          u32 idx = x + y*Params.TextureWidth;
+          Pixel[idx] = SphereColor;
+          if(x%256 == 0)
+          {
+            int a = 10;
+          }
+        }
+        if(y%256 == 0)
+        {
+          int a = 10;
+        }
+      }
+
+      GlobalState->Skybox = GlLoadTexture(OpenGL, Skybox);  
+    }
+    
+
+
+    skybox* SkyBox = PushNewSkybox(RenderCommands->RenderGroup);
+    SkyBox->SkyboxTexture = GlobalState->Skybox;
+    SkyBox->ProjectionMat = Camera->P;
+    SkyBox->ViewMat = M4(
+      V4(V3(Camera->V.r0),0),
+      V4(V3(Camera->V.r1),0),
+      V4(V3(Camera->V.r1),0),
+      V4(V3(Camera->V.r2),1));
+    m4 ModelView = SkyBox->ViewMat = Camera->V * GetScaleMatrix(V4(50,50,50,1));
+    ModelView.E[3] = 0;
+    ModelView.E[7] = 0;
+    ModelView.E[11] = 0;
+    SkyBox->ViewMat = ModelView;
+  }
 
   //DrawVector(RenderCommands, V3(0,0,0), ToProjZX, LightDirection, 0, Camera->P, Camera->V, 0.4);
   //DrawVector(RenderCommands, V3(0,0,0), To, LightDirection, 2, Camera->P, Camera->V, 0.4);

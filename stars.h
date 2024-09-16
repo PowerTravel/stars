@@ -35,6 +35,7 @@ struct application_state
   u32 FadedRayTexture;
   u32 EarthTexture;
   u32 WhitePixelTexture;
+  u32 Skybox;
 };
 
 application_state* GlobalState = 0;
