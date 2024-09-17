@@ -1046,6 +1046,43 @@ u32 GetColorFromUnitVector(v3 UnitVec)
          ((u32)(P.Z * 0xFF)) <<  0;
 }
 
+void MapTgaSideToGlSide(
+  u32 SrcWidth, u32 SrcHeight, u32* SrcPixels, 
+  u32 SrcStartX, u32 SrcStartY, u32 SrcSideSize,
+  u32 DstWidth, u32 DstHeight, u32* DstPixels,
+  u32 DstStartX, u32 DstStartY, u32 DstSideSize,
+  m2 Rotation)
+{
+  // Not implemented scaling for now
+  jwin_Assert(SrcSideSize == DstSideSize); 
+  for (int y = 0; y < SrcSideSize; ++y)
+  {
+    for (int x = 0; x < SrcSideSize; ++x)
+    {
+      u32 SrcPixelIdx = (SrcStartY+y) * SrcWidth + SrcStartX + x;
+
+      r32 DstX = DstStartX + x;
+      r32 DstY = DstStartY + y;
+
+      DstX -= (DstStartX + DstSideSize/2);
+      DstY -= (DstStartY + DstSideSize/2);
+      jwin_Assert(DstX < DstSideSize/2.f && DstX >= -(r32)(DstSideSize/2.f));
+      jwin_Assert(DstY < DstSideSize/2.f && DstY >= -(r32)(DstSideSize/2.f));
+      DstX = Rotation.E[0] * DstX + Rotation.E[1] * DstY;
+      DstY = Rotation.E[2] * DstX + Rotation.E[3] * DstY;
+      jwin_Assert(DstX < DstSideSize/2.f && DstX >= -(r32)(DstSideSize/2.f));
+      jwin_Assert(DstY < DstSideSize/2.f && DstY >= -(r32)(DstSideSize/2.f));
+      DstX += DstStartX + DstSideSize/2;
+      DstY += DstStartY + DstSideSize/2;
+      u32 Rx = (u32)(DstX+0.5);
+      u32 Ry = DstHeight - (u32)(DstY+0.5);
+      jwin_Assert(Rx < DstWidth);
+      jwin_Assert(Ry < DstHeight);
+      u32 DstPixelIdx = Ry * DstWidth + Rx;
+      DstPixels[DstPixelIdx] = SrcPixels[SrcPixelIdx];
+    }
+  }
+}
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
@@ -1498,6 +1535,120 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     if(!GlobalState->Skybox || 
       jwin::Pushed(Input->Keyboard.Key_L))
     {
+#if 1
+      obj_bitmap* TgaSkybox = LoadTGA(GlobalTransientArena, "..\\data\\textures\\skybox3.tga");
+      opengl_bitmap* GlSkybox = MapObjBitmapToOpenGLBitmap(GlobalTransientArena, TgaSkybox);
+      GlobalState->Skybox = GlLoadTexture(OpenGL, GlSkybox);
+
+
+      // Given a skybox texture layout we need functions to map
+      // For rendering:
+      //  Pixel Coordinate to 3d Cube coordinate
+      //  3D Cube coordinate to Pixel Coordinate
+      // For drawing:
+      //  Pixel Coordinate to 3d Sphere coordinate
+      //  3d Sphere coordinate to Pixel Coordinate
+
+      // In the program be able to draw or paste premade textures to a globe.
+      // Project that globe down to a cube
+      // Write it to file as a texture. Can be a bin-dump. Do a tga export if you are feeling fancy
+      // and have the ability to further mod it in for example gimp.
+
+      // Drawing:
+      //   Given mouse screen coordinate and player orientation, Map that screen coordinate to a sphere centered on the player.
+      //   Project a texture onto that sphere.
+      //   Project that sphere onto a cube.
+      //   Map that cube onto a texture.
+
+
+      //  Need a convenient structure to do this mapping. Ie specify where the faces are in the texture
+      //  that is easy to modify.
+
+#else 
+      obj_bitmap* TgaSkybox = LoadTGA(GlobalTransientArena, "..\\data\\textures\\skybox.tga");
+      opengl_bitmap GlSkybox = {};
+      GlSkybox.BPP = 32;
+      GlSkybox.Width = (u32) 3*TgaSkybox->Width/4.f;
+      GlSkybox.Height = TgaSkybox->Height;
+      GlSkybox.Pixels = PushSize(GlobalTransientArena, sizeof(u32) * GlSkybox.Width*GlSkybox.Height);
+
+      u32 SrcSideSize = TgaSkybox->Width/4;
+      u32 DstSideSize = TgaSkybox->Width/4;
+
+      u32 SrcStartX,SrcStartY,DstStartX,DstStartY;
+      r32 Theta;
+      for (int tgaSide = 0; tgaSide < 8; ++tgaSide)
+      {
+        // Rotation Matrix =
+        // Cos(Theta), -Sin(Theta)
+        // Sin(Theta),  Cos(Theta)
+        switch(tgaSide)
+        {
+
+          // TGA is origin is lower left
+          // GLSkybox is top Left
+          case 0:
+          case 3: continue;
+          case 1: { // maps to Y  -> Lower Left
+            SrcStartX = SrcSideSize;
+            SrcStartY = SrcSideSize;
+            DstStartX = 0;
+            DstStartY = DstSideSize;
+            Theta = -Pi32/2.f;
+            Theta = 0;
+          }break;
+          case 2: { // maps to -Y -> Lower Right
+            SrcStartX = 3*SrcSideSize;
+            SrcStartY = 0;
+            DstStartX = 2*DstSideSize;
+            DstStartY = DstSideSize;
+            Theta = Pi32/2.f;
+            Theta = 0;
+          }break;
+          case 4: { // maps to -X -> Top Left
+            SrcStartX = 0;
+            SrcStartY = 0;
+            DstStartX = 0;
+            DstStartY = 0;
+            Theta = 0;
+          }break;
+          case 5: { // maps to -Z -> Top Mid
+            SrcStartX = SrcSideSize;
+            SrcStartY = 0;
+            DstStartX = DstSideSize;
+            DstStartY = 0;
+            Theta = 0;
+          }break;
+          case 6: { // maps to X -> Top Right
+            SrcStartX = 2 * SrcSideSize;
+            SrcStartY = 0;
+            DstStartX = 2 * DstSideSize;
+            DstStartY = 0;
+            Theta = 0;
+          }break;
+          case 7: { // maps to -Z -> Bot Mid
+            SrcStartX = 3 * SrcSideSize;
+            SrcStartY = 0;
+            DstStartX = DstSideSize;
+            DstStartY = DstSideSize;
+            Theta = 0;
+          }break;
+        }
+        r32 Cos = cosf(Theta);
+        r32 Sin = sinf(Theta);
+        m2 Rotation = M2(
+          Cos, -Sin,
+          Sin,  Cos);
+        MapTgaSideToGlSide(
+          TgaSkybox->Width, TgaSkybox->Height, (u32*) TgaSkybox->Pixels, 
+          SrcStartX, SrcStartY, SrcSideSize,
+          GlSkybox.Width, GlSkybox.Height, (u32*) GlSkybox.Pixels,
+          DstStartX, DstStartY, DstSideSize,
+          Rotation);
+      }
+      GlobalState->Skybox = GlLoadTexture(OpenGL, GlSkybox);  
+
+// #else
       u32 Sides = 6;
       u32 SideSize = 256;
       void* Pixels = PushSize(GlobalTransientArena, sizeof(u32) * Sides*SideSize*SideSize);
@@ -1535,23 +1686,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
           v3 SphereCoord = GetSphereCoordinateFromCube(CubeCoord);
           u32 CubeColor = GetColorFromUnitVector(CubeCoord / Sqrt(3));
           u32 SphereColor = GetColorFromUnitVector(SphereCoord);
-         // Platform.DEBUGPrint("Cube [%1.2f,%1.2f,%1.2f] - Sphere [%1.2f,%1.2f,%1.2f]\n", 
-         //   CubeCoord.X,CubeCoord.Y,CubeCoord.Z, 
-         //   SphereCoord.X,SphereCoord.Y,SphereCoord.Z);
           u32 idx = x + y*Params.TextureWidth;
           Pixel[idx] = SphereColor;
-          if(x%256 == 0)
-          {
-            int a = 10;
-          }
-        }
-        if(y%256 == 0)
-        {
-          int a = 10;
         }
       }
-
       GlobalState->Skybox = GlLoadTexture(OpenGL, Skybox);  
+    #endif
     }
     
 
@@ -1564,7 +1704,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       V4(V3(Camera->V.r1),0),
       V4(V3(Camera->V.r1),0),
       V4(V3(Camera->V.r2),1));
-    m4 ModelView = SkyBox->ViewMat = Camera->V * GetScaleMatrix(V4(50,50,50,1));
+    m4 ModelView = SkyBox->ViewMat = Camera->V * GetScaleMatrix(V4(1,1,1,1)) * GetRotationMatrix(-Pi32/2, V4(0,0,1,0));
     ModelView.E[3] = 0;
     ModelView.E[7] = 0;
     ModelView.E[11] = 0;
