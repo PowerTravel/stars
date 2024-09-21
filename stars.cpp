@@ -520,10 +520,21 @@ u32 GlLoadTexture(open_gl* OpenGL, opengl_bitmap TextureData)
   u32 TextureIndex = OpenGL->TextureKeeperCount++;
   jwin_Assert(TextureIndex < ArrayCount(OpenGL->TextureKeepers));
   texture_keeper* NewKeeper = OpenGL->TextureKeepers + TextureIndex;
+  NewKeeper->Loaded = false;
   NewKeeper->Handle = TextureIndex;
   NewKeeper->TextureData = TextureData;
   return TextureIndex;
 }
+
+void GlUpdateTexture(open_gl* OpenGL, u32 TextureIndex, opengl_bitmap TextureData)
+{
+  jwin_Assert(TextureIndex < ArrayCount(OpenGL->TextureKeepers));
+  texture_keeper* Keeper = OpenGL->TextureKeepers + TextureIndex;
+  jwin_Assert(Keeper->Handle == TextureIndex);
+  Keeper->Loaded = false;
+  Keeper->TextureData = TextureData;
+}
+
 
 void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Direction, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
 {
@@ -801,8 +812,7 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   m4 Sphere1RotationMatrix = GetRotationMatrix(Input->Time/20.f, V4(0,1,0,0));
   {
     render_object* Sphere1 = PushNewRenderObject(RenderCommands->RenderGroup);
-    Sphere1->ProgramHandle 
-    = GlobalState->SolidColorProgram;
+    Sphere1->ProgramHandle = GlobalState->SolidColorProgram;
     Sphere1->MeshHandle = GlobalState->Sphere;
     r32 FinalSizeOscillation = StarSize * ( 1 + 0.01* Sin(0.05*Input->Time));
     Sphere1ModelMat = GetTranslationMatrix(V4(Position, 1))*  Sphere1RotationMatrix * GetScaleMatrix(V4(FinalSizeOscillation,FinalSizeOscillation,FinalSizeOscillation,1));
@@ -1015,6 +1025,163 @@ v3 GetCubeCoordinateFromTexture(u32 PixelX, u32 PixelY, skybox_params* Params)
   }
   INVALID_CODE_PATH;
   return {};
+}
+
+r32 RayPlaneIntersection( v3 PlaneNormal, v3 PointOnPlane, v3 Ray, v3 RayOrigin)
+{
+  r32 Lambda = PlaneNormal * (PointOnPlane - RayOrigin) / (PlaneNormal * Ray);
+  return Lambda;
+}
+
+v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, opengl_bitmap* Bitmap)
+{
+  r32 AbsX = Abs(UnitSphere.X);
+  r32 AbsY = Abs(UnitSphere.Y);
+  r32 AbsZ = Abs(UnitSphere.Z);
+  jwin_Assert(AbsX <= 1 && AbsY <= 1 && AbsZ <= 1)
+  r32 Tx = 0;
+  r32 Ty = 0;
+  local_persist r32 PiOver4 = Pi32*0.25f;
+  local_persist r32 SinCos45 = 2/sqrt(2);
+  
+#if 0
+
+  v2 xv1 = Normalize(V2(UnitSphere.X, UnitSphere.Z));
+  v2 xv2 = Normalize(V2(UnitSphere.X, UnitSphere.Y));
+  r32 XX = ASin(xv1.Y);
+  r32 XY = ASin(xv2.Y);
+
+  v2 yv1 = Normalize(V2(UnitSphere.Y, UnitSphere.Z));
+  v2 yv2 = Normalize(V2(UnitSphere.Y, UnitSphere.X));
+  r32 YX = ASin(yv1.Y);
+  r32 YY = ASin(yv2.Y);
+  
+  v2 zv1 = Normalize(V2(UnitSphere.Z, UnitSphere.Y));
+  v2 zv2 = Normalize(V2(UnitSphere.Z, UnitSphere.X));
+  r32 ZX = ASin(zv1.Y);
+  r32 ZY = ASin(zv2.Y);
+  
+  if(XX > -CosSin45 && XX < CosSin45 && XY > -CosSin45 && XY < CosSin45 && UnitSphere.X > 0)
+  //if(AbsX > AbsY && AbsX > AbsZ  && UnitSphere.X > 0) 
+  {
+    Tx = Clamp(LinearRemap(XX, -CosSin45, CosSin45, 2*Bitmap->Width / 3.f, Bitmap->Width), 2*Bitmap->Width / 3.f, Bitmap->Width-1);
+    Ty = Clamp(LinearRemap(XY,  CosSin45,-CosSin45,                     0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
+    Platform.DEBUGPrint("+X");
+  }else if(XX > -CosSin45 && XX < CosSin45 && XY > -CosSin45 && XY < CosSin45 && UnitSphere.X < 0) {
+  //} else if(AbsX > AbsY && AbsX > AbsZ  && UnitSphere.X < 0) {
+    Tx = Clamp(LinearRemap(XX, CosSin45, -CosSin45, 0, Bitmap->Width  / 3.f), 0, Bitmap->Width  / 3.f-1);
+    Ty = Clamp(LinearRemap(XY, CosSin45, -CosSin45, 0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
+    Platform.DEBUGPrint("-X");
+  }else if(YX > -CosSin45 && YX < CosSin45 && YY > -CosSin45 && YY < CosSin45 && UnitSphere.Y > 0 ){
+    //  }else if(AbsY > AbsZ && AbsY > AbsX && UnitSphere.Y > 0) {
+    Tx = Clamp(LinearRemap(YX, -CosSin45, CosSin45,                     0, Bitmap->Width/3.f),                    0, Bitmap->Width/3.f-1);
+    Ty = Clamp(LinearRemap(YY, CosSin45, -CosSin45,  Bitmap->Height / 2.f, Bitmap->Height   ), Bitmap->Height / 2.f, Bitmap->Height-1   );
+    Platform.DEBUGPrint("+Y");
+  }else if(YX > -CosSin45 && YX < CosSin45 && YY > -CosSin45 && YY < CosSin45 && UnitSphere.Y < 0 ){
+    //else if(AbsY > AbsZ && AbsY > AbsX && UnitSphere.Y < 0)
+    Tx = Clamp(LinearRemap(YX, CosSin45, -CosSin45,   2*Bitmap->Width/3.f, Bitmap->Width ), 2*Bitmap->Width/3.f, Bitmap->Width-1 );
+    Ty = Clamp(LinearRemap(YY, CosSin45, -CosSin45,  Bitmap->Height / 2.f, Bitmap->Height),  Bitmap->Height/2.f, Bitmap->Height-1);
+    Platform.DEBUGPrint("-Y");
+  }else if(ZX > -CosSin45 && ZX < CosSin45 && ZY > -CosSin45 && ZY < CosSin45 && UnitSphere.Z > 0 ){
+    //} else if(AbsZ > AbsX && AbsZ > AbsY && UnitSphere.Z > 0) {
+    Tx = Clamp(LinearRemap(ZX,  CosSin45, -CosSin45, Bitmap->Width/3, 2*Bitmap->Width/3.f), Bitmap->Width/3, 2*Bitmap->Width/3.f-1);
+    Ty = Clamp(LinearRemap(ZY,  CosSin45, -CosSin45, Bitmap->Height / 2.f, Bitmap->Height), Bitmap->Height / 2.f, Bitmap->Height-1);
+    Platform.DEBUGPrint("+Z");
+  }else if(ZX > -CosSin45 && ZX < CosSin45 && ZY > -CosSin45 && ZY < CosSin45 && UnitSphere.Z < 0 ){
+    //} else if(AbsZ > AbsX && AbsZ > AbsY && UnitSphere.Z < 0) {
+    Tx = Clamp(LinearRemap(ZY,-CosSin45,  CosSin45, Bitmap->Width/3, 2*Bitmap->Width/3.f),Bitmap->Width/3, 2*Bitmap->Width/3.f-1);
+    Ty = Clamp(LinearRemap(ZX, CosSin45, -CosSin45, 0, Bitmap->Height / 2.f),0, Bitmap->Height / 2.f-1);
+    Platform.DEBUGPrint("-Z");
+  } else {
+    Platform.DEBUGPrint("!!\n");
+  }
+
+#endif
+
+  if(AbsX > AbsY && AbsX > AbsZ ) 
+  {
+
+    v3 n = V3(1,0,0);
+    v3 p = V3(0,0,0);
+
+    v2 xv1 = Normalize(V2(UnitSphere.X, UnitSphere.Z));
+    v2 xv2 = Normalize(V2(UnitSphere.X, UnitSphere.Y));
+    r32 XX = ASin(xv1.Y);
+    r32 XY = ASin(xv2.Y);
+
+    if(UnitSphere.X > 0)
+    {
+      r32 Alpha = RayPlaneIntersection( V3(1,0,0), V3(1,0,0), UnitSphere, V3(0,0,0) );
+      v3 PointOnPlane = Alpha * UnitSphere;
+      Tx = Clamp(LinearRemap(PointOnPlane.Z, -1, 1, 2*Bitmap->Width / 3.f, Bitmap->Width), 2*Bitmap->Width / 3.f, Bitmap->Width-1);
+      Ty = Clamp(LinearRemap(PointOnPlane.Y,  1,-1,                     0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
+      //Tx = Clamp(LinearRemap(XX, -PiOver4, PiOver4, 2*Bitmap->Width / 3.f, Bitmap->Width), 2*Bitmap->Width / 3.f, Bitmap->Width-1);
+      //Ty = Clamp(LinearRemap(XY,  PiOver4,-PiOver4,                     0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
+
+      //Platform.DEBUGPrint("+X");
+      //Platform.DEBUGPrint(" [%1.4f, %1.4f, %1.4f]\n", PointOnPlane.X, PointOnPlane.Y, PointOnPlane.Z);
+    } else {
+      r32 Alpha = RayPlaneIntersection( V3(-1,0,0), V3(-1,0,0), UnitSphere, V3(0,0,0) );
+      v3 PointOnPlane = Alpha * UnitSphere;
+      Tx = Clamp(LinearRemap(PointOnPlane.Z, 1, -1, 0, Bitmap->Width  / 3.f), 0, Bitmap->Width  / 3.f-1);
+      Ty = Clamp(LinearRemap(PointOnPlane.Y, 1, -1, 0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
+      Platform.DEBUGPrint("-X");
+    }
+  } else if(AbsY > AbsZ && AbsY > AbsX) {
+    
+    v2 yv1 = Normalize(V2(UnitSphere.Y, UnitSphere.Z));
+    v2 yv2 = Normalize(V2(UnitSphere.Y, UnitSphere.X));
+    r32 YX = ASin(yv1.Y);
+    r32 YY = ASin(yv2.Y);
+    
+    if(UnitSphere.Y > 0)
+    {
+      r32 Alpha = RayPlaneIntersection( V3(0,1,0), V3(0,1,0), UnitSphere, V3(0,0,0) );
+      v3 PointOnPlane = Alpha * UnitSphere;
+
+      Tx = Clamp(LinearRemap(PointOnPlane.Z, -1, 1,                     0, Bitmap->Width/3.f),                    0, Bitmap->Width/3.f-1);
+      Ty = Clamp(LinearRemap(PointOnPlane.X,  1,-1,  Bitmap->Height / 2.f, Bitmap->Height   ), Bitmap->Height / 2.f, Bitmap->Height-1   );
+      Platform.DEBUGPrint("+Y");
+    }else{
+
+      r32 Alpha = RayPlaneIntersection( V3(0,-1,0), V3(0,-1,0), UnitSphere, V3(0,0,0) );
+      v3 PointOnPlane = Alpha * UnitSphere;
+      Tx = Clamp(LinearRemap(PointOnPlane.Z, 1, -1,   2*Bitmap->Width/3.f, Bitmap->Width ), 2*Bitmap->Width/3.f, Bitmap->Width-1 );
+      Ty = Clamp(LinearRemap(PointOnPlane.X, 1, -1,  Bitmap->Height / 2.f, Bitmap->Height),  Bitmap->Height/2.f, Bitmap->Height-1);
+      Platform.DEBUGPrint("-Y");
+    }
+  } else if(AbsZ > AbsX && AbsZ > AbsY) {
+    v2 zv1 = Normalize(V2(UnitSphere.Z, UnitSphere.Y));
+    v2 zv2 = Normalize(V2(UnitSphere.Z, UnitSphere.X));
+    r32 ZX = ASin(zv1.Y);
+    r32 ZY = ASin(zv2.Y);
+
+    if(UnitSphere.Z > 0) {
+      r32 Alpha = RayPlaneIntersection( V3(0,0,1), V3(0,0,1), UnitSphere, V3(0,0,0) );
+      v3 PointOnPlane = Alpha * UnitSphere;
+      Tx = Clamp(LinearRemap(PointOnPlane.Y,  1, -1, Bitmap->Width/3, 2*Bitmap->Width/3.f), Bitmap->Width/3, 2*Bitmap->Width/3.f-1);
+      Ty = Clamp(LinearRemap(PointOnPlane.X,  1, -1, Bitmap->Height / 2.f, Bitmap->Height), Bitmap->Height / 2.f, Bitmap->Height-1);
+      Platform.DEBUGPrint("+Z");
+    }else{
+      r32 Alpha = RayPlaneIntersection( V3(0,0,-1), V3(0,0,-1), UnitSphere, V3(0,0,0) );
+      v3 PointOnPlane = Alpha * UnitSphere;
+      Tx = Clamp(LinearRemap(PointOnPlane.X,-1,  1, Bitmap->Width/3, 2*Bitmap->Width/3.f),Bitmap->Width/3, 2*Bitmap->Width/3.f-1);
+      Ty = Clamp(LinearRemap(PointOnPlane.Y, 1, -1, 0, Bitmap->Height / 2.f),0, Bitmap->Height / 2.f-1);
+      Platform.DEBUGPrint("-Z");  
+    }
+  } else {
+    Platform.DEBUGPrint("!!\n");
+  }
+  //Platform.DEBUGPrint(" %1.4f [%1.4f,%1.4f,%1.4f] -> [%1.4f, %1.4f]\n",
+  //  CosSin45,
+  //  UnitSphere.X,UnitSphere.Y,UnitSphere.Z,
+  //  Tx, Ty);
+  //Platform.DEBUGPrint(" (%f %f) ", ACos(UnitSphere.X)* 180.0/Pi32 ,  ASin(UnitSphere.Y)* 180.0/Pi32 );
+  //Platform.DEBUGPrint("-X, X %f %f, -Y, Y %f %f, -Z, Z %f %f ", AngleMX, AngleX,  AngleMY, AngleY,  AngleMZ, AngleZ);
+  jwin_Assert(Tx >=0 && Tx < Bitmap->Width);
+  jwin_Assert(Ty >=0 && Ty < Bitmap->Height);
+
+  return {Tx, Ty};
 }
 
 v3 GetSphereCoordinateFromCube(v3 PointOnUnitCube)
@@ -1323,6 +1490,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     if(Input->Mouse.dX != 0)
     {
       RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
+      //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
     }
     if(Input->Mouse.dY != 0)
     {
@@ -1403,7 +1571,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 #endif
 
-#if 1
+#if 0
   // Floor
   {
     m4 ModelMatPlane = GetTranslationMatrix( V4(0,-1.1,0,0)) * GetScaleMatrix( V4(10,0.1,10,0));
@@ -1530,14 +1698,63 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
     PushRenderState(Object, DepthTestCulling);
   }
+#endif
+
 
   {
+
+#define SKYBOXVERSION 0
+#if SKYBOXVERSION == 0
+  {
+    local_persist opengl_bitmap SkyboxTexture = {};
+    SkyboxTexture.BPP = 32;
+    SkyboxTexture.Width = (u32) 256*3;
+    SkyboxTexture.Height = 256*2;
+    if(!SkyboxTexture.Pixels)
+    {
+      GlobalState->Skybox = GlLoadTexture(OpenGL, SkyboxTexture); // Has permanent data managed by the graphics-layer which we can update
+      SkyboxTexture.Pixels = PushSize(GlobalPersistentArena, sizeof(u32) * SkyboxTexture.Width*SkyboxTexture.Height);
+    }
+
+    // Mouse picker
+    v3 Up, Right, Forward;
+    GetCameraDirections(Camera, &Up, &Right, &Forward);
+    //Forward = -Normalize(V3(1.04*Cos(0.5*Input->Time),1.04*Sin(0.5*Input->Time),1));
+    //Forward = -Normalize(V3(-1,-0.90,0.90));
+    v2 tx = GetTextureCoordinateFromUnitSphereCoordinate(-Forward, &SkyboxTexture);
+    //Platform.DEBUGPrint("[%1.4f,%1.4f,%1.4f] -> [%1.4f, %1.4f]\n",
+    //-Forward.X,-Forward.Y,-Forward.Z,
+    //tx.X, tx.Y);
+    jwin_Assert(tx.X >=0 && tx.X < SkyboxTexture.Width);
+    jwin_Assert(tx.Y >=0 && tx.Y < SkyboxTexture.Height);
+    u32* Pixels = (u32*) SkyboxTexture.Pixels;
+    u32 mx = (u32) Clamp(LinearRemap(Input->Mouse.X, 0, Camera->AspectRatio, 0, SkyboxTexture.Width), 0, SkyboxTexture.Width);
+    u32 my = (u32) Clamp(Lerp(Input->Mouse.Y, 0, SkyboxTexture.Height),0,SkyboxTexture.Height);
+    //Platform.DEBUGPrint("\n AA : [%1.2f, %1.2f] [%d %d] %f\n",Input->Mouse.X,Input->Mouse.Y,  mx,my, Camera->AspectRatio);
+    //tx.X = 60 * Input->Time;
+    //tx.Y = tx.X % SkyboxTexture.Width;
+    //tx.X -= tx.Y * SkyboxTexture.Width;
+    u32 TextureCoordIndex = (u32)( ((u32) tx.Y) * SkyboxTexture.Width + ((u32) tx.X));
+
+    u32 TextureCoordIndex2 =(u32)( tx.Y * SkyboxTexture.Width +  tx.X);
+
+    //Platform.DEBUGPrint("\n[%1.2f, %1.2f] [%d %d %d]\n",tx.X,tx.Y, TextureCoordIndex, TextureCoordIndex2, (s32)TextureCoordIndex - (s32)TextureCoordIndex2);
+    //TextureCoordIndex =(u32)( my * SkyboxTexture.Width + mx);
+    //TextureCoordIndex =(u32)( SkyboxTexture.Width * 60*Input->Time + 30);
+    //jwin_Assert(TextureCoordIndex <= SkyboxTexture.Width * SkyboxTexture.Height);
+    Pixels[TextureCoordIndex] = 0xffffffff;
+    //Platform.DEBUGPrint("%d", TextureCoordIndex);
+    GlUpdateTexture(OpenGL, GlobalState->Skybox, SkyboxTexture);
+    //Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f - %1.2f, %1.2f\n",
+    //  -Forward.X,-Forward.Y,-Forward.Z, tx.X, tx.Y);
+  }
+
+#elif SKYBOXVERSION == 1
     if(!GlobalState->Skybox || 
       jwin::Pushed(Input->Keyboard.Key_L))
     {
-#if 1
       obj_bitmap* TgaSkybox = LoadTGA(GlobalTransientArena, "..\\data\\textures\\skybox3.tga");
-      opengl_bitmap* GlSkybox = MapObjBitmapToOpenGLBitmap(GlobalTransientArena, TgaSkybox);
+      opengl_bitmap GlSkybox = MapObjBitmapToOpenGLBitmap(GlobalTransientArena, TgaSkybox);
       GlobalState->Skybox = GlLoadTexture(OpenGL, GlSkybox);
 
 
@@ -1550,7 +1767,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       //  3d Sphere coordinate to Pixel Coordinate
 
       // In the program be able to draw or paste premade textures to a globe.
-      // Project that globe down to a cube
+      // Project that globe on to a cube
       // Write it to file as a texture. Can be a bin-dump. Do a tga export if you are feeling fancy
       // and have the ability to further mod it in for example gimp.
 
@@ -1563,8 +1780,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
       //  Need a convenient structure to do this mapping. Ie specify where the faces are in the texture
       //  that is easy to modify.
-
-#else 
+    }
+#elif SKYBOXVERSION == 2 
+    if(!GlobalState->Skybox || 
+    jwin::Pushed(Input->Keyboard.Key_L))
+    {
       obj_bitmap* TgaSkybox = LoadTGA(GlobalTransientArena, "..\\data\\textures\\skybox.tga");
       opengl_bitmap GlSkybox = {};
       GlSkybox.BPP = 32;
@@ -1647,8 +1867,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
           Rotation);
       }
       GlobalState->Skybox = GlLoadTexture(OpenGL, GlSkybox);  
-
-// #else
+    }
+#elif SKYBOXVERSION == 2
+    if(!GlobalState->Skybox || 
+    jwin::Pushed(Input->Keyboard.Key_L))
+    {
       u32 Sides = 6;
       u32 SideSize = 256;
       void* Pixels = PushSize(GlobalTransientArena, sizeof(u32) * Sides*SideSize*SideSize);
@@ -1691,10 +1914,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         }
       }
       GlobalState->Skybox = GlLoadTexture(OpenGL, Skybox);  
-    #endif
     }
-    
-
+    #endif
 
     skybox* SkyBox = PushNewSkybox(RenderCommands->RenderGroup);
     SkyBox->SkyboxTexture = GlobalState->Skybox;
@@ -1704,7 +1925,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       V4(V3(Camera->V.r1),0),
       V4(V3(Camera->V.r1),0),
       V4(V3(Camera->V.r2),1));
-    m4 ModelView = SkyBox->ViewMat = Camera->V * GetScaleMatrix(V4(1,1,1,1)) * GetRotationMatrix(-Pi32/2, V4(0,0,1,0));
+    m4 ModelView = SkyBox->ViewMat = Camera->V * GetScaleMatrix(V4(1,1,1,1));// * GetRotationMatrix(Pi32, V4(0,1,0,0)) * GetRotationMatrix(-Pi32/2, V4(0,0,1,0));
     ModelView.E[3] = 0;
     ModelView.E[7] = 0;
     ModelView.E[11] = 0;
@@ -1724,5 +1945,5 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     //DrawVector(RenderCommands, V3(0,0,0), V3(1,0,0), LightDirection, 0, Camera->P, Camera->V, 0.4);
     //DrawVector(RenderCommands, V3(0,0,0), V3(0,1,0), LightDirection, 1, Camera->P, Camera->V, 0.4);
     //DrawVector(RenderCommands, V3(0,0,0), V3(0,0,1), LightDirection, 2, Camera->P, Camera->V, 0.4);
-    #endif
+
 }
