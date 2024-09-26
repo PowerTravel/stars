@@ -1033,153 +1033,119 @@ r32 RayPlaneIntersection( v3 PlaneNormal, v3 PointOnPlane, v3 Ray, v3 RayOrigin)
   return Lambda;
 }
 
+enum class skybox_side{
+  X_MINUS,
+  Z_MINUS,
+  X_PLUS,
+  Y_PLUS,
+  Z_PLUS,
+  Y_MINUS,
+  SIDE_COUNT
+};
+
+skybox_side GetSkyboxSide(v3 Direction)
+{
+  r32 AbsX = Abs(Direction.X);
+  r32 AbsY = Abs(Direction.Y);
+  r32 AbsZ = Abs(Direction.Z);
+  if(AbsX >= AbsY && AbsX >= AbsZ ) 
+  {
+    return Direction.X > 0 ? skybox_side::X_PLUS : skybox_side::X_MINUS;
+  } else if(AbsY >= AbsZ && AbsY > AbsX) {
+    
+    return Direction.Y > 0 ? skybox_side::Y_PLUS : skybox_side::Y_MINUS;
+    
+  } else if(AbsZ > AbsX && AbsZ > AbsY) {
+
+    return Direction.Z > 0 ? skybox_side::Z_PLUS : skybox_side::Z_MINUS;
+  }
+
+  // Not specifically a bug to end up here,
+  // Just not knowing when it could happen
+  INVALID_CODE_PATH
+  return skybox_side::SIDE_COUNT;
+}
+
 v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, opengl_bitmap* Bitmap)
 {
+  jwin_Assert(Bitmap->Width / 3.f == Bitmap->Height / 2.f);
+
+  u32 TextureStartX = 0;
+  u32 TextureStartY = 0;
+  u32 TextureSideSize = Bitmap->Height / 2.f;
+  v2 PlaneCoordinate = V2(0,0);
+  r32 Alpha = 0;
+
   r32 AbsX = Abs(UnitSphere.X);
   r32 AbsY = Abs(UnitSphere.Y);
   r32 AbsZ = Abs(UnitSphere.Z);
-  jwin_Assert(AbsX <= 1 && AbsY <= 1 && AbsZ <= 1)
-  r32 Tx = 0;
-  r32 Ty = 0;
-  local_persist r32 PiOver4 = Pi32*0.25f;
-  local_persist r32 SinCos45 = 2/sqrt(2);
-  
-#if 0
-
-  v2 xv1 = Normalize(V2(UnitSphere.X, UnitSphere.Z));
-  v2 xv2 = Normalize(V2(UnitSphere.X, UnitSphere.Y));
-  r32 XX = ASin(xv1.Y);
-  r32 XY = ASin(xv2.Y);
-
-  v2 yv1 = Normalize(V2(UnitSphere.Y, UnitSphere.Z));
-  v2 yv2 = Normalize(V2(UnitSphere.Y, UnitSphere.X));
-  r32 YX = ASin(yv1.Y);
-  r32 YY = ASin(yv2.Y);
-  
-  v2 zv1 = Normalize(V2(UnitSphere.Z, UnitSphere.Y));
-  v2 zv2 = Normalize(V2(UnitSphere.Z, UnitSphere.X));
-  r32 ZX = ASin(zv1.Y);
-  r32 ZY = ASin(zv2.Y);
-  
-  if(XX > -CosSin45 && XX < CosSin45 && XY > -CosSin45 && XY < CosSin45 && UnitSphere.X > 0)
-  //if(AbsX > AbsY && AbsX > AbsZ  && UnitSphere.X > 0) 
+  jwin_Assert(AbsX <= 1 && AbsY <= 1 && AbsZ <= 1);
+  skybox_side Side = GetSkyboxSide(UnitSphere);
+  switch(Side)
   {
-    Tx = Clamp(LinearRemap(XX, -CosSin45, CosSin45, 2*Bitmap->Width / 3.f, Bitmap->Width), 2*Bitmap->Width / 3.f, Bitmap->Width-1);
-    Ty = Clamp(LinearRemap(XY,  CosSin45,-CosSin45,                     0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
-    Platform.DEBUGPrint("+X");
-  }else if(XX > -CosSin45 && XX < CosSin45 && XY > -CosSin45 && XY < CosSin45 && UnitSphere.X < 0) {
-  //} else if(AbsX > AbsY && AbsX > AbsZ  && UnitSphere.X < 0) {
-    Tx = Clamp(LinearRemap(XX, CosSin45, -CosSin45, 0, Bitmap->Width  / 3.f), 0, Bitmap->Width  / 3.f-1);
-    Ty = Clamp(LinearRemap(XY, CosSin45, -CosSin45, 0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
-    Platform.DEBUGPrint("-X");
-  }else if(YX > -CosSin45 && YX < CosSin45 && YY > -CosSin45 && YY < CosSin45 && UnitSphere.Y > 0 ){
-    //  }else if(AbsY > AbsZ && AbsY > AbsX && UnitSphere.Y > 0) {
-    Tx = Clamp(LinearRemap(YX, -CosSin45, CosSin45,                     0, Bitmap->Width/3.f),                    0, Bitmap->Width/3.f-1);
-    Ty = Clamp(LinearRemap(YY, CosSin45, -CosSin45,  Bitmap->Height / 2.f, Bitmap->Height   ), Bitmap->Height / 2.f, Bitmap->Height-1   );
-    Platform.DEBUGPrint("+Y");
-  }else if(YX > -CosSin45 && YX < CosSin45 && YY > -CosSin45 && YY < CosSin45 && UnitSphere.Y < 0 ){
-    //else if(AbsY > AbsZ && AbsY > AbsX && UnitSphere.Y < 0)
-    Tx = Clamp(LinearRemap(YX, CosSin45, -CosSin45,   2*Bitmap->Width/3.f, Bitmap->Width ), 2*Bitmap->Width/3.f, Bitmap->Width-1 );
-    Ty = Clamp(LinearRemap(YY, CosSin45, -CosSin45,  Bitmap->Height / 2.f, Bitmap->Height),  Bitmap->Height/2.f, Bitmap->Height-1);
-    Platform.DEBUGPrint("-Y");
-  }else if(ZX > -CosSin45 && ZX < CosSin45 && ZY > -CosSin45 && ZY < CosSin45 && UnitSphere.Z > 0 ){
-    //} else if(AbsZ > AbsX && AbsZ > AbsY && UnitSphere.Z > 0) {
-    Tx = Clamp(LinearRemap(ZX,  CosSin45, -CosSin45, Bitmap->Width/3, 2*Bitmap->Width/3.f), Bitmap->Width/3, 2*Bitmap->Width/3.f-1);
-    Ty = Clamp(LinearRemap(ZY,  CosSin45, -CosSin45, Bitmap->Height / 2.f, Bitmap->Height), Bitmap->Height / 2.f, Bitmap->Height-1);
-    Platform.DEBUGPrint("+Z");
-  }else if(ZX > -CosSin45 && ZX < CosSin45 && ZY > -CosSin45 && ZY < CosSin45 && UnitSphere.Z < 0 ){
-    //} else if(AbsZ > AbsX && AbsZ > AbsY && UnitSphere.Z < 0) {
-    Tx = Clamp(LinearRemap(ZY,-CosSin45,  CosSin45, Bitmap->Width/3, 2*Bitmap->Width/3.f),Bitmap->Width/3, 2*Bitmap->Width/3.f-1);
-    Ty = Clamp(LinearRemap(ZX, CosSin45, -CosSin45, 0, Bitmap->Height / 2.f),0, Bitmap->Height / 2.f-1);
-    Platform.DEBUGPrint("-Z");
-  } else {
-    Platform.DEBUGPrint("!!\n");
-  }
-
-#endif
-
-  if(AbsX > AbsY && AbsX > AbsZ ) 
-  {
-
-    v3 n = V3(1,0,0);
-    v3 p = V3(0,0,0);
-
-    v2 xv1 = Normalize(V2(UnitSphere.X, UnitSphere.Z));
-    v2 xv2 = Normalize(V2(UnitSphere.X, UnitSphere.Y));
-    r32 XX = ASin(xv1.Y);
-    r32 XY = ASin(xv2.Y);
-
-    if(UnitSphere.X > 0)
+    case skybox_side::X_MINUS:
     {
-      r32 Alpha = RayPlaneIntersection( V3(1,0,0), V3(1,0,0), UnitSphere, V3(0,0,0) );
+      Alpha = RayPlaneIntersection( V3(-1,0,0), V3(-1,0,0), UnitSphere, V3(0,0,0) );
       v3 PointOnPlane = Alpha * UnitSphere;
-      Tx = Clamp(LinearRemap(PointOnPlane.Z, -1, 1, 2*Bitmap->Width / 3.f, Bitmap->Width), 2*Bitmap->Width / 3.f, Bitmap->Width-1);
-      Ty = Clamp(LinearRemap(PointOnPlane.Y,  1,-1,                     0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
-      //Tx = Clamp(LinearRemap(XX, -PiOver4, PiOver4, 2*Bitmap->Width / 3.f, Bitmap->Width), 2*Bitmap->Width / 3.f, Bitmap->Width-1);
-      //Ty = Clamp(LinearRemap(XY,  PiOver4,-PiOver4,                     0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
 
-      //Platform.DEBUGPrint("+X");
-      //Platform.DEBUGPrint(" [%1.4f, %1.4f, %1.4f]\n", PointOnPlane.X, PointOnPlane.Y, PointOnPlane.Z);
-    } else {
-      r32 Alpha = RayPlaneIntersection( V3(-1,0,0), V3(-1,0,0), UnitSphere, V3(0,0,0) );
+      TextureStartX = 0;
+      TextureStartY = 0;
+      PlaneCoordinate.X = -PointOnPlane.Z;
+      PlaneCoordinate.Y = -PointOnPlane.Y;
+    }break;
+    case skybox_side::Z_MINUS:
+    {
+      r32 Alpha = RayPlaneIntersection( V3(0,0,-1), V3(0,0,-1), UnitSphere, V3(0,0,0) );
       v3 PointOnPlane = Alpha * UnitSphere;
-      Tx = Clamp(LinearRemap(PointOnPlane.Z, 1, -1, 0, Bitmap->Width  / 3.f), 0, Bitmap->Width  / 3.f-1);
-      Ty = Clamp(LinearRemap(PointOnPlane.Y, 1, -1, 0, Bitmap->Height / 2.f), 0, Bitmap->Height / 2.f-1);
-      Platform.DEBUGPrint("-X");
-    }
-  } else if(AbsY > AbsZ && AbsY > AbsX) {
-    
-    v2 yv1 = Normalize(V2(UnitSphere.Y, UnitSphere.Z));
-    v2 yv2 = Normalize(V2(UnitSphere.Y, UnitSphere.X));
-    r32 YX = ASin(yv1.Y);
-    r32 YY = ASin(yv2.Y);
-    
-    if(UnitSphere.Y > 0)
+      
+      TextureStartX = Bitmap->Width/3;
+      TextureStartY = 0;
+      PlaneCoordinate.X =  PointOnPlane.X;
+      PlaneCoordinate.Y = -PointOnPlane.Y;
+    }break;
+    case skybox_side::X_PLUS:
+    {
+      TextureStartX = 2*Bitmap->Width / 3.f;
+      TextureStartY = 0;
+      Alpha = RayPlaneIntersection( V3(1,0,0), V3(1,0,0), UnitSphere, V3(0,0,0) );
+      v3 PointOnPlane = Alpha * UnitSphere;
+      PlaneCoordinate.X = PointOnPlane.Z;
+      PlaneCoordinate.Y = -PointOnPlane.Y;
+    }break;
+    case skybox_side::Y_PLUS:
     {
       r32 Alpha = RayPlaneIntersection( V3(0,1,0), V3(0,1,0), UnitSphere, V3(0,0,0) );
       v3 PointOnPlane = Alpha * UnitSphere;
 
-      Tx = Clamp(LinearRemap(PointOnPlane.Z, -1, 1,                     0, Bitmap->Width/3.f),                    0, Bitmap->Width/3.f-1);
-      Ty = Clamp(LinearRemap(PointOnPlane.X,  1,-1,  Bitmap->Height / 2.f, Bitmap->Height   ), Bitmap->Height / 2.f, Bitmap->Height-1   );
-      Platform.DEBUGPrint("+Y");
-    }else{
-
-      r32 Alpha = RayPlaneIntersection( V3(0,-1,0), V3(0,-1,0), UnitSphere, V3(0,0,0) );
-      v3 PointOnPlane = Alpha * UnitSphere;
-      Tx = Clamp(LinearRemap(PointOnPlane.Z, 1, -1,   2*Bitmap->Width/3.f, Bitmap->Width ), 2*Bitmap->Width/3.f, Bitmap->Width-1 );
-      Ty = Clamp(LinearRemap(PointOnPlane.X, 1, -1,  Bitmap->Height / 2.f, Bitmap->Height),  Bitmap->Height/2.f, Bitmap->Height-1);
-      Platform.DEBUGPrint("-Y");
-    }
-  } else if(AbsZ > AbsX && AbsZ > AbsY) {
-    v2 zv1 = Normalize(V2(UnitSphere.Z, UnitSphere.Y));
-    v2 zv2 = Normalize(V2(UnitSphere.Z, UnitSphere.X));
-    r32 ZX = ASin(zv1.Y);
-    r32 ZY = ASin(zv2.Y);
-
-    if(UnitSphere.Z > 0) {
+      TextureStartX = 0;
+      TextureStartY = Bitmap->Height / 2.f;
+      PlaneCoordinate.X =  PointOnPlane.Z;
+      PlaneCoordinate.Y = -PointOnPlane.X;
+    }break;
+    case skybox_side::Z_PLUS:
+    {
       r32 Alpha = RayPlaneIntersection( V3(0,0,1), V3(0,0,1), UnitSphere, V3(0,0,0) );
       v3 PointOnPlane = Alpha * UnitSphere;
-      Tx = Clamp(LinearRemap(PointOnPlane.Y,  1, -1, Bitmap->Width/3, 2*Bitmap->Width/3.f), Bitmap->Width/3, 2*Bitmap->Width/3.f-1);
-      Ty = Clamp(LinearRemap(PointOnPlane.X,  1, -1, Bitmap->Height / 2.f, Bitmap->Height), Bitmap->Height / 2.f, Bitmap->Height-1);
-      Platform.DEBUGPrint("+Z");
-    }else{
-      r32 Alpha = RayPlaneIntersection( V3(0,0,-1), V3(0,0,-1), UnitSphere, V3(0,0,0) );
+
+      TextureStartX = Bitmap->Width/3;
+      TextureStartY = Bitmap->Height / 2.f;
+      PlaneCoordinate.X = -PointOnPlane.Y;
+      PlaneCoordinate.Y = -PointOnPlane.X;
+    }break;
+    case skybox_side::Y_MINUS:
+    {
+      r32 Alpha = RayPlaneIntersection( V3(0,-1,0), V3(0,-1,0), UnitSphere, V3(0,0,0) );
       v3 PointOnPlane = Alpha * UnitSphere;
-      Tx = Clamp(LinearRemap(PointOnPlane.X,-1,  1, Bitmap->Width/3, 2*Bitmap->Width/3.f),Bitmap->Width/3, 2*Bitmap->Width/3.f-1);
-      Ty = Clamp(LinearRemap(PointOnPlane.Y, 1, -1, 0, Bitmap->Height / 2.f),0, Bitmap->Height / 2.f-1);
-      Platform.DEBUGPrint("-Z");  
-    }
-  } else {
-    Platform.DEBUGPrint("!!\n");
+
+      TextureStartX = 2*Bitmap->Width/3.f;
+      TextureStartY = Bitmap->Height / 2.f;
+      PlaneCoordinate.X = -PointOnPlane.Z;
+      PlaneCoordinate.Y = -PointOnPlane.X;
+    }break;
   }
-  //Platform.DEBUGPrint(" %1.4f [%1.4f,%1.4f,%1.4f] -> [%1.4f, %1.4f]\n",
-  //  CosSin45,
-  //  UnitSphere.X,UnitSphere.Y,UnitSphere.Z,
-  //  Tx, Ty);
-  //Platform.DEBUGPrint(" (%f %f) ", ACos(UnitSphere.X)* 180.0/Pi32 ,  ASin(UnitSphere.Y)* 180.0/Pi32 );
-  //Platform.DEBUGPrint("-X, X %f %f, -Y, Y %f %f, -Z, Z %f %f ", AngleMX, AngleX,  AngleMY, AngleY,  AngleMZ, AngleZ);
-  jwin_Assert(Tx >=0 && Tx < Bitmap->Width);
-  jwin_Assert(Ty >=0 && Ty < Bitmap->Height);
+
+  r32 Tx = Clamp(LinearRemap(PlaneCoordinate.X, -1, 1, TextureStartX, TextureStartX+TextureSideSize), TextureStartX, TextureStartX+TextureSideSize-1);
+  r32 Ty = Clamp(LinearRemap(PlaneCoordinate.Y, -1, 1, TextureStartY, TextureStartY+TextureSideSize), TextureStartY, TextureStartY+TextureSideSize-1);
 
   return {Tx, Ty};
 }
@@ -1707,46 +1673,109 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 #if SKYBOXVERSION == 0
   {
     local_persist opengl_bitmap SkyboxTexture = {};
+    u32 SideSize = 1024;
     SkyboxTexture.BPP = 32;
-    SkyboxTexture.Width = (u32) 256*3;
-    SkyboxTexture.Height = 256*2;
+    SkyboxTexture.Width = (u32) SideSize*3;
+    SkyboxTexture.Height = SideSize*2;
+    local_persist opengl_bitmap TgaBitmap = {};
     if(!SkyboxTexture.Pixels)
     {
       GlobalState->Skybox = GlLoadTexture(OpenGL, SkyboxTexture); // Has permanent data managed by the graphics-layer which we can update
       SkyboxTexture.Pixels = PushSize(GlobalPersistentArena, sizeof(u32) * SkyboxTexture.Width*SkyboxTexture.Height);
+      TgaBitmap = MapObjBitmapToOpenGLBitmap(GlobalPersistentArena, LoadTGA(GlobalTransientArena, "..\\data\\textures\\star1.tga"));
     }
 
-    // Mouse picker
+
+    // Next up:
+    // 2 Alternatives
+    // Alt 1:
+    //  - Load a texture and paste it onto the skybox
+    // Alt 2:
+    //  - Do vector graphics. Ie load splines with fill-rules and paste onto the skybox
+
+
+    // Given a texture:
+    // - Figure out the angle it covers on the sky
+    // - project it onto the sky
+    // - Have a function where you send in a square area and divy it up onto one of the 6 squares.
+    //   and handle each square separately.
+
+    local_persist r32 Angle = 0.1f;
+
+    if(Input->Mouse.dZ != 0)
+    {
+      Angle *= (Input->Mouse.dZ > 0) ? 0.85 : 1.1;
+    }
+
+
+
     v3 Up, Right, Forward;
     GetCameraDirections(Camera, &Up, &Right, &Forward);
-    //Forward = -Normalize(V3(1.04*Cos(0.5*Input->Time),1.04*Sin(0.5*Input->Time),1));
-    //Forward = -Normalize(V3(-1,-0.90,0.90));
-    v2 tx = GetTextureCoordinateFromUnitSphereCoordinate(-Forward, &SkyboxTexture);
-    //Platform.DEBUGPrint("[%1.4f,%1.4f,%1.4f] -> [%1.4f, %1.4f]\n",
-    //-Forward.X,-Forward.Y,-Forward.Z,
-    //tx.X, tx.Y);
-    jwin_Assert(tx.X >=0 && tx.X < SkyboxTexture.Width);
-    jwin_Assert(tx.Y >=0 && tx.Y < SkyboxTexture.Height);
+    Forward = -Forward;
+    Right = -Right;
+
+    r32 Width1 = Sin(Angle);
+    r32 Height1 = Sin(Angle);
+
+    v3 TopLeft   = Normalize( Forward - Right * Width1 + Up * Height1);
+    v3 TopRight  = Normalize( Forward + Right * Width1 + Up * Height1);
+    v3 BotLeft   = Normalize( Forward - Right * Width1 - Up * Height1);
+    v3 BotRight  = Normalize( Forward + Right * Width1 - Up * Height1);
+
+    skybox_side TopLeftSide  = GetSkyboxSide(TopLeft);
+    skybox_side TopRightSide = GetSkyboxSide(TopRight);
+    skybox_side BotLeftSide  = GetSkyboxSide(BotLeft);
+    skybox_side BotRightSide = GetSkyboxSide(BotRight);
+
+    if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
+    {
+      // The case if the whole picture falls into the same skybox-side
+      // Handle edge-spanning textures by splitting it up into pieces that fall within the same side.
+      r32 Width = Norm(TopLeft - TopRight);
+      r32 Height = Norm(TopLeft - BotLeft);
+      r32 stepx =  Width / (r32)TgaBitmap.Width;
+      r32 stepy =  Height / (r32)TgaBitmap.Height;
+
+      u32* SrcPixels = (u32*) TgaBitmap.Pixels;
+
+      //v3 TopLeft = Normalize(TopLeft + Unlerp(x,0,TgaBitmap.Width) * (TopLeft - TopRight) - (TopLeft - TopRight) + Unlerp(y,0,TgaBitmap.Height) * (TopLeft - BotLeft) - (TopLeft - BotLeft));
+      //v3 BotRight = Normalize(TopLeft + Unlerp(x,0,TgaBitmap.Width) * (TopLeft - TopRight) - (TopLeft - TopRight) + Unlerp(y,0,TgaBitmap.Height) * (TopLeft - BotLeft) - (TopLeft - BotLeft));
+
+      for (int y = 0; y < TgaBitmap.Height; ++y)
+      {
+        for (int x = 0; x < TgaBitmap.Width; ++x)
+        {
+          u32 PixelValue = SrcPixels[y*TgaBitmap.Width + x];
+          if(PixelValue== 0)
+          {
+            continue;
+          }
+
+          v3 UnitVec = Normalize(TopLeft + Unlerp(x,0,TgaBitmap.Width) * (TopLeft - TopRight) - (TopLeft - TopRight) + Unlerp(y,0,TgaBitmap.Height) * (TopLeft - BotLeft) - (TopLeft - BotLeft));
+          v2 tx = GetTextureCoordinateFromUnitSphereCoordinate(UnitVec, &SkyboxTexture);
+
+          u32* DstPixels = (u32*) SkyboxTexture.Pixels;
+          u32 TextureCoordIndex = (u32)( ((u32) tx.Y) * SkyboxTexture.Width + ((u32) tx.X));
+
+          DstPixels[TextureCoordIndex] = PixelValue;
+        }
+      }
+    }else{
+      //INVALID_CODE_PATH
+    }
+
+    #if 0
+    v2 tx = GetTextureCoordinateFromUnitSphereCoordinate(Forward, &SkyboxTexture);
+
+
+
     u32* Pixels = (u32*) SkyboxTexture.Pixels;
-    u32 mx = (u32) Clamp(LinearRemap(Input->Mouse.X, 0, Camera->AspectRatio, 0, SkyboxTexture.Width), 0, SkyboxTexture.Width);
-    u32 my = (u32) Clamp(Lerp(Input->Mouse.Y, 0, SkyboxTexture.Height),0,SkyboxTexture.Height);
-    //Platform.DEBUGPrint("\n AA : [%1.2f, %1.2f] [%d %d] %f\n",Input->Mouse.X,Input->Mouse.Y,  mx,my, Camera->AspectRatio);
-    //tx.X = 60 * Input->Time;
-    //tx.Y = tx.X % SkyboxTexture.Width;
-    //tx.X -= tx.Y * SkyboxTexture.Width;
     u32 TextureCoordIndex = (u32)( ((u32) tx.Y) * SkyboxTexture.Width + ((u32) tx.X));
 
-    u32 TextureCoordIndex2 =(u32)( tx.Y * SkyboxTexture.Width +  tx.X);
-
-    //Platform.DEBUGPrint("\n[%1.2f, %1.2f] [%d %d %d]\n",tx.X,tx.Y, TextureCoordIndex, TextureCoordIndex2, (s32)TextureCoordIndex - (s32)TextureCoordIndex2);
-    //TextureCoordIndex =(u32)( my * SkyboxTexture.Width + mx);
-    //TextureCoordIndex =(u32)( SkyboxTexture.Width * 60*Input->Time + 30);
-    //jwin_Assert(TextureCoordIndex <= SkyboxTexture.Width * SkyboxTexture.Height);
     Pixels[TextureCoordIndex] = 0xffffffff;
-    //Platform.DEBUGPrint("%d", TextureCoordIndex);
+    #endif
+    // Need system to update only parts of a texture.
     GlUpdateTexture(OpenGL, GlobalState->Skybox, SkyboxTexture);
-    //Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f - %1.2f, %1.2f\n",
-    //  -Forward.X,-Forward.Y,-Forward.Z, tx.X, tx.Y);
   }
 
 #elif SKYBOXVERSION == 1
