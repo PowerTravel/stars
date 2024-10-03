@@ -991,6 +991,32 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   }
 }
 
+struct sky_vectors {
+  v3 TopLeft;
+  v3 TopRight;
+  v3 BotLeft;
+  v3 BotRight;
+};
+
+sky_vectors GetSkyVectors(camera* Camera, r32 SkyAngle)
+{
+  v3 CamUp, CamRight, CamForward;
+  GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
+  v3 TexForward = -CamForward;
+  v3 TexRight = -CamRight;
+  v3 TexUp = CamUp;
+
+  r32 TexWidth = Sin(SkyAngle);
+  r32 TexHeight = Sin(SkyAngle);
+  sky_vectors Result = {};
+  Result.TopLeft   = Normalize( TexForward - TexRight * TexWidth + TexUp * TexHeight);
+  Result.TopRight  = Normalize( TexForward + TexRight * TexWidth + TexUp * TexHeight);
+  Result.BotLeft   = Normalize( TexForward - TexRight * TexWidth - TexUp * TexHeight);
+  Result.BotRight  = Normalize( TexForward + TexRight * TexWidth - TexUp * TexHeight);
+  return Result;
+}
+
+
 
 struct skybox_params
 {
@@ -1682,68 +1708,31 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     {
       GlobalState->Skybox = GlLoadTexture(OpenGL, SkyboxTexture); // Has permanent data managed by the graphics-layer which we can update
       SkyboxTexture.Pixels = PushSize(GlobalPersistentArena, sizeof(u32) * SkyboxTexture.Width*SkyboxTexture.Height);
-      TgaBitmap = MapObjBitmapToOpenGLBitmap(GlobalPersistentArena, LoadTGA(GlobalTransientArena, "..\\data\\textures\\star1.tga"));
+      TgaBitmap = MapObjBitmapToOpenGLBitmap(GlobalPersistentArena, LoadTGA(GlobalTransientArena, "..\\data\\textures\\background_stars_spritesheet_20x20.tga"));
     }
 
-
-    // Next up:
-    // 2 Alternatives
-    // Alt 1:
-    //  - Load a texture and paste it onto the skybox
-    // Alt 2:
-    //  - Do vector graphics. Ie load splines with fill-rules and paste onto the skybox
-
-
-    // Given a texture:
-    // - Figure out the angle it covers on the sky
-    // - project it onto the sky
-    // - Have a function where you send in a square area and divy it up onto one of the 6 squares.
-    //   and handle each square separately.
-
-    local_persist r32 Angle = 0.1f;
+    local_persist r32 SkyAngle = 0.1f;
 
     if(Input->Mouse.dZ != 0)
     {
-      Angle *= (Input->Mouse.dZ > 0) ? 0.85 : 1.1;
+      SkyAngle *= (Input->Mouse.dZ > 0) ? 0.85 : 1.1;
     }
 
-
-
-    v3 Up, Right, Forward;
-    GetCameraDirections(Camera, &Up, &Right, &Forward);
-    Forward = -Forward;
-    Right = -Right;
-
-    r32 Width1 = Sin(Angle);
-    r32 Height1 = Sin(Angle);
-
-    v3 TopLeft   = Normalize( Forward - Right * Width1 + Up * Height1);
-    v3 TopRight  = Normalize( Forward + Right * Width1 + Up * Height1);
-    v3 BotLeft   = Normalize( Forward - Right * Width1 - Up * Height1);
-    v3 BotRight  = Normalize( Forward + Right * Width1 - Up * Height1);
-
-    skybox_side TopLeftSide  = GetSkyboxSide(TopLeft);
-    skybox_side TopRightSide = GetSkyboxSide(TopRight);
-    skybox_side BotLeftSide  = GetSkyboxSide(BotLeft);
-    skybox_side BotRightSide = GetSkyboxSide(BotRight);
+    local_persist u32 StarIndex = 0;
+    u32 StarTextureGrid = 20;
+    u32 StarXRowCount = 5;
+    u32 StarYRowCount = 5;
+    u32 TotalStarCount = StarXRowCount * StarYRowCount;
 
     if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
-      // The case if the whole picture falls into the same skybox-side
-      // Handle edge-spanning textures by splitting it up into pieces that fall within the same side.
-      r32 Width = Norm(TopLeft - TopRight);
-      r32 Height = Norm(TopLeft - BotLeft);
-      r32 stepx =  Width / (r32)TgaBitmap.Width;
-      r32 stepy =  Height / (r32)TgaBitmap.Height;
-
       u32* SrcPixels = (u32*) TgaBitmap.Pixels;
 
-      //v3 TopLeft = Normalize(TopLeft + Unlerp(x,0,TgaBitmap.Width) * (TopLeft - TopRight) - (TopLeft - TopRight) + Unlerp(y,0,TgaBitmap.Height) * (TopLeft - BotLeft) - (TopLeft - BotLeft));
-      //v3 BotRight = Normalize(TopLeft + Unlerp(x,0,TgaBitmap.Width) * (TopLeft - TopRight) - (TopLeft - TopRight) + Unlerp(y,0,TgaBitmap.Height) * (TopLeft - BotLeft) - (TopLeft - BotLeft));
+      sky_vectors SkyVectors = GetSkyVectors(Camera, SkyAngle);
 
-      for (int y = 0; y < TgaBitmap.Height; ++y)
+      for (int y = 0; y < TgaBitmap.Height-1; ++y)
       {
-        for (int x = 0; x < TgaBitmap.Width; ++x)
+        for (int x = 0; x < TgaBitmap.Width-1; ++x)
         {
           u32 PixelValue = SrcPixels[y*TgaBitmap.Width + x];
           if(PixelValue== 0)
@@ -1751,15 +1740,39 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
             continue;
           }
 
-          v3 UnitVec = Normalize(TopLeft + Unlerp(x,0,TgaBitmap.Width) * (TopLeft - TopRight) - (TopLeft - TopRight) + Unlerp(y,0,TgaBitmap.Height) * (TopLeft - BotLeft) - (TopLeft - BotLeft));
-          v2 tx = GetTextureCoordinateFromUnitSphereCoordinate(UnitVec, &SkyboxTexture);
+          v3 VectorToPixel1 = Normalize(SkyVectors.TopLeft + Unlerp(x,0,TgaBitmap.Width) * (SkyVectors.TopLeft - SkyVectors.TopRight) - 
+            (SkyVectors.TopLeft - SkyVectors.TopRight) + 
+            Unlerp(y,0,TgaBitmap.Height) * (SkyVectors.TopLeft - SkyVectors.BotLeft) - (SkyVectors.TopLeft - SkyVectors.BotLeft));
+          v3 VectorToPixel2 = Normalize(SkyVectors.TopLeft + Unlerp(x+1,0,TgaBitmap.Width) * (SkyVectors.TopLeft - SkyVectors.TopRight) - 
+            (SkyVectors.TopLeft - SkyVectors.TopRight) + 
+            Unlerp(y+1,0,TgaBitmap.Height) * (SkyVectors.TopLeft - SkyVectors.BotLeft) - (SkyVectors.TopLeft - SkyVectors.BotLeft));
+          v2 tx1 = GetTextureCoordinateFromUnitSphereCoordinate(VectorToPixel1, &SkyboxTexture);
+          v2 tx2 = GetTextureCoordinateFromUnitSphereCoordinate(VectorToPixel2, &SkyboxTexture);
 
-          u32* DstPixels = (u32*) SkyboxTexture.Pixels;
-          u32 TextureCoordIndex = (u32)( ((u32) tx.Y) * SkyboxTexture.Width + ((u32) tx.X));
+          r32 Y0 = Minimum(tx1.Y, tx2.Y);
+          r32 Y1 = Maximum(tx1.Y, tx2.Y);
+          r32 X0 = Minimum(tx1.X, tx2.X);
+          r32 X1 = Maximum(tx1.X, tx2.X);
 
-          DstPixels[TextureCoordIndex] = PixelValue;
+          for (r32 i = Y0; i <= Y1; ++i)
+          {
+            for (r32 j = X0; j <= X1; ++j)
+            {
+          
+              u32* DstPixels = (u32*) SkyboxTexture.Pixels;
+              u32 TextureCoordIndex = (u32)( ((u32) i) * SkyboxTexture.Width + ((u32) j));
+
+              DstPixels[TextureCoordIndex] = PixelValue;
+
+            }
+          }
+
+          
         }
       }
+
+      StarIndex = (StarIndex + 1) % TotalStarCount;
+
     }else{
       //INVALID_CODE_PATH
     }
@@ -1786,29 +1799,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       opengl_bitmap GlSkybox = MapObjBitmapToOpenGLBitmap(GlobalTransientArena, TgaSkybox);
       GlobalState->Skybox = GlLoadTexture(OpenGL, GlSkybox);
 
-
-      // Given a skybox texture layout we need functions to map
-      // For rendering:
-      //  Pixel Coordinate to 3d Cube coordinate
-      //  3D Cube coordinate to Pixel Coordinate
-      // For drawing:
-      //  Pixel Coordinate to 3d Sphere coordinate
-      //  3d Sphere coordinate to Pixel Coordinate
-
-      // In the program be able to draw or paste premade textures to a globe.
-      // Project that globe on to a cube
-      // Write it to file as a texture. Can be a bin-dump. Do a tga export if you are feeling fancy
-      // and have the ability to further mod it in for example gimp.
-
-      // Drawing:
-      //   Given mouse screen coordinate and player orientation, Map that screen coordinate to a sphere centered on the player.
-      //   Project a texture onto that sphere.
-      //   Project that sphere onto a cube.
-      //   Map that cube onto a texture.
-
-
-      //  Need a convenient structure to do this mapping. Ie specify where the faces are in the texture
-      //  that is easy to modify.
     }
 #elif SKYBOXVERSION == 2 
     if(!GlobalState->Skybox || 
