@@ -991,32 +991,6 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   }
 }
 
-struct sky_vectors {
-  v3 TopLeft;
-  v3 TopRight;
-  v3 BotLeft;
-  v3 BotRight;
-};
-
-sky_vectors GetSkyVectors(camera* Camera, r32 SkyAngle)
-{
-  v3 CamUp, CamRight, CamForward;
-  GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
-  v3 TexForward = -CamForward;
-  v3 TexRight = -CamRight;
-  v3 TexUp = CamUp;
-
-  r32 TexWidth = Sin(SkyAngle);
-  r32 TexHeight = Sin(SkyAngle);
-  sky_vectors Result = {};
-  Result.TopLeft   = Normalize( TexForward - TexRight * TexWidth + TexUp * TexHeight);
-  Result.TopRight  = Normalize( TexForward + TexRight * TexWidth + TexUp * TexHeight);
-  Result.BotLeft   = Normalize( TexForward - TexRight * TexWidth - TexUp * TexHeight);
-  Result.BotRight  = Normalize( TexForward + TexRight * TexWidth - TexUp * TexHeight);
-  return Result;
-}
-
-
 
 struct skybox_params
 {
@@ -1069,6 +1043,20 @@ enum class skybox_side{
   SIDE_COUNT
 };
 
+
+struct sky_vectors {
+  v3 TopLeft;
+  skybox_side TopLeftSide;
+  v3 TopRight;
+  skybox_side TopRightSide;
+  v3 BotLeft;
+  skybox_side BotLeftSide;
+  v3 BotRight;
+  skybox_side BotRightSide;
+};
+
+
+
 skybox_side GetSkyboxSide(v3 Direction)
 {
   r32 AbsX = Abs(Direction.X);
@@ -1092,7 +1080,31 @@ skybox_side GetSkyboxSide(v3 Direction)
   return skybox_side::SIDE_COUNT;
 }
 
-v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, opengl_bitmap* Bitmap)
+
+sky_vectors GetSkyVectors(camera* Camera, r32 SkyAngle)
+{
+  v3 CamUp, CamRight, CamForward;
+  GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
+  v3 TexForward = -CamForward;
+  v3 TexRight = -CamRight;
+  v3 TexUp = CamUp;
+
+  r32 TexWidth = Sin(SkyAngle);
+  r32 TexHeight = Sin(SkyAngle);
+  sky_vectors Result = {};
+  Result.TopLeft   = Normalize( TexForward - TexRight * TexWidth + TexUp * TexHeight);
+  Result.TopRight  = Normalize( TexForward + TexRight * TexWidth + TexUp * TexHeight);
+  Result.BotLeft   = Normalize( TexForward - TexRight * TexWidth - TexUp * TexHeight);
+  Result.BotRight  = Normalize( TexForward + TexRight * TexWidth - TexUp * TexHeight);
+  Result.TopLeftSide = GetSkyboxSide(Result.TopLeft);
+  Result.TopRightSide = GetSkyboxSide(Result.TopRight);
+  Result.BotLeftSide = GetSkyboxSide(Result.BotLeft);
+  Result.BotRightSide = GetSkyboxSide(Result.BotRight);
+  return Result;
+}
+
+
+v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, skybox_side Side, opengl_bitmap* Bitmap)
 {
   jwin_Assert(Bitmap->Width / 3.f == Bitmap->Height / 2.f);
 
@@ -1106,7 +1118,7 @@ v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, opengl_bitmap* Bi
   r32 AbsY = Abs(UnitSphere.Y);
   r32 AbsZ = Abs(UnitSphere.Z);
   jwin_Assert(AbsX <= 1 && AbsY <= 1 && AbsZ <= 1);
-  skybox_side Side = GetSkyboxSide(UnitSphere);
+
   switch(Side)
   {
     case skybox_side::X_MINUS:
@@ -1176,6 +1188,12 @@ v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, opengl_bitmap* Bi
   return {Tx, Ty};
 }
 
+
+v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, opengl_bitmap* Bitmap)
+{
+  return GetTextureCoordinateFromUnitSphereCoordinate(UnitSphere, GetSkyboxSide(UnitSphere), Bitmap);
+}
+
 v3 GetSphereCoordinateFromCube(v3 PointOnUnitCube)
 {
   // (x*r)^2 + (y*r)^2 + (z*r)^2 = 1
@@ -1203,6 +1221,19 @@ u32 GetColorFromUnitVector(v3 UnitVec)
          ((u32)(P.X * 0xFF)) << 16 |
          ((u32)(P.Y * 0xFF)) <<  8 |
          ((u32)(P.Z * 0xFF)) <<  0;
+}
+
+
+// Read: https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/rasterization-stage.html
+// If Edgefunction returns:
+//   > 0 : the point P is to the right side of the line a->b
+//   = 0 : the point P is on the line a->b
+//   < 0 : the point P is to the left side of the line a->b
+// The edgefunction is equivalent to the magnitude of the cross product between the vector b-a and p-a
+r32 EdgeFunction( v2& a, v2& b, v2& p )
+{
+  r32 Result = (a.X-p.X) * (b.Y-a.Y) - (b.X-a.X) * (a.Y-p.Y);
+  return(Result);
 }
 
 void MapTgaSideToGlSide(
@@ -1239,6 +1270,167 @@ void MapTgaSideToGlSide(
       jwin_Assert(Ry < DstHeight);
       u32 DstPixelIdx = Ry * DstWidth + Rx;
       DstPixels[DstPixelIdx] = SrcPixels[SrcPixelIdx];
+    }
+  }
+}
+
+struct skybox_vertice {
+  v3 P;
+  v2 Tex;
+};
+
+skybox_vertice SkyboxVertice(r32 X, r32 Y, r32 Z, r32 Tx, r32 Ty)
+{
+  skybox_vertice Result = {};
+  Result.P = V3(X,Y,Z);
+  Result.Tex = V2(Tx,Ty);
+  return Result;
+}
+
+struct skybox_quad {
+  skybox_vertice A;
+  skybox_vertice B;
+  skybox_vertice C;
+  skybox_vertice D;
+};
+
+
+struct skybox_triangle {
+  skybox_vertice A;
+  skybox_vertice B;
+  skybox_vertice C;
+};
+
+skybox_quad SkyboxQuad(skybox_vertice A, skybox_vertice B, skybox_vertice C, skybox_vertice D) {
+  skybox_quad Result = {};
+  Result.A = A;
+  Result.B = B;
+  Result.C = C;
+  Result.D = D;
+  return Result;
+}
+
+skybox_quad GetSkyboxQuad(skybox_side Side)
+{
+    // T1 = (A,C,D), T2 = (A B C)
+    local_persist skybox_quad Skybox_XMinus = SkyboxQuad(
+    SkyboxVertice(-1.0f, 1.0f,-1.0f, 1.0f/3.0f, 0.0f/2.0f),  // A
+    SkyboxVertice(-1.0f,-1.0f,-1.0f, 1.0f/3.0f, 1.0f/2.0f),  // B
+    SkyboxVertice(-1.0f,-1.0f, 1.0f, 0.0f/3.0f, 1.0f/2.0f),  // C
+    SkyboxVertice(-1.0f, 1.0f, 1.0f, 0.0f/3.0f, 0.0f/2.0f)); // D
+
+    local_persist skybox_quad Skybox_ZMinus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice( 1.0f, 1.0f,-1.0f, 2.0f/3.0f, 0.0f/2.0f),  // A
+    SkyboxVertice( 1.0f,-1.0f,-1.0f, 2.0f/3.0f, 1.0f/2.0f),  // B
+    SkyboxVertice(-1.0f,-1.0f,-1.0f, 1.0f/3.0f, 1.0f/2.0f),  // C
+    SkyboxVertice(-1.0f, 1.0f,-1.0f, 1.0f/3.0f, 0.0f/2.0f)); // D
+
+    local_persist skybox_quad Skybox_XPlus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice(1.0f, 1.0f, 1.0f, 3.0f/3.0f, 0.0f/2.0f),   // A
+    SkyboxVertice(1.0f,-1.0f, 1.0f, 3.0f/3.0f, 1.0f/2.0f),   // B
+    SkyboxVertice(1.0f,-1.0f,-1.0f, 2.0f/3.0f, 1.0f/2.0f),   // C
+    SkyboxVertice(1.0f, 1.0f,-1.0f, 2.0f/3.0f, 0.0f/2.0f));  // D
+
+    local_persist skybox_quad Skybox_YPlus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice( 1.0f, 1.0f, 1.0f, 1.0f/3.0f, 1.0f/2.0f),  // A
+    SkyboxVertice( 1.0f, 1.0f,-1.0f, 0.0f/3.0f, 1.0f/2.0f),  // B
+    SkyboxVertice(-1.0f, 1.0f,-1.0f, 0.0f/3.0f, 2.0f/2.0f),  // C
+    SkyboxVertice(-1.0f, 1.0f, 1.0f, 1.0f/3.0f, 2.0f/2.0f)); // D
+
+    local_persist skybox_quad Skybox_ZPlus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice( 1.0f,-1.0f, 1.0f, 2.0f/3.0f, 1.0f/2.0f),  // A
+    SkyboxVertice( 1.0f, 1.0f, 1.0f, 1.0f/3.0f, 1.0f/2.0f),  // B 
+    SkyboxVertice(-1.0f, 1.0f, 1.0f, 1.0f/3.0f, 2.0f/2.0f),  // C
+    SkyboxVertice(-1.0f,-1.0f, 1.0f, 2.0f/3.0f, 2.0f/2.0f)); // D
+
+    local_persist skybox_quad Skybox_YMinus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice( 1.0f,-1.0f,-1.0f, 3.0f/3.0f, 1.0f/2.0f),  // A
+    SkyboxVertice( 1.0f,-1.0f, 1.0f, 2.0f/3.0f, 1.0f/2.0f),  // B
+    SkyboxVertice(-1.0f,-1.0f, 1.0f, 2.0f/3.0f, 2.0f/2.0f),  // C
+    SkyboxVertice(-1.0f,-1.0f,-1.0f, 3.0f/3.0f, 2.0f/2.0f)); // D
+
+    switch (Side)
+    {
+      case skybox_side::X_MINUS: return Skybox_XMinus;
+      case skybox_side::Z_MINUS: return Skybox_ZMinus;
+      case skybox_side::X_PLUS:  return Skybox_XPlus;
+      case skybox_side::Y_PLUS:  return Skybox_YPlus;
+      case skybox_side::Z_PLUS:  return Skybox_ZPlus;
+      case skybox_side::Y_MINUS: return Skybox_YMinus;
+    }
+    return {};
+}
+
+skybox_triangle GetBotLeftTriangle(skybox_quad* Quad) {
+  return {Quad->A, Quad->C, Quad->D};
+}
+skybox_triangle GetTopRightTriangle(skybox_quad* Quad) {
+  return {Quad->A, Quad->B, Quad->C};
+}
+
+void DrawPixels(v2* DstPixels, v2* SrcPixels, opengl_bitmap* DstBitmap, opengl_bitmap* SrcBitmap){
+
+  // Bottom left triangle made up by right handed pointing vectors
+  r32 Area2Inverse = 1/EdgeFunction(DstPixels[0], DstPixels[1], DstPixels[2]);
+  
+  v2 DstPixel0 = DstPixels[0];
+  v2 DstPixel1 = DstPixels[1];
+  v2 DstPixel2 = DstPixels[2];
+
+
+  v2 SrcPixel0 = SrcPixels[0];
+  v2 SrcPixel1 = SrcPixels[1];
+  v2 SrcPixel2 = SrcPixels[2];
+
+  if(Area2Inverse < 0)
+  {
+    DstPixel1 = DstPixels[2];
+    DstPixel2 = DstPixels[1];
+    SrcPixel1 = SrcPixels[2];
+    SrcPixel2 = SrcPixels[1];
+    Area2Inverse = 1/EdgeFunction(DstPixel0, DstPixel1, DstPixel2);
+  }
+
+  v4 BoundingBox = {};
+  BoundingBox.X = Minimum(DstPixel0.X, Minimum(DstPixel1.X, DstPixel2.X)); // Min X
+  BoundingBox.Y = Minimum(DstPixel0.Y, Minimum(DstPixel1.Y, DstPixel2.Y)); // Min Y
+  BoundingBox.Z = Maximum(DstPixel0.X, Maximum(DstPixel1.X, DstPixel2.X)); // Max X
+  BoundingBox.W = Maximum(DstPixel0.Y, Maximum(DstPixel1.Y, DstPixel2.Y)); // Max Y
+
+  for(s32 Y = Round( BoundingBox.Y ); Y < BoundingBox.W; ++Y)
+  {
+    for(s32 X = Round( BoundingBox.X ); X < BoundingBox.Z; ++X)
+    {
+      v2 p = V2( (r32) X, (r32) Y);
+      r32 PixelInRange0 = EdgeFunction( DstPixel0, DstPixel1, p);
+      r32 PixelInRange1 = EdgeFunction( DstPixel1, DstPixel2, p);
+      r32 PixelInRange2 = EdgeFunction( DstPixel2, DstPixel0, p);
+
+      if( ( PixelInRange0 >= 0 ) && 
+          ( PixelInRange1 >= 0 ) &&
+          ( PixelInRange2 >= 0 ) )
+      {
+        r32 Lambda0 = PixelInRange1 * Area2Inverse;
+        r32 Lambda1 = PixelInRange2 * Area2Inverse;
+        r32 Lambda2 = PixelInRange0 * Area2Inverse;
+
+        v2 InterpolatedTextureCoord = Lambda0 * SrcPixel0 + Lambda1 * SrcPixel1 + Lambda2 * SrcPixel2;
+        u32 SrxPixelX = TruncateReal32ToInt32(Lerp(InterpolatedTextureCoord.X, 0, SrcBitmap->Width-1));
+        u32 SrxPixelY = TruncateReal32ToInt32(Lerp(InterpolatedTextureCoord.Y, 0, SrcBitmap->Height-1));
+        u32 SrcPixelIndex = SrcBitmap->Width *  SrxPixelY + SrxPixelX;
+        jwin_Assert(SrcPixelIndex <  SrcBitmap->Width * SrcBitmap->Height);
+        u32* SrcPixels = (u32*) SrcBitmap->Pixels;
+        u32 TextureValue = SrcPixels[SrcPixelIndex];
+        u32* DstPixels = (u32*) DstBitmap->Pixels;
+        u32 TextureCoordIndex = Y * DstBitmap->Width + X;
+        jwin_Assert(TextureCoordIndex < (DstBitmap->Width * DstBitmap->Height));
+        DstPixels[TextureCoordIndex] = TextureValue;
+      }
     }
   }
 }
@@ -1698,6 +1890,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 #define SKYBOXVERSION 0
 #if SKYBOXVERSION == 0
   {
+
+
     local_persist opengl_bitmap SkyboxTexture = {};
     u32 SideSize = 1024;
     SkyboxTexture.BPP = 32;
@@ -1730,6 +1924,33 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
       sky_vectors SkyVectors = GetSkyVectors(Camera, SkyAngle);
 
+      if(SkyVectors.TopLeftSide == SkyVectors.TopRightSide &&
+         SkyVectors.TopLeftSide == SkyVectors.BotLeftSide &&
+         SkyVectors.TopLeftSide == SkyVectors.BotRightSide)
+      {
+        v2 DstPixelTopLeft  = GetTextureCoordinateFromUnitSphereCoordinate(SkyVectors.TopLeft, SkyVectors.TopLeftSide, &SkyboxTexture);
+        v2 DstPixelTopRight = GetTextureCoordinateFromUnitSphereCoordinate(SkyVectors.TopRight, SkyVectors.TopRightSide, &SkyboxTexture);
+        v2 DstPixelBotLeft  = GetTextureCoordinateFromUnitSphereCoordinate(SkyVectors.BotLeft, SkyVectors.BotLeftSide, &SkyboxTexture);
+        v2 DstPixelBotRight = GetTextureCoordinateFromUnitSphereCoordinate(SkyVectors.BotRight, SkyVectors.BotRightSide, &SkyboxTexture);
+        
+        v2 SrcPixelTopLeft = V2(0,0);
+        v2 SrcPixelTopRight = V2(1,0);
+        v2 SrcPixelBotLeft = V2(0,1);
+        v2 SrcPixelBotRight = V2(1,1);
+
+        v2 BotLeftDstTriangle[] = {DstPixelBotLeft, DstPixelBotRight, DstPixelTopLeft};
+        v2 BotLeftSrcTriangle[] =  {SrcPixelBotLeft, SrcPixelBotRight, SrcPixelTopLeft};
+        DrawPixels(BotLeftDstTriangle, BotLeftSrcTriangle, &SkyboxTexture, &TgaBitmap);
+
+        v2 TopRightDstTriangle[] = {DstPixelTopLeft, DstPixelBotRight, DstPixelTopRight};
+        v2 TopRightSrcTriangle[] =  {SrcPixelTopLeft, SrcPixelBotRight, SrcPixelTopRight};
+        DrawPixels(TopRightDstTriangle, TopRightSrcTriangle, &SkyboxTexture, &TgaBitmap);
+
+      }else{
+
+      }
+
+#if 0
       for (int y = 0; y < TgaBitmap.Height-1; ++y)
       {
         for (int x = 0; x < TgaBitmap.Width-1; ++x)
@@ -1770,7 +1991,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
           
         }
       }
-
+#endif
       StarIndex = (StarIndex + 1) % TotalStarCount;
 
     }else{
