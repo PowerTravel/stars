@@ -1089,6 +1089,13 @@ sky_vectors GetSkyVectors(camera* Camera, r32 SkyAngle)
   v3 TexRight = -CamRight;
   v3 TexUp = CamUp;
 
+  r32 xAngle = GetAngleBetweenVectors(V3(1,0,0), TexForward);
+  r32 yAngle = GetAngleBetweenVectors(V3(0,1,0), TexForward);
+  r32 zAngle = GetAngleBetweenVectors(V3(0,0,1), TexForward);
+
+  Platform.DEBUGPrint("%1.2f %1.2f %1.2f\n",xAngle, yAngle, zAngle);
+
+
   r32 TexWidth = Sin(SkyAngle);
   r32 TexHeight = Sin(SkyAngle);
   sky_vectors Result = {};
@@ -1236,43 +1243,6 @@ r32 EdgeFunction( v2& a, v2& b, v2& p )
   return(Result);
 }
 
-void MapTgaSideToGlSide(
-  u32 SrcWidth, u32 SrcHeight, u32* SrcPixels, 
-  u32 SrcStartX, u32 SrcStartY, u32 SrcSideSize,
-  u32 DstWidth, u32 DstHeight, u32* DstPixels,
-  u32 DstStartX, u32 DstStartY, u32 DstSideSize,
-  m2 Rotation)
-{
-  // Not implemented scaling for now
-  jwin_Assert(SrcSideSize == DstSideSize); 
-  for (int y = 0; y < SrcSideSize; ++y)
-  {
-    for (int x = 0; x < SrcSideSize; ++x)
-    {
-      u32 SrcPixelIdx = (SrcStartY+y) * SrcWidth + SrcStartX + x;
-
-      r32 DstX = DstStartX + x;
-      r32 DstY = DstStartY + y;
-
-      DstX -= (DstStartX + DstSideSize/2);
-      DstY -= (DstStartY + DstSideSize/2);
-      jwin_Assert(DstX < DstSideSize/2.f && DstX >= -(r32)(DstSideSize/2.f));
-      jwin_Assert(DstY < DstSideSize/2.f && DstY >= -(r32)(DstSideSize/2.f));
-      DstX = Rotation.E[0] * DstX + Rotation.E[1] * DstY;
-      DstY = Rotation.E[2] * DstX + Rotation.E[3] * DstY;
-      jwin_Assert(DstX < DstSideSize/2.f && DstX >= -(r32)(DstSideSize/2.f));
-      jwin_Assert(DstY < DstSideSize/2.f && DstY >= -(r32)(DstSideSize/2.f));
-      DstX += DstStartX + DstSideSize/2;
-      DstY += DstStartY + DstSideSize/2;
-      u32 Rx = (u32)(DstX+0.5);
-      u32 Ry = DstHeight - (u32)(DstY+0.5);
-      jwin_Assert(Rx < DstWidth);
-      jwin_Assert(Ry < DstHeight);
-      u32 DstPixelIdx = Ry * DstWidth + Rx;
-      DstPixels[DstPixelIdx] = SrcPixels[SrcPixelIdx];
-    }
-  }
-}
 
 struct skybox_vertice {
   v3 P;
@@ -1309,6 +1279,38 @@ skybox_quad SkyboxQuad(skybox_vertice A, skybox_vertice B, skybox_vertice C, sky
   Result.D = D;
   return Result;
 }
+
+// SkyboxQuad texture mapping: (Mapping done in graphics layer when setting up texture coordinates,
+//  At some point move that part here since theyre linked)
+//  Number is the index in the Colors array, x,y,z is the direction of the cube face normal
+//  ___________________
+//  |     |     |     |
+//  |0,-x |1,-z |2,+x |  
+//  |_____|_____|_____|
+//  |     |     |     |
+//  |3,+y |4,+z |5,-y |
+//  |_____|_____|_____|
+//
+//  Top Left maps to -x plane, Top Middle maps to -z plane etc
+//  The lower row mapping +y,+z-y wraps around in a way such that the 
+//  left edge of +y attaches to the top of -z
+//  Unwrapped with connecting edges the texture would look like this:
+//         _____
+//        |     |
+//        |5,-y |
+//        |_____|
+//        |     |
+//        |4,+z |
+//        |_____|
+//        |     |      
+//        |3,+y |
+//   _____|_____|_____
+//  |     |     |     |
+//  |0,-x |1,-z |2,+x |  
+//  |_____|_____|_____|
+//
+//  When folded to a cube it folds such that the 
+//  normals point inwards
 
 skybox_quad GetSkyboxQuad(skybox_side Side)
 {
@@ -1887,10 +1889,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   {
 
-#define SKYBOXVERSION 0
-#if SKYBOXVERSION == 0
   {
-
+    // Skybox
 
     local_persist opengl_bitmap SkyboxTexture = {};
     u32 SideSize = 1024;
@@ -1948,214 +1948,46 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
       }else{
 
-      }
-
-#if 0
-      for (int y = 0; y < TgaBitmap.Height-1; ++y)
-      {
-        for (int x = 0; x < TgaBitmap.Width-1; ++x)
+        if(SkyVectors.TopLeftSide != SkyVectors.TopRightSide)
         {
-          u32 PixelValue = SrcPixels[y*TgaBitmap.Width + x];
-          if(PixelValue== 0)
-          {
-            continue;
-          }
 
-          v3 VectorToPixel1 = Normalize(SkyVectors.TopLeft + Unlerp(x,0,TgaBitmap.Width) * (SkyVectors.TopLeft - SkyVectors.TopRight) - 
-            (SkyVectors.TopLeft - SkyVectors.TopRight) + 
-            Unlerp(y,0,TgaBitmap.Height) * (SkyVectors.TopLeft - SkyVectors.BotLeft) - (SkyVectors.TopLeft - SkyVectors.BotLeft));
-          v3 VectorToPixel2 = Normalize(SkyVectors.TopLeft + Unlerp(x+1,0,TgaBitmap.Width) * (SkyVectors.TopLeft - SkyVectors.TopRight) - 
-            (SkyVectors.TopLeft - SkyVectors.TopRight) + 
-            Unlerp(y+1,0,TgaBitmap.Height) * (SkyVectors.TopLeft - SkyVectors.BotLeft) - (SkyVectors.TopLeft - SkyVectors.BotLeft));
-          v2 tx1 = GetTextureCoordinateFromUnitSphereCoordinate(VectorToPixel1, &SkyboxTexture);
-          v2 tx2 = GetTextureCoordinateFromUnitSphereCoordinate(VectorToPixel2, &SkyboxTexture);
+        }
 
-          r32 Y0 = Minimum(tx1.Y, tx2.Y);
-          r32 Y1 = Maximum(tx1.Y, tx2.Y);
-          r32 X0 = Minimum(tx1.X, tx2.X);
-          r32 X1 = Maximum(tx1.X, tx2.X);
-
-          for (r32 i = Y0; i <= Y1; ++i)
-          {
-            for (r32 j = X0; j <= X1; ++j)
-            {
-          
-              u32* DstPixels = (u32*) SkyboxTexture.Pixels;
-              u32 TextureCoordIndex = (u32)( ((u32) i) * SkyboxTexture.Width + ((u32) j));
-
-              DstPixels[TextureCoordIndex] = PixelValue;
-
-            }
-          }
-
+        if(SkyVectors.BotLeftSide != SkyVectors.BotRightSide)
+        {
           
         }
+
+        if(SkyVectors.TopLeftSide != SkyVectors.BotLeftSide)
+        {
+          
+        }
+
+        if(SkyVectors.TopRightSide != SkyVectors.BotRightSide)
+        {
+          
+        }
+
+
+        v3 P_xm_ym_zm = V3(-1,-1,-1);
+        v3 P_xp_ym_zm = V3( 1,-1,-1);
+        v3 P_xm_yp_zm = V3(-1, 1,-1);
+        v3 P_xp_yp_zm = V3( 1, 1,-1);
+        v3 P_xm_ym_zp = V3(-1,-1, 1);
+        v3 P_xp_ym_zp = V3( 1,-1, 1);
+        v3 P_xm_yp_zp = V3(-1, 1, 1);
+        v3 P_xp_yp_zp = V3( 1, 1, 1);
+
+
       }
-#endif
+
       StarIndex = (StarIndex + 1) % TotalStarCount;
 
-    }else{
-      //INVALID_CODE_PATH
     }
 
-    #if 0
-    v2 tx = GetTextureCoordinateFromUnitSphereCoordinate(Forward, &SkyboxTexture);
-
-
-
-    u32* Pixels = (u32*) SkyboxTexture.Pixels;
-    u32 TextureCoordIndex = (u32)( ((u32) tx.Y) * SkyboxTexture.Width + ((u32) tx.X));
-
-    Pixels[TextureCoordIndex] = 0xffffffff;
-    #endif
     // Need system to update only parts of a texture.
     GlUpdateTexture(OpenGL, GlobalState->Skybox, SkyboxTexture);
   }
-
-#elif SKYBOXVERSION == 1
-    if(!GlobalState->Skybox || 
-      jwin::Pushed(Input->Keyboard.Key_L))
-    {
-      obj_bitmap* TgaSkybox = LoadTGA(GlobalTransientArena, "..\\data\\textures\\skybox3.tga");
-      opengl_bitmap GlSkybox = MapObjBitmapToOpenGLBitmap(GlobalTransientArena, TgaSkybox);
-      GlobalState->Skybox = GlLoadTexture(OpenGL, GlSkybox);
-
-    }
-#elif SKYBOXVERSION == 2 
-    if(!GlobalState->Skybox || 
-    jwin::Pushed(Input->Keyboard.Key_L))
-    {
-      obj_bitmap* TgaSkybox = LoadTGA(GlobalTransientArena, "..\\data\\textures\\skybox.tga");
-      opengl_bitmap GlSkybox = {};
-      GlSkybox.BPP = 32;
-      GlSkybox.Width = (u32) 3*TgaSkybox->Width/4.f;
-      GlSkybox.Height = TgaSkybox->Height;
-      GlSkybox.Pixels = PushSize(GlobalTransientArena, sizeof(u32) * GlSkybox.Width*GlSkybox.Height);
-
-      u32 SrcSideSize = TgaSkybox->Width/4;
-      u32 DstSideSize = TgaSkybox->Width/4;
-
-      u32 SrcStartX,SrcStartY,DstStartX,DstStartY;
-      r32 Theta;
-      for (int tgaSide = 0; tgaSide < 8; ++tgaSide)
-      {
-        // Rotation Matrix =
-        // Cos(Theta), -Sin(Theta)
-        // Sin(Theta),  Cos(Theta)
-        switch(tgaSide)
-        {
-
-          // TGA is origin is lower left
-          // GLSkybox is top Left
-          case 0:
-          case 3: continue;
-          case 1: { // maps to Y  -> Lower Left
-            SrcStartX = SrcSideSize;
-            SrcStartY = SrcSideSize;
-            DstStartX = 0;
-            DstStartY = DstSideSize;
-            Theta = -Pi32/2.f;
-            Theta = 0;
-          }break;
-          case 2: { // maps to -Y -> Lower Right
-            SrcStartX = 3*SrcSideSize;
-            SrcStartY = 0;
-            DstStartX = 2*DstSideSize;
-            DstStartY = DstSideSize;
-            Theta = Pi32/2.f;
-            Theta = 0;
-          }break;
-          case 4: { // maps to -X -> Top Left
-            SrcStartX = 0;
-            SrcStartY = 0;
-            DstStartX = 0;
-            DstStartY = 0;
-            Theta = 0;
-          }break;
-          case 5: { // maps to -Z -> Top Mid
-            SrcStartX = SrcSideSize;
-            SrcStartY = 0;
-            DstStartX = DstSideSize;
-            DstStartY = 0;
-            Theta = 0;
-          }break;
-          case 6: { // maps to X -> Top Right
-            SrcStartX = 2 * SrcSideSize;
-            SrcStartY = 0;
-            DstStartX = 2 * DstSideSize;
-            DstStartY = 0;
-            Theta = 0;
-          }break;
-          case 7: { // maps to -Z -> Bot Mid
-            SrcStartX = 3 * SrcSideSize;
-            SrcStartY = 0;
-            DstStartX = DstSideSize;
-            DstStartY = DstSideSize;
-            Theta = 0;
-          }break;
-        }
-        r32 Cos = cosf(Theta);
-        r32 Sin = sinf(Theta);
-        m2 Rotation = M2(
-          Cos, -Sin,
-          Sin,  Cos);
-        MapTgaSideToGlSide(
-          TgaSkybox->Width, TgaSkybox->Height, (u32*) TgaSkybox->Pixels, 
-          SrcStartX, SrcStartY, SrcSideSize,
-          GlSkybox.Width, GlSkybox.Height, (u32*) GlSkybox.Pixels,
-          DstStartX, DstStartY, DstSideSize,
-          Rotation);
-      }
-      GlobalState->Skybox = GlLoadTexture(OpenGL, GlSkybox);  
-    }
-#elif SKYBOXVERSION == 2
-    if(!GlobalState->Skybox || 
-    jwin::Pushed(Input->Keyboard.Key_L))
-    {
-      u32 Sides = 6;
-      u32 SideSize = 256;
-      void* Pixels = PushSize(GlobalTransientArena, sizeof(u32) * Sides*SideSize*SideSize);
-      opengl_bitmap Skybox = {};
-      Skybox.BPP = 32;
-      Skybox.Width = SideSize*Sides/2;
-      Skybox.Height = SideSize*Sides/3;
-      Skybox.Pixels = Pixels;
-
-      skybox_params Params = {};
-      Params.SideSize = SideSize;
-      Params.TextureWidth = Skybox.Width;
-      Params.TextureHeight = Skybox.Height;
-      // SideMapping: (Mapping done in graphics layer when setting up texture coordinates,
-      //               At some point move that part here since theyre linked)
-      //  Number is the index in the Colors array, x,y,z is the direction of the cube face normal
-      //  ___________________
-      //  |     |     |     |
-      //  |0,-x |1,-z |2,+x |
-      //  |_____|_____|_____|
-      //  |     |     |     |
-      //  |3,+y |4,+z |5,-y |
-      //  |_____|_____|_____|
-
-      // We want to iterate over each pixel in the cube and on that poin sample the sphere.
-      // Given a pixel value, we want to find the corresponding coordinate on the cube
-      // from that cube coordinate get the sphere coordinate
-
-      u32* Pixel = (u32*) Pixels;
-      for (int y = 0; y < Params.TextureHeight; ++y)
-      {
-        for (int x = 0; x < Params.TextureWidth; ++x)
-        {
-          v3 CubeCoord = GetCubeCoordinateFromTexture(x, y, &Params);
-          v3 SphereCoord = GetSphereCoordinateFromCube(CubeCoord);
-          u32 CubeColor = GetColorFromUnitVector(CubeCoord / Sqrt(3));
-          u32 SphereColor = GetColorFromUnitVector(SphereCoord);
-          u32 idx = x + y*Params.TextureWidth;
-          Pixel[idx] = SphereColor;
-        }
-      }
-      GlobalState->Skybox = GlLoadTexture(OpenGL, Skybox);  
-    }
-    #endif
 
     skybox* SkyBox = PushNewSkybox(RenderCommands->RenderGroup);
     SkyBox->SkyboxTexture = GlobalState->Skybox;
