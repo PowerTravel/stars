@@ -535,11 +535,80 @@ void GlUpdateTexture(open_gl* OpenGL, u32 TextureIndex, opengl_bitmap TextureDat
   Keeper->TextureData = TextureData;
 }
 
+void DrawDot(application_render_commands* RenderCommands, v3 Pos, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
+{
+  v4 Amb =  V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
+  v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
+  v4 Spec = V4(1, 1, 1, 1.0);
+
+  m4 ModelMat = M4Identity();
+  Scale(V4(scale,scale,scale,0),ModelMat);
+  Translate(V4(Pos),ModelMat);
+
+  m4 ModelView = V*ModelMat;
+  m4 NormalView = V*Transpose(RigidInverse(ModelMat));
+
+  render_object* Sphere = PushNewRenderObject(RenderCommands->RenderGroup);
+  Sphere->ProgramHandle = GlobalState->PhongProgramNoTex;
+  Sphere->MeshHandle = GlobalState->Sphere;
+  Sphere->TextureHandle = U32Max;
+
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ProjectionMat"), P);
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ModelView"), ModelView);
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "NormalView"), NormalView);
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightDirection"), LightDirection);
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightColor"), V3(1,1,1));
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialAmbient"), Amb);
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
+  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
+  PushRenderState(Sphere, DepthTestCulling);
+}
+
+void DrawLine(application_render_commands* RenderCommands, v3 LineStart, v3 LineEnd, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
+{
+  v4 Amb =  V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
+  v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
+  v4 Spec = V4(1, 1, 1, 1.0);
+
+  v4 RotQuat1 = GetRotation(V3(0,1,0), Normalize(LineEnd-LineStart));
+  m4 ModelMatVec = M4Identity();
+  r32 Length = Norm(LineEnd - LineStart);
+  Scale(V4(0.1,0.5,0.1,0),ModelMatVec);
+  Scale(V4(scale,Length,scale,0),ModelMatVec);
+  Translate(V4(0,Length*0.5,0,0),ModelMatVec);
+
+  ModelMatVec = GetRotationMatrix(RotQuat1) * ModelMatVec;
+  Translate(V4(LineStart),ModelMatVec);
+
+  m4 ModelViewVec = V*ModelMatVec;
+  m4 NormalViewVec = V*Transpose(RigidInverse(ModelMatVec));
+
+  render_object* Vec = PushNewRenderObject(RenderCommands->RenderGroup);
+  Vec->ProgramHandle = GlobalState->PhongProgramNoTex;
+  Vec->MeshHandle = GlobalState->Cylinder;
+  Vec->TextureHandle = U32Max;
+
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ProjectionMat"), P);
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ModelView"), ModelViewVec);
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "NormalView"), NormalViewVec);
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightDirection"), LightDirection);
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightColor"), V3(1,1,1));
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialAmbient"), Amb);
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
+  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
+  PushRenderState(Vec, DepthTestCulling);
+
+}
 
 void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Direction, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
 {
-  v4 Amb =  V4(Color.X * 0.05, Color.Y * 0.05, Color.Z * 0.05, 1.0);
-  v4 Diff = V4(Color.X * 0.25, Color.Y * 0.25, Color.Z * 0.25, 1.0);
+  //v4 Amb =  V4(Color.X * 0.05, Color.Y * 0.05, Color.Z * 0.05, 1.0);
+  //v4 Diff = V4(Color.X * 0.25, Color.Y * 0.25, Color.Z * 0.25, 1.0);
+  //v4 Spec = V4(1, 1, 1, 1.0);
+  v4 Amb =  V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
+  v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
   v4 Spec = V4(1, 1, 1, 1.0);
 
   v4 RotQuat1 = GetRotation(V3(0,1,0), Normalize(Direction));
@@ -1089,13 +1158,6 @@ sky_vectors GetSkyVectors(camera* Camera, r32 SkyAngle)
   v3 TexRight = -CamRight;
   v3 TexUp = CamUp;
 
-  r32 xAngle = GetAngleBetweenVectors(V3(1,0,0), TexForward);
-  r32 yAngle = GetAngleBetweenVectors(V3(0,1,0), TexForward);
-  r32 zAngle = GetAngleBetweenVectors(V3(0,0,1), TexForward);
-
-  Platform.DEBUGPrint("%1.2f %1.2f %1.2f\n",xAngle, yAngle, zAngle);
-
-
   r32 TexWidth = Sin(SkyAngle);
   r32 TexHeight = Sin(SkyAngle);
   sky_vectors Result = {};
@@ -1243,6 +1305,17 @@ r32 EdgeFunction( v2& a, v2& b, v2& p )
   return(Result);
 }
 
+// Read: https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/rasterization-stage.html
+// If Edgefunction returns:
+//   > 0 : the point P is to the right side of the line a->b
+//   = 0 : the point P is on the line a->b
+//   < 0 : the point P is to the left side of the line a->b
+// The edgefunction is equivalent to the magnitude of the cross product between the vector b-a and p-a
+r32 EdgeFunction( v3& a, v3& b, v3& p )
+{
+  r32 Result = Determinant(a,b,p);
+  return(Result);
+}
 
 struct skybox_vertice {
   v3 P;
@@ -1437,6 +1510,60 @@ void DrawPixels(v2* DstPixels, v2* SrcPixels, opengl_bitmap* DstBitmap, opengl_b
   }
 }
 
+
+b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultPoint) {
+
+
+  v3 a = A_Start;
+  v3 b = A_End;
+  v3 c = B_Start;
+  v3 d = B_End;
+
+  r32 Sdenom_xy = Determinant(V2(b.X - a.X, b.Y - a.Y), V2(d.X - c.X, d.Y - c.Y));
+  r32 Sdenom_xz = Determinant(V2(b.X - a.X, b.Z - a.Z), V2(d.X - c.X, d.Z - c.Z));
+  r32 Sdenom_yz = Determinant(V2(b.Y - a.Y, b.Z - a.Z), V2(d.Y - c.Y, d.Z - c.Z));
+
+  r32 s = 0;
+  r32 sDenom = 0;
+  if(Abs(Sdenom_xy) > 0)
+  {
+    r32 Senum = Determinant(V2(b.X - a.X, b.Y - a.Y), V2(a.X - c.X, a.Y - c.Y));
+    s = Senum/Sdenom_xy;
+    sDenom = Sdenom_xy;
+  }
+  else if(Abs(Sdenom_xz) > 0)
+  {
+    r32 Senum = Determinant(V2(b.X - a.X, b.Z - a.Z), V2(a.X - c.X, a.Z - c.Z));
+    s = Senum/Sdenom_xz;
+    sDenom = Sdenom_xz;
+  }
+  else if(Abs(Sdenom_yz) > 0)
+  {
+    r32 Senum = Determinant(V2(b.Y - a.Y, b.Z - a.Z), V2(a.Y - c.Y, a.Z - c.Z));
+    s = Senum/Sdenom_yz;
+    sDenom = Sdenom_yz;
+  }
+
+
+  //r32 sDenom = ( (d.Y - c.Y) * (b.X - a.X) - (d.X - c.X) * (b.Y - a.Y) );
+  r32 Epsilon = 1E-5;
+  if (Abs(sDenom) < Epsilon) return false;
+
+  //r32 s = ((b.X - a.X) * (a.Y - c.Y) - (a.X - c.X) * (b.Y - a.Y))/ sDenom; 
+  r32 t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
+
+  v3 Result_a = a + t * (b-a);
+  v3 Result_b = c + s * (d-c);
+  
+  if( Abs(Result_a.X - Result_b.X) > Epsilon || 
+      Abs(Result_a.Y - Result_b.Y) > Epsilon || 
+      Abs(Result_a.Z - Result_b.Z) > Epsilon) return false;
+
+  if(ResultPoint) *ResultPoint = Result_a;
+
+  return IsPointOnLinesegment(a, b, Result_a) && IsPointOnLinesegment(c, d, Result_a);
+}
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1559,51 +1686,66 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     }
   }
 
-  r32 Len = 4;
+  r32 Len = 0;
   v3 Pos = V3(Len,0,0);
+  v3 At = V3(0,0,0);
+  v3 Up = V3(0,1,0);
+  b32 UpdateCamera = false;
   if(!(jwin::Active(Input->Keyboard.Key_LALT) || jwin::Active(Input->Keyboard.Key_RALT)))
   {
     if(jwin::Pushed(Input->Keyboard.Key_X))
     {
+      UpdateCamera = true;
       Pos = V3(Len,0,0);
-      if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+      At = V3(Len+1,0,0);
+      if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT))) 
       {
-        LookAt(Camera, Pos, V3(0,0,0));
-      }else{
         Pos = -Pos;
-        LookAt(Camera, Pos, V3(0,0,0));
+        At = At = V3(Len-1,0,0);
       }
-      Platform.DEBUGPrint("CamPos: %f %f %f\n", Pos.X, Pos.Y, Pos.Z);
-    }else if(jwin::Pushed(Input->Keyboard.Key_Y)){
+    }
+    else if(jwin::Pushed(Input->Keyboard.Key_Y))
+    {
+      UpdateCamera = true;
       Pos = V3(0,Len,0);
-      if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+      At = V3(0,Len + 1,0);
+      Up = V3(1,0,0);
+      if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
       {
-        LookAt(Camera, Pos, V3(0,0,0), V3(1,0,0));
-      }else{
         Pos = -Pos;
-        LookAt(Camera, Pos, V3(0,0,0),V3(1,0,0));
+        At = V3(0,Len - 1,0);
       }
-      Platform.DEBUGPrint("CamPos: %f %f %f\n", Pos.X, Pos.Y, Pos.Z);
-    }else if(jwin::Pushed(Input->Keyboard.Key_Z)){
+    }
+    else if(jwin::Pushed(Input->Keyboard.Key_Z))
+    {
+      UpdateCamera = true;
       Pos = V3(0,0,Len);
-      if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+      At = V3(0,0,Len + 1);
+      if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
       {
-        LookAt(Camera, Pos, V3(0,0,0));
-      }else{
         Pos = -Pos;
-        LookAt(Camera, Pos, V3(0,0,0));
+        At = V3(0,0,Len - 1);
       }  
-      Platform.DEBUGPrint("CamPos: %f %f %f\n", Pos.X, Pos.Y, Pos.Z);
-    }else if(jwin::Pushed(Input->Keyboard.Key_Q)){
+    }
+    else if(jwin::Pushed(Input->Keyboard.Key_Q))
+    {
+      UpdateCamera = true;
       Pos = V3(0,Len,Len);
-      if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+      if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
       {
-        LookAt(Camera, Pos, V3(0,0,0));
-      }else{
         Pos = -Pos;
-        LookAt(Camera, Pos, V3(0,0,0));
+        At = V3(0,0,0);
       }
-      Platform.DEBUGPrint("CamPos: %f %f %f\n", Pos.X, Pos.Y, Pos.Z);
+    }
+
+    if(UpdateCamera)
+    {
+      LookAt(Camera, Pos, At, Up);
+      v3 Up, Right, Forward;
+      GetCameraDirections(Camera, &Up, &Right, &Forward);
+      v3 CamPos = GetCameraPosition(Camera);
+      Platform.DEBUGPrint("CamPos: (%1.2f %1.2f %1.2f) CamForward (%1.2f %1.2f %1.2f)\n",
+        CamPos.X, CamPos.Y, CamPos.Z, -Forward.X, -Forward.Y, -Forward.Z);
     }
   }else{
     if(jwin::Pushed(Input->Keyboard.Key_X))
@@ -1681,6 +1823,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     if(Input->Mouse.dY != 0)
     {
       RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );
+      v3 Up, Right, Forward;
+      GetCameraDirections(Camera, &Up, &Right, &Forward);
+      v3 CamPos = GetCameraPosition(Camera);
+      Platform.DEBUGPrint("CamPos: (%1.2f %1.2f %1.2f) CamForward (%1.2f %1.2f %1.2f)\n",
+        CamPos.X, CamPos.Y, CamPos.Z, -Forward.X, -Forward.Y, -Forward.Z);
     }
   }else{
     if(Input->Mouse.dX != 0)
@@ -1918,11 +2065,259 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     u32 StarYRowCount = 5;
     u32 TotalStarCount = StarXRowCount * StarYRowCount;
 
-    if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
-    {
+    //if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
+    //{
       u32* SrcPixels = (u32*) TgaBitmap.Pixels;
 
       sky_vectors SkyVectors = GetSkyVectors(Camera, SkyAngle);
+
+      v3 P_xm_ym_zm = V3(-1,-1,-1);
+      v3 P_xp_ym_zm = V3( 1,-1,-1);
+      v3 P_xm_yp_zm = V3(-1, 1,-1);
+      v3 P_xp_yp_zm = V3( 1, 1,-1);
+      v3 P_xm_ym_zp = V3(-1,-1, 1);
+      v3 P_xp_ym_zp = V3( 1,-1, 1);
+      v3 P_xm_yp_zp = V3(-1, 1, 1);
+      v3 P_xp_yp_zp = V3( 1, 1, 1);
+      v3 SquarePoints[] = 
+      {
+        P_xm_ym_zm,
+        P_xp_ym_zm,
+        P_xm_yp_zm,
+        P_xp_yp_zm,
+        P_xm_ym_zp,
+        P_xp_ym_zp,
+        P_xm_yp_zp,
+        P_xp_yp_zp
+      };
+      v3 L_x_ym_zm = P_xp_ym_zm - P_xm_ym_zm;
+      v3 L_x_yp_zm = P_xp_yp_zm - P_xm_yp_zm;
+      v3 L_x_ym_zp = P_xp_ym_zp - P_xm_ym_zp;
+      v3 L_x_yp_zp = P_xp_yp_zp - P_xm_yp_zp;
+      v3 L_xm_y_zm = P_xm_yp_zm - P_xm_ym_zm;
+      v3 L_xp_y_zm = P_xp_yp_zm - P_xp_ym_zm;
+      v3 L_xm_y_zp = P_xm_yp_zp - P_xm_ym_zp;
+      v3 L_xp_y_zp = P_xp_yp_zp - P_xp_ym_zp;
+      v3 L_xm_ym_z = P_xm_ym_zp - P_xm_ym_zm;
+      v3 L_xp_ym_z = P_xp_ym_zp - P_xp_ym_zm;
+      v3 L_xm_yp_z = P_xm_yp_zp - P_xm_yp_zm;
+      v3 L_xp_yp_z = P_xp_yp_zp - P_xp_yp_zm;
+      v3 SquareLines[] =
+      {
+        L_x_ym_zm,
+        L_x_yp_zm,
+        L_x_ym_zp,
+        L_x_yp_zp,
+        L_xm_y_zm,
+        L_xp_y_zm,
+        L_xm_y_zp,
+        L_xp_y_zp,
+        L_xm_ym_z,
+        L_xp_ym_z,
+        L_xm_yp_z,
+        L_xp_yp_z
+      };
+      v3 SquareLinesOrigins[] = 
+      {
+        P_xm_ym_zm,
+        P_xm_yp_zm,
+        P_xm_ym_zp,
+        P_xm_yp_zp,
+        P_xm_ym_zm,
+        P_xp_ym_zm,
+        P_xm_ym_zp,
+        P_xp_ym_zp,
+        P_xm_ym_zm,
+        P_xp_ym_zm,
+        P_xm_yp_zm,
+        P_xp_yp_zm
+      };
+      v3 SquareLinesNormals[] = 
+      {
+        Normalize(V3( 0,-1,-1)), //L_x_ym_zm,
+        Normalize(V3( 0, 1,-1)), //L_x_yp_zm,
+        Normalize(V3( 0,-1, 1)), //L_x_ym_zp,
+        Normalize(V3( 0, 1, 1)), //L_x_yp_zp,
+        Normalize(V3(-1, 0,-1)), //L_xm_y_zm,
+        Normalize(V3( 1, 0,-1)), //L_xp_y_zm,
+        Normalize(V3(-1, 0, 1)), //L_xm_y_zp,
+        Normalize(V3( 1, 0, 1)), //L_xp_y_zp
+        Normalize(V3(-1,-1, 0)), //L_xm_ym_z,
+        Normalize(V3( 1,-1, 0)), //L_xp_ym_z,
+        Normalize(V3(-1, 1, 0)), //L_xm_yp_z,
+        Normalize(V3( 1, 1, 0))  //L_xp_yp_z
+      };
+      
+      v3 BotLeftDstTriangle[] = {SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopLeft};
+      v3 TopRightDstTriangle[] = {SkyVectors.TopLeft, SkyVectors.BotRight, SkyVectors.TopRight};
+
+      r32 Area1 = EdgeFunction(BotLeftDstTriangle[0], BotLeftDstTriangle[1], BotLeftDstTriangle[2]);
+      if(Area1 < 0)
+      {
+        v3 Tmp = BotLeftDstTriangle[1];
+        BotLeftDstTriangle[1] = BotLeftDstTriangle[2];
+        BotLeftDstTriangle[2] = Tmp;
+      }
+      r32 Area2 = EdgeFunction(TopRightDstTriangle[0], TopRightDstTriangle[1], TopRightDstTriangle[2]);
+      if(Area2 < 0)
+      {
+        v3 Tmp = TopRightDstTriangle[1];
+        TopRightDstTriangle[1] = TopRightDstTriangle[2];
+        TopRightDstTriangle[2] = Tmp;
+      }
+
+      v3 CamUp, CamRight, CamForward;
+      GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
+      v3 PlaneNormal = -CamForward;
+      v3 TexRight = -CamRight;
+      v3 TexUp = CamUp;
+      v3 IntersectionPoints2[ArrayCount(SquareLines)][3] = {};
+
+      DrawDot(RenderCommands, BotLeftDstTriangle[0], V3(0,0,0), V3(1,0.1,0.1), Camera->P, Camera->V, 0.01);
+      DrawDot(RenderCommands, BotLeftDstTriangle[1], V3(0,0,0), V3(0.1,1,0.1), Camera->P, Camera->V, 0.01);
+      DrawDot(RenderCommands, BotLeftDstTriangle[2], V3(0,0,0), V3(0.1,0.1,1), Camera->P, Camera->V, 0.01);
+      //Platform.DEBUGPrint("aaaaaaaa\n");
+      for (int i = 0; i < ArrayCount(SquareLines); ++i)
+      {
+        v3 LineOrigin = SquareLinesOrigins[i];
+        v3 LineEnd = SquareLinesOrigins[i] + SquareLines[i];
+        v3 TriangleCenter = (BotLeftDstTriangle[0] + BotLeftDstTriangle[1] + BotLeftDstTriangle[2]) /3.f;
+        r32 PointInFront1 = TriangleCenter * LineOrigin;
+        r32 PointInFront2 = TriangleCenter * LineEnd;
+        if(PointInFront1 <= 0 && PointInFront2 <=0)
+        {
+          continue;
+        }
+
+        DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+        DrawVector(RenderCommands, LineOrigin + SquareLines[i]/2, SquareLinesNormals[i], V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.1);
+                      //RayPlaneIntersection( v3 PlaneNormal, v3 PointOnPlane, v3 Ray, v3 RayOrigin)
+        r32 lambda0 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[0], V3(0,0,0));
+        r32 lambda1 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[1], V3(0,0,0));
+        r32 lambda2 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[2], V3(0,0,0));
+        v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
+        v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
+        v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
+        r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, LineOrigin);
+        r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, LineOrigin);
+        r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, LineOrigin);
+
+        v3 ProjectedCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2)/3;
+        r32 NormCross = Norm(CrossProduct(ProjectedCenter, TriangleCenter));
+        //Platform.DEBUGPrint("%f\n", NormCross);
+        if(Norm(CrossProduct(ProjectedCenter, TriangleCenter))> 0.1)
+        {
+          continue;
+        }
+
+        DrawLine(RenderCommands, V3(0,0,0), ProjectedCenter, V3(0,0,0), V3(1,0,1), Camera->P, Camera->V, 0.09);
+        DrawLine(RenderCommands, V3(0,0,0), TriangleCenter, V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.09);
+
+        v3 IntersectionPoint[3] = {};
+        //Platform.DEBUGPrint("%2.2f,%2.2f,%2.2f\n", lambda0, lambda1, lambda2);
+
+        //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+        //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.09);
+        //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.09);
+        b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, &IntersectionPoint[0]);
+        b32 IntersectsLine1 = LineLineIntersection(ProjectedPoint1, ProjectedPoint2, LineOrigin, LineEnd, &IntersectionPoint[1]);
+        b32 IntersectsLine2 = LineLineIntersection(ProjectedPoint2, ProjectedPoint0, LineOrigin, LineEnd, &IntersectionPoint[2]);
+
+        if(IntersectsLine0)
+        {
+          DrawDot(RenderCommands, IntersectionPoint[0], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.02);
+          DrawLine(RenderCommands, ProjectedPoint0, ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          IntersectionPoints2[i][0] = IntersectionPoint[0];
+        }
+        if(IntersectsLine1)
+        {
+          DrawDot(RenderCommands, IntersectionPoint[1], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.02);
+          DrawLine(RenderCommands, ProjectedPoint1, ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.09);
+          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          IntersectionPoints2[i][1] = IntersectionPoint[1];
+        }
+        if(IntersectsLine2)
+        {
+          DrawDot(RenderCommands, IntersectionPoint[2], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.02);
+          DrawLine(RenderCommands, ProjectedPoint2, ProjectedPoint0, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.09);
+          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          IntersectionPoints2[i][2] = IntersectionPoint[2];
+        }
+        
+      }
+/*
+      for (int i = 0; i < 3; ++i)
+      {
+        for (int j = 0; j < 3; ++j)
+        {
+          for (int k = 0; k < ArrayCount(IntersectionPoints2); ++k)
+          {
+            if(IntersectionPoints2[k][j].X != 0 || IntersectionPoints2[k][j].Y != 0 || IntersectionPoints2[k][j].Z != 0)
+            {
+               Platform.DEBUGPrint("%f, ", IntersectionPoints2[k][j].E[i]);
+            }
+          }
+        }
+        Platform.DEBUGPrint("\n");
+      }
+
+      Platform.DEBUGPrint("bbbbb\n");
+      for (int j = 0; j < 3; ++j)
+      {
+        for (int i = 0; i < ArrayCount(SquarePoints); ++i)
+        {
+          Platform.DEBUGPrint("%f, ", SquarePoints[i].E[j]);
+        }
+        Platform.DEBUGPrint("\n");
+      }
+*/
+      for (int i = 0; i < ArrayCount(SquarePoints); ++i)
+      {
+        v3 SkyboxCornerPoint = SquarePoints[i];
+        r32 lambda0 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[0], V3(0,0,0));
+        r32 lambda1 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[1], V3(0,0,0));
+        r32 lambda2 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[2], V3(0,0,0));
+        v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
+        v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
+        v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
+        r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, SkyboxCornerPoint);
+        r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, SkyboxCornerPoint);
+        r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, SkyboxCornerPoint);
+        v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
+        r32 PointInFront = TriangleCenter * SkyboxCornerPoint;
+        r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
+        if(PointInRange)
+        {
+          DrawVector(RenderCommands, ProjectedPoint0, ProjectedPoint1-ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+          DrawVector(RenderCommands, ProjectedPoint1, SkyboxCornerPoint-ProjectedPoint1, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
+          DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint0-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);  
+//
+          DrawVector(RenderCommands, ProjectedPoint1, ProjectedPoint2-ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+          DrawVector(RenderCommands, ProjectedPoint2, SkyboxCornerPoint-ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
+          DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint1-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
+//
+          DrawVector(RenderCommands, ProjectedPoint2, ProjectedPoint0-ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+          DrawVector(RenderCommands, ProjectedPoint0, SkyboxCornerPoint-ProjectedPoint0, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
+          DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint2-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
+
+
+        }
+        
+        //DrawDot(RenderCommands, ProjectedPoint, V3(0,0,0), PointInRange ? V3(0,1,0) : (PointInFront > 0) ? V3(0,1,1) : V3(1,0,0), Camera->P, Camera->V, 0.01);
+        DrawDot(RenderCommands, SkyboxCornerPoint, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.01);
+      }
+
+      DrawVector(RenderCommands, BotLeftDstTriangle[0], BotLeftDstTriangle[1]-BotLeftDstTriangle[0], V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+      DrawVector(RenderCommands, BotLeftDstTriangle[1], BotLeftDstTriangle[2]-BotLeftDstTriangle[1], V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
+      DrawVector(RenderCommands, BotLeftDstTriangle[2], BotLeftDstTriangle[0]-BotLeftDstTriangle[2], V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
+
+    if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
+    {
+
 
       if(SkyVectors.TopLeftSide == SkyVectors.TopRightSide &&
          SkyVectors.TopLeftSide == SkyVectors.BotLeftSide &&
@@ -1948,9 +2343,32 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
       }else{
 
+/*
+        r32 xAngleTopLeft = GetAngleBetweenVectors(V3(1,0,0), SkyVectors.TopLeft);
+        r32 yAngleTopLeft = GetAngleBetweenVectors(V3(0,1,0), SkyVectors.TopLeft);
+        r32 zAngleTopLeft = GetAngleBetweenVectors(V3(0,0,1), SkyVectors.TopLeft);
+        
+        r32 xAngleTopTopRight = GetAngleBetweenVectors(V3(1,0,0), SkyVectors.TopTopRight);
+        r32 yAngleTopTopRight = GetAngleBetweenVectors(V3(0,1,0), SkyVectors.TopTopRight);
+        r32 zAngleTopTopRight = GetAngleBetweenVectors(V3(0,0,1), SkyVectors.TopTopRight);
+
+        r32 xAngleBotLeft = GetAngleBetweenVectors(V3(1,0,0), SkyVectors.BotLeft);
+        r32 yAngleBotLeft = GetAngleBetweenVectors(V3(0,1,0), SkyVectors.BotLeft);
+        r32 zAngleBotLeft = GetAngleBetweenVectors(V3(0,0,1), SkyVectors.BotLeft);
+
+        r32 xAngleBotRight = GetAngleBetweenVectors(V3(1,0,0), SkyVectors.BotRight);
+        r32 yAngleBotRight = GetAngleBetweenVectors(V3(0,1,0), SkyVectors.BotRight);
+        r32 zAngleBotRight = GetAngleBetweenVectors(V3(0,0,1), SkyVectors.BotRight);
+*/
+
+
+
+
+        //Platform.DEBUGPrint("%1.2f %1.2f %1.2f\n",xAngle, yAngle, zAngle);
+
         if(SkyVectors.TopLeftSide != SkyVectors.TopRightSide)
         {
-
+         
         }
 
         if(SkyVectors.BotLeftSide != SkyVectors.BotRightSide)
@@ -1979,6 +2397,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         v3 P_xp_yp_zp = V3( 1, 1, 1);
 
 
+
+
       }
 
       StarIndex = (StarIndex + 1) % TotalStarCount;
@@ -1987,8 +2407,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     // Need system to update only parts of a texture.
     GlUpdateTexture(OpenGL, GlobalState->Skybox, SkyboxTexture);
-  }
-
+    }
     skybox* SkyBox = PushNewSkybox(RenderCommands->RenderGroup);
     SkyBox->SkyboxTexture = GlobalState->Skybox;
     SkyBox->ProjectionMat = Camera->P;
