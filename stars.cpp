@@ -1124,8 +1124,6 @@ struct sky_vectors {
   skybox_side BotRightSide;
 };
 
-
-
 skybox_side GetSkyboxSide(v3 Direction)
 {
   r32 AbsX = Abs(Direction.X);
@@ -1149,6 +1147,21 @@ skybox_side GetSkyboxSide(v3 Direction)
   return skybox_side::SIDE_COUNT;
 }
 
+v3 GetSkyNormal(skybox_side SkyboxSide)
+{
+  switch(SkyboxSide)
+  {
+    case skybox_side::X_MINUS: return V3(-1, 0, 0); break;
+    case skybox_side::Z_MINUS: return V3( 0, 0,-1); break;
+    case skybox_side::X_PLUS:  return V3( 1, 0, 0); break;
+    case skybox_side::Y_PLUS:  return V3( 0, 1, 0); break;
+    case skybox_side::Z_PLUS:  return V3( 0, 0, 1); break;
+    case skybox_side::Y_MINUS: return V3( 0,-1, 0); break;
+    default: INVALID_CODE_PATH;
+  }
+
+  return {};
+}
 
 sky_vectors GetSkyVectors(camera* Camera, r32 SkyAngle)
 {
@@ -2071,6 +2084,30 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
       sky_vectors SkyVectors = GetSkyVectors(Camera, SkyAngle);
 
+      v3 P_xm = V3(-1,0,0);
+      v3 P_xp = V3( 1,0,0);
+      v3 P_ym = V3(0,-1,0);
+      v3 P_yp = V3(0, 1,0);
+      v3 P_zm = V3(0,0,-1);
+      v3 P_zp = V3(0,0, 1);
+
+      v3 BoxPoints[] = {
+        P_xm,
+        P_xp,
+        P_ym,
+        P_yp,
+        P_zm,
+        P_zp
+      };
+      v3 BoxPointNormals[] = {
+        P_xm,
+        P_xp,
+        P_ym,
+        P_yp,
+        P_zm,
+        P_zp
+      };
+
       v3 P_xm_ym_zm = V3(-1,-1,-1);
       v3 P_xp_ym_zm = V3( 1,-1,-1);
       v3 P_xm_yp_zm = V3(-1, 1,-1);
@@ -2149,7 +2186,17 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       };
       
       v3 BotLeftDstTriangle[] = {SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopLeft};
+      v3 BotLeftDstNormals[] = {
+        GetSkyNormal(SkyVectors.BotLeftSide),
+        GetSkyNormal(SkyVectors.BotRightSide),
+        GetSkyNormal(SkyVectors.TopLeftSide)
+      };
       v3 TopRightDstTriangle[] = {SkyVectors.TopLeft, SkyVectors.BotRight, SkyVectors.TopRight};
+      v3 TopRightDstNormals[] = {
+        GetSkyNormal(SkyVectors.TopLeftSide),
+        GetSkyNormal(SkyVectors.BotRightSide),
+        GetSkyNormal(SkyVectors.TopRightSide)
+      };
 
       r32 Area1 = EdgeFunction(BotLeftDstTriangle[0], BotLeftDstTriangle[1], BotLeftDstTriangle[2]);
       if(Area1 < 0)
@@ -2157,6 +2204,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         v3 Tmp = BotLeftDstTriangle[1];
         BotLeftDstTriangle[1] = BotLeftDstTriangle[2];
         BotLeftDstTriangle[2] = Tmp;
+        Tmp = BotLeftDstNormals[1];
+        BotLeftDstNormals[1] = BotLeftDstNormals[2];
+        BotLeftDstNormals[2] = Tmp;
       }
       r32 Area2 = EdgeFunction(TopRightDstTriangle[0], TopRightDstTriangle[1], TopRightDstTriangle[2]);
       if(Area2 < 0)
@@ -2164,6 +2214,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         v3 Tmp = TopRightDstTriangle[1];
         TopRightDstTriangle[1] = TopRightDstTriangle[2];
         TopRightDstTriangle[2] = Tmp;
+        Tmp = TopRightDstNormals[1];
+        TopRightDstNormals[1] = TopRightDstNormals[2];
+        TopRightDstNormals[2] = Tmp;
       }
 
       v3 CamUp, CamRight, CamForward;
@@ -2173,15 +2226,21 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       v3 TexUp = CamUp;
       v3 IntersectionPoints2[ArrayCount(SquareLines)][3] = {};
 
-      DrawDot(RenderCommands, BotLeftDstTriangle[0], V3(0,0,0), V3(1,0.1,0.1), Camera->P, Camera->V, 0.01);
-      DrawDot(RenderCommands, BotLeftDstTriangle[1], V3(0,0,0), V3(0.1,1,0.1), Camera->P, Camera->V, 0.01);
-      DrawDot(RenderCommands, BotLeftDstTriangle[2], V3(0,0,0), V3(0.1,0.1,1), Camera->P, Camera->V, 0.01);
-      //Platform.DEBUGPrint("aaaaaaaa\n");
+      v3 BotLeftDstTriangleProjected[3] = {
+        BotLeftDstTriangle[0] * RayPlaneIntersection(BotLeftDstNormals[0], BotLeftDstNormals[0], BotLeftDstTriangle[0], V3(0,0,0)),
+        BotLeftDstTriangle[1] * RayPlaneIntersection(BotLeftDstNormals[1], BotLeftDstNormals[1], BotLeftDstTriangle[1], V3(0,0,0)),
+        BotLeftDstTriangle[2] * RayPlaneIntersection(BotLeftDstNormals[2], BotLeftDstNormals[2], BotLeftDstTriangle[2], V3(0,0,0))
+      };
+
+      DrawDot(RenderCommands, BotLeftDstTriangleProjected[0], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+      DrawDot(RenderCommands, BotLeftDstTriangleProjected[1], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+      DrawDot(RenderCommands, BotLeftDstTriangleProjected[2], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+
+      v3 TriangleCenter = (BotLeftDstTriangle[0] + BotLeftDstTriangle[1] + BotLeftDstTriangle[2]) /3.f;
       for (int i = 0; i < ArrayCount(SquareLines); ++i)
       {
         v3 LineOrigin = SquareLinesOrigins[i];
         v3 LineEnd = SquareLinesOrigins[i] + SquareLines[i];
-        v3 TriangleCenter = (BotLeftDstTriangle[0] + BotLeftDstTriangle[1] + BotLeftDstTriangle[2]) /3.f;
         r32 PointInFront1 = TriangleCenter * LineOrigin;
         r32 PointInFront2 = TriangleCenter * LineEnd;
         if(PointInFront1 <= 0 && PointInFront2 <=0)
@@ -2191,7 +2250,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
         DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
         DrawVector(RenderCommands, LineOrigin + SquareLines[i]/2, SquareLinesNormals[i], V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.1);
-                      //RayPlaneIntersection( v3 PlaneNormal, v3 PointOnPlane, v3 Ray, v3 RayOrigin)
+
         r32 lambda0 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[0], V3(0,0,0));
         r32 lambda1 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[1], V3(0,0,0));
         r32 lambda2 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[2], V3(0,0,0));
@@ -2202,49 +2261,33 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, LineOrigin);
         r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, LineOrigin);
 
-        v3 ProjectedCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2)/3;
-        r32 NormCross = Norm(CrossProduct(ProjectedCenter, TriangleCenter));
-        //Platform.DEBUGPrint("%f\n", NormCross);
-        if(Norm(CrossProduct(ProjectedCenter, TriangleCenter))> 0.1)
-        {
-          continue;
-        }
-
-        DrawLine(RenderCommands, V3(0,0,0), ProjectedCenter, V3(0,0,0), V3(1,0,1), Camera->P, Camera->V, 0.09);
-        DrawLine(RenderCommands, V3(0,0,0), TriangleCenter, V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.09);
-
         v3 IntersectionPoint[3] = {};
-        //Platform.DEBUGPrint("%2.2f,%2.2f,%2.2f\n", lambda0, lambda1, lambda2);
-
-        //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-        //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.09);
-        //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.09);
         b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, &IntersectionPoint[0]);
         b32 IntersectsLine1 = LineLineIntersection(ProjectedPoint1, ProjectedPoint2, LineOrigin, LineEnd, &IntersectionPoint[1]);
         b32 IntersectsLine2 = LineLineIntersection(ProjectedPoint2, ProjectedPoint0, LineOrigin, LineEnd, &IntersectionPoint[2]);
 
         if(IntersectsLine0)
         {
-          DrawDot(RenderCommands, IntersectionPoint[0], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.02);
-          DrawLine(RenderCommands, ProjectedPoint0, ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          DrawDot(RenderCommands, IntersectionPoint[0], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+          //DrawLine(RenderCommands, ProjectedPoint0, ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           IntersectionPoints2[i][0] = IntersectionPoint[0];
         }
         if(IntersectsLine1)
         {
-          DrawDot(RenderCommands, IntersectionPoint[1], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.02);
-          DrawLine(RenderCommands, ProjectedPoint1, ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.09);
-          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          DrawDot(RenderCommands, IntersectionPoint[1], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+          //DrawLine(RenderCommands, ProjectedPoint1, ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.09);
+          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           IntersectionPoints2[i][1] = IntersectionPoint[1];
         }
         if(IntersectsLine2)
         {
-          DrawDot(RenderCommands, IntersectionPoint[2], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.02);
-          DrawLine(RenderCommands, ProjectedPoint2, ProjectedPoint0, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.09);
-          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          DrawDot(RenderCommands, IntersectionPoint[2], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+          //DrawLine(RenderCommands, ProjectedPoint2, ProjectedPoint0, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.09);
+          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
+          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           IntersectionPoints2[i][2] = IntersectionPoint[2];
         }
         
@@ -2292,28 +2335,30 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
         if(PointInRange)
         {
-          DrawVector(RenderCommands, ProjectedPoint0, ProjectedPoint1-ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
-          DrawVector(RenderCommands, ProjectedPoint1, SkyboxCornerPoint-ProjectedPoint1, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
-          DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint0-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);  
-//
-          DrawVector(RenderCommands, ProjectedPoint1, ProjectedPoint2-ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
-          DrawVector(RenderCommands, ProjectedPoint2, SkyboxCornerPoint-ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
-          DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint1-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
-//
-          DrawVector(RenderCommands, ProjectedPoint2, ProjectedPoint0-ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
-          DrawVector(RenderCommands, ProjectedPoint0, SkyboxCornerPoint-ProjectedPoint0, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
-          DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint2-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
+            DrawDot(RenderCommands, SkyboxCornerPoint, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+      //    DrawVector(RenderCommands, ProjectedPoint0, ProjectedPoint1-ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+      //    DrawVector(RenderCommands, ProjectedPoint1, SkyboxCornerPoint-ProjectedPoint1, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
+      //    DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint0-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);  
+////
+      //    DrawVector(RenderCommands, ProjectedPoint1, ProjectedPoint2-ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+      //    DrawVector(RenderCommands, ProjectedPoint2, SkyboxCornerPoint-ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
+      //    DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint1-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
+////
+      //    DrawVector(RenderCommands, ProjectedPoint2, ProjectedPoint0-ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+      //    DrawVector(RenderCommands, ProjectedPoint0, SkyboxCornerPoint-ProjectedPoint0, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
+      //    DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint2-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
 
 
         }
         
         //DrawDot(RenderCommands, ProjectedPoint, V3(0,0,0), PointInRange ? V3(0,1,0) : (PointInFront > 0) ? V3(0,1,1) : V3(1,0,0), Camera->P, Camera->V, 0.01);
-        DrawDot(RenderCommands, SkyboxCornerPoint, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.01);
+       // DrawDot(RenderCommands, SkyboxCornerPoint, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.01);
       }
 
-      DrawVector(RenderCommands, BotLeftDstTriangle[0], BotLeftDstTriangle[1]-BotLeftDstTriangle[0], V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
-      DrawVector(RenderCommands, BotLeftDstTriangle[1], BotLeftDstTriangle[2]-BotLeftDstTriangle[1], V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
-      DrawVector(RenderCommands, BotLeftDstTriangle[2], BotLeftDstTriangle[0]-BotLeftDstTriangle[2], V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
+
+      DrawVector(RenderCommands, BotLeftDstTriangle[0], BotLeftDstTriangle[1]-BotLeftDstTriangle[0], V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.05);
+      DrawVector(RenderCommands, BotLeftDstTriangle[1], BotLeftDstTriangle[2]-BotLeftDstTriangle[1], V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.05);
+      DrawVector(RenderCommands, BotLeftDstTriangle[2], BotLeftDstTriangle[0]-BotLeftDstTriangle[2], V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.05);
 
     if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
