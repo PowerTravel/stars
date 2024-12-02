@@ -537,7 +537,7 @@ void GlUpdateTexture(open_gl* OpenGL, u32 TextureIndex, opengl_bitmap TextureDat
 
 void DrawDot(application_render_commands* RenderCommands, v3 Pos, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
 {
-  v4 Amb =  V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
+  v4 Amb =  V4(Color.X * 0.5, Color.Y * 0.5, Color.Z * 0.5, 1.0);
   v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
   v4 Spec = V4(1, 1, 1, 1.0);
 
@@ -567,7 +567,7 @@ void DrawDot(application_render_commands* RenderCommands, v3 Pos, v3 LightDirect
 
 void DrawLine(application_render_commands* RenderCommands, v3 LineStart, v3 LineEnd, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
 {
-  v4 Amb =  V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
+  v4 Amb =  V4(Color.X * 0.5, Color.Y * 0.5, Color.Z * 0.5, 1.0);
   v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
   v4 Spec = V4(1, 1, 1, 1.0);
 
@@ -1163,14 +1163,8 @@ v3 GetSkyNormal(skybox_side SkyboxSide)
   return {};
 }
 
-sky_vectors GetSkyVectors(camera* Camera, r32 SkyAngle)
+sky_vectors GetSkyVectors(v3 TexForward, v3 TexRight, v3 TexUp, r32 SkyAngle)
 {
-  v3 CamUp, CamRight, CamForward;
-  GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
-  v3 TexForward = -CamForward;
-  v3 TexRight = -CamRight;
-  v3 TexUp = CamUp;
-
   r32 TexWidth = Sin(SkyAngle);
   r32 TexHeight = Sin(SkyAngle);
   sky_vectors Result = {};
@@ -2102,8 +2096,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     u32* SrcPixels = (u32*) TgaBitmap.Pixels;
 
-    sky_vectors SkyVectors = GetSkyVectors(Camera, SkyAngle);
-
     v3 P_xm = V3(-1,0,0);
     v3 P_xp = V3( 1,0,0);
     v3 P_ym = V3(0,-1,0);
@@ -2205,6 +2197,24 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       Normalize(V3( 1, 1, 0))  //L_xp_yp_z
     };
     
+    local_persist v3 CamUp = {};
+    local_persist v3 CamRight = {};
+    local_persist v3 CamForward = {};
+    if(CamUp == V3(0,0,0))
+    {
+      GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
+    }
+    v3 CamPos = GetCameraPosition(Camera);
+    if(CamPos == V3(0,0,0))
+    {
+      GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
+    }
+    v3 PlaneNormal = -CamForward;
+    v3 TexRight = -CamRight;
+    v3 TexUp = CamUp;
+
+    sky_vectors SkyVectors = GetSkyVectors(PlaneNormal, TexRight, TexUp, SkyAngle);
+
     v3 BotLeftDstTriangle[] = {SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopLeft};
     v3 BotLeftDstNormals[] = {
       GetSkyNormal(SkyVectors.BotLeftSide),
@@ -2239,11 +2249,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       TopRightDstNormals[2] = Tmp;
     }
 
-    v3 CamUp, CamRight, CamForward;
-    GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
-    v3 PlaneNormal = -CamForward;
-    v3 TexRight = -CamRight;
-    v3 TexUp = CamUp;
+
     v3 IntersectionPoints2[ArrayCount(SquareLines)][3] = {};
 
     v3 BotLeftDstTriangleProjected[3] = {
@@ -2283,7 +2289,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         continue;
       }
 
-      DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+      DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
       DrawVector(RenderCommands, LineOrigin + SquareLines[i]/2, SkyboxLineNormals[i], V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.1);
 
       r32 lambda0 = RayPlaneIntersection( SkyboxLineNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[0], V3(0,0,0));
@@ -2334,6 +2340,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       
     }
 
+    b32 CornerPointIntersection = false;
     for (int i = 0; i < ArrayCount(SquarePoints); ++i)
     {
       v3 SkyboxCornerPoint = SquarePoints[i];
@@ -2350,27 +2357,37 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       r32 PointInFront = TriangleCenter * SkyboxCornerPoint;
       r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
       if(PointInRange)
-      {      
+      {
         skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
         Point->Point = SkyboxCornerPoint;
         ListInsertAfter(&SkyboxPointsSentinel, Point);
       }
     }
 
-    for(skybox_point_list* PointElement = SkyboxPointsSentinel.Next;
-      PointElement != &SkyboxPointsSentinel;
-      PointElement = PointElement->Next)
+    u32 PointIntersectionCount;
+    ListCount(&SkyboxPointsSentinel, skybox_point_list, PointIntersectionCount);
+
+    //if()
+    skybox_point_list* First = SkyboxPointsSentinel.Next;
+    skybox_point_list* Element = First->Next;
+    DrawDot(RenderCommands, First->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    DrawDot(RenderCommands, Element->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    while(Element->Next != &SkyboxPointsSentinel)
     {
-      DrawDot(RenderCommands, PointElement->Point, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+      DrawDot(RenderCommands, Element->Next->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+      DrawLine(RenderCommands, First->Point, Element->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+      DrawLine(RenderCommands, Element->Point, Element->Next->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+      DrawLine(RenderCommands, Element->Next->Point, First->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+      Element = Element->Next;
     }
 
-
-
+    DrawDot(RenderCommands, SkyboxPointsSentinel.Previous->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    DrawLine(RenderCommands, First->Point, SkyboxPointsSentinel.Previous->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, SkyboxPointsSentinel.Previous->Point, First->Next->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, First->Next->Point, First->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
 
     if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
-
-
       if(SkyVectors.TopLeftSide == SkyVectors.TopRightSide &&
          SkyVectors.TopLeftSide == SkyVectors.BotLeftSide &&
          SkyVectors.TopLeftSide == SkyVectors.BotRightSide)
