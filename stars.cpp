@@ -1524,7 +1524,7 @@ void DrawPixels(v2* DstPixels, v2* SrcPixels, opengl_bitmap* DstBitmap, opengl_b
 }
 
 
-b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultPoint) {
+b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultPoint_a, v3* ResultPoint_b) {
 
 
   v3 a = A_Start;
@@ -1557,24 +1557,39 @@ b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultP
     sDenom = Sdenom_yz;
   }
 
-
-  //r32 sDenom = ( (d.Y - c.Y) * (b.X - a.X) - (d.X - c.X) * (b.Y - a.Y) );
-  r32 Epsilon = 1E-5;
+  r32 Epsilon = 1E-2;
   if (Abs(sDenom) < Epsilon) return false;
 
-  //r32 s = ((b.X - a.X) * (a.Y - c.Y) - (a.X - c.X) * (b.Y - a.Y))/ sDenom; 
   r32 t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
 
   v3 Result_a = a + t * (b-a);
   v3 Result_b = c + s * (d-c);
   
+  // Note: Blir ibland små numeriska fel då man gör dot-produkt då en av vektorkomponenterna är jättesmå men inte 0
+  // Vilket får Result_a och Result_b att diffa lite. Därför använder vi inte IsPointOnLinesegment som är ganska numeriskt strikt
+  //  - 1 Man skulle kunna söka efter vilken av linjerna som har minst numeriska fel i sig och använda den men vill inte lägga
+  //      tid på å hitta något bra sätt att göra det.
+  //  - 2 Man skulle även alltid kunna ta Result_b som vi vet är en numeriskt stabil linje för att den tillhör skybox-boxen,
+  //      men så kanske det inte kommer vara om vi vill återanvända denna funktion någon annan stans.
+  // Så enklast för vårat syfte är nog att returnera båda resultaten och låta användaren bestämma vilken som bör vara stabilast. 
   if( Abs(Result_a.X - Result_b.X) > Epsilon || 
       Abs(Result_a.Y - Result_b.Y) > Epsilon || 
-      Abs(Result_a.Z - Result_b.Z) > Epsilon) return false;
+      Abs(Result_a.Z - Result_b.Z) > Epsilon) 
+  {
+    // LOGGA Fel?
+    int a = 10; // Plats för breakpoint om vi upptäcker skumt beteende
+  }
 
-  if(ResultPoint) *ResultPoint = Result_a;
+  if(ResultPoint_a != 0)
+  {
+    *ResultPoint_a = Result_a;
+  }
+  if(ResultPoint_b != 0)
+  {
+    *ResultPoint_b = Result_b;
+  }
 
-  return IsPointOnLinesegment(a, b, Result_a) && IsPointOnLinesegment(c, d, Result_a);
+  return t >= 0 && t <= 1 && s >= 0 && s <= 1;
 }
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
@@ -2237,6 +2252,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       DrawDot(RenderCommands, BotLeftDstTriangleProjected[2], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
 
       v3 TriangleCenter = (BotLeftDstTriangle[0] + BotLeftDstTriangle[1] + BotLeftDstTriangle[2]) /3.f;
+      v3 SquareCenter = Normalize(SkyVectors.BotLeft + SkyVectors.BotRight + SkyVectors.TopLeft + SkyVectors.TopRight);
+      r32 PointInFront000 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotLeft));
+      r32 PointInFront111 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotRight));
+      r32 PointInFront222 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopLeft));
+      r32 PointInFront333 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopRight));
       for (int i = 0; i < ArrayCount(SquareLines); ++i)
       {
         v3 LineOrigin = SquareLinesOrigins[i];
@@ -2262,29 +2282,38 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, LineOrigin);
 
         v3 IntersectionPoint[3] = {};
-        b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, &IntersectionPoint[0]);
-        b32 IntersectsLine1 = LineLineIntersection(ProjectedPoint1, ProjectedPoint2, LineOrigin, LineEnd, &IntersectionPoint[1]);
-        b32 IntersectsLine2 = LineLineIntersection(ProjectedPoint2, ProjectedPoint0, LineOrigin, LineEnd, &IntersectionPoint[2]);
+        b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint[0]);
+        b32 IntersectsLine1 = LineLineIntersection(ProjectedPoint1, ProjectedPoint2, LineOrigin, LineEnd, NULL, &IntersectionPoint[1]);
+        b32 IntersectsLine2 = LineLineIntersection(ProjectedPoint2, ProjectedPoint0, LineOrigin, LineEnd, NULL, &IntersectionPoint[2]);
 
-        if(IntersectsLine0)
+        v3 ColorPoint = V3(1,1,1);
+        if(Abs(SquareLinesNormals[i] * Normalize(ProjectedPoint2) -2)< 0.001 )
         {
-          DrawDot(RenderCommands, IntersectionPoint[0], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+          ColorPoint = V3(1,0,1);
+        }
+
+        r32 PointInFront00 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[0]));
+        if(IntersectsLine0 && PointInFront00 <= PointInFront000)
+        {
+          DrawDot(RenderCommands, IntersectionPoint[0], V3(0,0,0), ColorPoint, Camera->P, Camera->V, 0.022);
           //DrawLine(RenderCommands, ProjectedPoint0, ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           IntersectionPoints2[i][0] = IntersectionPoint[0];
         }
-        if(IntersectsLine1)
+        r32 PointInFront11 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[1]));
+        if(IntersectsLine1 && PointInFront11 <= PointInFront000)
         {
-          DrawDot(RenderCommands, IntersectionPoint[1], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+          DrawDot(RenderCommands, IntersectionPoint[1], V3(0,0,0), ColorPoint, Camera->P, Camera->V, 0.022);
           //DrawLine(RenderCommands, ProjectedPoint1, ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.09);
           //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           IntersectionPoints2[i][1] = IntersectionPoint[1];
         }
-        if(IntersectsLine2)
+        r32 PointInFront22 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[2]));
+        if(IntersectsLine2 && PointInFront22 <= PointInFront000)
         {
-          DrawDot(RenderCommands, IntersectionPoint[2], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+          DrawDot(RenderCommands, IntersectionPoint[2], V3(0,0,0), ColorPoint, Camera->P, Camera->V, 0.022);
           //DrawLine(RenderCommands, ProjectedPoint2, ProjectedPoint0, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.09);
           //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
           //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
@@ -2292,32 +2321,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         }
         
       }
-/*
-      for (int i = 0; i < 3; ++i)
-      {
-        for (int j = 0; j < 3; ++j)
-        {
-          for (int k = 0; k < ArrayCount(IntersectionPoints2); ++k)
-          {
-            if(IntersectionPoints2[k][j].X != 0 || IntersectionPoints2[k][j].Y != 0 || IntersectionPoints2[k][j].Z != 0)
-            {
-               Platform.DEBUGPrint("%f, ", IntersectionPoints2[k][j].E[i]);
-            }
-          }
-        }
-        Platform.DEBUGPrint("\n");
-      }
 
-      Platform.DEBUGPrint("bbbbb\n");
-      for (int j = 0; j < 3; ++j)
-      {
-        for (int i = 0; i < ArrayCount(SquarePoints); ++i)
-        {
-          Platform.DEBUGPrint("%f, ", SquarePoints[i].E[j]);
-        }
-        Platform.DEBUGPrint("\n");
-      }
-*/
       for (int i = 0; i < ArrayCount(SquarePoints); ++i)
       {
         v3 SkyboxCornerPoint = SquarePoints[i];
