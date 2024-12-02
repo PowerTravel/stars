@@ -1592,6 +1592,13 @@ b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultP
   return t >= 0 && t <= 1 && s >= 0 && s <= 1;
 }
 
+struct skybox_point_list
+{
+  v3 Point;
+  skybox_point_list* Previous;
+  skybox_point_list* Next;
+};
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -2093,276 +2100,272 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     u32 StarYRowCount = 5;
     u32 TotalStarCount = StarXRowCount * StarYRowCount;
 
-    //if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
-    //{
-      u32* SrcPixels = (u32*) TgaBitmap.Pixels;
+    u32* SrcPixels = (u32*) TgaBitmap.Pixels;
 
-      sky_vectors SkyVectors = GetSkyVectors(Camera, SkyAngle);
+    sky_vectors SkyVectors = GetSkyVectors(Camera, SkyAngle);
 
-      v3 P_xm = V3(-1,0,0);
-      v3 P_xp = V3( 1,0,0);
-      v3 P_ym = V3(0,-1,0);
-      v3 P_yp = V3(0, 1,0);
-      v3 P_zm = V3(0,0,-1);
-      v3 P_zp = V3(0,0, 1);
+    v3 P_xm = V3(-1,0,0);
+    v3 P_xp = V3( 1,0,0);
+    v3 P_ym = V3(0,-1,0);
+    v3 P_yp = V3(0, 1,0);
+    v3 P_zm = V3(0,0,-1);
+    v3 P_zp = V3(0,0, 1);
 
-      v3 BoxPoints[] = {
-        P_xm,
-        P_xp,
-        P_ym,
-        P_yp,
-        P_zm,
-        P_zp
-      };
-      v3 BoxPointNormals[] = {
-        P_xm,
-        P_xp,
-        P_ym,
-        P_yp,
-        P_zm,
-        P_zp
-      };
+    v3 BoxPoints[] = {
+      P_xm,
+      P_xp,
+      P_ym,
+      P_yp,
+      P_zm,
+      P_zp
+    };
+    v3 BoxPointNormals[] = {
+      P_xm,
+      P_xp,
+      P_ym,
+      P_yp,
+      P_zm,
+      P_zp
+    };
 
-      v3 P_xm_ym_zm = V3(-1,-1,-1);
-      v3 P_xp_ym_zm = V3( 1,-1,-1);
-      v3 P_xm_yp_zm = V3(-1, 1,-1);
-      v3 P_xp_yp_zm = V3( 1, 1,-1);
-      v3 P_xm_ym_zp = V3(-1,-1, 1);
-      v3 P_xp_ym_zp = V3( 1,-1, 1);
-      v3 P_xm_yp_zp = V3(-1, 1, 1);
-      v3 P_xp_yp_zp = V3( 1, 1, 1);
-      v3 SquarePoints[] = 
+    v3 P_xm_ym_zm = V3(-1,-1,-1);
+    v3 P_xp_ym_zm = V3( 1,-1,-1);
+    v3 P_xm_yp_zm = V3(-1, 1,-1);
+    v3 P_xp_yp_zm = V3( 1, 1,-1);
+    v3 P_xm_ym_zp = V3(-1,-1, 1);
+    v3 P_xp_ym_zp = V3( 1,-1, 1);
+    v3 P_xm_yp_zp = V3(-1, 1, 1);
+    v3 P_xp_yp_zp = V3( 1, 1, 1);
+    v3 SquarePoints[] = 
+    {
+      P_xm_ym_zm,
+      P_xp_ym_zm,
+      P_xm_yp_zm,
+      P_xp_yp_zm,
+      P_xm_ym_zp,
+      P_xp_ym_zp,
+      P_xm_yp_zp,
+      P_xp_yp_zp
+    };
+    v3 L_x_ym_zm = P_xp_ym_zm - P_xm_ym_zm;
+    v3 L_x_yp_zm = P_xp_yp_zm - P_xm_yp_zm;
+    v3 L_x_ym_zp = P_xp_ym_zp - P_xm_ym_zp;
+    v3 L_x_yp_zp = P_xp_yp_zp - P_xm_yp_zp;
+    v3 L_xm_y_zm = P_xm_yp_zm - P_xm_ym_zm;
+    v3 L_xp_y_zm = P_xp_yp_zm - P_xp_ym_zm;
+    v3 L_xm_y_zp = P_xm_yp_zp - P_xm_ym_zp;
+    v3 L_xp_y_zp = P_xp_yp_zp - P_xp_ym_zp;
+    v3 L_xm_ym_z = P_xm_ym_zp - P_xm_ym_zm;
+    v3 L_xp_ym_z = P_xp_ym_zp - P_xp_ym_zm;
+    v3 L_xm_yp_z = P_xm_yp_zp - P_xm_yp_zm;
+    v3 L_xp_yp_z = P_xp_yp_zp - P_xp_yp_zm;
+    v3 SquareLines[] =
+    {
+      L_x_ym_zm,
+      L_x_yp_zm,
+      L_x_ym_zp,
+      L_x_yp_zp,
+      L_xm_y_zm,
+      L_xp_y_zm,
+      L_xm_y_zp,
+      L_xp_y_zp,
+      L_xm_ym_z,
+      L_xp_ym_z,
+      L_xm_yp_z,
+      L_xp_yp_z
+    };
+    v3 SkyboxLineOrigins[] = 
+    {
+      P_xm_ym_zm,
+      P_xm_yp_zm,
+      P_xm_ym_zp,
+      P_xm_yp_zp,
+      P_xm_ym_zm,
+      P_xp_ym_zm,
+      P_xm_ym_zp,
+      P_xp_ym_zp,
+      P_xm_ym_zm,
+      P_xp_ym_zm,
+      P_xm_yp_zm,
+      P_xp_yp_zm
+    };
+    v3 SkyboxLineNormals[] = 
+    {
+      Normalize(V3( 0,-1,-1)), //L_x_ym_zm,
+      Normalize(V3( 0, 1,-1)), //L_x_yp_zm,
+      Normalize(V3( 0,-1, 1)), //L_x_ym_zp,
+      Normalize(V3( 0, 1, 1)), //L_x_yp_zp,
+      Normalize(V3(-1, 0,-1)), //L_xm_y_zm,
+      Normalize(V3( 1, 0,-1)), //L_xp_y_zm,
+      Normalize(V3(-1, 0, 1)), //L_xm_y_zp,
+      Normalize(V3( 1, 0, 1)), //L_xp_y_zp
+      Normalize(V3(-1,-1, 0)), //L_xm_ym_z,
+      Normalize(V3( 1,-1, 0)), //L_xp_ym_z,
+      Normalize(V3(-1, 1, 0)), //L_xm_yp_z,
+      Normalize(V3( 1, 1, 0))  //L_xp_yp_z
+    };
+    
+    v3 BotLeftDstTriangle[] = {SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopLeft};
+    v3 BotLeftDstNormals[] = {
+      GetSkyNormal(SkyVectors.BotLeftSide),
+      GetSkyNormal(SkyVectors.BotRightSide),
+      GetSkyNormal(SkyVectors.TopLeftSide)
+    };
+    v3 TopRightDstTriangle[] = {SkyVectors.TopLeft, SkyVectors.BotRight, SkyVectors.TopRight};
+    v3 TopRightDstNormals[] = {
+      GetSkyNormal(SkyVectors.TopLeftSide),
+      GetSkyNormal(SkyVectors.BotRightSide),
+      GetSkyNormal(SkyVectors.TopRightSide)
+    };
+
+    r32 Area1 = EdgeFunction(BotLeftDstTriangle[0], BotLeftDstTriangle[1], BotLeftDstTriangle[2]);
+    if(Area1 < 0)
+    {
+      v3 Tmp = BotLeftDstTriangle[1];
+      BotLeftDstTriangle[1] = BotLeftDstTriangle[2];
+      BotLeftDstTriangle[2] = Tmp;
+      Tmp = BotLeftDstNormals[1];
+      BotLeftDstNormals[1] = BotLeftDstNormals[2];
+      BotLeftDstNormals[2] = Tmp;
+    }
+    r32 Area2 = EdgeFunction(TopRightDstTriangle[0], TopRightDstTriangle[1], TopRightDstTriangle[2]);
+    if(Area2 < 0)
+    {
+      v3 Tmp = TopRightDstTriangle[1];
+      TopRightDstTriangle[1] = TopRightDstTriangle[2];
+      TopRightDstTriangle[2] = Tmp;
+      Tmp = TopRightDstNormals[1];
+      TopRightDstNormals[1] = TopRightDstNormals[2];
+      TopRightDstNormals[2] = Tmp;
+    }
+
+    v3 CamUp, CamRight, CamForward;
+    GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
+    v3 PlaneNormal = -CamForward;
+    v3 TexRight = -CamRight;
+    v3 TexUp = CamUp;
+    v3 IntersectionPoints2[ArrayCount(SquareLines)][3] = {};
+
+    v3 BotLeftDstTriangleProjected[3] = {
+      BotLeftDstTriangle[0] * RayPlaneIntersection(BotLeftDstNormals[0], BotLeftDstNormals[0], BotLeftDstTriangle[0], V3(0,0,0)),
+      BotLeftDstTriangle[1] * RayPlaneIntersection(BotLeftDstNormals[1], BotLeftDstNormals[1], BotLeftDstTriangle[1], V3(0,0,0)),
+      BotLeftDstTriangle[2] * RayPlaneIntersection(BotLeftDstNormals[2], BotLeftDstNormals[2], BotLeftDstTriangle[2], V3(0,0,0))
+    };
+
+    skybox_point_list SkyboxPointsSentinel = {};
+    ListInitiate(&SkyboxPointsSentinel);
+    skybox_point_list* OriginalPoints = PushArray(GlobalTransientArena, 3, skybox_point_list);
+    OriginalPoints[0].Point = BotLeftDstTriangleProjected[0];
+    OriginalPoints[1].Point = BotLeftDstTriangleProjected[1];
+    OriginalPoints[2].Point = BotLeftDstTriangleProjected[2];
+    ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[0]);
+    ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[1]);
+    ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[2]);
+
+    DrawVector(RenderCommands, BotLeftDstTriangleProjected[0], BotLeftDstTriangleProjected[1]-BotLeftDstTriangleProjected[0], V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.05);
+    DrawVector(RenderCommands, BotLeftDstTriangleProjected[1], BotLeftDstTriangleProjected[2]-BotLeftDstTriangleProjected[1], V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.05);
+    DrawVector(RenderCommands, BotLeftDstTriangleProjected[2], BotLeftDstTriangleProjected[0]-BotLeftDstTriangleProjected[2], V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.05);
+
+    v3 TriangleCenter = (BotLeftDstTriangle[0] + BotLeftDstTriangle[1] + BotLeftDstTriangle[2]) /3.f;
+    v3 SquareCenter = Normalize(SkyVectors.BotLeft + SkyVectors.BotRight + SkyVectors.TopLeft + SkyVectors.TopRight);
+    r32 PointInFront000 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotLeft));
+    r32 PointInFront111 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotRight));
+    r32 PointInFront222 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopLeft));
+    r32 PointInFront333 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopRight));
+    for (int i = 0; i < ArrayCount(SquareLines); ++i)
+    {
+      v3 LineOrigin = SkyboxLineOrigins[i];
+      v3 LineEnd = SkyboxLineOrigins[i] + SquareLines[i];
+      r32 PointInFront1 = TriangleCenter * LineOrigin;
+      r32 PointInFront2 = SquareCenter * LineEnd;
+      if(PointInFront1 <= 0 && PointInFront2 <=0)
       {
-        P_xm_ym_zm,
-        P_xp_ym_zm,
-        P_xm_yp_zm,
-        P_xp_yp_zm,
-        P_xm_ym_zp,
-        P_xp_ym_zp,
-        P_xm_yp_zp,
-        P_xp_yp_zp
-      };
-      v3 L_x_ym_zm = P_xp_ym_zm - P_xm_ym_zm;
-      v3 L_x_yp_zm = P_xp_yp_zm - P_xm_yp_zm;
-      v3 L_x_ym_zp = P_xp_ym_zp - P_xm_ym_zp;
-      v3 L_x_yp_zp = P_xp_yp_zp - P_xm_yp_zp;
-      v3 L_xm_y_zm = P_xm_yp_zm - P_xm_ym_zm;
-      v3 L_xp_y_zm = P_xp_yp_zm - P_xp_ym_zm;
-      v3 L_xm_y_zp = P_xm_yp_zp - P_xm_ym_zp;
-      v3 L_xp_y_zp = P_xp_yp_zp - P_xp_ym_zp;
-      v3 L_xm_ym_z = P_xm_ym_zp - P_xm_ym_zm;
-      v3 L_xp_ym_z = P_xp_ym_zp - P_xp_ym_zm;
-      v3 L_xm_yp_z = P_xm_yp_zp - P_xm_yp_zm;
-      v3 L_xp_yp_z = P_xp_yp_zp - P_xp_yp_zm;
-      v3 SquareLines[] =
+        continue;
+      }
+
+      DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
+      DrawVector(RenderCommands, LineOrigin + SquareLines[i]/2, SkyboxLineNormals[i], V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.1);
+
+      r32 lambda0 = RayPlaneIntersection( SkyboxLineNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[0], V3(0,0,0));
+      r32 lambda1 = RayPlaneIntersection( SkyboxLineNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[1], V3(0,0,0));
+      r32 lambda2 = RayPlaneIntersection( SkyboxLineNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[2], V3(0,0,0));
+      v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
+      v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
+      v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
+      r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, LineOrigin);
+      r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, LineOrigin);
+      r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, LineOrigin);
+
+      v3 IntersectionPoint[3] = {};
+      b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint[0]);
+      b32 IntersectsLine1 = LineLineIntersection(ProjectedPoint1, ProjectedPoint2, LineOrigin, LineEnd, NULL, &IntersectionPoint[1]);
+      b32 IntersectsLine2 = LineLineIntersection(ProjectedPoint2, ProjectedPoint0, LineOrigin, LineEnd, NULL, &IntersectionPoint[2]);
+
+      v3 ColorPoint = V3(1,1,1);
+      if(Abs(SkyboxLineNormals[i] * Normalize(ProjectedPoint2) -2)< 0.001 )
       {
-        L_x_ym_zm,
-        L_x_yp_zm,
-        L_x_ym_zp,
-        L_x_yp_zp,
-        L_xm_y_zm,
-        L_xp_y_zm,
-        L_xm_y_zp,
-        L_xp_y_zp,
-        L_xm_ym_z,
-        L_xp_ym_z,
-        L_xm_yp_z,
-        L_xp_yp_z
-      };
-      v3 SquareLinesOrigins[] = 
+        ColorPoint = V3(1,0,1);
+      }
+
+      r32 PointInFront00 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[0]));
+      if(IntersectsLine0 && PointInFront00 <= PointInFront000)
       {
-        P_xm_ym_zm,
-        P_xm_yp_zm,
-        P_xm_ym_zp,
-        P_xm_yp_zp,
-        P_xm_ym_zm,
-        P_xp_ym_zm,
-        P_xm_ym_zp,
-        P_xp_ym_zp,
-        P_xm_ym_zm,
-        P_xp_ym_zm,
-        P_xm_yp_zm,
-        P_xp_yp_zm
-      };
-      v3 SquareLinesNormals[] = 
+        IntersectionPoints2[i][0] = IntersectionPoint[0];
+        skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
+        Point->Point = IntersectionPoint[0];
+        ListInsertAfter(&OriginalPoints[0], Point);
+      }
+      r32 PointInFront11 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[1]));
+      if(IntersectsLine1 && PointInFront11 <= PointInFront000)
       {
-        Normalize(V3( 0,-1,-1)), //L_x_ym_zm,
-        Normalize(V3( 0, 1,-1)), //L_x_yp_zm,
-        Normalize(V3( 0,-1, 1)), //L_x_ym_zp,
-        Normalize(V3( 0, 1, 1)), //L_x_yp_zp,
-        Normalize(V3(-1, 0,-1)), //L_xm_y_zm,
-        Normalize(V3( 1, 0,-1)), //L_xp_y_zm,
-        Normalize(V3(-1, 0, 1)), //L_xm_y_zp,
-        Normalize(V3( 1, 0, 1)), //L_xp_y_zp
-        Normalize(V3(-1,-1, 0)), //L_xm_ym_z,
-        Normalize(V3( 1,-1, 0)), //L_xp_ym_z,
-        Normalize(V3(-1, 1, 0)), //L_xm_yp_z,
-        Normalize(V3( 1, 1, 0))  //L_xp_yp_z
-      };
+        IntersectionPoints2[i][1] = IntersectionPoint[1];
+        skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
+        Point->Point = IntersectionPoint[1];
+        ListInsertAfter(&OriginalPoints[1], Point);
+      }
+      r32 PointInFront22 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[2]));
+      if(IntersectsLine2 && PointInFront22 <= PointInFront000)
+      {
+        IntersectionPoints2[i][2] = IntersectionPoint[2];
+        skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
+        Point->Point = IntersectionPoint[2];
+        ListInsertAfter(&OriginalPoints[2], Point);
+      }
       
-      v3 BotLeftDstTriangle[] = {SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopLeft};
-      v3 BotLeftDstNormals[] = {
-        GetSkyNormal(SkyVectors.BotLeftSide),
-        GetSkyNormal(SkyVectors.BotRightSide),
-        GetSkyNormal(SkyVectors.TopLeftSide)
-      };
-      v3 TopRightDstTriangle[] = {SkyVectors.TopLeft, SkyVectors.BotRight, SkyVectors.TopRight};
-      v3 TopRightDstNormals[] = {
-        GetSkyNormal(SkyVectors.TopLeftSide),
-        GetSkyNormal(SkyVectors.BotRightSide),
-        GetSkyNormal(SkyVectors.TopRightSide)
-      };
+    }
 
-      r32 Area1 = EdgeFunction(BotLeftDstTriangle[0], BotLeftDstTriangle[1], BotLeftDstTriangle[2]);
-      if(Area1 < 0)
-      {
-        v3 Tmp = BotLeftDstTriangle[1];
-        BotLeftDstTriangle[1] = BotLeftDstTriangle[2];
-        BotLeftDstTriangle[2] = Tmp;
-        Tmp = BotLeftDstNormals[1];
-        BotLeftDstNormals[1] = BotLeftDstNormals[2];
-        BotLeftDstNormals[2] = Tmp;
+    for (int i = 0; i < ArrayCount(SquarePoints); ++i)
+    {
+      v3 SkyboxCornerPoint = SquarePoints[i];
+      r32 lambda0 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[0], V3(0,0,0));
+      r32 lambda1 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[1], V3(0,0,0));
+      r32 lambda2 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[2], V3(0,0,0));
+      v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
+      v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
+      v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
+      r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, SkyboxCornerPoint);
+      r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, SkyboxCornerPoint);
+      r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, SkyboxCornerPoint);
+      v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
+      r32 PointInFront = TriangleCenter * SkyboxCornerPoint;
+      r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
+      if(PointInRange)
+      {      
+        skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
+        Point->Point = SkyboxCornerPoint;
+        ListInsertAfter(&SkyboxPointsSentinel, Point);
       }
-      r32 Area2 = EdgeFunction(TopRightDstTriangle[0], TopRightDstTriangle[1], TopRightDstTriangle[2]);
-      if(Area2 < 0)
-      {
-        v3 Tmp = TopRightDstTriangle[1];
-        TopRightDstTriangle[1] = TopRightDstTriangle[2];
-        TopRightDstTriangle[2] = Tmp;
-        Tmp = TopRightDstNormals[1];
-        TopRightDstNormals[1] = TopRightDstNormals[2];
-        TopRightDstNormals[2] = Tmp;
-      }
+    }
 
-      v3 CamUp, CamRight, CamForward;
-      GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
-      v3 PlaneNormal = -CamForward;
-      v3 TexRight = -CamRight;
-      v3 TexUp = CamUp;
-      v3 IntersectionPoints2[ArrayCount(SquareLines)][3] = {};
-
-      v3 BotLeftDstTriangleProjected[3] = {
-        BotLeftDstTriangle[0] * RayPlaneIntersection(BotLeftDstNormals[0], BotLeftDstNormals[0], BotLeftDstTriangle[0], V3(0,0,0)),
-        BotLeftDstTriangle[1] * RayPlaneIntersection(BotLeftDstNormals[1], BotLeftDstNormals[1], BotLeftDstTriangle[1], V3(0,0,0)),
-        BotLeftDstTriangle[2] * RayPlaneIntersection(BotLeftDstNormals[2], BotLeftDstNormals[2], BotLeftDstTriangle[2], V3(0,0,0))
-      };
-
-      DrawDot(RenderCommands, BotLeftDstTriangleProjected[0], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
-      DrawDot(RenderCommands, BotLeftDstTriangleProjected[1], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
-      DrawDot(RenderCommands, BotLeftDstTriangleProjected[2], V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
-
-      v3 TriangleCenter = (BotLeftDstTriangle[0] + BotLeftDstTriangle[1] + BotLeftDstTriangle[2]) /3.f;
-      v3 SquareCenter = Normalize(SkyVectors.BotLeft + SkyVectors.BotRight + SkyVectors.TopLeft + SkyVectors.TopRight);
-      r32 PointInFront000 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotLeft));
-      r32 PointInFront111 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotRight));
-      r32 PointInFront222 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopLeft));
-      r32 PointInFront333 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopRight));
-      for (int i = 0; i < ArrayCount(SquareLines); ++i)
-      {
-        v3 LineOrigin = SquareLinesOrigins[i];
-        v3 LineEnd = SquareLinesOrigins[i] + SquareLines[i];
-        r32 PointInFront1 = TriangleCenter * LineOrigin;
-        r32 PointInFront2 = TriangleCenter * LineEnd;
-        if(PointInFront1 <= 0 && PointInFront2 <=0)
-        {
-          continue;
-        }
-
-        DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
-        DrawVector(RenderCommands, LineOrigin + SquareLines[i]/2, SquareLinesNormals[i], V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.1);
-
-        r32 lambda0 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[0], V3(0,0,0));
-        r32 lambda1 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[1], V3(0,0,0));
-        r32 lambda2 = RayPlaneIntersection( SquareLinesNormals[i], LineOrigin+SquareLines[i]/2, BotLeftDstTriangle[2], V3(0,0,0));
-        v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
-        v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
-        v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
-        r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, LineOrigin);
-        r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, LineOrigin);
-        r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, LineOrigin);
-
-        v3 IntersectionPoint[3] = {};
-        b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint[0]);
-        b32 IntersectsLine1 = LineLineIntersection(ProjectedPoint1, ProjectedPoint2, LineOrigin, LineEnd, NULL, &IntersectionPoint[1]);
-        b32 IntersectsLine2 = LineLineIntersection(ProjectedPoint2, ProjectedPoint0, LineOrigin, LineEnd, NULL, &IntersectionPoint[2]);
-
-        v3 ColorPoint = V3(1,1,1);
-        if(Abs(SquareLinesNormals[i] * Normalize(ProjectedPoint2) -2)< 0.001 )
-        {
-          ColorPoint = V3(1,0,1);
-        }
-
-        r32 PointInFront00 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[0]));
-        if(IntersectsLine0 && PointInFront00 <= PointInFront000)
-        {
-          DrawDot(RenderCommands, IntersectionPoint[0], V3(0,0,0), ColorPoint, Camera->P, Camera->V, 0.022);
-          //DrawLine(RenderCommands, ProjectedPoint0, ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          IntersectionPoints2[i][0] = IntersectionPoint[0];
-        }
-        r32 PointInFront11 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[1]));
-        if(IntersectsLine1 && PointInFront11 <= PointInFront000)
-        {
-          DrawDot(RenderCommands, IntersectionPoint[1], V3(0,0,0), ColorPoint, Camera->P, Camera->V, 0.022);
-          //DrawLine(RenderCommands, ProjectedPoint1, ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.09);
-          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          IntersectionPoints2[i][1] = IntersectionPoint[1];
-        }
-        r32 PointInFront22 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[2]));
-        if(IntersectsLine2 && PointInFront22 <= PointInFront000)
-        {
-          DrawDot(RenderCommands, IntersectionPoint[2], V3(0,0,0), ColorPoint, Camera->P, Camera->V, 0.022);
-          //DrawLine(RenderCommands, ProjectedPoint2, ProjectedPoint0, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.09);
-          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          //DrawLine(RenderCommands, V3(0,0,0), ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.09);
-          IntersectionPoints2[i][2] = IntersectionPoint[2];
-        }
-        
-      }
-
-      for (int i = 0; i < ArrayCount(SquarePoints); ++i)
-      {
-        v3 SkyboxCornerPoint = SquarePoints[i];
-        r32 lambda0 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[0], V3(0,0,0));
-        r32 lambda1 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[1], V3(0,0,0));
-        r32 lambda2 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[2], V3(0,0,0));
-        v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
-        v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
-        v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
-        r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, SkyboxCornerPoint);
-        r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, SkyboxCornerPoint);
-        r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, SkyboxCornerPoint);
-        v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
-        r32 PointInFront = TriangleCenter * SkyboxCornerPoint;
-        r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
-        if(PointInRange)
-        {
-            DrawDot(RenderCommands, SkyboxCornerPoint, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
-      //    DrawVector(RenderCommands, ProjectedPoint0, ProjectedPoint1-ProjectedPoint0, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
-      //    DrawVector(RenderCommands, ProjectedPoint1, SkyboxCornerPoint-ProjectedPoint1, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
-      //    DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint0-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);  
-////
-      //    DrawVector(RenderCommands, ProjectedPoint1, ProjectedPoint2-ProjectedPoint1, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
-      //    DrawVector(RenderCommands, ProjectedPoint2, SkyboxCornerPoint-ProjectedPoint2, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
-      //    DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint1-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
-////
-      //    DrawVector(RenderCommands, ProjectedPoint2, ProjectedPoint0-ProjectedPoint2, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.1);
-      //    DrawVector(RenderCommands, ProjectedPoint0, SkyboxCornerPoint-ProjectedPoint0, V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.1);
-      //    DrawVector(RenderCommands, SkyboxCornerPoint, ProjectedPoint2-SkyboxCornerPoint, V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.1);
+    for(skybox_point_list* PointElement = SkyboxPointsSentinel.Next;
+      PointElement != &SkyboxPointsSentinel;
+      PointElement = PointElement->Next)
+    {
+      DrawDot(RenderCommands, PointElement->Point, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    }
 
 
-        }
-        
-        //DrawDot(RenderCommands, ProjectedPoint, V3(0,0,0), PointInRange ? V3(0,1,0) : (PointInFront > 0) ? V3(0,1,1) : V3(1,0,0), Camera->P, Camera->V, 0.01);
-       // DrawDot(RenderCommands, SkyboxCornerPoint, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.01);
-      }
 
-
-      DrawVector(RenderCommands, BotLeftDstTriangle[0], BotLeftDstTriangle[1]-BotLeftDstTriangle[0], V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.05);
-      DrawVector(RenderCommands, BotLeftDstTriangle[1], BotLeftDstTriangle[2]-BotLeftDstTriangle[1], V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.05);
-      DrawVector(RenderCommands, BotLeftDstTriangle[2], BotLeftDstTriangle[0]-BotLeftDstTriangle[2], V3(0,0,0), V3(0,0,1), Camera->P, Camera->V, 0.05);
 
     if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
