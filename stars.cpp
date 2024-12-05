@@ -1147,6 +1147,21 @@ skybox_side GetSkyboxSide(v3 Direction)
   return skybox_side::SIDE_COUNT;
 }
 
+const char* SkyboxSideToText(int i)
+{
+  switch(i%skybox_side::SIDE_COUNT)
+  {
+    case skybox_side::X_MINUS: return "X_MINUS"; break;
+    case skybox_side::Z_MINUS: return "Z_MINUS"; break;
+    case skybox_side::X_PLUS:  return "X_PLUS"; break;
+    case skybox_side::Y_PLUS:  return "Y_PLUS"; break;
+    case skybox_side::Z_PLUS:  return "Z_PLUS"; break;
+    case skybox_side::Y_MINUS: return "Y_MINUS"; break;
+  }
+
+  return "";
+}
+
 v3 GetSkyNormal(skybox_side SkyboxSide)
 {
   switch(SkyboxSide)
@@ -1344,7 +1359,6 @@ struct skybox_quad {
   skybox_vertice D;
 };
 
-
 struct skybox_triangle {
   skybox_vertice A;
   skybox_vertice B;
@@ -1531,30 +1545,26 @@ b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultP
   r32 Sdenom_yz = Determinant(V2(b.Y - a.Y, b.Z - a.Z), V2(d.Y - c.Y, d.Z - c.Z));
 
   r32 s = 0;
-  r32 sDenom = 0;
-  if(Abs(Sdenom_xy) > 0)
+  r32 t = 0;
+
+  if(Abs(Sdenom_xy) > Abs(Sdenom_xz) && Abs(Sdenom_xy) > Abs(Sdenom_yz))
   {
     r32 Senum = Determinant(V2(b.X - a.X, b.Y - a.Y), V2(a.X - c.X, a.Y - c.Y));
     s = Senum/Sdenom_xy;
-    sDenom = Sdenom_xy;
-  }
-  else if(Abs(Sdenom_xz) > 0)
+    t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
+  }else if(Abs(Sdenom_xz) > Abs(Sdenom_xy) && Abs(Sdenom_xz) > Abs(Sdenom_yz))
   {
     r32 Senum = Determinant(V2(b.X - a.X, b.Z - a.Z), V2(a.X - c.X, a.Z - c.Z));
     s = Senum/Sdenom_xz;
-    sDenom = Sdenom_xz;
-  }
-  else if(Abs(Sdenom_yz) > 0)
+    t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
+  }else if(Abs(Sdenom_yz) > Abs(Sdenom_xy) && Abs(Sdenom_yz) > Abs(Sdenom_xz))
   {
     r32 Senum = Determinant(V2(b.Y - a.Y, b.Z - a.Z), V2(a.Y - c.Y, a.Z - c.Z));
     s = Senum/Sdenom_yz;
-    sDenom = Sdenom_yz;
+    t = ( s * (d.Y - c.Y) - (a.Y - c.Y)) / (b.Y - a.Y);
+  }else{
+    return false;
   }
-
-  r32 Epsilon = 1E-2;
-  if (Abs(sDenom) < Epsilon) return false;
-
-  r32 t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
 
   v3 Result_a = a + t * (b-a);
   v3 Result_b = c + s * (d-c);
@@ -1566,6 +1576,7 @@ b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultP
   //  - 2 Man skulle även alltid kunna ta Result_b som vi vet är en numeriskt stabil linje för att den tillhör skybox-boxen,
   //      men så kanske det inte kommer vara om vi vill återanvända denna funktion någon annan stans.
   // Så enklast för vårat syfte är nog att returnera båda resultaten och låta användaren bestämma vilken som bör vara stabilast. 
+  r32 Epsilon = 1E-3;
   if( Abs(Result_a.X - Result_b.X) > Epsilon || 
       Abs(Result_a.Y - Result_b.Y) > Epsilon || 
       Abs(Result_a.Z - Result_b.Z) > Epsilon) 
@@ -1586,21 +1597,9 @@ b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultP
   return t >= 0 && t <= 1 && s >= 0 && s <= 1;
 }
 
-struct skybox_edge_list;
+struct skybox_edge;
+struct skybox_plane;
 
-struct skybox_plane
-{
-  v3 Point;
-  v3 Normal;
-};
-
-skybox_plane SkyboxPlane(v3 Point, v3 Normal)
-{
-  skybox_plane Result = {};
-  Result.Point = Point;
-  Result.Normal = Normal;
-  return Result;
-}
 
 struct skybox_edge
 {
@@ -1609,6 +1608,14 @@ struct skybox_edge
   skybox_plane* RightPlane;
   skybox_plane* LeftPlane;
 };
+
+skybox_edge SkyboxEdge(v3 A, v3 B)
+{
+  skybox_edge Result = {};
+  Result.A = A;
+  Result.B = B;
+  return Result;
+}
 
 skybox_edge SkyboxEdge(v3 A, v3 B, skybox_plane* RightPlane, skybox_plane* LeftPlane)
 {
@@ -1628,7 +1635,12 @@ struct skybox_point_list
   skybox_point_list* Previous;
   skybox_point_list* Next;
 };
-
+skybox_point_list* SkyboxPointList(v3 Point)
+{
+  skybox_point_list* Result = PushStruct(GlobalTransientArena, skybox_point_list);
+  Result->Point = Point;
+  return Result;
+}
 skybox_point_list SkyboxPointList(v3 Point, skybox_plane* Plane)
 {
   skybox_point_list Result = {};
@@ -1644,6 +1656,35 @@ skybox_point_list SkyboxPointList(v3 Point, skybox_edge* Edge)
   return Result;
 }
 
+struct skybox_plane
+{
+  v3 Point;
+  v3 Normal;
+  skybox_point_list* PointsOnPlane;
+  v3 P[4];
+};
+
+skybox_plane SkyboxPlane(v3 Point, v3 Normal)
+{
+  skybox_plane Result = {};
+  Result.Point = Point;
+  Result.Normal = Normal;
+  Result.PointsOnPlane = PushStruct(GlobalTransientArena, skybox_point_list);
+  ListInitiate(Result.PointsOnPlane);
+  return Result;
+}
+
+skybox_plane SkyboxPlane(v3 P0, v3 P1, v3 P2, v3 P3)
+{
+  skybox_plane Result = {};
+  Result.P[0] = P0;
+  Result.P[1] = P1;
+  Result.P[2] = P2;
+  Result.P[3] = P3;
+  Result.PointsOnPlane = PushStruct(GlobalTransientArena, skybox_point_list);
+  ListInitiate(Result.PointsOnPlane);
+  return Result;
+}
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1721,6 +1762,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   camera* Camera = &GlobalState->Camera;
   local_persist r32 near = 0.001;
+  local_persist u32 ChosenPlane = 0;
+  
+  if(Pushed(Input->Keyboard.Key_N))
+  {
+    ChosenPlane = (ChosenPlane+1)%skybox_side::SIDE_COUNT;
+    Platform.DEBUGPrint("%d = %s\n",ChosenPlane, SkyboxSideToText(ChosenPlane));
+  }
+
   if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
   {
     if(Pushed(Input->Keyboard.Key_UP))
@@ -1824,8 +1873,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       v3 Up, Right, Forward;
       GetCameraDirections(Camera, &Up, &Right, &Forward);
       v3 CamPos = GetCameraPosition(Camera);
-      Platform.DEBUGPrint("CamPos: (%1.2f %1.2f %1.2f) CamForward (%1.2f %1.2f %1.2f)\n",
-        CamPos.X, CamPos.Y, CamPos.Z, -Forward.X, -Forward.Y, -Forward.Z);
+ //     Platform.DEBUGPrint("CamPos: (%1.2f %1.2f %1.2f) CamForward (%1.2f %1.2f %1.2f)\n",
+ //       CamPos.X, CamPos.Y, CamPos.Z, -Forward.X, -Forward.Y, -Forward.Z);
     }
   }else{
     if(jwin::Pushed(Input->Keyboard.Key_X))
@@ -1906,8 +1955,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       v3 Up, Right, Forward;
       GetCameraDirections(Camera, &Up, &Right, &Forward);
       v3 CamPos = GetCameraPosition(Camera);
-      Platform.DEBUGPrint("CamPos: (%1.2f %1.2f %1.2f) CamForward (%1.2f %1.2f %1.2f)\n",
-        CamPos.X, CamPos.Y, CamPos.Z, -Forward.X, -Forward.Y, -Forward.Z);
+     // Platform.DEBUGPrint("CamPos: (%1.2f %1.2f %1.2f) CamForward (%1.2f %1.2f %1.2f)\n",
+     //   CamPos.X, CamPos.Y, CamPos.Z, -Forward.X, -Forward.Y, -Forward.Z);
     }
   }else{
     if(Input->Mouse.dX != 0)
@@ -2154,15 +2203,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     v3 P_yp = V3(0, 1,0);
     v3 P_zm = V3(0,0,-1);
     v3 P_zp = V3(0,0, 1);
-
-    skybox_plane SkyboxPlanes[skybox_side::SIDE_COUNT] = {};
-    SkyboxPlanes[skybox_side::X_MINUS] = SkyboxPlane(P_xm,P_xm);
-    SkyboxPlanes[skybox_side::X_PLUS]  = SkyboxPlane(P_xp,P_xp);
-    SkyboxPlanes[skybox_side::Y_MINUS] = SkyboxPlane(P_ym,P_ym);
-    SkyboxPlanes[skybox_side::Y_PLUS]  = SkyboxPlane(P_yp,P_yp);
-    SkyboxPlanes[skybox_side::Z_MINUS] = SkyboxPlane(P_zm,P_zm);
-    SkyboxPlanes[skybox_side::Z_PLUS]  = SkyboxPlane(P_zp,P_zp);
-
     v3 P_xm_ym_zm = V3(-1,-1,-1);
     v3 P_xp_ym_zm = V3( 1,-1,-1);
     v3 P_xm_yp_zm = V3(-1, 1,-1);
@@ -2171,6 +2211,30 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     v3 P_xp_ym_zp = V3( 1,-1, 1);
     v3 P_xm_yp_zp = V3(-1, 1, 1);
     v3 P_xp_yp_zp = V3( 1, 1, 1);
+    skybox_edge SkyboxEdges2[] = {
+      SkyboxEdge(P_xm_ym_zm, P_xp_ym_zm),
+      SkyboxEdge(P_xm_yp_zm, P_xp_yp_zm),
+      SkyboxEdge(P_xm_ym_zp, P_xp_ym_zp),
+      SkyboxEdge(P_xm_yp_zp, P_xp_yp_zp),
+      SkyboxEdge(P_xm_ym_zm, P_xm_yp_zm),
+      SkyboxEdge(P_xp_ym_zm, P_xp_yp_zm),
+      SkyboxEdge(P_xm_ym_zp, P_xm_yp_zp),
+      SkyboxEdge(P_xp_ym_zp, P_xp_yp_zp),
+      SkyboxEdge(P_xm_ym_zm, P_xm_ym_zp),
+      SkyboxEdge(P_xp_ym_zm, P_xp_ym_zp),
+      SkyboxEdge(P_xm_yp_zm, P_xm_yp_zp),
+      SkyboxEdge(P_xp_yp_zm, P_xp_yp_zp)
+    };
+
+    skybox_plane SkyboxPlanes[skybox_side::SIDE_COUNT] = {};
+    SkyboxPlanes[skybox_side::X_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_ym_zp, P_xm_yp_zp, P_xm_yp_zm);
+    SkyboxPlanes[skybox_side::X_PLUS]  = SkyboxPlane(P_xp_ym_zm, P_xp_yp_zm, P_xp_yp_zp, P_xp_ym_zp);
+    SkyboxPlanes[skybox_side::Y_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xp_ym_zm, P_xp_ym_zp, P_xm_ym_zp);
+    SkyboxPlanes[skybox_side::Y_PLUS]  = SkyboxPlane(P_xm_yp_zm, P_xm_yp_zp, P_xp_yp_zp, P_xp_yp_zm);
+    SkyboxPlanes[skybox_side::Z_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_yp_zm, P_xp_yp_zm, P_xp_ym_zm);
+    SkyboxPlanes[skybox_side::Z_PLUS]  = SkyboxPlane(P_xm_ym_zp, P_xp_ym_zp, P_xp_yp_zp, P_xm_yp_zp);
+
+
     v3 SquarePoints[] = 
     {
       P_xm_ym_zm,
@@ -2182,6 +2246,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       P_xm_yp_zp,
       P_xp_yp_zp
     };
+
 
     skybox_edge SkyboxEdges[] = {
       SkyboxEdge(P_xm_ym_zm, P_xp_ym_zm, &SkyboxPlanes[skybox_side::Z_MINUS], &SkyboxPlanes[skybox_side::Y_MINUS]),
@@ -2268,11 +2333,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     {
       GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
     }
-    v3 PlaneNormal = -CamForward;
+    v3 TexForward = -CamForward;
     v3 TexRight = -CamRight;
     v3 TexUp = CamUp;
 
-    sky_vectors SkyVectors = GetSkyVectors(PlaneNormal, TexRight, TexUp, SkyAngle);
+    sky_vectors SkyVectors = GetSkyVectors(TexForward, TexRight, TexUp, SkyAngle);
 
     v3 BotLeftDstTriangle[] = {SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopLeft};
     v3 BotLeftDstNormals[] = {
@@ -2320,6 +2385,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     OriginalPoints[0] = SkyboxPointList(BotLeftDstTriangleProjected[0], &SkyboxPlanes[SkyVectors.BotLeftSide]);
     OriginalPoints[1] = SkyboxPointList(BotLeftDstTriangleProjected[1], &SkyboxPlanes[SkyVectors.BotRightSide]);
     OriginalPoints[2] = SkyboxPointList(BotLeftDstTriangleProjected[2], &SkyboxPlanes[SkyVectors.TopLeftSide]);
+    skybox_point_list* point = SkyboxPointList(BotLeftDstTriangleProjected[0]);
+    ListInsertBefore( SkyboxPlanes[SkyVectors.BotLeftSide].PointsOnPlane,  point);
+    point = SkyboxPointList(BotLeftDstTriangleProjected[1]);
+    ListInsertBefore(SkyboxPlanes[SkyVectors.BotRightSide].PointsOnPlane,  point);
+    point = SkyboxPointList(BotLeftDstTriangleProjected[2]);
+    ListInsertBefore(SkyboxPlanes[SkyVectors.TopLeftSide].PointsOnPlane,  point);
     ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[0]);
     ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[1]);
     ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[2]);
@@ -2334,8 +2405,104 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     r32 PointInFront111 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotRight));
     r32 PointInFront222 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopLeft));
     r32 PointInFront333 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopRight));
+
+    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
+    {
+      skybox_plane Plane = SkyboxPlanes[SkyboxPlaneIndex];
+      v3 PlaneNormal = Normalize(CrossProduct(Plane.P[1] - Plane.P[0], Plane.P[3] - Plane.P[0]));
+      u32 LineCount = 4;
+      u32 CornerCount = 4;      
+
+      for(int LineIndex = 0; LineIndex < LineCount; LineIndex++)
+      {
+        v3 LineOrigin = Plane.P[LineIndex%LineCount];
+        v3 LineEnd    = Plane.P[(LineIndex+1)%LineCount];
+        r32 LineOriginInFront = SquareCenter * LineEnd;
+        r32 LineEndInFront = SquareCenter * LineOrigin;
+        if(LineOriginInFront <= 0 && LineEndInFront <= 0)
+        {
+          continue;
+        }
+
+        v3 LineEdges[2] = {LineOrigin, LineEnd}; 
+        for(int EdgePointIndex = 0; EdgePointIndex < ArrayCount(LineEdges); EdgePointIndex++)
+        {
+          v3 EdgePoint = LineEdges[EdgePointIndex];
+          v3 Normal = Normalize(TexForward);
+          r32 lambda0 = RayPlaneIntersection( Normal, EdgePoint, BotLeftDstTriangle[0], V3(0,0,0));
+          r32 lambda1 = RayPlaneIntersection( Normal, EdgePoint, BotLeftDstTriangle[1], V3(0,0,0));
+          r32 lambda2 = RayPlaneIntersection( Normal, EdgePoint, BotLeftDstTriangle[2], V3(0,0,0));
+          v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
+          v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
+          v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
+          r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, EdgePoint);
+          r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, EdgePoint);
+          r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, EdgePoint);
+          v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
+          r32 PointInFront = TriangleCenter * EdgePoint;
+          r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
+
+          if(PointInRange)
+          {
+            skybox_point_list* point = SkyboxPointList(EdgePoint);
+            ListInsertAfter(SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane,  point);
+          }
+        }
+
+        DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
+        DrawVector(RenderCommands, (LineOrigin + LineEnd)/2, PlaneNormal, V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.1);
+
+        r32 lambda0 = RayPlaneIntersection( PlaneNormal, (LineOrigin+LineEnd)/2, BotLeftDstTriangle[0], V3(0,0,0));
+        r32 lambda1 = RayPlaneIntersection( PlaneNormal, (LineOrigin+LineEnd)/2, BotLeftDstTriangle[1], V3(0,0,0));
+        r32 lambda2 = RayPlaneIntersection( PlaneNormal, (LineOrigin+LineEnd)/2, BotLeftDstTriangle[2], V3(0,0,0));
+        v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
+        v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
+        v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
+        r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, LineOrigin);
+        r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, LineOrigin);
+        r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, LineOrigin);
+
+        v3 IntersectionPoint[3] = {};
+        b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint[0]);
+        b32 IntersectsLine1 = LineLineIntersection(ProjectedPoint1, ProjectedPoint2, LineOrigin, LineEnd, NULL, &IntersectionPoint[1]);
+        b32 IntersectsLine2 = LineLineIntersection(ProjectedPoint2, ProjectedPoint0, LineOrigin, LineEnd, NULL, &IntersectionPoint[2]);
+
+        r32 PointInFront00 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[0]));
+        if(IntersectsLine0 && PointInFront00 <= PointInFront000)
+        {
+          skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
+          *Point = SkyboxPointList(IntersectionPoint[0], &SkyboxEdges[SkyboxPlaneIndex]);
+          ListInsertAfter(&OriginalPoints[0], Point);
+
+          Point = SkyboxPointList(IntersectionPoint[0]);
+          ListInsertBefore(SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane, Point);
+        }
+        r32 PointInFront11 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[1]));
+        if(IntersectsLine1 && PointInFront11 <= PointInFront000)
+        {
+          skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
+          *Point = SkyboxPointList(IntersectionPoint[1], &SkyboxEdges[SkyboxPlaneIndex]);
+          ListInsertAfter(&OriginalPoints[1], Point);
+
+          Point = SkyboxPointList(IntersectionPoint[1]);
+          ListInsertBefore(SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane, Point);
+        }
+        r32 PointInFront22 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[2]));
+        if(IntersectsLine2 && PointInFront22 <= PointInFront000)
+        {
+          skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
+          *Point = SkyboxPointList(IntersectionPoint[2], &SkyboxEdges[SkyboxPlaneIndex]);
+          ListInsertAfter(&OriginalPoints[2], Point);
+
+          Point = SkyboxPointList(IntersectionPoint[2]);
+          ListInsertBefore(SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane, Point);
+        }
+      }
+    }
+
     for (int i = 0; i < ArrayCount(SkyboxEdges); ++i)
     {
+      /*
       v3 LineOrigin = SkyboxEdges[i].A;
       v3 LineEnd = SkyboxEdges[i].B;
       r32 PointInFront1 = TriangleCenter * LineOrigin;
@@ -2391,12 +2558,13 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         *Point = SkyboxPointList(IntersectionPoint[2], &SkyboxEdges[i]);
         ListInsertAfter(&OriginalPoints[2], Point);
       }
-      
+      */
     }
 
     b32 CornerPointIntersection = false;
     for (int i = 0; i < ArrayCount(SquarePoints); ++i)
     {
+      /*
       v3 SkyboxCornerPoint = SquarePoints[i];
       r32 lambda0 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[0], V3(0,0,0));
       r32 lambda1 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[1], V3(0,0,0));
@@ -2416,8 +2584,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         Point->Point = SkyboxCornerPoint;
         ListInsertAfter(&SkyboxPointsSentinel, Point);
       }
+      */
     }
-
+/*
     u32 PointIntersectionCount;
     ListCount(&SkyboxPointsSentinel, skybox_point_list, PointIntersectionCount);
 
@@ -2438,6 +2607,43 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     DrawLine(RenderCommands, First->Point, SkyboxPointsSentinel.Previous->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
     DrawLine(RenderCommands, SkyboxPointsSentinel.Previous->Point, First->Next->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
     DrawLine(RenderCommands, First->Next->Point, First->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+*/
+
+    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
+    {
+      if(SkyboxPlaneIndex != ChosenPlane)
+      {
+        continue;
+      }
+
+      skybox_plane Plane = SkyboxPlanes[SkyboxPlaneIndex];
+      skybox_point_list* Element = Plane.PointsOnPlane->Next;
+
+      r32 PointIntersectionCount;
+      ListCount(Plane.PointsOnPlane, skybox_point_list, PointIntersectionCount);
+      //DrawDot(RenderCommands, First->Point, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.022);
+      r32 Count = 0;
+      while(Element != Plane.PointsOnPlane)
+      {
+        v4 Color = LerpColor(Unlerp(Count++, 0 , PointIntersectionCount-1), V4(1,0,0,1), V4(0,0,1,1));
+        DrawDot(RenderCommands,  Element->Point, V3(1,2,1), V3(Color), Camera->P, Camera->V, 0.022);
+        if(Element->Next == Plane.PointsOnPlane)
+        {
+          DrawLine(RenderCommands, Element->Point, Plane.PointsOnPlane->Next->Point, V3(1,2,1), V3(Color), Camera->P, Camera->V, 0.05);
+        }else{
+          DrawLine(RenderCommands, Element->Point, Element->Next->Point, V3(1,2,1), V3(Color), Camera->P, Camera->V, 0.05);
+        }
+        //DrawLine(RenderCommands, Element->Point, Element->Next->Point, V3(1,2,1), V3(Color), Camera->P, Camera->V, 0.05);
+        //DrawLine(RenderCommands, Element->Next->Point, First->Point, V3(1,2,1), V3(Color), Camera->P, Camera->V, 0.05);
+        Element = Element->Next;
+      }
+  
+      //DrawLine(RenderCommands, Element->Point, Element->Next->Point, V3(1,2,1), V3(Color), Camera->P, Camera->V, 0.05);
+      //DrawDot(RenderCommands, Plane.PointsOnPlane->Previous->Point, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.022);
+      //DrawLine(RenderCommands, First->Point, Plane.PointsOnPlane->Previous->Point, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.05);
+      //DrawLine(RenderCommands, Plane.PointsOnPlane->Previous->Point, First->Next->Point, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.05);
+      //DrawLine(RenderCommands, First->Next->Point, First->Point, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.05);
+    }
 
     if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
