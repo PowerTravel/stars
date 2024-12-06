@@ -1149,7 +1149,7 @@ skybox_side GetSkyboxSide(v3 Direction)
 
 const char* SkyboxSideToText(int i)
 {
-  switch(i%skybox_side::SIDE_COUNT)
+  switch(i)
   {
     case skybox_side::X_MINUS: return "X_MINUS"; break;
     case skybox_side::Z_MINUS: return "Z_MINUS"; break;
@@ -1157,9 +1157,10 @@ const char* SkyboxSideToText(int i)
     case skybox_side::Y_PLUS:  return "Y_PLUS"; break;
     case skybox_side::Z_PLUS:  return "Z_PLUS"; break;
     case skybox_side::Y_MINUS: return "Y_MINUS"; break;
+    default: return "All Sides"; break;
   }
 
-  return "";
+  return "All Sides";
 }
 
 v3 GetSkyNormal(skybox_side SkyboxSide)
@@ -1546,22 +1547,35 @@ b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultP
 
   r32 s = 0;
   r32 t = 0;
-
+  r32 Epsilon = 1E-3;
   if(Abs(Sdenom_xy) > Abs(Sdenom_xz) && Abs(Sdenom_xy) > Abs(Sdenom_yz))
   {
     r32 Senum = Determinant(V2(b.X - a.X, b.Y - a.Y), V2(a.X - c.X, a.Y - c.Y));
     s = Senum/Sdenom_xy;
     t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
+    if(Abs(b.X - a.X) < Epsilon)
+    {
+      t = ( s * (d.Y - c.Y) - (a.Y - c.Y)) / (b.Y - a.Y);
+    }
   }else if(Abs(Sdenom_xz) > Abs(Sdenom_xy) && Abs(Sdenom_xz) > Abs(Sdenom_yz))
   {
     r32 Senum = Determinant(V2(b.X - a.X, b.Z - a.Z), V2(a.X - c.X, a.Z - c.Z));
     s = Senum/Sdenom_xz;
     t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
+    if(Abs(b.X - a.X) < Epsilon)
+    {
+      t = ( s * (d.Z - c.Z) - (a.Z - c.Z)) / (b.Z - a.Z);
+    }
   }else if(Abs(Sdenom_yz) > Abs(Sdenom_xy) && Abs(Sdenom_yz) > Abs(Sdenom_xz))
   {
     r32 Senum = Determinant(V2(b.Y - a.Y, b.Z - a.Z), V2(a.Y - c.Y, a.Z - c.Z));
     s = Senum/Sdenom_yz;
     t = ( s * (d.Y - c.Y) - (a.Y - c.Y)) / (b.Y - a.Y);
+    if(Abs(b.Y - a.Y) < Epsilon)
+    {
+      t = ( s * (d.Z - c.Z) - (a.Z - c.Z)) / (b.Z - a.Z);
+    }
+    
   }else{
     return false;
   }
@@ -1576,7 +1590,7 @@ b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultP
   //  - 2 Man skulle även alltid kunna ta Result_b som vi vet är en numeriskt stabil linje för att den tillhör skybox-boxen,
   //      men så kanske det inte kommer vara om vi vill återanvända denna funktion någon annan stans.
   // Så enklast för vårat syfte är nog att returnera båda resultaten och låta användaren bestämma vilken som bör vara stabilast. 
-  r32 Epsilon = 1E-3;
+  
   if( Abs(Result_a.X - Result_b.X) > Epsilon || 
       Abs(Result_a.Y - Result_b.Y) > Epsilon || 
       Abs(Result_a.Z - Result_b.Z) > Epsilon) 
@@ -1785,12 +1799,30 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   camera* Camera = &GlobalState->Camera;
   local_persist r32 near = 0.001;
-  local_persist u32 ChosenPlane = 0;
+  local_persist u32 ChosenSkyboxPlane = 0;
+  local_persist u32 ChosenSkyboxLineIndex = 0;
+  local_persist u32 ChosenTriangleLineIndex = 0;
+  local_persist b32 ToggleDebugPoints = true;
   
   if(Pushed(Input->Keyboard.Key_N))
   {
-    ChosenPlane = (ChosenPlane+1)%skybox_side::SIDE_COUNT;
-    Platform.DEBUGPrint("%d = %s\n",ChosenPlane, SkyboxSideToText(ChosenPlane));
+    ChosenSkyboxPlane = (ChosenSkyboxPlane+1)%(skybox_side::SIDE_COUNT+1);
+    Platform.DEBUGPrint("Skybox Side: %d = %s\n",ChosenSkyboxPlane, SkyboxSideToText(ChosenSkyboxPlane));
+  }
+  if(Pushed(Input->Keyboard.Key_M))
+  {
+    ChosenSkyboxLineIndex = (ChosenSkyboxLineIndex+1)%4;
+    Platform.DEBUGPrint("Skybox Line: %d\n",ChosenSkyboxLineIndex);
+  }
+  if(Pushed(Input->Keyboard.Key_O))
+  {
+    ChosenTriangleLineIndex = (ChosenTriangleLineIndex+1)%3;
+    Platform.DEBUGPrint("Triangle Line: %d\n", ChosenTriangleLineIndex);
+  }
+  if(Pushed(Input->Keyboard.Key_P))
+  {
+    ToggleDebugPoints= !ToggleDebugPoints;
+    Platform.DEBUGPrint("Draw Debug Points: %d\n",ToggleDebugPoints);
   }
 
   if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
@@ -2425,7 +2457,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     v3 TriangleCenter = (BotLeftDstTriangle[0] + BotLeftDstTriangle[1] + BotLeftDstTriangle[2]) /3.f;
     v3 SquareCenter = Normalize(SkyVectors.BotLeft + SkyVectors.BotRight + SkyVectors.TopLeft + SkyVectors.TopRight);
-    r32 PointInFront000 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotLeft));
+    r32 ViewAngle = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotLeft));
     r32 PointInFront111 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotRight));
     r32 PointInFront222 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopLeft));
     r32 PointInFront333 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopRight));
@@ -2489,33 +2521,50 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
             }
           }
 */
-          DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
+          if(ChosenSkyboxPlane == SkyboxPlaneIndex)
+          {
+            DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.04);
+            DrawVector(RenderCommands, LineOrigin, LineEnd-LineOrigin, V3(0,0,0), V3(1,0,1), Camera->P, Camera->V, 0.1);
+          }else{
+            DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
+          }
+
+          // Get a plane/vector normal to the Line and in the same direction as the camera views
           v3 vec1 = Normalize(LineEnd - LineOrigin);
           v3 vec2 = CrossProduct(vec1, Normalize(TexForward));
           v3 vec3 = CrossProduct(vec2,vec1);
-          //DrawVector(RenderCommands, (LineOrigin + LineEnd)/2, PlaneNormal, V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.1);
-          DrawVector(RenderCommands, (LineOrigin + LineEnd)/2, vec3, V3(0,0,0), V3(1,0,1), Camera->P, Camera->V, 0.1);
-
-          //r32 lambda0 = RayPlaneIntersection( vec3, (LineOrigin+LineEnd)/2, TrianglePointOrigin, V3(0,0,0));
-          //r32 lambda1 = RayPlaneIntersection( vec3, (LineOrigin+LineEnd)/2, TrianglePointEnd, V3(0,0,0));
-          r32 lambda0 = RayPlaneIntersection( PlaneNormal, (LineOrigin+LineEnd)/2, TrianglePointOrigin, V3(0,0,0));
-          r32 lambda1 = RayPlaneIntersection( PlaneNormal, (LineOrigin+LineEnd)/2, TrianglePointEnd, V3(0,0,0));
+          r32 lambda0 = RayPlaneIntersection( vec3, (LineOrigin+LineEnd)/2, TrianglePointOrigin, V3(0,0,0));
+          r32 lambda1 = RayPlaneIntersection( vec3, (LineOrigin+LineEnd)/2, TrianglePointEnd, V3(0,0,0));
           v3 ProjectedPoint0 = lambda0 * TrianglePointOrigin;
           v3 ProjectedPoint1 = lambda1 * TrianglePointEnd;
           
-          if(SkyboxLineIndex == 0)
+          
+          if(ToggleDebugPoints && SkyboxLineIndex == ChosenSkyboxLineIndex && SkyboxPlaneIndex == ChosenSkyboxPlane && ChosenTriangleLineIndex == TriangleLineIndex)
           {
-            DrawDot(RenderCommands,  ProjectedPoint0, V3(1,2,1), V3(0,0,0), Camera->P, Camera->V, 0.022);
-            DrawDot(RenderCommands,  ProjectedPoint1, V3(1,2,1), V3(0,0,0), Camera->P, Camera->V, 0.022); 
-          }
-          v3 IntersectionPoint[2] = {};
-          b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint[0]);
+            v3 Color = V3(0,0,0);
 
-          r32 PointInFront00 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[0]));
-          if(IntersectsLine0 && PointInFront00 <= PointInFront000)
+            DrawVector(RenderCommands, (ProjectedPoint0 + ProjectedPoint1)/2, vec3, V3(1,0,1), V3(0,0,0), Camera->P, Camera->V, 0.1);
+            DrawVector(RenderCommands, (LineOrigin + LineEnd)/2, vec3, V3(1,0,1), V3(0,0,0), Camera->P, Camera->V, 0.1);
+            if(TriangleLineIndex == 0)
+            {
+              Color = V3(1,0,0);
+            }else if(TriangleLineIndex == 1)
+            {
+              Color = V3(0,1,0);
+            }else if(TriangleLineIndex == 2)
+            {
+              Color = V3(0,0,1);
+            }
+            DrawDot(RenderCommands,  ProjectedPoint0, V3(1,2,1), Color, Camera->P, Camera->V, 0.022);
+          }
+          v3 IntersectionPoint = {};
+          b32 TrignleSquareIntersection = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint);
+
+          r32 IntersectionPointAngle = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint));
+          if(TrignleSquareIntersection && IntersectionPointAngle <= ViewAngle)
           {
             AddEdgePoint(LineOrigin, Normalize(TexForward), BotLeftDstTriangle, &Plane);
-            skybox_point_list* P = SkyboxPointList(IntersectionPoint[0]);
+            skybox_point_list* P = SkyboxPointList(IntersectionPoint);
             ListInsertBefore(SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane, P);
             AddEdgePoint(LineEnd, Normalize(TexForward), BotLeftDstTriangle, &Plane);
           }
@@ -2635,7 +2684,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
-      if(SkyboxPlaneIndex != ChosenPlane)
+      if(SkyboxPlaneIndex != ChosenSkyboxPlane && ChosenSkyboxPlane != ArrayCount(SkyboxPlanes))
       {
         continue;
       }
