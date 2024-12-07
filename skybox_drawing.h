@@ -13,6 +13,18 @@ enum skybox_side{
   SIDE_COUNT
 };
 
+struct sky_vectors {
+  v3 TopLeft;
+  skybox_side TopLeftSide;
+  v3 TopRight;
+  skybox_side TopRightSide;
+  v3 BotLeft;
+  skybox_side BotLeftSide;
+  v3 BotRight;
+  skybox_side BotRightSide;
+};
+
+
 struct skybox_edge
 {
   v3 A;
@@ -75,6 +87,8 @@ struct skybox_plane
   skybox_point_list* PointsOnPlane;
   skybox_side Side;
   v3 P[4];
+  v3 CornerPoint;
+  b32 CornerPointFound;
 };
 
 skybox_plane SkyboxPlane(v3 Point, v3 Normal)
@@ -177,6 +191,7 @@ b32 IntersectionPointIsWithinAngle(r32 ViewAngle, v3 Forward, v3 IntersectionPoi
   return IntersectionPointAngle <= ViewAngle;
 }
 
+// Projected points need to be CCW
 b32 PointInTrinagle(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints)
 {
   r32 lambda0 = RayPlaneIntersection( ProjectionNormal, EdgePoint, TrianglePoints[0], V3(0,0,0));
@@ -195,6 +210,7 @@ b32 PointInTrinagle(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints)
 b32 FindCornerPoint(v3* CornerPoints, v3* TrianglePoints, v3 ProjectionNormal, v3* Result)
 {
   u32 SkyboxLineCount = 4;
+  v3 ProjectionNormal2 = GetTriangleNormal(TrianglePoints[0], TrianglePoints[1], TrianglePoints[2]);
   for (u32 SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; ++SkyboxLineIndex)
   {
     v3 CornerPoint = CornerPoints[SkyboxLineIndex];
@@ -286,7 +302,7 @@ void AddEdgeIntersectionPoints(skybox_point_list* PointsSentinel, v3 TriangleLin
   }
 }
 
-void TriangulateSkyboxPlane(skybox_plane* Plane, v3* TrianglePoints, skybox_side* TriangleSides, v3 ForwardDirection, r32 ViewAngle)
+void TriangulateSkyboxPlaneTriangle(skybox_plane* Plane, v3* TrianglePoints, skybox_side* TriangleSides, v3 ForwardDirection, r32 ViewAngle)
 {
   u32 TriangleLineCount = 3;
   for(u32 TriangleLineIndex = 0; TriangleLineIndex < TriangleLineCount; TriangleLineIndex++)
@@ -313,4 +329,30 @@ void TriangulateSkyboxPlane(skybox_plane* Plane, v3* TrianglePoints, skybox_side
   }
 
   AddCornerPoints(Plane, TrianglePoints);
+}
+
+void TriangulateSkyboxPlaneSquare(skybox_plane* Plane, sky_vectors SkyVectors, r32 ViewAngle)
+{
+  v3 Square[4]     = {SkyVectors.BotLeft, SkyVectors.TopLeft, SkyVectors.TopRight, SkyVectors.BotRight};
+  skybox_side SquareSide[4] = {SkyVectors.BotLeftSide, SkyVectors.TopLeftSide, SkyVectors.TopRightSide, SkyVectors.BotRightSide};
+  v3 SquareCenter = Normalize((SkyVectors.BotLeft + SkyVectors.TopLeft + SkyVectors.TopRight + SkyVectors.BotRight) * 0.25f);
+  u32 SquarePointCount = ArrayCount(Square);
+  for(u32 SquareIndex = 0; SquareIndex < SquarePointCount; SquareIndex++)
+  {
+    skybox_point_list* SkyboxPointsSentinel = PushStruct(GlobalTransientArena, skybox_point_list);
+    ListInitiate(SkyboxPointsSentinel);
+    v3 SquareLineOrigin = Square[SquareIndex];
+    v3 SquareLineEnd = Square[(SquareIndex+1) % SquarePointCount];
+
+    if(SquareSide[SquareIndex] == Plane->Side)
+    {
+      v3 ProjectedPoint = PorojectRayOntoPlane(Plane->Normal, Plane->P[0], SquareLineOrigin, V3(0,0,0));
+      skybox_point_list* Point = SkyboxPointList(ProjectedPoint);
+      ListInsertBefore( SkyboxPointsSentinel,  Point);
+    }
+    
+    AddEdgeIntersectionPoints(SkyboxPointsSentinel, SquareLineOrigin, SquareLineEnd, Plane->P, SquareCenter, ViewAngle);
+    SkyboxPointsSentinel = SortPointsAlongTriangleEdge(SkyboxPointsSentinel, SquareLineOrigin, Plane->Normal, Plane->P[0]);
+    AppendPointsTo(Plane->PointsOnPlane, SkyboxPointsSentinel);
+  }
 }

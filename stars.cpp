@@ -1098,20 +1098,6 @@ v3 GetCubeCoordinateFromTexture(u32 PixelX, u32 PixelY, skybox_params* Params)
   return {};
 }
 
-
-
-
-struct sky_vectors {
-  v3 TopLeft;
-  skybox_side TopLeftSide;
-  v3 TopRight;
-  skybox_side TopRightSide;
-  v3 BotLeft;
-  skybox_side BotLeftSide;
-  v3 BotRight;
-  skybox_side BotRightSide;
-};
-
 skybox_side GetSkyboxSide(v3 Direction)
 {
   r32 AbsX = Abs(Direction.X);
@@ -2078,6 +2064,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     skybox_plane SkyboxPlanes[skybox_side::SIDE_COUNT] = {};
     skybox_plane SkyboxPlanes2[skybox_side::SIDE_COUNT] = {};
+    skybox_plane SkyboxPlanes3[skybox_side::SIDE_COUNT] = {};
     SkyboxPlanes[skybox_side::X_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_ym_zp, P_xm_yp_zp, P_xm_yp_zm, skybox_side::X_MINUS);
     SkyboxPlanes[skybox_side::X_PLUS]  = SkyboxPlane(P_xp_ym_zm, P_xp_yp_zm, P_xp_yp_zp, P_xp_ym_zp, skybox_side::X_PLUS);
     SkyboxPlanes[skybox_side::Y_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xp_ym_zm, P_xp_ym_zp, P_xm_ym_zp, skybox_side::Y_MINUS);
@@ -2090,6 +2077,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     SkyboxPlanes2[skybox_side::Y_PLUS]  = SkyboxPlane(P_xm_yp_zm, P_xm_yp_zp, P_xp_yp_zp, P_xp_yp_zm, skybox_side::Y_PLUS);
     SkyboxPlanes2[skybox_side::Z_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_yp_zm, P_xp_yp_zm, P_xp_ym_zm, skybox_side::Z_MINUS);
     SkyboxPlanes2[skybox_side::Z_PLUS]  = SkyboxPlane(P_xm_ym_zp, P_xp_ym_zp, P_xp_yp_zp, P_xm_yp_zp, skybox_side::Z_PLUS);
+    SkyboxPlanes3[skybox_side::X_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_ym_zp, P_xm_yp_zp, P_xm_yp_zm, skybox_side::X_MINUS);
+    SkyboxPlanes3[skybox_side::X_PLUS]  = SkyboxPlane(P_xp_ym_zm, P_xp_yp_zm, P_xp_yp_zp, P_xp_ym_zp, skybox_side::X_PLUS);
+    SkyboxPlanes3[skybox_side::Y_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xp_ym_zm, P_xp_ym_zp, P_xm_ym_zp, skybox_side::Y_MINUS);
+    SkyboxPlanes3[skybox_side::Y_PLUS]  = SkyboxPlane(P_xm_yp_zm, P_xm_yp_zp, P_xp_yp_zp, P_xp_yp_zm, skybox_side::Y_PLUS);
+    SkyboxPlanes3[skybox_side::Z_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_yp_zm, P_xp_yp_zm, P_xp_ym_zm, skybox_side::Z_MINUS);
+    SkyboxPlanes3[skybox_side::Z_PLUS]  = SkyboxPlane(P_xm_ym_zp, P_xp_ym_zp, P_xp_yp_zp, P_xm_yp_zp, skybox_side::Z_PLUS);
 
     v3 SquarePoints[] = 
     {
@@ -2166,14 +2159,50 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       TopRightDstTriangleSide[1] = TopRightDstTriangleSide[2];
       TopRightDstTriangleSide[2] = TmpSide;
     }
-  
+    
+    b32 CornerPointFound = false;
+    v3 CornerPoint = {};
     r32 ViewAngle = ACos(Normalize(TexForward) * Normalize(SkyVectors.BotLeft));  
+#if 0
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
-      TriangulateSkyboxPlane(&SkyboxPlanes[SkyboxPlaneIndex], BotLeftDstTriangle, BotLeftDstTriangleSide, TexForward, ViewAngle);
-      TriangulateSkyboxPlane(&SkyboxPlanes2[SkyboxPlaneIndex], TopRightDstTriangle, TopRightDstTriangleSide, TexForward, ViewAngle);
+      TriangulateSkyboxPlaneTriangle(&SkyboxPlanes[SkyboxPlaneIndex], BotLeftDstTriangle, BotLeftDstTriangleSide, TexForward, ViewAngle);
+      TriangulateSkyboxPlaneTriangle(&SkyboxPlanes2[SkyboxPlaneIndex], TopRightDstTriangle, TopRightDstTriangleSide, TexForward, ViewAngle);
     }
+#else
 
+    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
+    {
+      skybox_plane* Plane = &SkyboxPlanes[SkyboxPlaneIndex];
+      if(!CornerPointFound)
+      {
+        v3 TrianglePoints[3] = {SkyVectors.BotLeft, SkyVectors.TopRight, SkyVectors.TopLeft};
+        v3 ProjectionNormal = GetTriangleNormal(SkyVectors.BotLeft, SkyVectors.TopRight, SkyVectors.TopLeft);
+        CornerPointFound = FindCornerPoint(Plane->P, TrianglePoints, ProjectionNormal, &CornerPoint);
+      }
+      if(!CornerPointFound)
+      {
+        v3 TrianglePoints[3] = {SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopRight};
+        v3 ProjectionNormal = GetTriangleNormal(SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopRight);
+        CornerPointFound = FindCornerPoint(Plane->P, TrianglePoints, ProjectionNormal, &CornerPoint);
+      }
+    }
+    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
+    {
+      skybox_plane* Plane = &SkyboxPlanes[SkyboxPlaneIndex];
+      TriangulateSkyboxPlaneSquare(Plane, SkyVectors, ViewAngle);
+      if(CornerPointFound)
+      {
+        skybox_point_list* ClosestPointOnPlane = FindClosestPointInList(Plane->PointsOnPlane, CornerPoint);
+        if(ClosestPointOnPlane)
+        {
+          // Inserts Point where the angle is most shallow
+          InsertPointBeforeOrAfter(Plane, ClosestPointOnPlane, CornerPoint);
+        }
+      }
+    }
+    
+#endif
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
       if(SkyboxPlaneIndex != ChosenSkyboxPlane && ChosenSkyboxPlane != ArrayCount(SkyboxPlanes))
