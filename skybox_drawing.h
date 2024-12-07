@@ -85,10 +85,9 @@ struct skybox_plane
   v3 Point;
   v3 Normal;
   skybox_point_list* PointsOnPlane;
+  skybox_point_list* CornerPoint;
   skybox_side Side;
   v3 P[4];
-  v3 CornerPoint;
-  b32 CornerPointFound;
 };
 
 skybox_plane SkyboxPlane(v3 Point, v3 Normal)
@@ -257,6 +256,7 @@ void InsertPointBeforeOrAfter(skybox_plane* Plane, skybox_point_list* ClosestPoi
   }else{
     ListInsertBefore(ClosestPointOnPlane, Element);
   }
+  Plane->CornerPoint = Element;
 }
 
 void AddCornerPoints(skybox_plane* Plane, v3* TrianglePoints)
