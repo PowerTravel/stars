@@ -230,7 +230,7 @@ void InsertPointBeforeOrAfter(skybox_plane* Plane, skybox_point_list* ClosestPoi
   }
 }
 
-void AddCornerPoints(skybox_plane* Plane, v3* TrianglePoints, u32 SkyboxLineCount)
+void AddCornerPoints(skybox_plane* Plane, v3* TrianglePoints)
 {
   v3 CornerPoint = {};
   v3 ProjectionNormal = GetTriangleNormal(TrianglePoints[0], TrianglePoints[1], TrianglePoints[2]);
@@ -242,6 +242,33 @@ void AddCornerPoints(skybox_plane* Plane, v3* TrianglePoints, u32 SkyboxLineCoun
     {
       // Inserts Point where the angle is most shallow
       InsertPointBeforeOrAfter(Plane, ClosestPointOnPlane, CornerPoint);
+    }
+  }
+}
+
+void AddEdgeIntersectionPoints(skybox_point_list* PointsSentinel, v3 TriangleLineOrigin, v3 TriangleLineEnd, v3* SkyboxPlaneCorners, v3 Forward, r32 ViewAngle)
+{
+  // Check intersections for the current Triangle Line against all skybox lines
+  u32 SkyboxLineCount = 4;
+  for(u32 SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; SkyboxLineIndex++)
+  {
+    v3 LineOrigin = SkyboxPlaneCorners[SkyboxLineIndex];
+    v3 LineEnd    = SkyboxPlaneCorners[(SkyboxLineIndex+1)%SkyboxLineCount];
+    if(!IsLineInFront(LineOrigin, LineEnd, Forward))
+    {
+      continue;
+    }
+    
+    v3 IntersectionPoint = {};
+    b32 TriangleEdgeIntersection = GetIntersectionPoint(TriangleLineOrigin, TriangleLineEnd, LineOrigin, LineEnd, Forward, &IntersectionPoint);
+
+    if(TriangleEdgeIntersection)
+    {
+      if(IntersectionPointIsWithinAngle(ViewAngle, Forward, IntersectionPoint))
+      {
+        skybox_point_list* P = SkyboxPointList(IntersectionPoint);
+        ListInsertBefore(PointsSentinel, P);
+      }  
     }
   }
 }

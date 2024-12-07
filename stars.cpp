@@ -2270,7 +2270,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         
         v3 TrianglePointOrigin = BotLeftDstTriangle[TriangleLineIndex];
         v3 TrianglePointEnd = BotLeftDstTriangle[(TriangleLineIndex+1) % TriangleLineCount];
-        v3 OppositeTrianglePoint = BotLeftDstTriangle[(TriangleLineIndex+2) % TriangleLineCount];
 
         // Add the origin-point of the triangle if its on the active side
         if(BotLeftDstTriangleSide[TriangleLineIndex] == SkyboxPlaneIndex)
@@ -2279,35 +2278,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
           ListInsertBefore( SkyboxPointsSentinel,  point);
         }
 
-        // Check intersections for the current Triangle Line against all skybox lines
-        for(int SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; SkyboxLineIndex++)
-        {
-          v3 LineOrigin = Plane.P[SkyboxLineIndex%SkyboxLineCount];
-          v3 LineEnd    = Plane.P[(SkyboxLineIndex+1)%SkyboxLineCount];
-          if(!IsLineInFront(LineOrigin, LineEnd, TexForward))
-          {
-            continue;
-          }
-          
-          v3 IntersectionPoint = {};
-          b32 TriangleEdgeIntersection = GetIntersectionPoint(TrianglePointOrigin, TrianglePointEnd, LineOrigin, LineEnd, TexForward, &IntersectionPoint);
-
-          if(TriangleEdgeIntersection)
-          {
-            if(IntersectionPointIsWithinAngle(ViewAngle, TexForward, IntersectionPoint))
-            {
-              skybox_point_list* P = SkyboxPointList(IntersectionPoint);
-              ListInsertBefore(SkyboxPointsSentinel, P);
-            }  
-          }
-        }
+        AddEdgeIntersectionPoints(SkyboxPointsSentinel, TrianglePointOrigin, TrianglePointEnd, Plane.P, TexForward, ViewAngle);
 
         SkyboxPointsSentinel = SortPointsAlongTriangleEdge(SkyboxPointsSentinel, TrianglePointOrigin, PlaneNormal, Plane.P[1]);
         
         AppendPointsTo(Plane.PointsOnPlane, SkyboxPointsSentinel);
       }
 
-      AddCornerPoints(&Plane, BotLeftDstTriangle, SkyboxLineCount);
+      AddCornerPoints(&Plane, BotLeftDstTriangle);
 
     }
 
