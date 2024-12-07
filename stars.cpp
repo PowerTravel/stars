@@ -2404,8 +2404,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
             }else{
               DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
             }
-          }else{
-            //DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
           }
 
           // Get a plane/vector normal to the Line and in the same direction as the camera views
@@ -2448,13 +2446,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         }
 
         SkyboxPointsSentinel = SortPointsAlongTriangleEdge(SkyboxPointsSentinel, TrianglePointOrigin, PlaneNormal, Plane.P[1]);
-       
-        while(SkyboxPointsSentinel->Next != SkyboxPointsSentinel)
-        {
-          skybox_point_list* ElementToMove = SkyboxPointsSentinel->Next;
-          ListRemove(ElementToMove);
-          ListInsertAfter(Plane.PointsOnPlane->Previous, ElementToMove);
-        } 
+        
+        AppendPointsTo(Plane.PointsOnPlane, SkyboxPointsSentinel);
+        
       }
       {
         skybox_point_list* ElementToAdd = 0;
@@ -2462,8 +2456,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         for(int SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; SkyboxLineIndex++)
         {
           v3 LineOrigin = Plane.P[SkyboxLineIndex % SkyboxLineCount];
-          //v3 Subtriangle[] = {TrianglePointOrigin, TrianglePointEnd, TriangleCenter};
-          //PointInTrinagle(LineOrigin, Normalize(TexForward), Subtriangle, &SkyboxPointsSentinel);    
           if(PointInTrinagle(LineOrigin, Normalize(TexForward), BotLeftDstTriangle))
           {
             r32 Distance = R32Max;

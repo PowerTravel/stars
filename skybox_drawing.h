@@ -88,27 +88,46 @@ skybox_plane SkyboxPlane(v3 P0, v3 P1, v3 P2, v3 P3)
   return Result;
 }
 
+skybox_point_list* GetPointAtShortestDistanceFrom(v3 PointToMeasureFrom, skybox_point_list* PointList)
+{
+  skybox_point_list* Result = 0;
+  r32 ShortestDistance = R32Max;
+  for(skybox_point_list* Element = PointList->Next;
+      Element != PointList;
+      Element = Element->Next)
+  {
+    r32 Distance = Norm(Element->Point - PointToMeasureFrom);
+    if(Distance < ShortestDistance)
+    {
+      Result = Element;
+      ShortestDistance = Distance;
+    }
+  }
+  return Result;
+}
+
 skybox_point_list* SortPointsAlongTriangleEdge(skybox_point_list* PointListToSort, v3 TrianglePointOrigin, v3 PlaneNormal, v3 PointOnPlane)
 {
   skybox_point_list* SortedList = PushStruct(GlobalTransientArena, skybox_point_list);
   ListInitiate(SortedList);
   while(PointListToSort->Next != PointListToSort)
   {
-    r32 lambda0 = RayPlaneIntersection( PlaneNormal, PointOnPlane, TrianglePointOrigin, V3(0,0,0));
-    v3 ProjectedPoint0 = lambda0 * TrianglePointOrigin;
-    skybox_point_list* ElementToAdd = 0;
-    r32 Distance = R32Max;
-    for(skybox_point_list* Element = PointListToSort->Next; Element != PointListToSort; Element = Element->Next)
-    {
-      r32 NewDistance = Norm(Element->Point - ProjectedPoint0);
-      if(NewDistance < Distance)
-      {
-        ElementToAdd = Element;
-        Distance = NewDistance;
-      }
-    }
-    ListRemove(ElementToAdd);
-    ListInsertBefore(SortedList, ElementToAdd);
+    v3 ProjectedPoint = PorojectRayOntoPlane(PlaneNormal, PointOnPlane, TrianglePointOrigin, V3(0,0,0));
+    skybox_point_list* ElementToMove = GetPointAtShortestDistanceFrom(ProjectedPoint, PointListToSort);
+    ListRemove(ElementToMove);
+    ListInsertBefore(SortedList, ElementToMove);
   }
   return SortedList;
+}
+
+
+
+void AppendPointsTo(skybox_point_list* ListToInsert, skybox_point_list* ListToMove)
+{
+  while(ListToMove->Next != ListToMove)
+  {
+    skybox_point_list* ElementToMove = ListToMove->Next;
+    ListRemove(ElementToMove);
+    ListInsertAfter(ListToInsert->Previous, ElementToMove);
+  } 
 }
