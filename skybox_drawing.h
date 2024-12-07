@@ -175,51 +175,73 @@ b32 PointInTrinagle(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints)
   r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, EdgePoint);
   r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, EdgePoint);
   r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, EdgePoint);
-  v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
-  r32 PointInFront = TriangleCenter * EdgePoint;
-  r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
+  r32 PointInRange = PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
   return PointInRange;
+}
+
+b32 FindCornerPoint(v3* CornerPoints, v3* TrianglePoints, v3 ProjectionNormal, v3* Result)
+{
+  u32 SkyboxLineCount = 4;
+  for (u32 SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; ++SkyboxLineIndex)
+  {
+    v3 CornerPoint = CornerPoints[SkyboxLineIndex];
+    
+    if(PointInTrinagle(CornerPoint, ProjectionNormal, TrianglePoints))
+    {
+      *Result = CornerPoint;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+skybox_point_list* FindClosestPointInList(skybox_point_list* PointListSentinel, v3 CornerPoint)
+{
+  skybox_point_list* Result = 0;
+  r32 Distance = R32Max;
+  for(skybox_point_list* Element = PointListSentinel->Next; Element != PointListSentinel; Element = Element->Next)
+  {
+    r32 NewDistance = Norm(Element->Point - CornerPoint);
+    if(NewDistance < Distance)
+    {
+      Distance = NewDistance;
+      Result = Element;
+    }
+  }
+
+  return Result;
+}
+
+void InsertPointBeforeOrAfter(skybox_plane* Plane, skybox_point_list* ClosestPointOnPlane, v3 CornerPoint)
+{
+  skybox_point_list* NextElement = ClosestPointOnPlane->Next != Plane->PointsOnPlane ? ClosestPointOnPlane->Next : ClosestPointOnPlane->Next->Next;
+  skybox_point_list* PreviousElement = ClosestPointOnPlane->Previous != Plane->PointsOnPlane ? ClosestPointOnPlane->Previous : ClosestPointOnPlane->Previous->Previous;
+
+  r32 DotAfter  = Normalize(ClosestPointOnPlane->Point - CornerPoint) * Normalize(NextElement->Point - CornerPoint);
+  r32 DotBefore = Normalize(ClosestPointOnPlane->Point - CornerPoint) * Normalize(PreviousElement->Point - CornerPoint);
+
+  skybox_point_list* Element = SkyboxPointList(CornerPoint);
+  if(DotAfter < DotBefore)
+  {
+    ListInsertAfter(ClosestPointOnPlane, Element);
+  }else{
+    ListInsertBefore(ClosestPointOnPlane, Element);
+  }
 }
 
 void AddCornerPoints(skybox_plane* Plane, v3* TrianglePoints, u32 SkyboxLineCount)
 {
-  skybox_point_list* ElementToAdd = 0;
   v3 CornerPoint = {};
-  v3 ProjectionNormal = CrossProduct(TrianglePoints[1] - TrianglePoints[0], TrianglePoints[2] - TrianglePoints[0]); 
-  for(int SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; SkyboxLineIndex++)
+  v3 ProjectionNormal = GetTriangleNormal(TrianglePoints[0], TrianglePoints[1], TrianglePoints[2]);
+  b32 Found = FindCornerPoint(Plane->P, TrianglePoints, ProjectionNormal, &CornerPoint);
+  if(Found)
   {
-    v3 LineOrigin = Plane->P[SkyboxLineIndex % SkyboxLineCount];
-
-    if(PointInTrinagle(LineOrigin, Normalize(ProjectionNormal), TrianglePoints))
+    skybox_point_list* ClosestPointOnPlane = FindClosestPointInList(Plane->PointsOnPlane, CornerPoint);
+    if(ClosestPointOnPlane)
     {
-      r32 Distance = R32Max;
-      CornerPoint = LineOrigin;
-      for(skybox_point_list* Element = Plane->PointsOnPlane->Next; Element != Plane->PointsOnPlane; Element = Element->Next)
-      {
-        r32 NewDistance = Norm(Element->Point - LineOrigin);
-        if(NewDistance < Distance)
-        {
-          Distance = NewDistance;
-          ElementToAdd = Element;
-        }
-      }
-    }
-  }
-
-  if(ElementToAdd)
-  {
-    skybox_point_list* NextElement = ElementToAdd->Next != Plane->PointsOnPlane ? ElementToAdd->Next : ElementToAdd->Next->Next;
-    skybox_point_list* PreviousElement = ElementToAdd->Previous != Plane->PointsOnPlane ? ElementToAdd->Previous : ElementToAdd->Previous->Previous;
-
-    r32 DotAfter  = Normalize(ElementToAdd->Point - CornerPoint) * Normalize(NextElement->Point - CornerPoint);
-    r32 DotBefore = Normalize(ElementToAdd->Point - CornerPoint) * Normalize(PreviousElement->Point - CornerPoint);
-
-    skybox_point_list* Element = SkyboxPointList(CornerPoint);
-    if(DotAfter < DotBefore)
-    {
-      ListInsertAfter(ElementToAdd, Element);
-    }else{
-      ListInsertBefore(ElementToAdd, Element);
+      // Inserts Point where the angle is most shallow
+      InsertPointBeforeOrAfter(Plane, ClosestPointOnPlane, CornerPoint);
     }
   }
 }
