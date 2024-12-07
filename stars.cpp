@@ -1099,15 +1099,6 @@ v3 GetCubeCoordinateFromTexture(u32 PixelX, u32 PixelY, skybox_params* Params)
 }
 
 
-enum skybox_side{
-  X_MINUS,
-  Z_MINUS,
-  X_PLUS,
-  Y_PLUS,
-  Z_PLUS,
-  Y_MINUS,
-  SIDE_COUNT
-};
 
 
 struct sky_vectors {
@@ -2086,12 +2077,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     };
 
     skybox_plane SkyboxPlanes[skybox_side::SIDE_COUNT] = {};
-    SkyboxPlanes[skybox_side::X_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_ym_zp, P_xm_yp_zp, P_xm_yp_zm);
-    SkyboxPlanes[skybox_side::X_PLUS]  = SkyboxPlane(P_xp_ym_zm, P_xp_yp_zm, P_xp_yp_zp, P_xp_ym_zp);
-    SkyboxPlanes[skybox_side::Y_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xp_ym_zm, P_xp_ym_zp, P_xm_ym_zp);
-    SkyboxPlanes[skybox_side::Y_PLUS]  = SkyboxPlane(P_xm_yp_zm, P_xm_yp_zp, P_xp_yp_zp, P_xp_yp_zm);
-    SkyboxPlanes[skybox_side::Z_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_yp_zm, P_xp_yp_zm, P_xp_ym_zm);
-    SkyboxPlanes[skybox_side::Z_PLUS]  = SkyboxPlane(P_xm_ym_zp, P_xp_ym_zp, P_xp_yp_zp, P_xm_yp_zp);
+    SkyboxPlanes[skybox_side::X_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_ym_zp, P_xm_yp_zp, P_xm_yp_zm, skybox_side::X_MINUS);
+    SkyboxPlanes[skybox_side::X_PLUS]  = SkyboxPlane(P_xp_ym_zm, P_xp_yp_zm, P_xp_yp_zp, P_xp_ym_zp, skybox_side::X_PLUS);
+    SkyboxPlanes[skybox_side::Y_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xp_ym_zm, P_xp_ym_zp, P_xm_ym_zp, skybox_side::Y_MINUS);
+    SkyboxPlanes[skybox_side::Y_PLUS]  = SkyboxPlane(P_xm_yp_zm, P_xm_yp_zp, P_xp_yp_zp, P_xp_yp_zm, skybox_side::Y_PLUS);
+    SkyboxPlanes[skybox_side::Z_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_yp_zm, P_xp_yp_zm, P_xp_ym_zm, skybox_side::Z_MINUS);
+    SkyboxPlanes[skybox_side::Z_PLUS]  = SkyboxPlane(P_xm_ym_zp, P_xp_ym_zp, P_xp_yp_zp, P_xm_yp_zp, skybox_side::Z_PLUS);
 
 
     v3 SquarePoints[] = 
@@ -2206,6 +2197,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       GetSkyNormal(SkyVectors.TopLeftSide)
     };
     v3 TopRightDstTriangle[] = {SkyVectors.TopLeft, SkyVectors.BotRight, SkyVectors.TopRight};
+    skybox_side TopRightDstTriangleSide[] = {SkyVectors.TopLeftSide, SkyVectors.BotRightSide, SkyVectors.TopRightSide};
     v3 TopRightDstNormals[] = {
       GetSkyNormal(SkyVectors.TopLeftSide),
       GetSkyNormal(SkyVectors.BotRightSide),
@@ -2221,6 +2213,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       Tmp = BotLeftDstNormals[1];
       BotLeftDstNormals[1] = BotLeftDstNormals[2];
       BotLeftDstNormals[2] = Tmp;
+
+      skybox_side Tmp2 = TopRightDstTriangleSide[1];
+      TopRightDstTriangleSide[1] = TopRightDstTriangleSide[2];
+      TopRightDstTriangleSide[2] = Tmp2;
+      
     }
     r32 Area2 = EdgeFunction(TopRightDstTriangle[0], TopRightDstTriangle[1], TopRightDstTriangle[2]);
     if(Area2 < 0)
@@ -2231,6 +2228,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       Tmp = TopRightDstNormals[1];
       TopRightDstNormals[1] = TopRightDstNormals[2];
       TopRightDstNormals[2] = Tmp;
+
+      skybox_side Tmp2 = BotLeftDstTriangleSide[1];
+      BotLeftDstTriangleSide[1] = BotLeftDstTriangleSide[2];
+      BotLeftDstTriangleSide[2] = Tmp2;
     }
 
     v3 BotLeftDstTriangleProjected[3] = {
@@ -2258,35 +2259,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
       skybox_plane Plane = SkyboxPlanes[SkyboxPlaneIndex];
-      v3 PlaneNormal = Normalize(CrossProduct(Plane.P[1] - Plane.P[0], Plane.P[3] - Plane.P[0]));
-      u32 SkyboxLineCount = 4;
-      u32 CornerCount = 4; 
-      u32 TriangleLineCount = 3;
-
-      for(u32 TriangleLineIndex = 0; TriangleLineIndex < TriangleLineCount; TriangleLineIndex++)
-      {
-        skybox_point_list* SkyboxPointsSentinel = PushStruct(GlobalTransientArena, skybox_point_list);
-        ListInitiate(SkyboxPointsSentinel);
-        
-        v3 TrianglePointOrigin = BotLeftDstTriangle[TriangleLineIndex];
-        v3 TrianglePointEnd = BotLeftDstTriangle[(TriangleLineIndex+1) % TriangleLineCount];
-
-        // Add the origin-point of the triangle if its on the active side
-        if(BotLeftDstTriangleSide[TriangleLineIndex] == SkyboxPlaneIndex)
-        {
-          skybox_point_list* point = SkyboxPointList(BotLeftDstTriangleProjected[TriangleLineIndex]);
-          ListInsertBefore( SkyboxPointsSentinel,  point);
-        }
-
-        AddEdgeIntersectionPoints(SkyboxPointsSentinel, TrianglePointOrigin, TrianglePointEnd, Plane.P, TexForward, ViewAngle);
-
-        SkyboxPointsSentinel = SortPointsAlongTriangleEdge(SkyboxPointsSentinel, TrianglePointOrigin, PlaneNormal, Plane.P[1]);
-        
-        AppendPointsTo(Plane.PointsOnPlane, SkyboxPointsSentinel);
-      }
-
-      AddCornerPoints(&Plane, BotLeftDstTriangle);
-
+      TriangulateSkyboxPlane(&Plane, BotLeftDstTriangle, BotLeftDstTriangleSide, TexForward, ViewAngle);
     }
 
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)

@@ -3,6 +3,16 @@
 struct skybox_edge;
 struct skybox_plane;
 
+enum skybox_side{
+  X_MINUS,
+  Z_MINUS,
+  X_PLUS,
+  Y_PLUS,
+  Z_PLUS,
+  Y_MINUS,
+  SIDE_COUNT
+};
+
 struct skybox_edge
 {
   v3 A;
@@ -63,6 +73,7 @@ struct skybox_plane
   v3 Point;
   v3 Normal;
   skybox_point_list* PointsOnPlane;
+  skybox_side Side;
   v3 P[4];
 };
 
@@ -76,13 +87,15 @@ skybox_plane SkyboxPlane(v3 Point, v3 Normal)
   return Result;
 }
 
-skybox_plane SkyboxPlane(v3 P0, v3 P1, v3 P2, v3 P3)
+skybox_plane SkyboxPlane(v3 P0, v3 P1, v3 P2, v3 P3, skybox_side Side)
 {
   skybox_plane Result = {};
   Result.P[0] = P0;
   Result.P[1] = P1;
   Result.P[2] = P2;
   Result.P[3] = P3;
+  Result.Normal = GetTriangleNormal(P1 - P0, P3 - P0);
+  Result.Side = Side;
   Result.PointsOnPlane = PushStruct(GlobalTransientArena, skybox_point_list);
   ListInitiate(Result.PointsOnPlane);
   return Result;
@@ -271,4 +284,33 @@ void AddEdgeIntersectionPoints(skybox_point_list* PointsSentinel, v3 TriangleLin
       }  
     }
   }
+}
+
+void TriangulateSkyboxPlane(skybox_plane* Plane, v3* TrianglePoints, skybox_side* TriangleSides, v3 ForwardDirection, r32 ViewAngle)
+{
+  u32 TriangleLineCount = 3;
+  for(u32 TriangleLineIndex = 0; TriangleLineIndex < TriangleLineCount; TriangleLineIndex++)
+  {
+    skybox_point_list* SkyboxPointsSentinel = PushStruct(GlobalTransientArena, skybox_point_list);
+    ListInitiate(SkyboxPointsSentinel);
+    
+    v3 TrianglePointOrigin = TrianglePoints[TriangleLineIndex];
+    v3 TrianglePointEnd = TrianglePoints[(TriangleLineIndex+1) % TriangleLineCount];
+
+    // Add the origin-point of the triangle if its on the active side
+    if(TriangleSides[TriangleLineIndex] == Plane->Side)
+    {
+      v3 ProjectedPoint = PorojectRayOntoPlane(Plane->Normal, Plane->P[0], TrianglePointOrigin, V3(0,0,0));
+      skybox_point_list* Point = SkyboxPointList(ProjectedPoint);
+      ListInsertBefore( SkyboxPointsSentinel,  Point);
+    }
+
+    AddEdgeIntersectionPoints(SkyboxPointsSentinel, TrianglePointOrigin, TrianglePointEnd, Plane->P, ForwardDirection, ViewAngle);
+
+    SkyboxPointsSentinel = SortPointsAlongTriangleEdge(SkyboxPointsSentinel, TrianglePointOrigin, Plane->Normal, Plane->P[0]);
+    
+    AppendPointsTo(Plane->PointsOnPlane, SkyboxPointsSentinel);
+  }
+
+  AddCornerPoints(Plane, TrianglePoints);
 }
