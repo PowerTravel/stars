@@ -1325,17 +1325,7 @@ r32 EdgeFunction( v2& a, v2& b, v2& p )
   return(Result);
 }
 
-// Read: https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/rasterization-stage.html
-// If Edgefunction returns:
-//   > 0 : the point P is to the right side of the line a->b
-//   = 0 : the point P is on the line a->b
-//   < 0 : the point P is to the left side of the line a->b
-// The edgefunction is equivalent to the magnitude of the cross product between the vector b-a and p-a
-r32 EdgeFunction( v3& a, v3& b, v3& p )
-{
-  r32 Result = Determinant(a,b,p);
-  return(Result);
-}
+
 
 struct skybox_vertice {
   v3 P;
@@ -1529,22 +1519,7 @@ void DrawPixels(v2* DstPixels, v2* SrcPixels, opengl_bitmap* DstBitmap, opengl_b
   }
 }
 
-b32 PointInTrinagle(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints)
-{
-  r32 lambda0 = RayPlaneIntersection( ProjectionNormal, EdgePoint, TrianglePoints[0], V3(0,0,0));
-  r32 lambda1 = RayPlaneIntersection( ProjectionNormal, EdgePoint, TrianglePoints[1], V3(0,0,0));
-  r32 lambda2 = RayPlaneIntersection( ProjectionNormal, EdgePoint, TrianglePoints[2], V3(0,0,0));
-  v3 ProjectedPoint0 = lambda0 * TrianglePoints[0];
-  v3 ProjectedPoint1 = lambda1 * TrianglePoints[1];
-  v3 ProjectedPoint2 = lambda2 * TrianglePoints[2];
-  r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, EdgePoint);
-  r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, EdgePoint);
-  r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, EdgePoint);
-  v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
-  r32 PointInFront = TriangleCenter * EdgePoint;
-  r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
-  return PointInRange;
-}
+
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
@@ -1623,7 +1598,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   camera* Camera = &GlobalState->Camera;
   local_persist r32 near = 0.001;
-  local_persist u32 ChosenSkyboxPlane = 0;
+  local_persist u32 ChosenSkyboxPlane = skybox_side::SIDE_COUNT;
   local_persist u32 ChosenSkyboxLineIndex = 0;
   local_persist u32 ChosenTriangleLineIndex = 0;
   local_persist b32 ToggleDebugPoints = true;
@@ -2319,8 +2294,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
           if(TriangleEdgeIntersection)
           {
-            r32 IntersectionPointAngle = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint));
-            if(TriangleEdgeIntersection && IntersectionPointAngle <= ViewAngle)
+            if(IntersectionPointIsWithinAngle(ViewAngle, TexForward, IntersectionPoint))
             {
               skybox_point_list* P = SkyboxPointList(IntersectionPoint);
               ListInsertBefore(SkyboxPointsSentinel, P);
@@ -2331,47 +2305,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         SkyboxPointsSentinel = SortPointsAlongTriangleEdge(SkyboxPointsSentinel, TrianglePointOrigin, PlaneNormal, Plane.P[1]);
         
         AppendPointsTo(Plane.PointsOnPlane, SkyboxPointsSentinel);
-        
       }
-      {
-        skybox_point_list* ElementToAdd = 0;
-        v3 CornerPoint = {};
-        for(int SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; SkyboxLineIndex++)
-        {
-          v3 LineOrigin = Plane.P[SkyboxLineIndex % SkyboxLineCount];
-          if(PointInTrinagle(LineOrigin, Normalize(TexForward), BotLeftDstTriangle))
-          {
-            r32 Distance = R32Max;
-            CornerPoint = LineOrigin;
-            for(skybox_point_list* Element = Plane.PointsOnPlane->Next; Element != Plane.PointsOnPlane; Element = Element->Next)
-            {
-              r32 NewDistance = Norm(Element->Point - LineOrigin);
-              if(NewDistance < Distance)
-              {
-                Distance = NewDistance;
-                ElementToAdd = Element;
-              }
-            }
-          }
-        }
 
-        if(ElementToAdd)
-        {
-          skybox_point_list* NextElement = ElementToAdd->Next != Plane.PointsOnPlane ? ElementToAdd->Next : ElementToAdd->Next->Next;
-          skybox_point_list* PreviousElement = ElementToAdd->Previous != Plane.PointsOnPlane ? ElementToAdd->Previous : ElementToAdd->Previous->Previous;
+      AddCornerPoints(&Plane, BotLeftDstTriangle, SkyboxLineCount);
 
-          r32 DotAfter  = Normalize(ElementToAdd->Point - CornerPoint) * Normalize(NextElement->Point - CornerPoint);
-          r32 DotBefore = Normalize(ElementToAdd->Point - CornerPoint) * Normalize(PreviousElement->Point - CornerPoint);
-
-          skybox_point_list* Element = SkyboxPointList(CornerPoint);
-          if(DotAfter < DotBefore)
-          {
-            ListInsertAfter(ElementToAdd, Element);
-          }else{
-            ListInsertBefore(ElementToAdd, Element);
-          }
-        }
-      }
     }
 
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
