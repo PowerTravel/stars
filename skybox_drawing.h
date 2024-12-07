@@ -94,7 +94,7 @@ skybox_plane SkyboxPlane(v3 P0, v3 P1, v3 P2, v3 P3, skybox_side Side)
   Result.P[1] = P1;
   Result.P[2] = P2;
   Result.P[3] = P3;
-  Result.Normal = GetTriangleNormal(P1 - P0, P3 - P0);
+  Result.Normal = GetTriangleNormal(P0, P1, P3);
   Result.Side = Side;
   Result.PointsOnPlane = PushStruct(GlobalTransientArena, skybox_point_list);
   ListInitiate(Result.PointsOnPlane);
