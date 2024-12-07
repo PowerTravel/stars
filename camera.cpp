@@ -17,6 +17,12 @@ void LookAt( camera* Camera, v3 aFrom,  v3 aTo,  v3 aTmp)
   AssertIdentity(Camera->V * CamToWorld, 0.1 );
 }
 
+void SetCameraPosition(camera* Camera, v3 NewPos)
+{
+  m4 CamToWorld = RigidInverse(Camera->V);
+  Column( Camera->V, 3, V4(NewPos,1));
+}
+
 ray GetRayFromCamera(camera* Camera, canonical_screen_coordinate MouseCanPos)
 {
   ray Result {};
@@ -74,7 +80,7 @@ void RotateCameraAroundWorldAxis( camera* Camera, const r32 DeltaAngle, const v3
   Camera->V = RigidInverse(CamToWorld);
 }
 
-void UpdateViewMatrix(  camera* Camera )
+void UpdateViewMatrix( camera* Camera )
 {
   m4 CamToWorld = RigidInverse( Camera->V );
   AssertIdentity( CamToWorld*Camera->V,0.1 );

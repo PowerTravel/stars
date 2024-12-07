@@ -1700,7 +1700,7 @@ skybox_plane SkyboxPlane(v3 P0, v3 P1, v3 P2, v3 P3)
   return Result;
 }
 
-void AddEdgePoint(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints, skybox_plane* Plane)
+b32 PointInTrinagle(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints)
 {
   r32 lambda0 = RayPlaneIntersection( ProjectionNormal, EdgePoint, TrianglePoints[0], V3(0,0,0));
   r32 lambda1 = RayPlaneIntersection( ProjectionNormal, EdgePoint, TrianglePoints[1], V3(0,0,0));
@@ -1714,12 +1714,7 @@ void AddEdgePoint(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints, skybox_
   v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
   r32 PointInFront = TriangleCenter * EdgePoint;
   r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
-
-  if(PointInRange)
-  {
-    skybox_point_list* point = SkyboxPointList(EdgePoint);
-    ListInsertBefore(Plane->PointsOnPlane, point);
-  }
+  return PointInRange;
 }
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
@@ -1973,6 +1968,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
   
   r32 CamSpeed = 0.05;
+  if(jwin::Active(Input->Keyboard.Key_C))
+  {
+    SetCameraPosition(Camera, V3(0,0,0));
+  }
   if(jwin::Active(Input->Keyboard.Key_W))
   {
     TranslateCamera(Camera, V3(0,0,-CamSpeed));
@@ -2220,6 +2219,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   {
 
+ // if(jwin::Pushed(Input->Keyboard.Key_K))
   {
     // Skybox
 
@@ -2435,21 +2435,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       BotLeftDstTriangle[2] * RayPlaneIntersection(BotLeftDstNormals[2], BotLeftDstNormals[2], BotLeftDstTriangle[2], V3(0,0,0))
     };
 
-    skybox_point_list SkyboxPointsSentinel = {};
-    ListInitiate(&SkyboxPointsSentinel);
     skybox_point_list* OriginalPoints = PushArray(GlobalTransientArena, 3, skybox_point_list);
     OriginalPoints[0] = SkyboxPointList(BotLeftDstTriangleProjected[0], &SkyboxPlanes[SkyVectors.BotLeftSide]);
     OriginalPoints[1] = SkyboxPointList(BotLeftDstTriangleProjected[1], &SkyboxPlanes[SkyVectors.BotRightSide]);
     OriginalPoints[2] = SkyboxPointList(BotLeftDstTriangleProjected[2], &SkyboxPlanes[SkyVectors.TopLeftSide]);
-    //skybox_point_list* point = SkyboxPointList(BotLeftDstTriangleProjected[0]);
-    //ListInsertBefore( SkyboxPlanes[SkyVectors.BotLeftSide].PointsOnPlane,  point);
-    //point = SkyboxPointList(BotLeftDstTriangleProjected[1]);
-    //ListInsertBefore(SkyboxPlanes[SkyVectors.BotRightSide].PointsOnPlane,  point);
-    //point = SkyboxPointList(BotLeftDstTriangleProjected[2]);
-    //ListInsertBefore(SkyboxPlanes[SkyVectors.TopLeftSide].PointsOnPlane,  point);
-    ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[0]);
-    ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[1]);
-    ListInsertBefore(&SkyboxPointsSentinel, &OriginalPoints[2]);
 
     DrawVector(RenderCommands, BotLeftDstTriangleProjected[0], BotLeftDstTriangleProjected[1]-BotLeftDstTriangleProjected[0], V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.05);
     DrawVector(RenderCommands, BotLeftDstTriangleProjected[1], BotLeftDstTriangleProjected[2]-BotLeftDstTriangleProjected[1], V3(0,0,0), V3(0,1,0), Camera->P, Camera->V, 0.05);
@@ -2461,7 +2450,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     r32 PointInFront111 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.BotRight));
     r32 PointInFront222 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopLeft));
     r32 PointInFront333 = ACos(Normalize(SquareCenter) * Normalize(SkyVectors.TopRight));
-
+ 
+  
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
       skybox_plane Plane = SkyboxPlanes[SkyboxPlaneIndex];
@@ -2472,16 +2462,19 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
       for(u32 TriangleLineIndex = 0; TriangleLineIndex < TriangleLineCount; TriangleLineIndex++)
       {
-        u32 NextTriangleLineIndex = (TriangleLineIndex+1) % TriangleLineCount;
+        skybox_point_list SkyboxPointsSentinel = {};
+        ListInitiate(&SkyboxPointsSentinel);
         
         v3 TrianglePointOrigin = BotLeftDstTriangle[TriangleLineIndex];
-        v3 TrianglePointEnd = BotLeftDstTriangle[NextTriangleLineIndex];
+        v3 TrianglePointEnd = BotLeftDstTriangle[(TriangleLineIndex+1) % TriangleLineCount];
+        v3 OppositeTrianglePoint = BotLeftDstTriangle[(TriangleLineIndex+2) % TriangleLineCount];
 
+        DrawDot(RenderCommands,  TriangleCenter, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.015);
         // Add the origin-point of the triangle if its on the active side
         if(BotLeftDstTriangleSide[TriangleLineIndex] == SkyboxPlaneIndex)
         {
           skybox_point_list* point = SkyboxPointList(BotLeftDstTriangleProjected[TriangleLineIndex]);
-          ListInsertBefore( Plane.PointsOnPlane,  point);
+          ListInsertBefore( &SkyboxPointsSentinel,  point);
         }
 
         // Check intersections for the current Triangle Line against all skybox lines
@@ -2495,38 +2488,18 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
           {
             continue;
           }
-/*
-          v3 LineEdges[2] = {LineOrigin, LineEnd}; 
-          for(int EdgePointIndex = 0; EdgePointIndex < ArrayCount(LineEdges); EdgePointIndex++)
-          {
-            v3 EdgePoint = LineEdges[EdgePointIndex];
-            v3 Normal = Normalize(TexForward);
-            r32 lambda0 = RayPlaneIntersection( Normal, EdgePoint, BotLeftDstTriangle[0], V3(0,0,0));
-            r32 lambda1 = RayPlaneIntersection( Normal, EdgePoint, BotLeftDstTriangle[1], V3(0,0,0));
-            r32 lambda2 = RayPlaneIntersection( Normal, EdgePoint, BotLeftDstTriangle[2], V3(0,0,0));
-            v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
-            v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
-            v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
-            r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, EdgePoint);
-            r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, EdgePoint);
-            r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, EdgePoint);
-            v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
-            r32 PointInFront = TriangleCenter * EdgePoint;
-            r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
 
-            if(PointInRange)
-            {
-              skybox_point_list* point = SkyboxPointList(EdgePoint);
-              ListInsertAfter(SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane,  point);
-            }
-          }
-*/
-          if(ChosenSkyboxPlane == SkyboxPlaneIndex)
+          if(ChosenSkyboxPlane == SkyboxPlaneIndex && ChosenSkyboxPlane != skybox_side::SIDE_COUNT)
           {
-            DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.04);
-            DrawVector(RenderCommands, LineOrigin, LineEnd-LineOrigin, V3(0,0,0), V3(1,0,1), Camera->P, Camera->V, 0.1);
+            DrawVector(RenderCommands, LineOrigin, LineEnd-LineOrigin, V3(0,0,0), V3(1,0,1), Camera->P, Camera->V, 0.1);  
+            if(ChosenSkyboxLineIndex == SkyboxLineIndex)
+            {
+              DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.04);
+            }else{
+              DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
+            }
           }else{
-            DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
+            //DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
           }
 
           // Get a plane/vector normal to the Line and in the same direction as the camera views
@@ -2537,8 +2510,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
           r32 lambda1 = RayPlaneIntersection( vec3, (LineOrigin+LineEnd)/2, TrianglePointEnd, V3(0,0,0));
           v3 ProjectedPoint0 = lambda0 * TrianglePointOrigin;
           v3 ProjectedPoint1 = lambda1 * TrianglePointEnd;
-          
-          
+
           if(ToggleDebugPoints && SkyboxLineIndex == ChosenSkyboxLineIndex && SkyboxPlaneIndex == ChosenSkyboxPlane && ChosenTriangleLineIndex == TriangleLineIndex)
           {
             v3 Color = V3(0,0,0);
@@ -2557,129 +2529,99 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
             }
             DrawDot(RenderCommands,  ProjectedPoint0, V3(1,2,1), Color, Camera->P, Camera->V, 0.022);
           }
+
           v3 IntersectionPoint = {};
           b32 TrignleSquareIntersection = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint);
 
           r32 IntersectionPointAngle = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint));
           if(TrignleSquareIntersection && IntersectionPointAngle <= ViewAngle)
           {
-            AddEdgePoint(LineOrigin, Normalize(TexForward), BotLeftDstTriangle, &Plane);
             skybox_point_list* P = SkyboxPointList(IntersectionPoint);
-            ListInsertBefore(SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane, P);
-            AddEdgePoint(LineEnd, Normalize(TexForward), BotLeftDstTriangle, &Plane);
+            ListInsertBefore(&SkyboxPointsSentinel, P);
           }
 
         }
-      }
-    }
 
-    for (int i = 0; i < ArrayCount(SkyboxEdges); ++i)
-    {
-      /*
-      v3 LineOrigin = SkyboxEdges[i].A;
-      v3 LineEnd = SkyboxEdges[i].B;
-      r32 PointInFront1 = TriangleCenter * LineOrigin;
-      r32 PointInFront2 = SquareCenter * LineEnd;
-      if(PointInFront1 <= 0 && PointInFront2 <=0)
+        skybox_point_list* Ptmp = SkyboxPointsSentinel.Next;
+        skybox_point_list SortedList = {};
+        ListInitiate(&SortedList);
+        while(SkyboxPointsSentinel.Next != &SkyboxPointsSentinel)
+        {
+          r32 lambda0 = RayPlaneIntersection( PlaneNormal, Plane.P[1], TrianglePointOrigin, V3(0,0,0));
+          v3 ProjectedPoint0 = lambda0 * TrianglePointOrigin;
+          DrawDot(RenderCommands, ProjectedPoint0, V3(1,2,1), V3(0,0,0), Camera->P, Camera->V, 0.022);
+          skybox_point_list* ElementToAdd = 0;
+          r32 Distance = R32Max;
+          for(skybox_point_list* Element = SkyboxPointsSentinel.Next; Element != &SkyboxPointsSentinel; Element = Element->Next)
+          {
+            r32 NewDistance = Norm(Element->Point - ProjectedPoint0);
+            if(NewDistance < Distance)
+            {
+              ElementToAdd = Element;
+              Distance = NewDistance;
+            }
+          }
+          ListRemove(ElementToAdd);
+          ListInsertBefore(&SortedList, ElementToAdd); 
+        }
+        while(SortedList.Next != &SortedList)
+        {
+          skybox_point_list* ElementToMove = SortedList.Next;
+          ListRemove(ElementToMove);
+          ListInsertAfter(Plane.PointsOnPlane->Previous, ElementToMove);
+        } 
+      }
       {
-        continue;
-      }
+        skybox_point_list* ElementToAdd = 0;
+        v3 CornerPoint = {};
+        for(int SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; SkyboxLineIndex++)
+        {
+          v3 LineOrigin = Plane.P[SkyboxLineIndex % SkyboxLineCount];
+          //v3 Subtriangle[] = {TrianglePointOrigin, TrianglePointEnd, TriangleCenter};
+          //PointInTrinagle(LineOrigin, Normalize(TexForward), Subtriangle, &SkyboxPointsSentinel);    
+          if(PointInTrinagle(LineOrigin, Normalize(TexForward), BotLeftDstTriangle))
+          {
+            r32 Distance = R32Max;
+            CornerPoint = LineOrigin;
+            for(skybox_point_list* Element = Plane.PointsOnPlane->Next; Element != Plane.PointsOnPlane; Element = Element->Next)
+            {
+              r32 NewDistance = Norm(Element->Point - LineOrigin);
+              if(NewDistance < Distance)
+              {
+                Distance = NewDistance;
+                ElementToAdd = Element;
+              }
+            }
+          }
+        }
 
-      v3 LineNormal = (SkyboxEdges[i].RightPlane->Normal + SkyboxEdges[i].LeftPlane->Normal)/2.f;
-      DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
-      DrawVector(RenderCommands, (LineOrigin + LineEnd)/2, LineNormal, V3(0,0,0), V3(1,1,0), Camera->P, Camera->V, 0.1);
+        if(ElementToAdd)
+        {
+          skybox_point_list* NextElement = ElementToAdd->Next != Plane.PointsOnPlane ? ElementToAdd->Next : ElementToAdd->Next->Next;
+          skybox_point_list* PreviousElement = ElementToAdd->Previous != Plane.PointsOnPlane ? ElementToAdd->Previous : ElementToAdd->Previous->Previous;
 
-      r32 lambda0 = RayPlaneIntersection( LineNormal, (LineOrigin+LineEnd)/2, BotLeftDstTriangle[0], V3(0,0,0));
-      r32 lambda1 = RayPlaneIntersection( LineNormal, (LineOrigin+LineEnd)/2, BotLeftDstTriangle[1], V3(0,0,0));
-      r32 lambda2 = RayPlaneIntersection( LineNormal, (LineOrigin+LineEnd)/2, BotLeftDstTriangle[2], V3(0,0,0));
-      v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
-      v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
-      v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
-      r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, LineOrigin);
-      r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, LineOrigin);
-      r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, LineOrigin);
+          r32 DotAfter  = Normalize(ElementToAdd->Point - CornerPoint) * Normalize(NextElement->Point - CornerPoint);
+          r32 DotBefore = Normalize(ElementToAdd->Point - CornerPoint) * Normalize(PreviousElement->Point - CornerPoint);
 
-      v3 IntersectionPoint[3] = {};
-      b32 IntersectsLine0 = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint[0]);
-      b32 IntersectsLine1 = LineLineIntersection(ProjectedPoint1, ProjectedPoint2, LineOrigin, LineEnd, NULL, &IntersectionPoint[1]);
-      b32 IntersectsLine2 = LineLineIntersection(ProjectedPoint2, ProjectedPoint0, LineOrigin, LineEnd, NULL, &IntersectionPoint[2]);
-
-      v3 ColorPoint = V3(1,1,1);
-      if(Abs(LineNormal * Normalize(ProjectedPoint2) -2)< 0.001 )
-      {
-        ColorPoint = V3(1,0,1);
+          skybox_point_list* Element = SkyboxPointList(CornerPoint);
+          if(DotAfter < DotBefore)
+          {
+            ListInsertAfter(ElementToAdd, Element);
+          }else{
+            ListInsertBefore(ElementToAdd, Element);
+          }
+        }
       }
-
-      r32 PointInFront00 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[0]));
-      if(IntersectsLine0 && PointInFront00 <= PointInFront000)
-      {
-        skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
-        *Point = SkyboxPointList(IntersectionPoint[0], &SkyboxEdges[i]);
-        ListInsertAfter(&OriginalPoints[0], Point);
-      }
-      r32 PointInFront11 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[1]));
-      if(IntersectsLine1 && PointInFront11 <= PointInFront000)
-      {
-        skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
-        *Point = SkyboxPointList(IntersectionPoint[1], &SkyboxEdges[i]);
-        ListInsertAfter(&OriginalPoints[1], Point);
-      }
-      r32 PointInFront22 = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint[2]));
-      if(IntersectsLine2 && PointInFront22 <= PointInFront000)
-      {
-        skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
-        *Point = SkyboxPointList(IntersectionPoint[2], &SkyboxEdges[i]);
-        ListInsertAfter(&OriginalPoints[2], Point);
-      }
-      */
-    }
-
-    b32 CornerPointIntersection = false;
-    for (int i = 0; i < ArrayCount(SquarePoints); ++i)
-    {
-      /*
-      v3 SkyboxCornerPoint = SquarePoints[i];
-      r32 lambda0 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[0], V3(0,0,0));
-      r32 lambda1 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[1], V3(0,0,0));
-      r32 lambda2 = RayPlaneIntersection( PlaneNormal, SkyboxCornerPoint, BotLeftDstTriangle[2], V3(0,0,0));
-      v3 ProjectedPoint0 = lambda0 * BotLeftDstTriangle[0];
-      v3 ProjectedPoint1 = lambda1 * BotLeftDstTriangle[1];
-      v3 ProjectedPoint2 = lambda2 * BotLeftDstTriangle[2];
-      r32 PointInRange0 = EdgeFunction(ProjectedPoint0, ProjectedPoint1, SkyboxCornerPoint);
-      r32 PointInRange1 = EdgeFunction(ProjectedPoint1, ProjectedPoint2, SkyboxCornerPoint);
-      r32 PointInRange2 = EdgeFunction(ProjectedPoint2, ProjectedPoint0, SkyboxCornerPoint);
-      v3 TriangleCenter = (ProjectedPoint0 + ProjectedPoint1 + ProjectedPoint2) /3.f;
-      r32 PointInFront = TriangleCenter * SkyboxCornerPoint;
-      r32 PointInRange = PointInFront > 0 && PointInRange0 >= 0 && PointInRange1 >= 0 && PointInRange2 >= 0;
-      if(PointInRange)
-      {
-        skybox_point_list* Point = PushStruct(GlobalTransientArena, skybox_point_list);
-        Point->Point = SkyboxCornerPoint;
-        ListInsertAfter(&SkyboxPointsSentinel, Point);
-      }
-      */
     }
 /*
-    u32 PointIntersectionCount;
-    ListCount(&SkyboxPointsSentinel, skybox_point_list, PointIntersectionCount);
-
-    skybox_point_list* First = SkyboxPointsSentinel.Next;
-    skybox_point_list* Element = First->Next;
-    DrawDot(RenderCommands, First->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-    DrawDot(RenderCommands, Element->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-    while(Element->Next != &SkyboxPointsSentinel)
+    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
-      DrawDot(RenderCommands, Element->Next->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-      DrawLine(RenderCommands, First->Point, Element->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-      DrawLine(RenderCommands, Element->Point, Element->Next->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-      DrawLine(RenderCommands, Element->Next->Point, First->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-      Element = Element->Next;
+      skybox_plane Plane = SkyboxPlanes[SkyboxPlaneIndex];
+      for(skybox_point_list* Element = Plane.PointsOnPlane->Next; Element != Plane.PointsOnPlane; Element = Element->Next)
+      {
+        DrawDot(RenderCommands,  Element->Point, V3(1,2,1), V3(0,0,0), Camera->P, Camera->V, 0.022);
+      }
     }
-
-    DrawDot(RenderCommands, SkyboxPointsSentinel.Previous->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-    DrawLine(RenderCommands, First->Point, SkyboxPointsSentinel.Previous->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, SkyboxPointsSentinel.Previous->Point, First->Next->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, First->Next->Point, First->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
 */
 
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)

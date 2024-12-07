@@ -29,6 +29,7 @@ ray GetRayFromCamera(camera* Camera, v2 MousePos, r32 AspectRatio);
 v3 GetCameraPosition(camera* Camera);
 void GetCameraDirections(camera* Camera, v3* Up, v3* Right, v3* Forward);
 void TranslateCamera( camera* Camera, const v3& DeltaP  );
+void SetCameraPosition(camera* Camera, v3 NewPos);
 void RotateCamera( camera* Camera, const r32 DeltaAngle, const v3& Axis );
 void UpdateViewMatrix(  camera* Camera );
 void SetOrthoProj( camera* Camera, r32 aNear, r32 aFar, r32 aRight, r32 aLeft, r32 aTop, r32 aBottom );
