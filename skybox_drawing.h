@@ -120,8 +120,6 @@ skybox_point_list* SortPointsAlongTriangleEdge(skybox_point_list* PointListToSor
   return SortedList;
 }
 
-
-
 void AppendPointsTo(skybox_point_list* ListToInsert, skybox_point_list* ListToMove)
 {
   while(ListToMove->Next != ListToMove)
@@ -130,4 +128,32 @@ void AppendPointsTo(skybox_point_list* ListToInsert, skybox_point_list* ListToMo
     ListRemove(ElementToMove);
     ListInsertAfter(ListToInsert->Previous, ElementToMove);
   } 
+}
+
+b32 GetIntersectionPoint( v3 TriangleLineOrigin, v3 TriangleLineEnd, v3 SkyboxLineOrigin, v3 SkyboxLineEnd, v3 ForwardDirection, v3* IntersectionPoint)
+{
+  skybox_point_list* Result;
+  v3 ProjectionOrigin = V3(0,0,0);
+  v3 SkyboxEdge = Normalize(SkyboxLineEnd - SkyboxLineOrigin);
+  v3 EdgeMidPoint = (SkyboxLineOrigin+SkyboxLineEnd) * 0.5f;
+  v3 PerpendicularLine = CrossProduct(SkyboxEdge, Normalize(ForwardDirection));
+  // Note PlaneNormal is perpendicular to the SkyboxEdge and aligned with ForwardDirection
+  v3 PlaneNormal = CrossProduct(PerpendicularLine, SkyboxEdge);
+  v3 TriangleLineOriginProjection = PorojectRayOntoPlane( PlaneNormal, EdgeMidPoint, TriangleLineOrigin, ProjectionOrigin);
+  v3 TriangleLineEndProjection = PorojectRayOntoPlane( PlaneNormal, EdgeMidPoint, TriangleLineEnd,    ProjectionOrigin);
+  
+  b32 TriangleEdgeIntersection = LineLineIntersection(
+    TriangleLineOriginProjection,
+    TriangleLineEndProjection,
+    SkyboxLineOrigin,
+    SkyboxLineEnd, NULL, IntersectionPoint);
+
+  return TriangleEdgeIntersection;
+}
+
+b32 IsLineInFront(v3 LineOrigin, v3 LineEnd, v3 ForwardPoint)
+{
+  r32 LineOriginCosAngle = ForwardPoint * LineEnd;
+  r32 LineEndCosAngle = ForwardPoint * LineOrigin;
+  return (LineOriginCosAngle > 0 || LineEndCosAngle >= 0);
 }

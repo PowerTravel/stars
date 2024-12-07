@@ -1529,85 +1529,6 @@ void DrawPixels(v2* DstPixels, v2* SrcPixels, opengl_bitmap* DstBitmap, opengl_b
   }
 }
 
-
-b32 LineLineIntersection(v3 A_Start, v3 A_End, v3 B_Start, v3 B_End, v3* ResultPoint_a, v3* ResultPoint_b) {
-
-
-  v3 a = A_Start;
-  v3 b = A_End;
-  v3 c = B_Start;
-  v3 d = B_End;
-
-  r32 Sdenom_xy = Determinant(V2(b.X - a.X, b.Y - a.Y), V2(d.X - c.X, d.Y - c.Y));
-  r32 Sdenom_xz = Determinant(V2(b.X - a.X, b.Z - a.Z), V2(d.X - c.X, d.Z - c.Z));
-  r32 Sdenom_yz = Determinant(V2(b.Y - a.Y, b.Z - a.Z), V2(d.Y - c.Y, d.Z - c.Z));
-
-  r32 s = 0;
-  r32 t = 0;
-  r32 Epsilon = 1E-3;
-  if(Abs(Sdenom_xy) > Abs(Sdenom_xz) && Abs(Sdenom_xy) > Abs(Sdenom_yz))
-  {
-    r32 Senum = Determinant(V2(b.X - a.X, b.Y - a.Y), V2(a.X - c.X, a.Y - c.Y));
-    s = Senum/Sdenom_xy;
-    t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
-    if(Abs(b.X - a.X) < Epsilon)
-    {
-      t = ( s * (d.Y - c.Y) - (a.Y - c.Y)) / (b.Y - a.Y);
-    }
-  }else if(Abs(Sdenom_xz) > Abs(Sdenom_xy) && Abs(Sdenom_xz) > Abs(Sdenom_yz))
-  {
-    r32 Senum = Determinant(V2(b.X - a.X, b.Z - a.Z), V2(a.X - c.X, a.Z - c.Z));
-    s = Senum/Sdenom_xz;
-    t = ( s * (d.X - c.X) - (a.X - c.X)) / (b.X - a.X);
-    if(Abs(b.X - a.X) < Epsilon)
-    {
-      t = ( s * (d.Z - c.Z) - (a.Z - c.Z)) / (b.Z - a.Z);
-    }
-  }else if(Abs(Sdenom_yz) > Abs(Sdenom_xy) && Abs(Sdenom_yz) > Abs(Sdenom_xz))
-  {
-    r32 Senum = Determinant(V2(b.Y - a.Y, b.Z - a.Z), V2(a.Y - c.Y, a.Z - c.Z));
-    s = Senum/Sdenom_yz;
-    t = ( s * (d.Y - c.Y) - (a.Y - c.Y)) / (b.Y - a.Y);
-    if(Abs(b.Y - a.Y) < Epsilon)
-    {
-      t = ( s * (d.Z - c.Z) - (a.Z - c.Z)) / (b.Z - a.Z);
-    }
-    
-  }else{
-    return false;
-  }
-
-  v3 Result_a = a + t * (b-a);
-  v3 Result_b = c + s * (d-c);
-  
-  // Note: Blir ibland små numeriska fel då man gör dot-produkt då en av vektorkomponenterna är jättesmå men inte 0
-  // Vilket får Result_a och Result_b att diffa lite. Därför använder vi inte IsPointOnLinesegment som är ganska numeriskt strikt
-  //  - 1 Man skulle kunna söka efter vilken av linjerna som har minst numeriska fel i sig och använda den men vill inte lägga
-  //      tid på å hitta något bra sätt att göra det.
-  //  - 2 Man skulle även alltid kunna ta Result_b som vi vet är en numeriskt stabil linje för att den tillhör skybox-boxen,
-  //      men så kanske det inte kommer vara om vi vill återanvända denna funktion någon annan stans.
-  // Så enklast för vårat syfte är nog att returnera båda resultaten och låta användaren bestämma vilken som bör vara stabilast. 
-  
-  if( Abs(Result_a.X - Result_b.X) > Epsilon || 
-      Abs(Result_a.Y - Result_b.Y) > Epsilon || 
-      Abs(Result_a.Z - Result_b.Z) > Epsilon) 
-  {
-    // LOGGA Fel?
-    int a = 10; // Plats för breakpoint om vi upptäcker skumt beteende
-  }
-
-  if(ResultPoint_a != 0)
-  {
-    *ResultPoint_a = Result_a;
-  }
-  if(ResultPoint_b != 0)
-  {
-    *ResultPoint_b = Result_b;
-  }
-
-  return t >= 0 && t <= 1 && s >= 0 && s <= 1;
-}
-
 b32 PointInTrinagle(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints)
 {
   r32 lambda0 = RayPlaneIntersection( ProjectionNormal, EdgePoint, TrianglePoints[0], V3(0,0,0));
@@ -2388,60 +2309,22 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         {
           v3 LineOrigin = Plane.P[SkyboxLineIndex%SkyboxLineCount];
           v3 LineEnd    = Plane.P[(SkyboxLineIndex+1)%SkyboxLineCount];
-          r32 LineOriginInFront = SquareCenter * LineEnd;
-          r32 LineEndInFront = SquareCenter * LineOrigin;
-          if(LineOriginInFront <= 0 && LineEndInFront <= 0)
+          if(!IsLineInFront(LineOrigin, LineEnd, TexForward))
           {
             continue;
           }
-
-          if(ChosenSkyboxPlane == SkyboxPlaneIndex && ChosenSkyboxPlane != skybox_side::SIDE_COUNT)
-          {
-            DrawVector(RenderCommands, LineOrigin, LineEnd-LineOrigin, V3(0,0,0), V3(1,0,1), Camera->P, Camera->V, 0.1);  
-            if(ChosenSkyboxLineIndex == SkyboxLineIndex)
-            {
-              DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,1,1), Camera->P, Camera->V, 0.04);
-            }else{
-              DrawLine(RenderCommands, LineOrigin, LineEnd, V3(0,0,0), V3(1,0,0), Camera->P, Camera->V, 0.04);
-            }
-          }
-
-          // Get a plane/vector normal to the Line and in the same direction as the camera views
-          v3 vec1 = Normalize(LineEnd - LineOrigin);
-          v3 vec2 = CrossProduct(vec1, Normalize(TexForward));
-          v3 vec3 = CrossProduct(vec2,vec1);
-          r32 lambda0 = RayPlaneIntersection( vec3, (LineOrigin+LineEnd)/2, TrianglePointOrigin, V3(0,0,0));
-          r32 lambda1 = RayPlaneIntersection( vec3, (LineOrigin+LineEnd)/2, TrianglePointEnd, V3(0,0,0));
-          v3 ProjectedPoint0 = lambda0 * TrianglePointOrigin;
-          v3 ProjectedPoint1 = lambda1 * TrianglePointEnd;
-
-          if(ToggleDebugPoints && SkyboxLineIndex == ChosenSkyboxLineIndex && SkyboxPlaneIndex == ChosenSkyboxPlane && ChosenTriangleLineIndex == TriangleLineIndex)
-          {
-            v3 Color = V3(0,0,0);
-
-            DrawVector(RenderCommands, (ProjectedPoint0 + ProjectedPoint1)/2, vec3, V3(1,0,1), V3(0,0,0), Camera->P, Camera->V, 0.1);
-            DrawVector(RenderCommands, (LineOrigin + LineEnd)/2, vec3, V3(1,0,1), V3(0,0,0), Camera->P, Camera->V, 0.1);
-            if(TriangleLineIndex == 0)
-            {
-              Color = V3(1,0,0);
-            }else if(TriangleLineIndex == 1)
-            {
-              Color = V3(0,1,0);
-            }else if(TriangleLineIndex == 2)
-            {
-              Color = V3(0,0,1);
-            }
-            DrawDot(RenderCommands,  ProjectedPoint0, V3(1,2,1), Color, Camera->P, Camera->V, 0.022);
-          }
-
+          
           v3 IntersectionPoint = {};
-          b32 TrignleSquareIntersection = LineLineIntersection(ProjectedPoint0, ProjectedPoint1, LineOrigin, LineEnd, NULL, &IntersectionPoint);
+          b32 TriangleEdgeIntersection = GetIntersectionPoint(TrianglePointOrigin, TrianglePointEnd, LineOrigin, LineEnd, TexForward, &IntersectionPoint);
 
-          r32 IntersectionPointAngle = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint));
-          if(TrignleSquareIntersection && IntersectionPointAngle <= ViewAngle)
+          if(TriangleEdgeIntersection)
           {
-            skybox_point_list* P = SkyboxPointList(IntersectionPoint);
-            ListInsertBefore(SkyboxPointsSentinel, P);
+            r32 IntersectionPointAngle = ACos(Normalize(SquareCenter) * Normalize(IntersectionPoint));
+            if(TriangleEdgeIntersection && IntersectionPointAngle <= ViewAngle)
+            {
+              skybox_point_list* P = SkyboxPointList(IntersectionPoint);
+              ListInsertBefore(SkyboxPointsSentinel, P);
+            }  
           }
         }
 
