@@ -206,10 +206,10 @@ b32 PointInTrinagle(v3 EdgePoint, v3 ProjectionNormal, v3* TrianglePoints)
   return PointInRange;
 }
 
-b32 FindCornerPoint(v3* CornerPoints, v3* TrianglePoints, v3 ProjectionNormal, v3* Result)
+b32 FindCornerPoint(v3* CornerPoints, v3* TrianglePoints, v3* Result)
 {
   u32 SkyboxLineCount = 4;
-  v3 ProjectionNormal2 = GetTriangleNormal(TrianglePoints[0], TrianglePoints[1], TrianglePoints[2]);
+  v3 ProjectionNormal = GetTriangleNormal(TrianglePoints[0], TrianglePoints[1], TrianglePoints[2]);
   for (u32 SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; ++SkyboxLineIndex)
   {
     v3 CornerPoint = CornerPoints[SkyboxLineIndex];
@@ -262,8 +262,7 @@ void InsertPointBeforeOrAfter(skybox_plane* Plane, skybox_point_list* ClosestPoi
 void AddCornerPoints(skybox_plane* Plane, v3* TrianglePoints)
 {
   v3 CornerPoint = {};
-  v3 ProjectionNormal = GetTriangleNormal(TrianglePoints[0], TrianglePoints[1], TrianglePoints[2]);
-  b32 Found = FindCornerPoint(Plane->P, TrianglePoints, ProjectionNormal, &CornerPoint);
+  b32 Found = FindCornerPoint(Plane->P, TrianglePoints, &CornerPoint);
   if(Found)
   {
     skybox_point_list* ClosestPointOnPlane = FindClosestPointInList(Plane->PointsOnPlane, CornerPoint);
@@ -273,6 +272,51 @@ void AddCornerPoints(skybox_plane* Plane, v3* TrianglePoints)
       InsertPointBeforeOrAfter(Plane, ClosestPointOnPlane, CornerPoint);
     }
   }
+}
+
+
+
+void AlignTriangleCCW(v3* Triangle, skybox_side* Sides)
+{
+  r32 Area = EdgeFunction(Triangle[0], Triangle[1], Triangle[2]);
+  if(Area < 0)
+  {
+    v3 TmpPoint = Triangle[1];
+    Triangle[1] = Triangle[2];
+    Triangle[2] = TmpPoint;
+
+    skybox_side TmpSide = Sides[1];
+    Sides[1] = Sides[2];
+    Sides[2] = TmpSide;  
+  }
+}
+
+b32 FindCornerPoint(skybox_plane* Plane, sky_vectors SkyVectors, v3* Result)
+{
+  v3 BotLeftDstTriangle[] = {SkyVectors.BotLeft, SkyVectors.BotRight, SkyVectors.TopLeft};
+  skybox_side BotLeftDstTriangleSide[] = {SkyVectors.BotLeftSide, SkyVectors.BotRightSide, SkyVectors.TopLeftSide};
+  AlignTriangleCCW(BotLeftDstTriangle, BotLeftDstTriangleSide);
+
+  v3 TopRightDstTriangle[] = {SkyVectors.TopLeft, SkyVectors.BotRight, SkyVectors.TopRight};
+  skybox_side TopRightDstTriangleSide[] = {SkyVectors.TopLeftSide, SkyVectors.BotRightSide, SkyVectors.TopRightSide};
+  AlignTriangleCCW(TopRightDstTriangle, TopRightDstTriangleSide);
+  b32 CornerPointFound = false;
+  CornerPointFound = FindCornerPoint(Plane->P, TopRightDstTriangle, Result) ? true : FindCornerPoint(Plane->P, BotLeftDstTriangle, Result);
+  return CornerPointFound;
+}
+void InsertCornerPoint(skybox_plane* Plane, sky_vectors SkyVectors)
+{
+  v3 CornerPoint = {};
+  b32 CornerPointFound = FindCornerPoint(Plane, SkyVectors, &CornerPoint);
+  if(CornerPointFound)
+  {
+    skybox_point_list* ClosestPointOnPlane = FindClosestPointInList(Plane->PointsOnPlane, CornerPoint);
+    if(ClosestPointOnPlane)
+    {
+      // Inserts Point where the angle is most shallow
+      InsertPointBeforeOrAfter(Plane, ClosestPointOnPlane, CornerPoint);
+    }
+  }  
 }
 
 void AddEdgeIntersectionPoints(skybox_point_list* PointsSentinel, v3 TriangleLineOrigin, v3 TriangleLineEnd, v3* SkyboxPlaneCorners, v3 Forward, r32 ViewAngle)
