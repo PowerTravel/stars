@@ -2017,6 +2017,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       TgaBitmap = MapObjBitmapToOpenGLBitmap(GlobalPersistentArena, LoadTGA(GlobalTransientArena, "..\\data\\textures\\background_stars_spritesheet_20x20.tga"));
     }
 
+    local_persist u32 ChosenKeyCount = 0;
+
     local_persist r32 SkyAngle = 0.1f;
 
     if(Input->Mouse.dZ != 0)
@@ -2111,19 +2113,44 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
     }
     v3 TexForward = -CamForward;
-    v3 TexRight = -CamRight;
+    v3 TexRight = CamRight;
     v3 TexUp = CamUp;
 
     sky_vectors SkyVectors = GetSkyVectors(TexForward, TexRight, TexUp, SkyAngle);
-    r32 ViewAngle = ACos(Normalize(TexForward) * Normalize(SkyVectors.BotLeft));
-
+    DrawDot(RenderCommands,  SkyVectors.BotLeft, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.022);
+    DrawDot(RenderCommands,  SkyVectors.TopLeft, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.022);
+    DrawDot(RenderCommands,  SkyVectors.TopRight, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.022);
+    DrawDot(RenderCommands,  SkyVectors.BotRight, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
       skybox_plane* Plane = &SkyboxPlanes[SkyboxPlaneIndex];
-      TriangulateSkyboxPlaneSquare(Plane, SkyVectors, ViewAngle);
+      FindIntersectionPoints(Plane, SkyVectors);
       InsertCornerPoint(Plane, SkyVectors);
     }
 
+    u32 TriangleCount = 0;
+    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
+    {
+      u32 PointCount = 0;
+      ListCount( SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane, skybox_point_list, PointCount );
+      if(PointCount >= 3)
+      {
+        TriangleCount += PointCount - 2;
+      }
+    }
+    if(jwin::Pushed(Input->Keyboard.Key_G))
+    {
+      ChosenKeyCount++;
+      ChosenKeyCount = ChosenKeyCount%TriangleCount;
+    }
+    u32 PointCount = TriangleCount*3;
+    v3* Triangles = PushArray(GlobalTransientArena, PointCount, v3);
+    v2* TextureCoordinates = PushArray(GlobalTransientArena, PointCount, v2);
+
+    skybox_side* SkyboxSides = PushArray(GlobalTransientArena, PointCount, skybox_side);
+    u32 PointIndex = 0;
+    u32 keyCount = 0;
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
       if(SkyboxPlaneIndex != ChosenSkyboxPlane && ChosenSkyboxPlane != ArrayCount(SkyboxPlanes))
@@ -2136,20 +2163,136 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       
       skybox_point_list* Element = StartingPoint->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : StartingPoint->Next;
 
-      DrawDot(RenderCommands,  StartingPoint->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-      while(Element != StartingPoint)
+      skybox_point_list* NextElement = Element->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : Element->Next;
+      while(NextElement != StartingPoint)
       {
-        skybox_point_list* NextElement = Element->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : Element->Next;
-        DrawDot(RenderCommands,  Element->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-        DrawLine(RenderCommands, StartingPoint->Point, Element->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-        DrawLine(RenderCommands, Element->Point, NextElement->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-        DrawLine(RenderCommands, NextElement->Point, StartingPoint->Point, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+        keyCount++;
+        Triangles[PointIndex] = StartingPoint->Point;
+        SkyboxSides[PointIndex] = Plane.Side;
+        PointIndex++;
+        Triangles[PointIndex] = Element->Point;
+        SkyboxSides[PointIndex] = Plane.Side;
+        PointIndex++;
+        Triangles[PointIndex] = NextElement->Point;
+        SkyboxSides[PointIndex] = Plane.Side;
+        PointIndex++;
         Element =  NextElement;
+        NextElement = Element->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : Element->Next;
+        
       }
-    }  
+    }
+
+    DrawLine(RenderCommands, V3(0,0,0), V3(1,0,0), V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, V3(0,0,0), V3(0,1,0), V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, V3(0,0,0), V3(0,0,1), V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.05);
+
+    v3 C2 = (SkyVectors.BotLeft + SkyVectors.TopLeft + SkyVectors.TopRight + SkyVectors.BotRight)/4.f;
+    m4 RotationMat = GetCamToWorld(Camera);
+
+    v3 a = V3(RotationMat * V4(SkyVectors.BotLeft  - C2,1));
+    v3 b = V3(RotationMat * V4(SkyVectors.TopLeft  - C2,1));
+    v3 c = V3(RotationMat * V4(SkyVectors.TopRight - C2,1));
+    v3 d = V3(RotationMat * V4(SkyVectors.BotRight - C2,1));
+
+    r32 Width = a.X - c.X;
+    r32 Height = b.Y - a.Y;
+
+    DrawDot(RenderCommands,  a, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.022);
+    DrawDot(RenderCommands,  b, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.022);
+    DrawDot(RenderCommands,  c, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.022);
+    DrawDot(RenderCommands,  d, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    DrawLine(RenderCommands, a, b, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, b, c, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, c, d, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, d, a, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+
+    for (int TriangleIndex = 0; TriangleIndex < TriangleCount; TriangleIndex++)
+    {
+      v3 t0 = Triangles[3*TriangleIndex];
+      v3 t1 = Triangles[3*TriangleIndex+1];
+      v3 t2 = Triangles[3*TriangleIndex+2];
+      DrawDot(RenderCommands,  t0, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+      DrawDot(RenderCommands,  t1, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+      DrawDot(RenderCommands,  t2, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+      DrawLine(RenderCommands, t0, t1, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+      DrawLine(RenderCommands, t1, t2, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+      DrawLine(RenderCommands, t2, t0, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+
+      v4 A = V4(ProjectRayOntoPlane(Normalize(TexForward), C2, t0, V3(0,0,0)),1);
+      v4 B = V4(ProjectRayOntoPlane(Normalize(TexForward), C2, t1, V3(0,0,0)),1);
+      v4 C = V4(ProjectRayOntoPlane(Normalize(TexForward), C2, t2, V3(0,0,0)),1);
+      
+      {
+        v3 AA = V3(RotationMat*(A-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
+        v3 BB = V3(RotationMat*(B-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
+        v3 CC = V3(RotationMat*(C-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
+
+        AA.X = Unlerp(AA.X,0,Width);
+        AA.Y = Unlerp(AA.Y,0,Height);
+        BB.X = Unlerp(BB.X,0,Width);
+        BB.Y = Unlerp(BB.Y,0,Height);
+        CC.X = Unlerp(CC.X,0,Width);
+        CC.Y = Unlerp(CC.Y,0,Height);
+
+        TextureCoordinates[3*TriangleIndex  ] = V2(AA);
+        TextureCoordinates[3*TriangleIndex+1] = V2(BB);
+        TextureCoordinates[3*TriangleIndex+2] = V2(CC);
+
+        DrawDot(RenderCommands, AA, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.005);
+        DrawDot(RenderCommands, BB, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.005);
+        DrawDot(RenderCommands, CC, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.005);
+
+        DrawLine(RenderCommands, AA, BB, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
+        DrawLine(RenderCommands, BB, CC, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
+        DrawLine(RenderCommands, CC, AA, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
+
+      }
+
+    }
   
+
     if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
+      u32 PointIndex = 0;
+      
+      r32 XDist = Norm(SkyVectors.TopRight - SkyVectors.TopLeft);
+      r32 YDist = Norm(SkyVectors.TopRight - SkyVectors.BotRight);
+
+      for (int TriangleIndex = 0; TriangleIndex < TriangleCount; ++TriangleIndex)
+      {
+        v3 t0 = Triangles[PointIndex];
+        skybox_side s0 = SkyboxSides[PointIndex];
+        v3 t1 = Triangles[PointIndex+1];
+        skybox_side s1 = SkyboxSides[PointIndex+1];
+        v3 t2 = Triangles[PointIndex+2];
+        skybox_side s2 = SkyboxSides[PointIndex+2];
+        PointIndex+=3;
+        v2 DstPixel0 = GetTextureCoordinateFromUnitSphereCoordinate(GetSphereCoordinateFromCube(t0), s0, &SkyboxTexture);
+        v2 DstPixel1 = GetTextureCoordinateFromUnitSphereCoordinate(GetSphereCoordinateFromCube(t1), s1, &SkyboxTexture);
+        v2 DstPixel2 = GetTextureCoordinateFromUnitSphereCoordinate(GetSphereCoordinateFromCube(t2), s2, &SkyboxTexture);
+        
+
+        v2 tu0 = TextureCoordinates[3*TriangleIndex];
+        v2 tu1 = TextureCoordinates[3*TriangleIndex+1];
+        v2 tu2 = TextureCoordinates[3*TriangleIndex+2];
+
+        if((tu0.X < 0 && tu0.X > 1 )||
+           (tu0.Y < 0 && tu0.Y > 1 )||
+           (tu1.X < 0 && tu1.X > 1 )||
+           (tu1.Y < 0 && tu1.Y > 1 )||
+           (tu2.X < 0 && tu2.X > 1 )||
+           (tu2.Y < 0 && tu2.Y > 1 ))
+        {
+          int a = 10;
+        }
+
+        v2 BotLeftSrcTriangle[] =  {tu0, tu1, tu2};
+        //r32 SrcPixel0_X = LinearRemap()
+
+        v2 DstPixels[] = {DstPixel0,DstPixel1,DstPixel2};
+        DrawPixels(DstPixels, BotLeftSrcTriangle, &SkyboxTexture, &TgaBitmap);
+      }
+      /*
       if(SkyVectors.TopLeftSide == SkyVectors.TopRightSide &&
          SkyVectors.TopLeftSide == SkyVectors.BotLeftSide &&
          SkyVectors.TopLeftSide == SkyVectors.BotRightSide)
@@ -2172,7 +2315,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         v2 TopRightSrcTriangle[] =  {SrcPixelTopLeft, SrcPixelBotRight, SrcPixelTopRight};
         DrawPixels(TopRightDstTriangle, TopRightSrcTriangle, &SkyboxTexture, &TgaBitmap);
       }
-
+      */
       StarIndex = (StarIndex + 1) % TotalStarCount;
 
     }

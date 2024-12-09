@@ -113,7 +113,7 @@ skybox_point_list* SortPointsAlongTriangleEdge(skybox_point_list* PointListToSor
   ListInitiate(SortedList);
   while(PointListToSort->Next != PointListToSort)
   {
-    v3 ProjectedPoint = PorojectRayOntoPlane(PlaneNormal, PointOnPlane, TrianglePointOrigin, V3(0,0,0));
+    v3 ProjectedPoint = ProjectRayOntoPlane(PlaneNormal, PointOnPlane, TrianglePointOrigin, V3(0,0,0));
     skybox_point_list* ElementToMove = GetPointAtShortestDistanceFrom(ProjectedPoint, PointListToSort);
     ListRemove(ElementToMove);
     ListInsertBefore(SortedList, ElementToMove);
@@ -131,7 +131,7 @@ void AppendPointsTo(skybox_point_list* ListToInsert, skybox_point_list* ListToMo
   } 
 }
 
-b32 GetIntersectionPoint( v3 TriangleLineOrigin, v3 TriangleLineEnd, v3 SkyboxLineOrigin, v3 SkyboxLineEnd, v3 ForwardDirection, v3* IntersectionPoint)
+b32 GetIntersectionPoint( v3 LineOrigin, v3 LineEnd, v3 SkyboxLineOrigin, v3 SkyboxLineEnd, v3 ForwardDirection, v3* IntersectionPoint)
 {
   skybox_point_list* Result;
   v3 ProjectionOrigin = V3(0,0,0);
@@ -140,12 +140,12 @@ b32 GetIntersectionPoint( v3 TriangleLineOrigin, v3 TriangleLineEnd, v3 SkyboxLi
   v3 PerpendicularLine = CrossProduct(SkyboxEdge, Normalize(ForwardDirection));
   // Note PlaneNormal is perpendicular to the SkyboxEdge and aligned with ForwardDirection
   v3 PlaneNormal = CrossProduct(PerpendicularLine, SkyboxEdge);
-  v3 TriangleLineOriginProjection = PorojectRayOntoPlane( PlaneNormal, EdgeMidPoint, TriangleLineOrigin, ProjectionOrigin);
-  v3 TriangleLineEndProjection = PorojectRayOntoPlane( PlaneNormal, EdgeMidPoint, TriangleLineEnd,    ProjectionOrigin);
+  v3 LineOriginProjection = ProjectRayOntoPlane( PlaneNormal, EdgeMidPoint, LineOrigin, ProjectionOrigin);
+  v3 LineEndProjection = ProjectRayOntoPlane( PlaneNormal, EdgeMidPoint, LineEnd, ProjectionOrigin);
   
   b32 TriangleEdgeIntersection = LineLineIntersection(
-    TriangleLineOriginProjection,
-    TriangleLineEndProjection,
+    LineOriginProjection,
+    LineEndProjection,
     SkyboxLineOrigin,
     SkyboxLineEnd, NULL, IntersectionPoint);
 
@@ -278,22 +278,22 @@ void InsertCornerPoint(skybox_plane* Plane, sky_vectors SkyVectors)
   }  
 }
 
-void AddEdgeIntersectionPoints(skybox_point_list* PointsSentinel, v3 TriangleLineOrigin, v3 TriangleLineEnd, v3* SkyboxPlaneCorners, v3 Forward, r32 ViewAngle)
+void AddEdgeIntersectionPoints(skybox_point_list* PointsSentinel, v3 LineOrigin, v3 LineEnd, v3* SkyboxPlaneCorners, v3 Forward)
 {
   // Check intersections for the current Triangle Line against all skybox lines
   u32 SkyboxLineCount = 4;
+  r32 ViewAngle = ACos(Normalize(Forward) * Normalize(LineOrigin));
   for(u32 SkyboxLineIndex = 0; SkyboxLineIndex < SkyboxLineCount; SkyboxLineIndex++)
   {
-    v3 LineOrigin = SkyboxPlaneCorners[SkyboxLineIndex];
-    v3 LineEnd    = SkyboxPlaneCorners[(SkyboxLineIndex+1)%SkyboxLineCount];
-    if(!IsLineInFront(LineOrigin, LineEnd, Forward))
+    v3 SkyboxLineOrigin = SkyboxPlaneCorners[SkyboxLineIndex];
+    v3 SkyboxLineEnd    = SkyboxPlaneCorners[(SkyboxLineIndex+1)%SkyboxLineCount];
+    if(!IsLineInFront(SkyboxLineOrigin, SkyboxLineEnd, Forward))
     {
       continue;
     }
     
     v3 IntersectionPoint = {};
-    b32 TriangleEdgeIntersection = GetIntersectionPoint(TriangleLineOrigin, TriangleLineEnd, LineOrigin, LineEnd, Forward, &IntersectionPoint);
-
+    b32 TriangleEdgeIntersection = GetIntersectionPoint(LineOrigin, LineEnd, SkyboxLineOrigin, SkyboxLineEnd, Forward, &IntersectionPoint);
     if(TriangleEdgeIntersection)
     {
       if(IntersectionPointIsWithinAngle(ViewAngle, Forward, IntersectionPoint))
@@ -305,27 +305,27 @@ void AddEdgeIntersectionPoints(skybox_point_list* PointsSentinel, v3 TriangleLin
   }
 }
 
-void TriangulateSkyboxPlaneSquare(skybox_plane* Plane, sky_vectors SkyVectors, r32 ViewAngle)
+void FindIntersectionPoints(skybox_plane* Plane, sky_vectors SkyVectors)
 {
-  v3 Square[4]     = {SkyVectors.BotLeft, SkyVectors.TopLeft, SkyVectors.TopRight, SkyVectors.BotRight};
+  v3 Square[4] = {SkyVectors.BotLeft, SkyVectors.TopLeft, SkyVectors.TopRight, SkyVectors.BotRight};
   skybox_side SquareSide[4] = {SkyVectors.BotLeftSide, SkyVectors.TopLeftSide, SkyVectors.TopRightSide, SkyVectors.BotRightSide};
-  v3 SquareCenter = Normalize((SkyVectors.BotLeft + SkyVectors.TopLeft + SkyVectors.TopRight + SkyVectors.BotRight) * 0.25f);
+  v3 SquareCenter = Normalize((Square[0]+Square[1]+Square[2]+Square[3]) * 0.25f);
   u32 SquarePointCount = ArrayCount(Square);
   for(u32 SquareIndex = 0; SquareIndex < SquarePointCount; SquareIndex++)
   {
     skybox_point_list* SkyboxPointsSentinel = PushStruct(GlobalTransientArena, skybox_point_list);
     ListInitiate(SkyboxPointsSentinel);
     v3 SquareLineOrigin = Square[SquareIndex];
-    v3 SquareLineEnd = Square[(SquareIndex+1) % SquarePointCount];
+    v3 SquareLineEnd    = Square[(SquareIndex+1) % SquarePointCount];
 
     if(SquareSide[SquareIndex] == Plane->Side)
     {
-      v3 ProjectedPoint = PorojectRayOntoPlane(Plane->Normal, Plane->P[0], SquareLineOrigin, V3(0,0,0));
+      v3 ProjectedPoint = ProjectRayOntoPlane(Plane->Normal, Plane->P[0], SquareLineOrigin, V3(0,0,0));
       skybox_point_list* Point = SkyboxPointList(ProjectedPoint);
       ListInsertBefore( SkyboxPointsSentinel,  Point);
     }
     
-    AddEdgeIntersectionPoints(SkyboxPointsSentinel, SquareLineOrigin, SquareLineEnd, Plane->P, SquareCenter, ViewAngle);
+    AddEdgeIntersectionPoints(SkyboxPointsSentinel, SquareLineOrigin, SquareLineEnd, Plane->P, SquareCenter);
     SkyboxPointsSentinel = SortPointsAlongTriangleEdge(SkyboxPointsSentinel, SquareLineOrigin, Plane->Normal, Plane->P[0]);
     AppendPointsTo(Plane->PointsOnPlane, SkyboxPointsSentinel);
   }

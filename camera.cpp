@@ -44,6 +44,12 @@ ray GetRayFromCamera(camera* Camera, v2 MousePos, r32 AspectRatio)
   return GetRayFromCamera(Camera, MouseCanPos);
 }
 
+m4 GetCamToWorld(camera* Camera)
+{
+  m4 V_Inv = Transpose(RigidInverse(Camera->V));
+  return V_Inv;
+}
+
 void GetCameraDirections(camera* Camera, v3* Up, v3* Right, v3* Forward)
 {
   m4 V_Inv = Transpose(RigidInverse(Camera->V));
