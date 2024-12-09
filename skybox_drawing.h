@@ -305,7 +305,7 @@ void AddEdgeIntersectionPoints(skybox_point_list* PointsSentinel, v3 LineOrigin,
   }
 }
 
-void FindIntersectionPoints(skybox_plane* Plane, sky_vectors SkyVectors)
+void InsertPointsAlongBorder(skybox_plane* Plane, sky_vectors SkyVectors)
 {
   v3 Square[4] = {SkyVectors.BotLeft, SkyVectors.TopLeft, SkyVectors.TopRight, SkyVectors.BotRight};
   skybox_side SquareSide[4] = {SkyVectors.BotLeftSide, SkyVectors.TopLeftSide, SkyVectors.TopRightSide, SkyVectors.BotRightSide};
@@ -329,4 +329,128 @@ void FindIntersectionPoints(skybox_plane* Plane, sky_vectors SkyVectors)
     SkyboxPointsSentinel = SortPointsAlongTriangleEdge(SkyboxPointsSentinel, SquareLineOrigin, Plane->Normal, Plane->P[0]);
     AppendPointsTo(Plane->PointsOnPlane, SkyboxPointsSentinel);
   }
+}
+
+u32 GetTriangleCount(u32 PlaneCount, skybox_plane* Planes)
+{
+  u32 TriangleCount = 0;
+  for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < PlaneCount; ++SkyboxPlaneIndex)
+  {
+    u32 PointCount = 0;
+    ListCount( Planes[SkyboxPlaneIndex].PointsOnPlane, skybox_point_list, PointCount );
+    if(PointCount >= 3)
+    {
+      TriangleCount += PointCount - 2;
+    }
+  }  
+  return TriangleCount;
+}
+
+u32 TriangulatePlanes(u32 PlaneCount, skybox_plane* Planes, sky_vectors SkyVectors, camera* Camera,
+  v3** TrianglesResult, 
+  v2** TextureCoordinatesResult, 
+  skybox_side** SkyboxSidesResult)
+{
+  u32 TriangleCount = GetTriangleCount(PlaneCount, Planes);
+
+  u32 PointCount = TriangleCount*3;
+  v3* Triangles = PushArray(GlobalTransientArena, PointCount, v3);
+  *TrianglesResult = Triangles;
+  v2* TextureCoordinates = PushArray(GlobalTransientArena, PointCount, v2);
+  *TextureCoordinatesResult = TextureCoordinates;
+  skybox_side* SkyboxSides = PushArray(GlobalTransientArena, PointCount, skybox_side);
+  *SkyboxSidesResult = SkyboxSides;
+  u32 PointIndex = 0;
+  for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < PlaneCount; ++SkyboxPlaneIndex)
+  {
+
+    skybox_plane Plane = Planes[SkyboxPlaneIndex];
+    skybox_point_list* StartingPoint = Plane.CornerPoint ? Plane.CornerPoint : Plane.PointsOnPlane->Next;
+    skybox_point_list* Element = StartingPoint->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : StartingPoint->Next;
+    skybox_point_list* NextElement = Element->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : Element->Next;
+    while(NextElement != StartingPoint)
+    {
+      Triangles[PointIndex] = StartingPoint->Point;
+      SkyboxSides[PointIndex] = Plane.Side;
+      PointIndex++;
+      Triangles[PointIndex] = Element->Point;
+      SkyboxSides[PointIndex] = Plane.Side;
+      PointIndex++;
+      Triangles[PointIndex] = NextElement->Point;
+      SkyboxSides[PointIndex] = Plane.Side;
+      PointIndex++;
+      Element =  NextElement;
+      NextElement = Element->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : Element->Next;
+    }
+  }
+
+  v3 C2 = (SkyVectors.BotLeft + SkyVectors.TopLeft + SkyVectors.TopRight + SkyVectors.BotRight)/4.f;
+  m4 RotationMat = GetCamToWorld(Camera);
+
+  v3 a = V3(RotationMat * V4(SkyVectors.BotLeft  - C2,1));
+  v3 b = V3(RotationMat * V4(SkyVectors.TopLeft  - C2,1));
+  v3 c = V3(RotationMat * V4(SkyVectors.TopRight - C2,1));
+  v3 d = V3(RotationMat * V4(SkyVectors.BotRight - C2,1));
+
+  r32 Width = a.X - c.X;
+  r32 Height = b.Y - a.Y;
+
+  //DrawDot(RenderCommands,  a, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.022);
+  //DrawDot(RenderCommands,  b, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.022);
+  //DrawDot(RenderCommands,  c, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.022);
+  //DrawDot(RenderCommands,  d, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+  //DrawLine(RenderCommands, a, b, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+  //DrawLine(RenderCommands, b, c, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+  //DrawLine(RenderCommands, c, d, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+  //DrawLine(RenderCommands, d, a, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+
+  v3 CamUp = {};
+  v3 CamRight = {};
+  v3 CamForward = {};
+  GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
+
+  for (int TriangleIndex = 0; TriangleIndex < TriangleCount; TriangleIndex++)
+  {
+    v3 t0 = Triangles[3*TriangleIndex];
+    v3 t1 = Triangles[3*TriangleIndex+1];
+    v3 t2 = Triangles[3*TriangleIndex+2];
+    //DrawDot(RenderCommands,  t0, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    //DrawDot(RenderCommands,  t1, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    //DrawDot(RenderCommands,  t2, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
+    //DrawLine(RenderCommands, t0, t1, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+    //DrawLine(RenderCommands, t1, t2, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+    //DrawLine(RenderCommands, t2, t0, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
+
+    v4 A = V4(ProjectRayOntoPlane(-CamForward, C2, t0, V3(0,0,0)),1);
+    v4 B = V4(ProjectRayOntoPlane(-CamForward, C2, t1, V3(0,0,0)),1);
+    v4 C = V4(ProjectRayOntoPlane(-CamForward, C2, t2, V3(0,0,0)),1);
+    
+    {
+      v3 AA = V3(RotationMat*(A-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
+      v3 BB = V3(RotationMat*(B-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
+      v3 CC = V3(RotationMat*(C-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
+
+      AA.X = Unlerp(AA.X,0,Width);
+      AA.Y = Unlerp(AA.Y,0,Height);
+      BB.X = Unlerp(BB.X,0,Width);
+      BB.Y = Unlerp(BB.Y,0,Height);
+      CC.X = Unlerp(CC.X,0,Width);
+      CC.Y = Unlerp(CC.Y,0,Height);
+
+      TextureCoordinates[3*TriangleIndex  ] = V2(AA);
+      TextureCoordinates[3*TriangleIndex+1] = V2(BB);
+      TextureCoordinates[3*TriangleIndex+2] = V2(CC);
+
+      ///DrawDot(RenderCommands, AA, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.005);
+      ///DrawDot(RenderCommands, BB, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.005);
+      ///DrawDot(RenderCommands, CC, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.005);
+///
+      ///DrawLine(RenderCommands, AA, BB, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
+      ///DrawLine(RenderCommands, BB, CC, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
+      ///DrawLine(RenderCommands, CC, AA, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
+
+    }
+
+  }
+  return TriangleCount;
 }

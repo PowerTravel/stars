@@ -2018,29 +2018,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     }
 
     local_persist u32 ChosenKeyCount = 0;
-
     local_persist r32 SkyAngle = 0.1f;
-
     if(Input->Mouse.dZ != 0)
     {
       SkyAngle *= (Input->Mouse.dZ > 0) ? 0.85 : 1.1;
     }
 
-    local_persist u32 StarIndex = 0;
-    u32 StarTextureGrid = 20;
-    u32 StarXRowCount = 5;
-    u32 StarYRowCount = 5;
-    u32 TotalStarCount = StarXRowCount * StarYRowCount;
-
-    u32* SrcPixels = (u32*) TgaBitmap.Pixels;
-
-
-    v3 P_xm = V3(-1,0,0);
-    v3 P_xp = V3( 1,0,0);
-    v3 P_ym = V3(0,-1,0);
-    v3 P_yp = V3(0, 1,0);
-    v3 P_zm = V3(0,0,-1);
-    v3 P_zp = V3(0,0, 1);
     v3 P_xm_ym_zm = V3(-1,-1,-1);
     v3 P_xp_ym_zm = V3( 1,-1,-1);
     v3 P_xm_yp_zm = V3(-1, 1,-1);
@@ -2049,20 +2032,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     v3 P_xp_ym_zp = V3( 1,-1, 1);
     v3 P_xm_yp_zp = V3(-1, 1, 1);
     v3 P_xp_yp_zp = V3( 1, 1, 1);
-    skybox_edge SkyboxEdges2[] = {
-      SkyboxEdge(P_xm_ym_zm, P_xp_ym_zm),
-      SkyboxEdge(P_xm_yp_zm, P_xp_yp_zm),
-      SkyboxEdge(P_xm_ym_zp, P_xp_ym_zp),
-      SkyboxEdge(P_xm_yp_zp, P_xp_yp_zp),
-      SkyboxEdge(P_xm_ym_zm, P_xm_yp_zm),
-      SkyboxEdge(P_xp_ym_zm, P_xp_yp_zm),
-      SkyboxEdge(P_xm_ym_zp, P_xm_yp_zp),
-      SkyboxEdge(P_xp_ym_zp, P_xp_yp_zp),
-      SkyboxEdge(P_xm_ym_zm, P_xm_ym_zp),
-      SkyboxEdge(P_xp_ym_zm, P_xp_ym_zp),
-      SkyboxEdge(P_xm_yp_zm, P_xm_yp_zp),
-      SkyboxEdge(P_xp_yp_zm, P_xp_yp_zp)
-    };
 
     skybox_plane SkyboxPlanes[skybox_side::SIDE_COUNT] = {};
     SkyboxPlanes[skybox_side::X_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_ym_zp, P_xm_yp_zp, P_xm_yp_zm, skybox_side::X_MINUS);
@@ -2071,44 +2040,16 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     SkyboxPlanes[skybox_side::Y_PLUS]  = SkyboxPlane(P_xm_yp_zm, P_xm_yp_zp, P_xp_yp_zp, P_xp_yp_zm, skybox_side::Y_PLUS);
     SkyboxPlanes[skybox_side::Z_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_yp_zm, P_xp_yp_zm, P_xp_ym_zm, skybox_side::Z_MINUS);
     SkyboxPlanes[skybox_side::Z_PLUS]  = SkyboxPlane(P_xm_ym_zp, P_xp_ym_zp, P_xp_yp_zp, P_xm_yp_zp, skybox_side::Z_PLUS);
-
-    v3 SquarePoints[] = 
-    {
-      P_xm_ym_zm,
-      P_xp_ym_zm,
-      P_xm_yp_zm,
-      P_xp_yp_zm,
-      P_xm_ym_zp,
-      P_xp_ym_zp,
-      P_xm_yp_zp,
-      P_xp_yp_zp
-    };
-/*
-    skybox_edge SkyboxEdges[] = {
-      SkyboxEdge(P_xm_ym_zm, P_xp_ym_zm, &SkyboxPlanes[skybox_side::Z_MINUS], &SkyboxPlanes[skybox_side::Y_MINUS]),
-      SkyboxEdge(P_xm_yp_zm, P_xp_yp_zm, &SkyboxPlanes[skybox_side::Y_PLUS ], &SkyboxPlanes[skybox_side::Z_MINUS]),
-      SkyboxEdge(P_xm_ym_zp, P_xp_ym_zp, &SkyboxPlanes[skybox_side::Y_MINUS], &SkyboxPlanes[skybox_side::Z_PLUS ]),
-      SkyboxEdge(P_xm_yp_zp, P_xp_yp_zp, &SkyboxPlanes[skybox_side::Z_PLUS ], &SkyboxPlanes[skybox_side::Y_PLUS ]),
-      SkyboxEdge(P_xm_ym_zm, P_xm_yp_zm, &SkyboxPlanes[skybox_side::X_MINUS], &SkyboxPlanes[skybox_side::Z_MINUS]),
-      SkyboxEdge(P_xp_ym_zm, P_xp_yp_zm, &SkyboxPlanes[skybox_side::Z_MINUS], &SkyboxPlanes[skybox_side::X_PLUS ]),
-      SkyboxEdge(P_xm_ym_zp, P_xm_yp_zp, &SkyboxPlanes[skybox_side::Z_PLUS ], &SkyboxPlanes[skybox_side::X_MINUS]),
-      SkyboxEdge(P_xp_ym_zp, P_xp_yp_zp, &SkyboxPlanes[skybox_side::X_PLUS ], &SkyboxPlanes[skybox_side::Z_PLUS ]),
-      SkyboxEdge(P_xm_ym_zm, P_xm_ym_zp, &SkyboxPlanes[skybox_side::Y_MINUS], &SkyboxPlanes[skybox_side::X_MINUS]),
-      SkyboxEdge(P_xp_ym_zm, P_xp_ym_zp, &SkyboxPlanes[skybox_side::X_PLUS ], &SkyboxPlanes[skybox_side::Y_MINUS]),
-      SkyboxEdge(P_xm_yp_zm, P_xm_yp_zp, &SkyboxPlanes[skybox_side::X_MINUS], &SkyboxPlanes[skybox_side::Y_PLUS ]),
-      SkyboxEdge(P_xp_yp_zm, P_xp_yp_zp, &SkyboxPlanes[skybox_side::Y_PLUS ], &SkyboxPlanes[skybox_side::X_PLUS ])
-    };
-*/
     
+    DrawLine(RenderCommands, V3(0,0,0), V3(1,0,0), V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, V3(0,0,0), V3(0,1,0), V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.05);
+    DrawLine(RenderCommands, V3(0,0,0), V3(0,0,1), V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.05);
+
     local_persist v3 CamUp = {};
     local_persist v3 CamRight = {};
     local_persist v3 CamForward = {};
-    if(CamUp == V3(0,0,0))
-    {
-      GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
-    }
     v3 CamPos = GetCameraPosition(Camera);
-    if(CamPos == V3(0,0,0))
+    if(CamPos == V3(0,0,0) || CamUp == V3(0,0,0))
     {
       GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
     }
@@ -2122,134 +2063,19 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     DrawDot(RenderCommands,  SkyVectors.TopRight, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.022);
     DrawDot(RenderCommands,  SkyVectors.BotRight, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
     
+
     for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
     {
       skybox_plane* Plane = &SkyboxPlanes[SkyboxPlaneIndex];
-      FindIntersectionPoints(Plane, SkyVectors);
+      InsertPointsAlongBorder(Plane, SkyVectors);
       InsertCornerPoint(Plane, SkyVectors);
     }
 
-    u32 TriangleCount = 0;
-    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
-    {
-      u32 PointCount = 0;
-      ListCount( SkyboxPlanes[SkyboxPlaneIndex].PointsOnPlane, skybox_point_list, PointCount );
-      if(PointCount >= 3)
-      {
-        TriangleCount += PointCount - 2;
-      }
-    }
-    if(jwin::Pushed(Input->Keyboard.Key_G))
-    {
-      ChosenKeyCount++;
-      ChosenKeyCount = ChosenKeyCount%TriangleCount;
-    }
-    u32 PointCount = TriangleCount*3;
-    v3* Triangles = PushArray(GlobalTransientArena, PointCount, v3);
-    v2* TextureCoordinates = PushArray(GlobalTransientArena, PointCount, v2);
-
-    skybox_side* SkyboxSides = PushArray(GlobalTransientArena, PointCount, skybox_side);
-    u32 PointIndex = 0;
-    u32 keyCount = 0;
-    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
-    {
-      if(SkyboxPlaneIndex != ChosenSkyboxPlane && ChosenSkyboxPlane != ArrayCount(SkyboxPlanes))
-      {
-        continue;
-      }
-
-      skybox_plane Plane = SkyboxPlanes[SkyboxPlaneIndex];
-      skybox_point_list* StartingPoint = Plane.CornerPoint ? Plane.CornerPoint : Plane.PointsOnPlane->Next;
-      
-      skybox_point_list* Element = StartingPoint->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : StartingPoint->Next;
-
-      skybox_point_list* NextElement = Element->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : Element->Next;
-      while(NextElement != StartingPoint)
-      {
-        keyCount++;
-        Triangles[PointIndex] = StartingPoint->Point;
-        SkyboxSides[PointIndex] = Plane.Side;
-        PointIndex++;
-        Triangles[PointIndex] = Element->Point;
-        SkyboxSides[PointIndex] = Plane.Side;
-        PointIndex++;
-        Triangles[PointIndex] = NextElement->Point;
-        SkyboxSides[PointIndex] = Plane.Side;
-        PointIndex++;
-        Element =  NextElement;
-        NextElement = Element->Next == Plane.PointsOnPlane ? Plane.PointsOnPlane->Next : Element->Next;
-        
-      }
-    }
-
-    DrawLine(RenderCommands, V3(0,0,0), V3(1,0,0), V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, V3(0,0,0), V3(0,1,0), V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, V3(0,0,0), V3(0,0,1), V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.05);
-
-    v3 C2 = (SkyVectors.BotLeft + SkyVectors.TopLeft + SkyVectors.TopRight + SkyVectors.BotRight)/4.f;
-    m4 RotationMat = GetCamToWorld(Camera);
-
-    v3 a = V3(RotationMat * V4(SkyVectors.BotLeft  - C2,1));
-    v3 b = V3(RotationMat * V4(SkyVectors.TopLeft  - C2,1));
-    v3 c = V3(RotationMat * V4(SkyVectors.TopRight - C2,1));
-    v3 d = V3(RotationMat * V4(SkyVectors.BotRight - C2,1));
-
-    r32 Width = a.X - c.X;
-    r32 Height = b.Y - a.Y;
-
-    DrawDot(RenderCommands,  a, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.022);
-    DrawDot(RenderCommands,  b, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.022);
-    DrawDot(RenderCommands,  c, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.022);
-    DrawDot(RenderCommands,  d, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-    DrawLine(RenderCommands, a, b, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, b, c, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, c, d, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, d, a, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-
-    for (int TriangleIndex = 0; TriangleIndex < TriangleCount; TriangleIndex++)
-    {
-      v3 t0 = Triangles[3*TriangleIndex];
-      v3 t1 = Triangles[3*TriangleIndex+1];
-      v3 t2 = Triangles[3*TriangleIndex+2];
-      DrawDot(RenderCommands,  t0, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-      DrawDot(RenderCommands,  t1, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-      DrawDot(RenderCommands,  t2, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-      DrawLine(RenderCommands, t0, t1, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-      DrawLine(RenderCommands, t1, t2, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-      DrawLine(RenderCommands, t2, t0, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.05);
-
-      v4 A = V4(ProjectRayOntoPlane(Normalize(TexForward), C2, t0, V3(0,0,0)),1);
-      v4 B = V4(ProjectRayOntoPlane(Normalize(TexForward), C2, t1, V3(0,0,0)),1);
-      v4 C = V4(ProjectRayOntoPlane(Normalize(TexForward), C2, t2, V3(0,0,0)),1);
-      
-      {
-        v3 AA = V3(RotationMat*(A-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
-        v3 BB = V3(RotationMat*(B-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
-        v3 CC = V3(RotationMat*(C-V4(C2,0))) + V3(Width/2.f, Height/2.f,0);
-
-        AA.X = Unlerp(AA.X,0,Width);
-        AA.Y = Unlerp(AA.Y,0,Height);
-        BB.X = Unlerp(BB.X,0,Width);
-        BB.Y = Unlerp(BB.Y,0,Height);
-        CC.X = Unlerp(CC.X,0,Width);
-        CC.Y = Unlerp(CC.Y,0,Height);
-
-        TextureCoordinates[3*TriangleIndex  ] = V2(AA);
-        TextureCoordinates[3*TriangleIndex+1] = V2(BB);
-        TextureCoordinates[3*TriangleIndex+2] = V2(CC);
-
-        DrawDot(RenderCommands, AA, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.005);
-        DrawDot(RenderCommands, BB, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.005);
-        DrawDot(RenderCommands, CC, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.005);
-
-        DrawLine(RenderCommands, AA, BB, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
-        DrawLine(RenderCommands, BB, CC, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
-        DrawLine(RenderCommands, CC, AA, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.01);
-
-      }
-
-    }
-  
+    v3* Triangles = 0;
+    v2* TextureCoordinates = 0;
+    skybox_side* SkyboxSides = 0;
+    u32 TriangleCount = TriangulatePlanes(ArrayCount(SkyboxPlanes), SkyboxPlanes, SkyVectors, Camera, &Triangles, &TextureCoordinates, &SkyboxSides);
+    
 
     if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
@@ -2316,7 +2142,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         DrawPixels(TopRightDstTriangle, TopRightSrcTriangle, &SkyboxTexture, &TgaBitmap);
       }
       */
-      StarIndex = (StarIndex + 1) % TotalStarCount;
 
     }
 
