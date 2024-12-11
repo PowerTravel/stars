@@ -159,224 +159,12 @@ internal void DrawChar(jfont::sdf_font* Font, jfont::sdf_fontchar* Char, platfor
 }
 
 
-u32 PushUnique( u8* Array, const u32 ElementCount, const u32 ElementByteSize,
-               u8* NewElement, b32 (*CompareFunction)(const u8* DataA, const u8* DataB))
-{
-  for( u32 i = 0; i < ElementCount; ++i )
-  {
-    if( CompareFunction(NewElement, Array) )
-    {
-      return i;
-    }
-    Array += ElementByteSize;
-  }
-  
-  // If we didn't find the element we push it to the end
-  utils::Copy(ElementByteSize, NewElement, Array);
-  
-  return ElementCount;
-}
-
-
-internal gl_vertex_buffer
-CreateGLVertexBuffer( memory_arena* TemporaryMemory,
-                     const u32 IndexCount,
-                     const u32* VerticeIndeces, const u32* TextureIndeces, const u32* NormalIndeces,
-                     const v3* VerticeData,     const v2* TextureData,     const v3* NormalData)
-{
-  jwin_Assert(VerticeIndeces && VerticeData);
-  u32* GLVerticeIndexArray  = PushArray(TemporaryMemory, 3*IndexCount, u32);
-  u32* GLIndexArray         = PushArray(TemporaryMemory, IndexCount, u32);
-  
-  u32 VerticeArrayCount = 0;
-  for( u32 i = 0; i < IndexCount; ++i )
-  {
-    const u32 vidx = VerticeIndeces[i];
-    const u32 tidx = TextureIndeces ? TextureIndeces[i] : 0;
-    const u32 nidx = NormalIndeces  ? NormalIndeces[i]  : 0;
-    u32 NewElement[3] = {vidx, tidx, nidx};
-    u32 Index = PushUnique((u8*)GLVerticeIndexArray, VerticeArrayCount, sizeof(NewElement), (u8*) NewElement,
-                           [](const u8* DataA, const u8* DataB) {
-                             u32* U32A = (u32*) DataA;
-                             const u32 A1 = *(U32A+0);
-                             const u32 A2 = *(U32A+1);
-                             const u32 A3 = *(U32A+2);
-                             u32* U32B = (u32*) DataB;
-                             const u32 B1 = *(U32B+0);
-                             const u32 B2 = *(U32B+1);
-                             const u32 B3 = *(U32B+2);
-                             b32 result = (A1 == B1) && (A2 == B2) && (A3 == B3);
-                             return result;
-                           });
-    if(Index == VerticeArrayCount)
-    {
-      VerticeArrayCount++;
-    }
-    
-    GLIndexArray[i] = Index;
-  }
-  
-  opengl_vertex* VertexData = PushArray(TemporaryMemory, VerticeArrayCount, opengl_vertex);
-  opengl_vertex* Vertice = VertexData;
-  for( u32 i = 0; i < VerticeArrayCount; ++i )
-  {
-    const u32 vidx = *(GLVerticeIndexArray + 3 * i + 0);
-    const u32 tidx = *(GLVerticeIndexArray + 3 * i + 1);
-    const u32 nidx = *(GLVerticeIndexArray + 3 * i + 2);
-    Vertice->v  = VerticeData[vidx];
-    Vertice->vt = TextureData ? TextureData[tidx] : V2(0,0);
-    Vertice->vn = NormalData  ? NormalData[nidx]  : V3(0,0,0);
-    ++Vertice;
-  }
-  
-  gl_vertex_buffer Result = {};
-  Result.IndexCount = IndexCount;
-  Result.Indeces = GLIndexArray;
-  Result.VertexCount = VerticeArrayCount;
-  Result.VertexData = VertexData;
-  return Result;
-}
-
-
-opengl_buffer_data MapObjToOpenGLMesh(memory_arena* Arena, obj_loaded_file* Obj)
-{ 
-  opengl_buffer_data Result = {};
-  Result.BufferCount = Obj->ObjectCount;
-  Result.BufferData = PushArray(Arena, Obj->ObjectCount,gl_vertex_buffer);
-  obj_mesh_data* ObjMeshData = Obj->MeshData;
-  jwin_Assert(ObjMeshData->v && ObjMeshData->vt && ObjMeshData->vn);
-  for (int i = 0; i < Obj->ObjectCount; ++i)
-  {
-    obj_mesh_indeces* ObjIndeces = Obj->ObjectGroups[i].Indeces;
-    
-    jwin_Assert(ObjIndeces->Count && ObjIndeces->vi && ObjIndeces->ti &&  ObjIndeces->ni);
-    Result.BufferData[i] = CreateGLVertexBuffer(
-        Arena,
-        ObjIndeces->Count,
-        ObjIndeces->vi,
-        ObjIndeces->ti,
-        ObjIndeces->ni,
-        ObjMeshData->v,
-        ObjMeshData->vt,
-        ObjMeshData->vn
-      );
-  }
-
-  return Result;
-}
-
-char** LoadShaderFromDisk(char* CodePath)
-{
-  char** Result = 0; 
-  debug_read_file_result Shader = Platform.DEBUGPlatformReadEntireFile(CodePath);
-  char* ShaderCode = 0;
-  if(Shader.Contents)
-  {
-    ShaderCode = (char*) PushSize(GlobalTransientArena, Shader.ContentSize+2);
-    utils::Copy(Shader.ContentSize, Shader.Contents, ShaderCode);
-    ShaderCode[Shader.ContentSize+1] = '\n';
-    Platform.DEBUGPlatformFreeFileMemory(Shader.Contents);
-    Result = PushStruct(GlobalTransientArena, char*);
-    *Result = ShaderCode;
-  }else{
-    INVALID_CODE_PATH
-  }
-  return Result;
-}
-
-
-internal gl_shader_program* GlGetProgram(open_gl* OpenGL, u32 Handle)
-{
-  jwin_Assert(Handle < ArrayCount(OpenGL->Programs));
-  gl_shader_program* Program = OpenGL->Programs + Handle;
-  return Program;
-}
-
-void GlDeclareUniform(open_gl* OpenGL, u32 ProgramHandle, char* Name, GlUniformType Type)
-{
-  gl_shader_program* Program = GlGetProgram(OpenGL, ProgramHandle);
-  u32 Handle = Program->UniformCount++;
-  jwin_Assert(Handle < ArrayCount(Program->Uniforms));
-  gl_uniform* Uniform = Program->Uniforms + Handle;
-  Uniform->Handle = Handle;
-  Uniform->Type = Type;
-  jwin_Assert(jstr::StringLength(Name) < ArrayCount(Uniform->Name));
-  jstr::CopyStringsUnchecked(Name, Uniform->Name);
-}
-
-
-// When declaring Layots:
-//    The stride is the size of the sum of all declared layouts.
-//    The index in the shader is the same as the order of the declared layouts.
-//      Layout 0,1,2 are reserved for Vertex, Vertex normal and texture vertex.
-//      So Instance layouts start at 3 and forward.
-//    Declaration is done at program creation and cannot be changed.
-//    The following instance data is declared as follows
-//    struct{
-//      v3 Center,
-//      v3 Color,
-//      r32 Speed,
-//      r32 Time
-//    };
-//
-// Order of declaration _must be the same_ as layout order in the shader and as input data.
-//
-// GlDeclareInstanceLayout(OpenGL, ProgramHandle, "Center", GlUniformType::V3) // Gets index: 3, Size: v3,  Offset in struct: 0,         Stride: v3 + v3 + r32 + r32
-// GlDeclareInstanceLayout(OpenGL, ProgramHandle, "Color", GlUniformType::V3)  // Gets index: 4, Size: v3,  Offset in struct: v3,        Stride: v3 + v3 + r32 + r32
-// GlDeclareInstanceLayout(OpenGL, ProgramHandle, "Speed", GlUniformType::R32) // Gets index: 5, Size: r32, Offset in struct: v3+v3,     Stride: v3 + v3 + r32 + r32
-// GlDeclareInstanceLayout(OpenGL, ProgramHandle, "Time", GlUniformType::R32)  // Gets index: 6, Size: r32, Offset in struct: v3+v3+r32, Stride: v3 + v3 + r32 + r32
-
-void GlDeclareInstanceVarying(open_gl* OpenGL, u32 ProgramHandle, GlUniformType Type, c8* DebugName = 0)
-{
-  gl_shader_program* Program = GlGetProgram(OpenGL, ProgramHandle);
-  u32 VaryingIndex = Program->InstanceVaryingCount++;
-  jwin_Assert(VaryingIndex < ArrayCount(Program->InstanceVaryings)); // Todo: Query at OpenGl startup the max number of layouts supported on GPU
-  gl_instance_varying* Varying = Program->InstanceVaryings + VaryingIndex;
-  Varying->AttribArrayIndex = VaryingIndex + 3;
-  Varying->Type = Type;
-  if(DebugName)
-  {
-    jwin_Assert(jstr::StringLength(DebugName) < ArrayCount(Varying->DebugName));
-    jstr::CopyStringsUnchecked(DebugName, Varying->DebugName);
-  }
-}
-
-u32 GlReloadProgram(open_gl* OpenGL, u32 ProgramHandle, u32 VertexCodeCount, char** VertexShader, u32 FragmentCodeCount, char** FragmentShader)
-{
-  gl_shader_program* Program = GlGetProgram(OpenGL, ProgramHandle);
-  jwin_Assert(Program->Handle == ProgramHandle);
-  Program->State = GlProgramState::RELOAD;
-  Program->VertexCodeCount = VertexCodeCount;
-  Program->VertexCode = VertexShader;
-  Program->FragmentCodeCount = FragmentCodeCount;
-  Program->FragmentCode = FragmentShader;
-  return ProgramHandle;
-}
-
-u32 GlNewProgram(open_gl* OpenGL, u32 VertexCodeCount, char** VertexShader, u32 FragmentCodeCount, char** FragmentShader,  c8* DebugName = 0)
-{
-  u32 ProgramHandle = OpenGL->ProgramCount++;
-  gl_shader_program* Result = GlGetProgram(OpenGL, ProgramHandle);
-  *Result = {};
-  Result->Handle = ProgramHandle;
-  Result->State = GlProgramState::NEW;
-  Result->VertexCodeCount = VertexCodeCount;
-  Result->VertexCode = VertexShader;
-  Result->FragmentCodeCount = FragmentCodeCount;
-  Result->FragmentCode = FragmentShader;
-  if(DebugName)
-  {
-    jwin_Assert(jstr::StringLength(DebugName) < ArrayCount(Result->DebugName));
-    jstr::CopyStringsUnchecked(DebugName, Result->DebugName);
-  }
-  return ProgramHandle;
-}
 
 u32 CreatePhongProgram(open_gl* OpenGL)
 {
   u32 ProgramHandle = GlNewProgram(OpenGL,
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"),
        "PhongShading");
   GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
@@ -390,30 +178,12 @@ u32 CreatePhongProgram(open_gl* OpenGL)
   return ProgramHandle;
 }
 
-u32 CreatePhongNoTexProgram(open_gl* OpenGL)
-{
-  u32 ProgramHandle = GlNewProgram(OpenGL,
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"),
-      "PhongShadingNoTex");
-
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", GlUniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", GlUniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", GlUniformType::R32);
-  return ProgramHandle;
-}
 
 u32 CreatePhongTransparentProgram(open_gl* OpenGL)
 {
   u32 ProgramHandle = GlNewProgram(OpenGL,
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewTransparent.glsl"),
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewTransparent.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewTransparent.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewTransparent.glsl"),
       "PhongShadingTransparent");
 
   GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
@@ -431,8 +201,8 @@ u32 CreatePhongTransparentProgram(open_gl* OpenGL)
 u32 CreatePlaneStarProgram(open_gl* OpenGL)
 {
   u32 ProgramHandle = GlNewProgram(OpenGL,
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"),
        "StarPlane");
   GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   GlDeclareUniform(OpenGL, ProgramHandle, "ViewMat", GlUniformType::M4);
@@ -447,8 +217,8 @@ u32 CreatePlaneStarProgram(open_gl* OpenGL)
 u32 CreateSolidColorProgram(open_gl* OpenGL)
 {
   u32 ProgramHandle = GlNewProgram(OpenGL,
-     1, LoadShaderFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
-     1, LoadShaderFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"),
      "SolidColor");
   GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
@@ -466,8 +236,8 @@ struct eurption_band{
 u32 CreateEruptionBandProgram(open_gl* OpenGL)
 {
   u32 ProgramHandle = GlNewProgram(OpenGL,
-     1, LoadShaderFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
-     1, LoadShaderFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"),
      "EruptionBand");
   GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
   GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
@@ -479,196 +249,8 @@ u32 CreateEruptionBandProgram(open_gl* OpenGL)
 }
 
 
-opengl_bitmap MapObjBitmapToOpenGLBitmap(memory_arena* Arena, obj_bitmap* texture)
-{
-  opengl_bitmap Result = {};
-  Result.BPP = texture->BPP;
-  Result.Width = texture->Width;
-  Result.Height = texture->Height;
-  u32 ByteSize = (texture->BPP/8) * texture->Width * texture->Height;
-  Result.Pixels = PushCopy(Arena, ByteSize, texture->Pixels);
-
-  return Result;
-}
-
-u32 GlGetUniformHandle(open_gl* OpenGL, u32 ProgramHandle, c8* Name)
-{
-  gl_shader_program* Program = GlGetProgram(OpenGL, ProgramHandle);
-  for (int i = 0; i < Program->UniformCount; ++i)
-  {
-    gl_uniform* Uniform = Program->Uniforms + i;
-    if(jstr::Compare(Name,Uniform->Name) == 0)
-    {
-      return Uniform->Handle;
-    }
-  }
-  // No Uniform found
-  INVALID_CODE_PATH;
-  return 0;
-}
-
-u32 GlLoadMesh(open_gl* OpenGL, opengl_buffer_data BufferData)
-{
-  u32 BufferIndex = OpenGL->BufferKeeperCount++;
-  jwin_Assert(BufferIndex < ArrayCount(OpenGL->BufferKeepers));
-  buffer_keeper* NewKeeper = OpenGL->BufferKeepers + BufferIndex;
-  NewKeeper->Handle = BufferIndex;
-  NewKeeper->BufferData = BufferData;
-  return BufferIndex;
-}
-
-u32 GlLoadTexture(open_gl* OpenGL, opengl_bitmap TextureData)
-{
-  u32 TextureIndex = OpenGL->TextureKeeperCount++;
-  jwin_Assert(TextureIndex < ArrayCount(OpenGL->TextureKeepers));
-  texture_keeper* NewKeeper = OpenGL->TextureKeepers + TextureIndex;
-  NewKeeper->Loaded = false;
-  NewKeeper->Handle = TextureIndex;
-  NewKeeper->TextureData = TextureData;
-  return TextureIndex;
-}
-
-void GlUpdateTexture(open_gl* OpenGL, u32 TextureIndex, opengl_bitmap TextureData)
-{
-  jwin_Assert(TextureIndex < ArrayCount(OpenGL->TextureKeepers));
-  texture_keeper* Keeper = OpenGL->TextureKeepers + TextureIndex;
-  jwin_Assert(Keeper->Handle == TextureIndex);
-  Keeper->Loaded = false;
-  Keeper->TextureData = TextureData;
-}
-
-void DrawDot(application_render_commands* RenderCommands, v3 Pos, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
-{
-  v4 Amb =  V4(Color.X * 0.5, Color.Y * 0.5, Color.Z * 0.5, 1.0);
-  v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
-  v4 Spec = V4(1, 1, 1, 1.0);
-
-  m4 ModelMat = M4Identity();
-  Scale(V4(scale,scale,scale,0),ModelMat);
-  Translate(V4(Pos),ModelMat);
-
-  m4 ModelView = V*ModelMat;
-  m4 NormalView = V*Transpose(RigidInverse(ModelMat));
-
-  render_object* Sphere = PushNewRenderObject(RenderCommands->RenderGroup);
-  Sphere->ProgramHandle = GlobalState->PhongProgramNoTex;
-  Sphere->MeshHandle = GlobalState->Sphere;
-  Sphere->TextureHandle = U32Max;
-
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ProjectionMat"), P);
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ModelView"), ModelView);
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "NormalView"), NormalView);
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightDirection"), LightDirection);
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightColor"), V3(1,1,1));
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialAmbient"), Amb);
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
-  PushUniform(Sphere, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(Sphere, DepthTestCulling);
-}
-
-void DrawLine(application_render_commands* RenderCommands, v3 LineStart, v3 LineEnd, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
-{
-  v4 Amb =  V4(Color.X * 0.5, Color.Y * 0.5, Color.Z * 0.5, 1.0);
-  v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
-  v4 Spec = V4(1, 1, 1, 1.0);
-
-  v4 RotQuat1 = GetRotation(V3(0,1,0), Normalize(LineEnd-LineStart));
-  m4 ModelMatVec = M4Identity();
-  r32 Length = Norm(LineEnd - LineStart);
-  Scale(V4(0.1,0.5,0.1,0),ModelMatVec);
-  Scale(V4(scale,Length,scale,0),ModelMatVec);
-  Translate(V4(0,Length*0.5,0,0),ModelMatVec);
-
-  ModelMatVec = GetRotationMatrix(RotQuat1) * ModelMatVec;
-  Translate(V4(LineStart),ModelMatVec);
-
-  m4 ModelViewVec = V*ModelMatVec;
-  m4 NormalViewVec = V*Transpose(RigidInverse(ModelMatVec));
-
-  render_object* Vec = PushNewRenderObject(RenderCommands->RenderGroup);
-  Vec->ProgramHandle = GlobalState->PhongProgramNoTex;
-  Vec->MeshHandle = GlobalState->Cylinder;
-  Vec->TextureHandle = U32Max;
-
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ProjectionMat"), P);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ModelView"), ModelViewVec);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "NormalView"), NormalViewVec);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightDirection"), LightDirection);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightColor"), V3(1,1,1));
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialAmbient"), Amb);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(Vec, DepthTestCulling);
-
-}
-
-void DrawVector(application_render_commands* RenderCommands, v3 From, v3 Direction, v3 LightDirection, v3 Color, m4 P, m4 V, r32 scale)
-{
-  //v4 Amb =  V4(Color.X * 0.05, Color.Y * 0.05, Color.Z * 0.05, 1.0);
-  //v4 Diff = V4(Color.X * 0.25, Color.Y * 0.25, Color.Z * 0.25, 1.0);
-  //v4 Spec = V4(1, 1, 1, 1.0);
-  v4 Amb =  V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
-  v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);
-  v4 Spec = V4(1, 1, 1, 1.0);
-
-  v4 RotQuat1 = GetRotation(V3(0,1,0), Normalize(Direction));
-  m4 ModelMatVec = M4Identity();
-  Scale(V4(0.1,0.5,0.1,0),ModelMatVec);
-  Scale(V4(scale,scale,scale,0),ModelMatVec);
-  Translate(V4(0,scale*0.5,0,0),ModelMatVec);
-
-  ModelMatVec = GetRotationMatrix(RotQuat1) * ModelMatVec;
-  Translate(V4(From),ModelMatVec);
-
-  m4 ModelViewVec = V*ModelMatVec;
-  m4 NormalViewVec = V*Transpose(RigidInverse(ModelMatVec));
-
-  render_object* Vec = PushNewRenderObject(RenderCommands->RenderGroup);
-  Vec->ProgramHandle = GlobalState->PhongProgramNoTex;
-  Vec->MeshHandle = GlobalState->Cylinder;
-  Vec->TextureHandle = U32Max;
-
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ProjectionMat"), P);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ModelView"), ModelViewVec);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "NormalView"), NormalViewVec);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightDirection"), LightDirection);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightColor"), V3(1,1,1));
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialAmbient"), Amb);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
-  PushUniform(Vec, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(Vec, DepthTestCulling);
-
-  m4 ModelMatVecTop = M4Identity();
-  Scale(V4(0.2,0.2,0.2,0),ModelMatVecTop);
-  Scale(V4(scale,scale,scale,0),ModelMatVecTop);
-  Translate(V4(0,scale*1,0,0),ModelMatVecTop);
 
 
-  v4 RotQuat2 = GetRotation(V3(0,1,0), Normalize(Direction));
-  ModelMatVecTop = GetRotationMatrix(RotQuat2) * ModelMatVecTop;
-  Translate(V4(From), ModelMatVecTop);
-
-  m4 ModelViewVecTop = V*ModelMatVecTop;
-  m4 NormalViewVecTop = V*Transpose(RigidInverse(ModelMatVecTop));
-  render_object* VecTop = PushNewRenderObject(RenderCommands->RenderGroup);
-  VecTop->ProgramHandle = GlobalState->PhongProgramNoTex;
-  VecTop->MeshHandle = GlobalState->Cone;
-  VecTop->TextureHandle = U32Max;
-
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ProjectionMat"), P);
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "ModelView"), ModelViewVecTop);
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "NormalView"), NormalViewVecTop);
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightDirection"), LightDirection);
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "LightColor"), V3(1,1,1));
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialAmbient"), Amb);
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialDiffuse"), Diff);
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "MaterialSpecular"),Spec);
-  PushUniform(VecTop, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(VecTop, DepthTestCulling);
-}
 
 struct ray_cast
 {
@@ -1098,181 +680,6 @@ v3 GetCubeCoordinateFromTexture(u32 PixelX, u32 PixelY, skybox_params* Params)
   return {};
 }
 
-skybox_side GetSkyboxSide(v3 Direction)
-{
-  r32 AbsX = Abs(Direction.X);
-  r32 AbsY = Abs(Direction.Y);
-  r32 AbsZ = Abs(Direction.Z);
-  if(AbsX >= AbsY && AbsX >= AbsZ ) 
-  {
-    return Direction.X > 0 ? skybox_side::X_PLUS : skybox_side::X_MINUS;
-  } else if(AbsY >= AbsZ && AbsY > AbsX) {
-    
-    return Direction.Y > 0 ? skybox_side::Y_PLUS : skybox_side::Y_MINUS;
-    
-  } else if(AbsZ > AbsX && AbsZ > AbsY) {
-
-    return Direction.Z > 0 ? skybox_side::Z_PLUS : skybox_side::Z_MINUS;
-  }
-
-  // Not specifically a bug to end up here,
-  // Just not knowing when it could happen
-  INVALID_CODE_PATH
-  return skybox_side::SIDE_COUNT;
-}
-
-const char* SkyboxSideToText(int i)
-{
-  switch(i)
-  {
-    case skybox_side::X_MINUS: return "X_MINUS"; break;
-    case skybox_side::Z_MINUS: return "Z_MINUS"; break;
-    case skybox_side::X_PLUS:  return "X_PLUS"; break;
-    case skybox_side::Y_PLUS:  return "Y_PLUS"; break;
-    case skybox_side::Z_PLUS:  return "Z_PLUS"; break;
-    case skybox_side::Y_MINUS: return "Y_MINUS"; break;
-    default: return "All Sides"; break;
-  }
-
-  return "All Sides";
-}
-
-v3 GetSkyNormal(skybox_side SkyboxSide)
-{
-  switch(SkyboxSide)
-  {
-    case skybox_side::X_MINUS: return V3(-1, 0, 0); break;
-    case skybox_side::Z_MINUS: return V3( 0, 0,-1); break;
-    case skybox_side::X_PLUS:  return V3( 1, 0, 0); break;
-    case skybox_side::Y_PLUS:  return V3( 0, 1, 0); break;
-    case skybox_side::Z_PLUS:  return V3( 0, 0, 1); break;
-    case skybox_side::Y_MINUS: return V3( 0,-1, 0); break;
-    default: INVALID_CODE_PATH;
-  }
-
-  return {};
-}
-
-sky_vectors GetSkyVectors(v3 TexForward, v3 TexRight, v3 TexUp, r32 SkyAngle)
-{
-  r32 TexWidth = Sin(SkyAngle);
-  r32 TexHeight = Sin(SkyAngle);
-  sky_vectors Result = {};
-  Result.TopLeft   = Normalize( TexForward - TexRight * TexWidth + TexUp * TexHeight);
-  Result.TopRight  = Normalize( TexForward + TexRight * TexWidth + TexUp * TexHeight);
-  Result.BotLeft   = Normalize( TexForward - TexRight * TexWidth - TexUp * TexHeight);
-  Result.BotRight  = Normalize( TexForward + TexRight * TexWidth - TexUp * TexHeight);
-  Result.TopLeftSide = GetSkyboxSide(Result.TopLeft);
-  Result.TopRightSide = GetSkyboxSide(Result.TopRight);
-  Result.BotLeftSide = GetSkyboxSide(Result.BotLeft);
-  Result.BotRightSide = GetSkyboxSide(Result.BotRight);
-  return Result;
-}
-
-
-v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, skybox_side Side, opengl_bitmap* Bitmap)
-{
-  jwin_Assert(Bitmap->Width / 3.f == Bitmap->Height / 2.f);
-
-  u32 TextureStartX = 0;
-  u32 TextureStartY = 0;
-  u32 TextureSideSize = Bitmap->Height / 2.f;
-  v2 PlaneCoordinate = V2(0,0);
-  r32 Alpha = 0;
-
-  r32 AbsX = Abs(UnitSphere.X);
-  r32 AbsY = Abs(UnitSphere.Y);
-  r32 AbsZ = Abs(UnitSphere.Z);
-  jwin_Assert(AbsX <= 1 && AbsY <= 1 && AbsZ <= 1);
-
-  switch(Side)
-  {
-    case skybox_side::X_MINUS:
-    {
-      Alpha = RayPlaneIntersection( V3(-1,0,0), V3(-1,0,0), UnitSphere, V3(0,0,0) );
-      v3 PointOnPlane = Alpha * UnitSphere;
-
-      TextureStartX = 0;
-      TextureStartY = 0;
-      PlaneCoordinate.X = -PointOnPlane.Z;
-      PlaneCoordinate.Y = -PointOnPlane.Y;
-    }break;
-    case skybox_side::Z_MINUS:
-    {
-      r32 Alpha = RayPlaneIntersection( V3(0,0,-1), V3(0,0,-1), UnitSphere, V3(0,0,0) );
-      v3 PointOnPlane = Alpha * UnitSphere;
-      
-      TextureStartX = Bitmap->Width/3;
-      TextureStartY = 0;
-      PlaneCoordinate.X =  PointOnPlane.X;
-      PlaneCoordinate.Y = -PointOnPlane.Y;
-    }break;
-    case skybox_side::X_PLUS:
-    {
-      TextureStartX = 2*Bitmap->Width / 3.f;
-      TextureStartY = 0;
-      Alpha = RayPlaneIntersection( V3(1,0,0), V3(1,0,0), UnitSphere, V3(0,0,0) );
-      v3 PointOnPlane = Alpha * UnitSphere;
-      PlaneCoordinate.X = PointOnPlane.Z;
-      PlaneCoordinate.Y = -PointOnPlane.Y;
-    }break;
-    case skybox_side::Y_PLUS:
-    {
-      r32 Alpha = RayPlaneIntersection( V3(0,1,0), V3(0,1,0), UnitSphere, V3(0,0,0) );
-      v3 PointOnPlane = Alpha * UnitSphere;
-
-      TextureStartX = 0;
-      TextureStartY = Bitmap->Height / 2.f;
-      PlaneCoordinate.X =  PointOnPlane.Z;
-      PlaneCoordinate.Y = -PointOnPlane.X;
-    }break;
-    case skybox_side::Z_PLUS:
-    {
-      r32 Alpha = RayPlaneIntersection( V3(0,0,1), V3(0,0,1), UnitSphere, V3(0,0,0) );
-      v3 PointOnPlane = Alpha * UnitSphere;
-
-      TextureStartX = Bitmap->Width/3;
-      TextureStartY = Bitmap->Height / 2.f;
-      PlaneCoordinate.X = -PointOnPlane.Y;
-      PlaneCoordinate.Y = -PointOnPlane.X;
-    }break;
-    case skybox_side::Y_MINUS:
-    {
-      r32 Alpha = RayPlaneIntersection( V3(0,-1,0), V3(0,-1,0), UnitSphere, V3(0,0,0) );
-      v3 PointOnPlane = Alpha * UnitSphere;
-
-      TextureStartX = 2*Bitmap->Width/3.f;
-      TextureStartY = Bitmap->Height / 2.f;
-      PlaneCoordinate.X = -PointOnPlane.Z;
-      PlaneCoordinate.Y = -PointOnPlane.X;
-    }break;
-  }
-
-  r32 Tx = Clamp(LinearRemap(PlaneCoordinate.X, -1, 1, TextureStartX, TextureStartX+TextureSideSize), TextureStartX, TextureStartX+TextureSideSize-1);
-  r32 Ty = Clamp(LinearRemap(PlaneCoordinate.Y, -1, 1, TextureStartY, TextureStartY+TextureSideSize), TextureStartY, TextureStartY+TextureSideSize-1);
-
-  return {Tx, Ty};
-}
-
-
-v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, opengl_bitmap* Bitmap)
-{
-  return GetTextureCoordinateFromUnitSphereCoordinate(UnitSphere, GetSkyboxSide(UnitSphere), Bitmap);
-}
-
-v3 GetSphereCoordinateFromCube(v3 PointOnUnitCube)
-{
-  // (x*r)^2 + (y*r)^2 + (z*r)^2 = 1
-  // x^2*r^2 + y^2*r^2 + z^2*r^2 = 1
-  // (x^2 + y^2 + z^2)*r^2 = 1
-  // r^2 = 1 / (x^2 + y^2 + z^2)
-  // r = sqrt(1/(x^2 + y^2 + z^2))
-  r32 r = sqrt(1.f/(PointOnUnitCube.X*PointOnUnitCube.X +
-                    PointOnUnitCube.Y*PointOnUnitCube.Y +
-                    PointOnUnitCube.Z*PointOnUnitCube.Z));
-  return r * PointOnUnitCube;
-}
-
 u32 GetColorFromUnitVector(v3 UnitVec)
 {
   v3 P = (V3(1,1,1) + UnitVec) / 2;
@@ -1288,21 +695,6 @@ u32 GetColorFromUnitVector(v3 UnitVec)
          ((u32)(P.Y * 0xFF)) <<  8 |
          ((u32)(P.Z * 0xFF)) <<  0;
 }
-
-
-// Read: https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/rasterization-stage.html
-// If Edgefunction returns:
-//   > 0 : the point P is to the right side of the line a->b
-//   = 0 : the point P is on the line a->b
-//   < 0 : the point P is to the left side of the line a->b
-// The edgefunction is equivalent to the magnitude of the cross product between the vector b-a and p-a
-r32 EdgeFunction( v2& a, v2& b, v2& p )
-{
-  r32 Result = (a.X-p.X) * (b.Y-a.Y) - (b.X-a.X) * (a.Y-p.Y);
-  return(Result);
-}
-
-
 
 struct skybox_vertice {
   v3 P;
@@ -1434,67 +826,6 @@ skybox_triangle GetTopRightTriangle(skybox_quad* Quad) {
   return {Quad->A, Quad->B, Quad->C};
 }
 
-void DrawPixels(v2* DstPixels, v2* SrcPixels, opengl_bitmap* DstBitmap, opengl_bitmap* SrcBitmap){
-
-  // Bottom left triangle made up by right handed pointing vectors
-  r32 Area2Inverse = 1/EdgeFunction(DstPixels[0], DstPixels[1], DstPixels[2]);
-  
-  v2 DstPixel0 = DstPixels[0];
-  v2 DstPixel1 = DstPixels[1];
-  v2 DstPixel2 = DstPixels[2];
-
-
-  v2 SrcPixel0 = SrcPixels[0];
-  v2 SrcPixel1 = SrcPixels[1];
-  v2 SrcPixel2 = SrcPixels[2];
-
-  if(Area2Inverse < 0)
-  {
-    DstPixel1 = DstPixels[2];
-    DstPixel2 = DstPixels[1];
-    SrcPixel1 = SrcPixels[2];
-    SrcPixel2 = SrcPixels[1];
-    Area2Inverse = 1/EdgeFunction(DstPixel0, DstPixel1, DstPixel2);
-  }
-
-  v4 BoundingBox = {};
-  BoundingBox.X = Minimum(DstPixel0.X, Minimum(DstPixel1.X, DstPixel2.X)); // Min X
-  BoundingBox.Y = Minimum(DstPixel0.Y, Minimum(DstPixel1.Y, DstPixel2.Y)); // Min Y
-  BoundingBox.Z = Maximum(DstPixel0.X, Maximum(DstPixel1.X, DstPixel2.X)); // Max X
-  BoundingBox.W = Maximum(DstPixel0.Y, Maximum(DstPixel1.Y, DstPixel2.Y)); // Max Y
-
-  for(s32 Y = Round( BoundingBox.Y ); Y < BoundingBox.W; ++Y)
-  {
-    for(s32 X = Round( BoundingBox.X ); X < BoundingBox.Z; ++X)
-    {
-      v2 p = V2( (r32) X, (r32) Y);
-      r32 PixelInRange0 = EdgeFunction( DstPixel0, DstPixel1, p);
-      r32 PixelInRange1 = EdgeFunction( DstPixel1, DstPixel2, p);
-      r32 PixelInRange2 = EdgeFunction( DstPixel2, DstPixel0, p);
-
-      if( ( PixelInRange0 >= 0 ) && 
-          ( PixelInRange1 >= 0 ) &&
-          ( PixelInRange2 >= 0 ) )
-      {
-        r32 Lambda0 = PixelInRange1 * Area2Inverse;
-        r32 Lambda1 = PixelInRange2 * Area2Inverse;
-        r32 Lambda2 = PixelInRange0 * Area2Inverse;
-
-        v2 InterpolatedTextureCoord = Lambda0 * SrcPixel0 + Lambda1 * SrcPixel1 + Lambda2 * SrcPixel2;
-        u32 SrxPixelX = TruncateReal32ToInt32(Lerp(InterpolatedTextureCoord.X, 0, SrcBitmap->Width-1));
-        u32 SrxPixelY = TruncateReal32ToInt32(Lerp(InterpolatedTextureCoord.Y, 0, SrcBitmap->Height-1));
-        u32 SrcPixelIndex = SrcBitmap->Width *  SrxPixelY + SrxPixelX;
-        jwin_Assert(SrcPixelIndex <  SrcBitmap->Width * SrcBitmap->Height);
-        u32* SrcPixels = (u32*) SrcBitmap->Pixels;
-        u32 TextureValue = SrcPixels[SrcPixelIndex];
-        u32* DstPixels = (u32*) DstBitmap->Pixels;
-        u32 TextureCoordIndex = Y * DstBitmap->Width + X;
-        jwin_Assert(TextureCoordIndex < (DstBitmap->Width * DstBitmap->Height));
-        DstPixels[TextureCoordIndex] = TextureValue;
-      }
-    }
-  }
-}
 
 
 
@@ -1521,7 +852,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     // This memory only needs to exist until the data is loaded to the GPU
     GlobalState->PhongProgram = CreatePhongProgram(OpenGL);
-    GlobalState->PhongProgramNoTex = CreatePhongNoTexProgram(OpenGL);
     GlobalState->PhongProgramTransparent = CreatePhongTransparentProgram(OpenGL);
     GlobalState->PlaneStarProgram = CreatePlaneStarProgram(OpenGL);
     GlobalState->SolidColorProgram = CreateSolidColorProgram(OpenGL);
@@ -1547,7 +877,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     WhitePixelBitmap.Pixels = PushCopy(GlobalTransientArena, ByteSize, (void*)WhitePixel);
     GlobalState->WhitePixelTexture = GlLoadTexture(OpenGL, WhitePixelBitmap);
 
-
     u32 CharCount = 0x100;
     char FontPath[] = "C:\\Windows\\Fonts\\consola.ttf";
     GlobalState->OnedgeValue = 128;  // "Brightness" of the sdf. Higher value makes the SDF bigger and brighter.
@@ -1567,11 +896,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     RenderCommands->RenderGroup = InitiateRenderGroup();
     RenderCommands->LoadDebugCode = true;
     
-
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
+
+    GlobalState->DebugRenderCommands = PushStruct(GlobalPersistentArena, debug_application_render_commands);
+    *GlobalState->DebugRenderCommands = DebugApplicationRenderCommands(RenderCommands, &GlobalState->Camera);
   }
+  GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
   r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
   ResetRenderGroup(RenderCommands->RenderGroup);
+
 
   camera* Camera = &GlobalState->Camera;
   local_persist r32 near = 0.001;
@@ -1704,8 +1037,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       v3 Up, Right, Forward;
       GetCameraDirections(Camera, &Up, &Right, &Forward);
       v3 CamPos = GetCameraPosition(Camera);
- //     Platform.DEBUGPrint("CamPos: (%1.2f %1.2f %1.2f) CamForward (%1.2f %1.2f %1.2f)\n",
- //       CamPos.X, CamPos.Y, CamPos.Z, -Forward.X, -Forward.Y, -Forward.Z);
     }
   }else{
     if(jwin::Pushed(Input->Keyboard.Key_X))
@@ -1819,26 +1150,29 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Platform.DEBUGPrint("We should reload debug code\n");
     RenderCommands->LoadDebugCode = true;
     GlobalState->PhongProgram = GlReloadProgram(OpenGL, GlobalState->PhongProgram,
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
-    GlobalState->PhongProgramNoTex = GlReloadProgram(OpenGL, GlobalState->PhongProgramNoTex,
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
+    
+    GlobalDebugRenderCommands->PhongProgramNoTex = GlReloadProgram(OpenGL, GlobalDebugRenderCommands->PhongProgramNoTex,
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
+
     GlobalState->PhongProgramTransparent = GlReloadProgram(OpenGL, GlobalState->PhongProgramTransparent,
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewTransparent.glsl"),
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewTransparent.glsl"));
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewTransparent.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewTransparent.glsl"));
     GlobalState->PlaneStarProgram = GlReloadProgram(OpenGL, GlobalState->PlaneStarProgram,
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
-      1, LoadShaderFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
+      1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
     GlobalState->SolidColorProgram = GlReloadProgram(OpenGL, GlobalState->SolidColorProgram,
-     1, LoadShaderFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
-     1, LoadShaderFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"));
+     1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"));
     GlobalState->EruptionBandProgram = GlReloadProgram(OpenGL, GlobalState->EruptionBandProgram,
-     1, LoadShaderFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
-     1, LoadShaderFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"));
+     1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"));
   }
 
   UpdateViewMatrix(Camera);
+
 
   v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
   RenderStar(GlobalState, RenderCommands, Input, V3(0,10,0));
@@ -1999,7 +1333,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
   {
-
+  DrawDebugLine(V3(0,0,0), V3(1,0,0), V3(1,0,0), 0.05);
+  DrawDebugLine(V3(0,0,0), V3(0,1,0), V3(0,1,0), 0.05);
+  DrawDebugLine(V3(0,0,0), V3(0,0,1), V3(0,0,1), 0.05);
  // if(jwin::Pushed(Input->Keyboard.Key_K))
   {
     // Skybox
@@ -2024,125 +1360,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       SkyAngle *= (Input->Mouse.dZ > 0) ? 0.85 : 1.1;
     }
 
-    v3 P_xm_ym_zm = V3(-1,-1,-1);
-    v3 P_xp_ym_zm = V3( 1,-1,-1);
-    v3 P_xm_yp_zm = V3(-1, 1,-1);
-    v3 P_xp_yp_zm = V3( 1, 1,-1);
-    v3 P_xm_ym_zp = V3(-1,-1, 1);
-    v3 P_xp_ym_zp = V3( 1,-1, 1);
-    v3 P_xm_yp_zp = V3(-1, 1, 1);
-    v3 P_xp_yp_zp = V3( 1, 1, 1);
-
-    skybox_plane SkyboxPlanes[skybox_side::SIDE_COUNT] = {};
-    SkyboxPlanes[skybox_side::X_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_ym_zp, P_xm_yp_zp, P_xm_yp_zm, skybox_side::X_MINUS);
-    SkyboxPlanes[skybox_side::X_PLUS]  = SkyboxPlane(P_xp_ym_zm, P_xp_yp_zm, P_xp_yp_zp, P_xp_ym_zp, skybox_side::X_PLUS);
-    SkyboxPlanes[skybox_side::Y_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xp_ym_zm, P_xp_ym_zp, P_xm_ym_zp, skybox_side::Y_MINUS);
-    SkyboxPlanes[skybox_side::Y_PLUS]  = SkyboxPlane(P_xm_yp_zm, P_xm_yp_zp, P_xp_yp_zp, P_xp_yp_zm, skybox_side::Y_PLUS);
-    SkyboxPlanes[skybox_side::Z_MINUS] = SkyboxPlane(P_xm_ym_zm, P_xm_yp_zm, P_xp_yp_zm, P_xp_ym_zm, skybox_side::Z_MINUS);
-    SkyboxPlanes[skybox_side::Z_PLUS]  = SkyboxPlane(P_xm_ym_zp, P_xp_ym_zp, P_xp_yp_zp, P_xm_yp_zp, skybox_side::Z_PLUS);
-    
-    DrawLine(RenderCommands, V3(0,0,0), V3(1,0,0), V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, V3(0,0,0), V3(0,1,0), V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.05);
-    DrawLine(RenderCommands, V3(0,0,0), V3(0,0,1), V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.05);
-
-    local_persist v3 CamUp = {};
-    local_persist v3 CamRight = {};
-    local_persist v3 CamForward = {};
-    v3 CamPos = GetCameraPosition(Camera);
-    if(CamPos == V3(0,0,0) || CamUp == V3(0,0,0))
+    //if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
-      GetCameraDirections(Camera, &CamUp, &CamRight, &CamForward);
-    }
-    v3 TexForward = -CamForward;
-    v3 TexRight = CamRight;
-    v3 TexUp = CamUp;
-
-    sky_vectors SkyVectors = GetSkyVectors(TexForward, TexRight, TexUp, SkyAngle);
-    DrawDot(RenderCommands,  SkyVectors.BotLeft, V3(1,2,1), V3(1,0,0), Camera->P, Camera->V, 0.022);
-    DrawDot(RenderCommands,  SkyVectors.TopLeft, V3(1,2,1), V3(0,1,0), Camera->P, Camera->V, 0.022);
-    DrawDot(RenderCommands,  SkyVectors.TopRight, V3(1,2,1), V3(0,0,1), Camera->P, Camera->V, 0.022);
-    DrawDot(RenderCommands,  SkyVectors.BotRight, V3(1,2,1), V3(1,1,1), Camera->P, Camera->V, 0.022);
-    
-
-    for (int SkyboxPlaneIndex = 0; SkyboxPlaneIndex < ArrayCount(SkyboxPlanes); ++SkyboxPlaneIndex)
-    {
-      skybox_plane* Plane = &SkyboxPlanes[SkyboxPlaneIndex];
-      InsertPointsAlongBorder(Plane, SkyVectors);
-      InsertCornerPoint(Plane, SkyVectors);
-    }
-
-    v3* Triangles = 0;
-    v2* TextureCoordinates = 0;
-    skybox_side* SkyboxSides = 0;
-    u32 TriangleCount = TriangulatePlanes(ArrayCount(SkyboxPlanes), SkyboxPlanes, SkyVectors, Camera, &Triangles, &TextureCoordinates, &SkyboxSides);
-    
-
-    if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
-    {
-      u32 PointIndex = 0;
-      
-      r32 XDist = Norm(SkyVectors.TopRight - SkyVectors.TopLeft);
-      r32 YDist = Norm(SkyVectors.TopRight - SkyVectors.BotRight);
-
-      for (int TriangleIndex = 0; TriangleIndex < TriangleCount; ++TriangleIndex)
-      {
-        v3 t0 = Triangles[PointIndex];
-        skybox_side s0 = SkyboxSides[PointIndex];
-        v3 t1 = Triangles[PointIndex+1];
-        skybox_side s1 = SkyboxSides[PointIndex+1];
-        v3 t2 = Triangles[PointIndex+2];
-        skybox_side s2 = SkyboxSides[PointIndex+2];
-        PointIndex+=3;
-        v2 DstPixel0 = GetTextureCoordinateFromUnitSphereCoordinate(GetSphereCoordinateFromCube(t0), s0, &SkyboxTexture);
-        v2 DstPixel1 = GetTextureCoordinateFromUnitSphereCoordinate(GetSphereCoordinateFromCube(t1), s1, &SkyboxTexture);
-        v2 DstPixel2 = GetTextureCoordinateFromUnitSphereCoordinate(GetSphereCoordinateFromCube(t2), s2, &SkyboxTexture);
-        
-
-        v2 tu0 = TextureCoordinates[3*TriangleIndex];
-        v2 tu1 = TextureCoordinates[3*TriangleIndex+1];
-        v2 tu2 = TextureCoordinates[3*TriangleIndex+2];
-
-        if((tu0.X < 0 && tu0.X > 1 )||
-           (tu0.Y < 0 && tu0.Y > 1 )||
-           (tu1.X < 0 && tu1.X > 1 )||
-           (tu1.Y < 0 && tu1.Y > 1 )||
-           (tu2.X < 0 && tu2.X > 1 )||
-           (tu2.Y < 0 && tu2.Y > 1 ))
-        {
-          int a = 10;
-        }
-
-        v2 BotLeftSrcTriangle[] =  {tu0, tu1, tu2};
-        //r32 SrcPixel0_X = LinearRemap()
-
-        v2 DstPixels[] = {DstPixel0,DstPixel1,DstPixel2};
-        DrawPixels(DstPixels, BotLeftSrcTriangle, &SkyboxTexture, &TgaBitmap);
-      }
-      /*
-      if(SkyVectors.TopLeftSide == SkyVectors.TopRightSide &&
-         SkyVectors.TopLeftSide == SkyVectors.BotLeftSide &&
-         SkyVectors.TopLeftSide == SkyVectors.BotRightSide)
-      {
-        v2 DstPixelTopLeft  = GetTextureCoordinateFromUnitSphereCoordinate(SkyVectors.TopLeft, SkyVectors.TopLeftSide, &SkyboxTexture);
-        v2 DstPixelTopRight = GetTextureCoordinateFromUnitSphereCoordinate(SkyVectors.TopRight, SkyVectors.TopRightSide, &SkyboxTexture);
-        v2 DstPixelBotLeft  = GetTextureCoordinateFromUnitSphereCoordinate(SkyVectors.BotLeft, SkyVectors.BotLeftSide, &SkyboxTexture);
-        v2 DstPixelBotRight = GetTextureCoordinateFromUnitSphereCoordinate(SkyVectors.BotRight, SkyVectors.BotRightSide, &SkyboxTexture);
-        
-        v2 SrcPixelTopLeft = V2(0,0);
-        v2 SrcPixelTopRight = V2(1,0);
-        v2 SrcPixelBotLeft = V2(0,1);
-        v2 SrcPixelBotRight = V2(1,1);
-
-        v2 BotLeftDstTriangle[] = {DstPixelBotLeft, DstPixelBotRight, DstPixelTopLeft};
-        v2 BotLeftSrcTriangle[] =  {SrcPixelBotLeft, SrcPixelBotRight, SrcPixelTopLeft};
-        DrawPixels(BotLeftDstTriangle, BotLeftSrcTriangle, &SkyboxTexture, &TgaBitmap);
-
-        v2 TopRightDstTriangle[] = {DstPixelTopLeft, DstPixelBotRight, DstPixelTopRight};
-        v2 TopRightSrcTriangle[] =  {SrcPixelTopLeft, SrcPixelBotRight, SrcPixelTopRight};
-        DrawPixels(TopRightDstTriangle, TopRightSrcTriangle, &SkyboxTexture, &TgaBitmap);
-      }
-      */
-
+      BlitToSkybox(Camera, SkyAngle, SkyboxTexture, TgaBitmap);
     }
 
     // Need system to update only parts of a texture.
@@ -2156,25 +1376,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       V4(V3(Camera->V.r1),0),
       V4(V3(Camera->V.r1),0),
       V4(V3(Camera->V.r2),1));
-    m4 ModelView = SkyBox->ViewMat = Camera->V * GetScaleMatrix(V4(1,1,1,1));// * GetRotationMatrix(Pi32, V4(0,1,0,0)) * GetRotationMatrix(-Pi32/2, V4(0,0,1,0));
+    m4 ModelView = Camera->V * GetScaleMatrix(V4(1,1,1,1));
     ModelView.E[3] = 0;
     ModelView.E[7] = 0;
     ModelView.E[11] = 0;
     SkyBox->ViewMat = ModelView;
   }
-
-  //DrawVector(RenderCommands, V3(0,0,0), ToProjZX, LightDirection, 0, Camera->P, Camera->V, 0.4);
-  //DrawVector(RenderCommands, V3(0,0,0), To, LightDirection, 2, Camera->P, Camera->V, 0.4);
-
-  //DrawVector(RenderCommands, V3(0,0,0), V3(A), LightDirection, V3(1,0,0), Camera->P, Camera->V, 0.4);
-  //DrawVector(RenderCommands, V3(0,0,0), V3(B), LightDirection, V3(0,1,0), Camera->P, Camera->V, 0.4);
-  //DrawVector(RenderCommands, V3(0,0,0), V3(C), LightDirection, V3(0,0,1), Camera->P, Camera->V, 0.4);
-
-  
-  //ModelViewPlaneStar1 = M4Identity();
-
-    //DrawVector(RenderCommands, V3(0,0,0), V3(1,0,0), LightDirection, 0, Camera->P, Camera->V, 0.4);
-    //DrawVector(RenderCommands, V3(0,0,0), V3(0,1,0), LightDirection, 1, Camera->P, Camera->V, 0.4);
-    //DrawVector(RenderCommands, V3(0,0,0), V3(0,0,1), LightDirection, 2, Camera->P, Camera->V, 0.4);
 
 }

@@ -3,6 +3,8 @@
 #include "platform/jfont.h"
 #include "commons/random.h"
 #include "camera.h"
+#include "debug_draw.h"
+#include "utils.h"
 
 struct application_state
 {
@@ -36,6 +38,10 @@ struct application_state
   u32 EarthTexture;
   u32 WhitePixelTexture;
   u32 Skybox;
+
+
+  debug_application_render_commands* DebugRenderCommands;
 };
 
+debug_application_render_commands* GlobalDebugRenderCommands = 0;
 application_state* GlobalState = 0;
