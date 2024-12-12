@@ -1173,7 +1173,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(Camera);
 
-
   v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
   RenderStar(GlobalState, RenderCommands, Input, V3(0,10,0));
 
@@ -1202,7 +1201,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 #endif
 
-#if 0
+#if 1
   // Floor
   {
     m4 ModelMatPlane = GetTranslationMatrix( V4(0,-1.1,0,0)) * GetScaleMatrix( V4(10,0.1,10,0));
@@ -1333,40 +1332,41 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
   {
-  DrawDebugLine(V3(0,0,0), V3(1,0,0), V3(1,0,0), 0.05);
-  DrawDebugLine(V3(0,0,0), V3(0,1,0), V3(0,1,0), 0.05);
-  DrawDebugLine(V3(0,0,0), V3(0,0,1), V3(0,0,1), 0.05);
- // if(jwin::Pushed(Input->Keyboard.Key_K))
-  {
-    // Skybox
-
-    local_persist opengl_bitmap SkyboxTexture = {};
-    u32 SideSize = 1024;
-    SkyboxTexture.BPP = 32;
-    SkyboxTexture.Width = (u32) SideSize*3;
-    SkyboxTexture.Height = SideSize*2;
-    local_persist opengl_bitmap TgaBitmap = {};
-    if(!SkyboxTexture.Pixels)
+    DebugDrawVector(V3(0,0,0), V3(1,0,0), V3(1,0,0), 0.05);
+    DebugDrawVector(V3(0,0,0), V3(0,1,0), V3(0,1,0), 0.05);
+    DebugDrawVector(V3(0,0,0), V3(0,0,1), V3(0,0,1), 0.05);
+    
+    if(jwin::Active(Input->Keyboard.Key_K))
     {
-      GlobalState->Skybox = GlLoadTexture(OpenGL, SkyboxTexture); // Has permanent data managed by the graphics-layer which we can update
-      SkyboxTexture.Pixels = PushSize(GlobalPersistentArena, sizeof(u32) * SkyboxTexture.Width*SkyboxTexture.Height);
-      TgaBitmap = MapObjBitmapToOpenGLBitmap(GlobalPersistentArena, LoadTGA(GlobalTransientArena, "..\\data\\textures\\background_stars_spritesheet_20x20.tga"));
-    }
+      // Skybox
 
-    local_persist u32 ChosenKeyCount = 0;
-    local_persist r32 SkyAngle = 0.1f;
-    if(Input->Mouse.dZ != 0)
-    {
-      SkyAngle *= (Input->Mouse.dZ > 0) ? 0.85 : 1.1;
-    }
+      local_persist opengl_bitmap SkyboxTexture = {};
+      u32 SideSize = 1024;
+      SkyboxTexture.BPP = 32;
+      SkyboxTexture.Width = (u32) SideSize*3;
+      SkyboxTexture.Height = SideSize*2;
+      local_persist opengl_bitmap TgaBitmap = {};
+      if(!SkyboxTexture.Pixels)
+      {
+        GlobalState->Skybox = GlLoadTexture(OpenGL, SkyboxTexture); // Has permanent data managed by the graphics-layer which we can update
+        SkyboxTexture.Pixels = PushSize(GlobalPersistentArena, sizeof(u32) * SkyboxTexture.Width*SkyboxTexture.Height);
+        TgaBitmap = MapObjBitmapToOpenGLBitmap(GlobalPersistentArena, LoadTGA(GlobalTransientArena, "..\\data\\textures\\background_stars_spritesheet_20x20.tga"));
+      }
 
-    //if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
-    {
-      BlitToSkybox(Camera, SkyAngle, SkyboxTexture, TgaBitmap);
-    }
+      local_persist u32 ChosenKeyCount = 0;
+      local_persist r32 SkyAngle = 0.1f;
+      if(Input->Mouse.dZ != 0)
+      {
+        SkyAngle *= (Input->Mouse.dZ > 0) ? 0.85 : 1.1;
+      }
 
-    // Need system to update only parts of a texture.
-    GlUpdateTexture(OpenGL, GlobalState->Skybox, SkyboxTexture);
+      //if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
+      {
+        BlitToSkybox(Camera, SkyAngle, SkyboxTexture, TgaBitmap);
+      }
+
+      // Need system to update only parts of a texture.
+      GlUpdateTexture(OpenGL, GlobalState->Skybox, SkyboxTexture);
     }
     skybox* SkyBox = PushNewSkybox(RenderCommands->RenderGroup);
     SkyBox->SkyboxTexture = GlobalState->Skybox;
@@ -1382,5 +1382,4 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ModelView.E[11] = 0;
     SkyBox->ViewMat = ModelView;
   }
-
 }

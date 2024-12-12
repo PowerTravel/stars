@@ -423,21 +423,13 @@ u32 TriangulatePlanes(u32 PlaneCount, skybox_plane* Planes, sky_vectors SkyVecto
         int a = 10;
       }
 
-#if 1
       AA.X = Clamp( Unlerp(AA.X,0,Width), 0, 1);
       AA.Y = Clamp( Unlerp(AA.Y,0,Height), 0, 1);
       BB.X = Clamp( Unlerp(BB.X,0,Width), 0, 1);
       BB.Y = Clamp( Unlerp(BB.Y,0,Height), 0, 1);
       CC.X = Clamp( Unlerp(CC.X,0,Width), 0, 1);
       CC.Y = Clamp( Unlerp(CC.Y,0,Height), 0, 1);
-#else
-      AA.X = Unlerp(AA.X,0,Width);
-      AA.Y = Unlerp(AA.Y,0,Height);
-      BB.X = Unlerp(BB.X,0,Width);
-      BB.Y = Unlerp(BB.Y,0,Height);
-      CC.X = Unlerp(CC.X,0,Width);
-      CC.Y = Unlerp(CC.Y,0,Height);
-#endif
+
       if( AA.X < 0 || AA.Y < 0 || AA.X > 1 || AA. Y > 1 ||
           BB.X < 0 || BB.Y < 0 || BB.X > 1 || BB. Y > 1 ||
           CC.X < 0 || CC.Y < 0 || CC.X > 1 || CC. Y > 1 )

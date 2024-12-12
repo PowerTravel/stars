@@ -138,7 +138,7 @@ void DrawDebugLine(v3 LineStart, v3 LineEnd, v3 Color, r32 scale)
 
 }
 
-void DrawVector(v3 From, v3 Direction, v3 Color, r32 scale)
+void DebugDrawVector(v3 From, v3 Direction, v3 Color, r32 scale)
 {
   application_render_commands* RenderCommands = GlobalDebugRenderCommands->RenderCommands;
   m4 P = GlobalDebugRenderCommands->Camera->P;
