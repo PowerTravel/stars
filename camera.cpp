@@ -2,19 +2,7 @@
 
 void LookAt( camera* Camera, v3 aFrom,  v3 aTo,  v3 aTmp)
 {
-  v3 Forward = Normalize(aFrom - aTo);
-  v3 Right   = Normalize( CrossProduct(aTmp, Forward) );
-  v3 Up      = Normalize( CrossProduct(Forward, Right) );
-
-  m4 CamToWorld;
-  CamToWorld.r0 = V4(Right, 0);
-  CamToWorld.r1 = V4(Up,    0);
-  CamToWorld.r2 = V4(Forward, 0);
-  CamToWorld.r3 = V4(aFrom, 1);
-  CamToWorld = Transpose(CamToWorld);
-
-  Camera->V = RigidInverse(CamToWorld);
-  AssertIdentity(Camera->V * CamToWorld, 0.1 );
+  Camera->V = GetViewMatrix(aFrom, aTo, aTmp);
 }
 
 void SetCameraPosition(camera* Camera, v3 NewPos)
@@ -25,7 +13,7 @@ void SetCameraPosition(camera* Camera, v3 NewPos)
 
 ray GetRayFromCamera(camera* Camera, canonical_screen_coordinate MouseCanPos)
 {
-  ray Result {};
+  ray Result = {};
 
   screen_coordinate ScreenSpace = CanonicalToScreenSpace(MouseCanPos);
   r32 HalfAngleOfView = 0.5f * (Pi32/180.f)*Camera->AngleOfView;
@@ -106,71 +94,24 @@ void UpdateViewMatrix( camera* Camera )
   Camera->DeltaPos = V3( 0, 0, 0 );
 }
 
-void SetOrthoProj( camera* Camera, r32 aNear, r32 aFar, r32 aRight, r32 aLeft, r32 aTop, r32 aBottom )
+void SetOrthoProj( camera* Camera, r32 Near, r32 Far, r32 Right, r32 Left, r32 Top, r32 Bottom )
 {
-  jwin_Assert(aNear < 0);
-  jwin_Assert(aFar  > 0);
-  aFar       = -aFar;
-  aNear      = -aNear;
-  r32 rlSum  = aRight+aLeft;
-  r32 rlDiff = aRight-aLeft;
-
-  r32 tbSum  = aTop+aBottom;
-  r32 tbDiff = aTop-aBottom;
-
-  r32 fnSum  = aFar+aNear;
-  r32 fnDiff = aFar-aNear;
-
-  Camera->P =  M4( 2/rlDiff,          0,        0, -rlSum/rlDiff,
-                          0,   2/tbDiff,        0, -tbSum/tbDiff,
-                          0,          0, 2/fnDiff, -fnSum/fnDiff,
-                          0,          0,        0,             1);
+  Camera->P =  GetOrthographicProjection(Near, Far, Right, Left, Top, Bottom);
 }
 
-void SetOrthoProj( camera* Camera, r32 n, r32 f )
+void SetOrthoProj( camera* Camera, r32 Near, r32 Far )
 {
-  r32 scale = - Tan( Camera->AngleOfView * 0.5f * Pi32 / 180.f ) * n;
-  r32 r = Camera->AspectRatio * scale;
-  r32 l = -r;
-  r32 t = scale;
-  r32 b = -t;
-  SetOrthoProj( Camera, n, f, r, l, t, b );
+  Camera->P = GetOrthographicProjection(Near, Far, Camera->AngleOfView, Camera->AspectRatio);
 }
 
-void SetPerspectiveProj( camera* Camera, r32 n, r32 f, r32 r, r32 l, r32 t, r32 b )
+void SetPerspectiveProj( camera* Camera, r32 Near, r32 Far, r32 Right, r32 Left, r32 Top, r32 Bottom)
 {
-  jwin_Assert(n > 0);
-  jwin_Assert(f > n);
-
-  r32 rlSum  = r+l;
-  r32 rlDiff = r-l;
-
-  r32 tbSum  = t+b;
-  r32 tbDiff = t-b;
-
-  r32 fnSum  = f+n;
-  r32 fnDiff = f-n;
-
-  r32 n2 = n*2;
-
-  r32 fn2Prod = 2*f*n;
-
-  Camera->P =  M4( n2/rlDiff,     0,      rlSum/rlDiff,         0,
-                       0,     n2/tbDiff,  tbSum/tbDiff,         0,
-                       0,         0,     -fnSum/fnDiff, -fn2Prod/fnDiff,
-                       0,         0,           -1,              0);
-
+  Camera->P = GetPerspectiveProjection(Near, Far, Right, Left, Top, Bottom);
 }
 
-void SetPerspectiveProj( camera* Camera, r32 n, r32 f )
+void SetPerspectiveProj( camera* Camera, r32 Near, r32 Far )
 {
-  r32 AspectRatio = Camera->AspectRatio;
-  r32 scale = Tan( Camera->AngleOfView * 0.5f * Pi32 / 180.f ) * n;
-  r32 r     = AspectRatio * scale;
-  r32 l     = -r;
-  r32 t     = scale;
-  r32 b     = -t;
-  SetPerspectiveProj( Camera, n, f, r, l, t, b );
+  Camera->P = GetPerspectiveProjection(Near, Far, Camera->AngleOfView, Camera->AspectRatio);
 }
 
 #if 0

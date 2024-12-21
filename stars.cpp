@@ -1171,6 +1171,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"));
   }
 
+
+  
   UpdateViewMatrix(Camera);
 
   v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
@@ -1382,4 +1384,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ModelView.E[11] = 0;
     SkyBox->ViewMat = ModelView;
   }
+
+
+  RenderCommands->DebugCameraV = Camera->V;
+  RenderCommands->DebugCameraP = Camera->P;
 }
