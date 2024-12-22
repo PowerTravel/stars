@@ -892,7 +892,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Camera = {};
     r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32)RenderCommands->ScreenHeightPixels;
     InitiateCamera(&GlobalState->Camera, 70, AspectRatio, 0.1);
-    LookAt(&GlobalState->Camera, V3(0,0,10), V3(0,0,0));
+    LookAt(&GlobalState->Camera, V3(0,0,4), V3(0,0,0));
     RenderCommands->RenderGroup = InitiateRenderGroup();
     RenderCommands->LoadDebugCode = true;
     
@@ -1023,7 +1023,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     else if(jwin::Pushed(Input->Keyboard.Key_Q))
     {
       UpdateCamera = true;
-      Pos = V3(0,Len,Len);
+      Pos = V3(0,0,4);
       if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
       {
         Pos = -Pos;
