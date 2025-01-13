@@ -826,6 +826,17 @@ skybox_triangle GetTopRightTriangle(skybox_quad* Quad) {
   return {Quad->A, Quad->B, Quad->C};
 }
 
+jfont::sdf_font LoadSDFFont(jfont::sdf_fontchar* CharMemory, s32 CharCount, c8 FontFilePath[], r32 TextPixelSize, s32 Padding, s32 OnedgeValue, 
+  r32 PixelDistanceScale)
+{
+  debug_read_file_result TTFFile = Platform.DEBUGPlatformReadEntireFile(FontFilePath);
+  jwin_Assert(TTFFile.Contents);
+
+  jfont::sdf_font Font = jfont::LoadSDFFont(CharMemory, CharCount, TTFFile.Contents, TextPixelSize, Padding, OnedgeValue, PixelDistanceScale);
+
+  Platform.DEBUGPlatformFreeFileMemory(TTFFile.Contents);
+  return Font;
+}
 
 
 
@@ -885,7 +896,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->PixelDistanceScale = 32.0; // Smoothness of how fast the pixel-value goes to zero. Higher PixelDistanceScale, makes it go faster to 0;
                                             // Lower PixelDistanceScale and Higher OnedgeValue gives a 'sharper' sdf.
     GlobalState->FontRelativeScale = 1.f;
-    GlobalState->Font = jfont::LoadSDFFont(PushArray(GlobalPersistentArena, CharCount, jfont::sdf_fontchar),
+    GlobalState->Font = LoadSDFFont(PushArray(GlobalPersistentArena, CharCount, jfont::sdf_fontchar),
       CharCount, FontPath, GlobalState->TextPixelSize, 3, GlobalState->OnedgeValue, GlobalState->PixelDistanceScale);
     GlobalState->Initialized = true;
 
