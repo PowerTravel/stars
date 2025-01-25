@@ -166,15 +166,15 @@ u32 CreatePhongProgram(open_gl* OpenGL)
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"),
        "PhongShading");
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", GlUniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", GlUniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", GlUniformType::R32);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", UniformType::V3);
+  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", UniformType::V3);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", UniformType::R32);
   return ProgramHandle;
 }
 
@@ -186,15 +186,15 @@ u32 CreatePhongTransparentProgram(open_gl* OpenGL)
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewTransparent.glsl"),
       "PhongShadingTransparent");
 
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", GlUniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", GlUniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", GlUniformType::R32);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", UniformType::V3);
+  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", UniformType::V3);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", UniformType::R32);
   return ProgramHandle;
 }
 
@@ -204,13 +204,13 @@ u32 CreatePlaneStarProgram(open_gl* OpenGL)
       1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"),
        "StarPlane");
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ViewMat", GlUniformType::M4);
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::M4,   "ModelMat");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::V4,   "Color");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::R32,  "Radius");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::R32,  "FadeDist");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::V3,   "Center");
+  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ViewMat", UniformType::M4);
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::M4,   "ModelMat");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::V4,   "Color");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::R32,  "Radius");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::R32,  "FadeDist");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::V3,   "Center");
   return ProgramHandle;
 }
 
@@ -220,9 +220,9 @@ u32 CreateSolidColorProgram(open_gl* OpenGL)
      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"),
      "SolidColor");
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Color", GlUniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "Color", UniformType::V4);
   return ProgramHandle;
 }
 
@@ -239,12 +239,12 @@ u32 CreateEruptionBandProgram(open_gl* OpenGL)
      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"),
      "EruptionBand");
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::V4,  "Color");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::V3,  "Center");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::R32, "InnerRadii");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, GlUniformType::R32, "OuterRadii");
+  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::V4,  "Color");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::V3,  "Center");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::R32, "InnerRadii");
+  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::R32, "OuterRadii");
   return ProgramHandle;
 }
 

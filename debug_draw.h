@@ -26,15 +26,15 @@ u32 CreatePhongNoTexProgram(open_gl* OpenGL)
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"),
       "PhongShadingNoTex");
 
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", GlUniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", GlUniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", GlUniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", GlUniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", GlUniformType::R32);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", UniformType::M4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", UniformType::V3);
+  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", UniformType::V3);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", UniformType::V4);
+  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", UniformType::R32);
   return ProgramHandle;
 }
 
