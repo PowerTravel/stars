@@ -86,16 +86,16 @@ void DrawDebugDot(v3 Pos, v3 Color, r32 scale)
   Sphere->MeshHandle = GlobalDebugRenderCommands->Sphere;
   Sphere->FrameBufferHandle = GlobalDebugRenderCommands->MsaaFrameBuffer;
 
-  render_context* Context = &RenderCommands->RenderGroup->RenderContext;
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "ProjectionMat"), P);
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "ModelView"), ModelView);
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "NormalView"), NormalView);
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "LightDirection"), LightDirection);
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "LightColor"), V3(1,1,1));
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "MaterialAmbient"), Amb);
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "MaterialDiffuse"), Diff);
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "MaterialSpecular"),Spec);
-  PushUniform(Sphere, GetUniformHandle(Context, PhongProgramNoTex, "Shininess"), (r32) 20);
+  render_group* RenderGroup = RenderCommands->RenderGroup;
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "ProjectionMat"), P);
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "ModelView"), ModelView);
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "NormalView"), NormalView);
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "LightDirection"), LightDirection);
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "LightColor"), V3(1,1,1));
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialAmbient"), Amb);
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialDiffuse"), Diff);
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialSpecular"),Spec);
+  PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "Shininess"), (r32) 20);
   PushRenderState(Sphere, {true,true});
 }
 
@@ -129,16 +129,16 @@ void DrawDebugLine(v3 LineStart, v3 LineEnd, v3 Color, r32 scale)
   Vec->MeshHandle = GlobalDebugRenderCommands->Cylinder;
   Vec->FrameBufferHandle = GlobalDebugRenderCommands->MsaaFrameBuffer;
 
-  render_context* Context = &RenderCommands->RenderGroup->RenderContext;
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "ProjectionMat"), P);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "ModelView"), ModelViewVec);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "NormalView"), NormalViewVec);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "LightDirection"), LightDirection);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "LightColor"), V3(1,1,1));
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "MaterialAmbient"), Amb);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "MaterialDiffuse"), Diff);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "MaterialSpecular"),Spec);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "Shininess"), (r32) 20);
+  render_group* RenderGroup = RenderCommands->RenderGroup;
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "ProjectionMat"), P);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "ModelView"), ModelViewVec);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "NormalView"), NormalViewVec);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "LightDirection"), LightDirection);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "LightColor"), V3(1,1,1));
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialAmbient"), Amb);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialDiffuse"), Diff);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialSpecular"),Spec);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "Shininess"), (r32) 20);
   PushRenderState(Vec, {true,true});
 
 }
@@ -177,16 +177,16 @@ void DebugDrawVector(v3 From, v3 Direction, v3 Color, r32 scale)
   Vec->MeshHandle = Cylinder;
   Vec->FrameBufferHandle = GlobalDebugRenderCommands->MsaaFrameBuffer;
 
-  render_context* Context = &RenderCommands->RenderGroup->RenderContext;
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "ProjectionMat"), P);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "ModelView"), ModelViewVec);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "NormalView"), NormalViewVec);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "LightDirection"), LightDirection);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "LightColor"), V3(1,1,1));
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "MaterialAmbient"), Amb);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "MaterialDiffuse"), Diff);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "MaterialSpecular"),Spec);
-  PushUniform(Vec, GetUniformHandle(Context, PhongProgramNoTex, "Shininess"), (r32) 20);
+  render_group* RenderGroup = RenderCommands->RenderGroup;
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "ProjectionMat"), P);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "ModelView"), ModelViewVec);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "NormalView"), NormalViewVec);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "LightDirection"), LightDirection);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "LightColor"), V3(1,1,1));
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialAmbient"), Amb);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialDiffuse"), Diff);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialSpecular"),Spec);
+  PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "Shininess"), (r32) 20);
   PushRenderState(Vec, {true, true});
 
   m4 ModelMatVecTop = M4Identity();
@@ -206,14 +206,14 @@ void DebugDrawVector(v3 From, v3 Direction, v3 Color, r32 scale)
   VecTop->MeshHandle = Cone;
   VecTop->FrameBufferHandle = GlobalDebugRenderCommands->MsaaFrameBuffer;
 
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "ProjectionMat"), P);
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "ModelView"), ModelViewVecTop);
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "NormalView"), NormalViewVecTop);
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "LightDirection"), LightDirection);
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "LightColor"), V3(1,1,1));
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "MaterialAmbient"), Amb);
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "MaterialDiffuse"), Diff);
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "MaterialSpecular"),Spec);
-  PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "Shininess"), (r32) 20);
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "ProjectionMat"), P);
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "ModelView"), ModelViewVecTop);
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "NormalView"), NormalViewVecTop);
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "LightDirection"), LightDirection);
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "LightColor"), V3(1,1,1));
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialAmbient"), Amb);
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialDiffuse"), Diff);
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialSpecular"),Spec);
+  PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "Shininess"), (r32) 20);
   PushRenderState(VecTop, {true, true});
 }

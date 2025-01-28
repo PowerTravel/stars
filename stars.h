@@ -5,6 +5,7 @@
 #include "camera.h"
 #include "debug_draw.h"
 
+
 struct application_state
 {
   b32 Initialized;
