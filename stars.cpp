@@ -4,6 +4,7 @@
 #include "platform/jwin_platform_input.h"
 #include "platform/jfont.cpp"
 #include "platform/obj_loader.cpp"
+#include "platform/text_input.cpp"
 #include "renderer/software_render_functions.cpp"
 #include "renderer/render_push_buffer.cpp"
 #include "math/AABB.cpp"
@@ -877,6 +878,237 @@ void CreateFontAtlas(application_state* State)
 //  render_buffer_entry_type Type;
 //  push_buffer_header* Next;
 //};
+char** getGaussianVertexCodeY() {
+
+  local_persist char GaussianVertexShaderCodeY[] = R"Foo(
+#version 330 core
+
+layout (location = 0) in vec3 v;
+out vec2 uv;
+void main()
+{
+  gl_Position = vec4(v,1);
+  uv = (v.xy+vec2(1,1))/2.0; // Map from [(-1,-1),(1,1)] to [(0,0),(1,1)]
+}
+
+)Foo";
+
+  local_persist char* GaussianVertexShaderYArr[1]   = {GaussianVertexShaderCodeY};
+  return GaussianVertexShaderYArr;
+
+}
+
+char** getGaussianFragmentCodeY() {
+
+  local_persist char GaussianFragmentShaderCodeY[] = R"Foo(
+#version 330 core
+
+in vec2 uv;
+out vec4 color;
+uniform sampler2D RenderedTexture;
+// This is a 9 texel kernel, see https://www.rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/
+// for why it has 3 numbers.
+// Short story is:
+//   1 Original weights come from the binomial distribution koefficients,
+//   2 For this 9-texel kernel we took the 12th degree because the outer 2 coefficients 
+//     contribute so little to the final pixel.
+//   3 Normalize the coefficients so their sum add up to 1.
+//   4 Apply the kernel twice, once in y-direction and once in x-direction
+//   5 Utilize the linear interprolation circuits graphic card has and get two
+//     texel lookups for the price of one.
+
+// So ->  12 binomial coefficients:              1 12 66 220 495 792 924 792 495 220 66 12 1
+//                              Or:              924 +- 792 495 220 66 12 1
+// Remove outer two coefficients:                924 +- 792 495 220 66
+// Normalize them:                               0.2270270270 +- 0.1945945946 0.1216216216 0.0540540541 0.0162162162
+// Scale them due to the linear interprolation:  Weight_l(t_1, t_2) = weigth_d(t_1) +  weigth_d(t_2)
+//                                               offset_l(t_1, t_2) = ( offset_d(t_1) * weigth_d(t_1) + offset_d(t_2) * weigth_d(t_2) ) / Weight_l(t_1, t_2);
+// Offset_d = [0,1,2,3,4]
+// Weight_d = [0.2270270270, 0.1945945946,  0.1216216216, 0.0540540541,  0.0162162162]
+// Weight_l = [0.2270270270, 0.1945945946 + 0.1216216216, 0.0540540541 + 0.0162162162] = [0.2270270270, 0.3162162162, 0.0702702703]
+// Offset_l = [0, (1*0.1945945946 + 2*0.1216216216) /(0.1945945946 + 0.1216216216), (3*0.0540540541 + 4*0.0162162162)/(0.0540540541 + 0.0162162162)]
+//          = [0.0, 1.3846153846, 3.2307692308]
+
+#define MAX_KERNEL_SIZE 128
+uniform vec2 sideSize;
+uniform int kernerlSize;
+uniform float offset[MAX_KERNEL_SIZE];// = float[](0.0, 1.3846153846, 3.2307692308);
+uniform float weight[MAX_KERNEL_SIZE];// = float[](0.2270270270, 0.3162162162, 0.0702702703);
+
+void main()
+{
+  vec2 side = vec2(gl_FragCoord.x / sideSize.x, gl_FragCoord.y / sideSize.y);
+  vec4 OutColor = texture(RenderedTexture, uv) * weight[0];
+  for(int i = 1; i<kernerlSize; i++)
+  {
+    vec2 off = vec2(0, offset[i]/sideSize.y);
+    OutColor += texture(RenderedTexture, uv + off) * weight[i];
+    OutColor += texture(RenderedTexture, uv - off) * weight[i];
+  }
+  color = vec4(OutColor.xyz,1);
+}
+
+)Foo";
+
+  local_persist char* GaussianFragmentShaderYArr[1] = {GaussianFragmentShaderCodeY};
+  return GaussianFragmentShaderYArr;
+}
+
+char** getGaussianVertexCodeX() {
+
+  local_persist char GaussianVertexShaderCodeX[] = R"Foo(
+#version 330 core
+
+layout (location = 0) in vec3 v;
+out vec2 uv;
+void main()
+{
+  gl_Position = vec4(v,1);
+  uv = (v.xy+vec2(1,1))/2.0; // Map from [(-1,-1),(1,1)] to [(0,0),(1,1)]
+}
+
+)Foo";
+  
+  local_persist char* GaussianVertexShaderXArr[1]   = { GaussianVertexShaderCodeX };
+  return GaussianVertexShaderXArr;
+}
+
+char** getGaussianFragmentCodeX() {
+  
+  local_persist char GaussianFragmentShaderCodeX[] = R"Foo(
+#version 330 core
+
+#define MAX_KERNEL_SIZE 128
+
+in vec2 uv;
+out vec4 color;
+uniform sampler2D RenderedTexture;
+uniform vec2 sideSize;
+uniform int kernerlSize;
+uniform float offset[MAX_KERNEL_SIZE];// = float[](0.0, 1.3846153846, 3.2307692308);
+uniform float weight[MAX_KERNEL_SIZE];// = float[](0.2270270270, 0.3162162162, 0.0702702703);
+
+void main()
+{
+  vec2 side = vec2(gl_FragCoord.x / sideSize.x, gl_FragCoord.y / sideSize.y);
+  vec4 OutColor = texture(RenderedTexture, uv) * weight[0];
+  for(int i = 1; i < kernerlSize; i++)
+  {
+    vec2 off = vec2(offset[i]/sideSize.x, 0);
+    OutColor += texture(RenderedTexture, uv + off) * weight[i];
+    OutColor += texture(RenderedTexture, uv - off) * weight[i];
+  }
+  color = vec4(OutColor.xyz,1);
+}
+)Foo";
+
+  local_persist char* GaussianFragmentShaderXArr[1] = { GaussianFragmentShaderCodeX };
+ 
+  return GaussianFragmentShaderXArr;
+}
+
+char** GetFontVertexShader(){
+
+  local_persist char FontVertexShaderCode[] = R"Foo(
+#version 330 core
+
+layout (location = 0)  in vec3 v;
+layout (location = 1)  in vec3 vn;
+layout (location = 2)  in vec2 vt;
+layout (location = 3)  in vec4 TexCoord_in;
+layout (location = 4)  in mat4 Model;
+out vec4 TexCoord;
+out vec2 uv;
+uniform mat4 Projection;
+void main()
+{
+  uv = vt;
+  TexCoord = TexCoord_in;
+  gl_Position = Projection * Model * vec4(v,1);
+}
+
+)Foo";
+
+  local_persist char* FontVertexShaderCodeArr[1]   = {FontVertexShaderCode};
+  return FontVertexShaderCodeArr;
+}
+
+char** GetFontFragmentShader(){
+  local_persist char FontFragmentShaderCode[] = R"Foo(
+#version 330 core
+
+in vec2 uv;
+in vec4 TexCoord;
+out vec4 color;
+uniform sampler2D RenderedTexture;
+// Maps x from range [a0,a1] to [b0,b1]
+float LinearRemap(float x, float a0, float a1, float b0, float b1){
+  float Slope = (b1-b0) / (a1-a0);
+  float Result = Slope * (x - a0) + b0;
+  return Result;
+}
+uniform float OnEdgeValue;
+uniform float PixelDistanceScale;
+void main()
+{
+  float x = LinearRemap(uv.x, 0,1, TexCoord.x, TexCoord.z);
+  float y = LinearRemap(uv.y, 0,1, TexCoord.y, TexCoord.w);
+  float data = texture(RenderedTexture, vec2(x,y)).r;
+  float value = LinearRemap(data, OnEdgeValue, OnEdgeValue + PixelDistanceScale, 0, 1);
+  value = LinearRemap(value, -0.5, 0.5, 0, 1);
+  if(value <= 0){
+    discard;
+  }
+
+  color = vec4(1,1,1,value);
+}
+)Foo";
+
+
+  local_persist char* FontFragmentShaderCodeArr[1] = {FontFragmentShaderCode};
+  return FontFragmentShaderCodeArr;
+}
+
+u32 CreateFontProgram(render_group* RenderGroup)
+{
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "FontRenderProgram");
+
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "Projection");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RenderedTexture");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "OnEdgeValue");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "PixelDistanceScale");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TexCoord_in");
+  AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "Model");
+  CompileShader(RenderGroup, ProgramHandle, 1, GetFontVertexShader(), 1, GetFontFragmentShader());
+  return ProgramHandle;
+}
+
+
+u32 CreateGaussianBlurProgramY(render_group* RenderGroup)
+{
+  u32 ProgramHandleY = NewShaderProgram(RenderGroup, "GaussoanYProgram");
+
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandleY, "RenderedTexture");
+  AddUniform(RenderGroup, UniformType::V2,  ProgramHandleY, "sideSize");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandleY, "offset");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandleY, "weight");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandleY, "kernerlSize");
+  CompileShader(RenderGroup, ProgramHandleY, 1, getGaussianVertexCodeY(), 1, getGaussianFragmentCodeY());
+  return ProgramHandleY;
+}
+
+u32 CreateGaussianBlurProgramX(render_group* RenderGroup)
+{
+  u32 ProgramHandleX = NewShaderProgram(RenderGroup,"GaussoanXProgram");
+
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandleX, "RenderedTexture");
+  AddUniform(RenderGroup, UniformType::V2,  ProgramHandleX, "sideSize");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandleX, "offset");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandleX, "weight");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandleX, "kernerlSize");
+  CompileShader(RenderGroup, ProgramHandleX, 1, getGaussianVertexCodeX(), 1, getGaussianFragmentCodeX());
+  return ProgramHandleX;
+}
 
 char** GetTransparentCompositionVertexCode()
 {
@@ -1040,6 +1272,36 @@ u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWei
 
   return Size;
 }
+
+struct gl_text
+{
+  v4 TextCoord;
+  m4 ModelMatrix;
+};
+
+void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas,r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])
+{
+  codepoint TextString[1024] = {};
+  u32 UnicodeLen = ConvertToUnicode(Text, TextString);
+  jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
+  gl_text* GlText = PushArray(&RenderGroup->Arena, UnicodeLen, gl_text);
+  jfont::GetTextPrintCoordinates(Font, FontAtlas, RelativeScale, X0, Y0, TextString, TextPrintCoordinates);
+
+  for (int i = 0; i < UnicodeLen; ++i)
+  {
+    jfont::print_coordinates* tc = TextPrintCoordinates+i;
+    gl_text* Gltc = GlText+i;
+    Gltc->TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
+    Gltc->ModelMatrix = M4Identity();
+    Scale(V4(tc->sx, tc->sy,1,0), Gltc->ModelMatrix);
+    Translate(V4(tc->x,tc->y, 0, 1), Gltc->ModelMatrix);
+    Gltc->ModelMatrix = Transpose(Gltc->ModelMatrix);
+  }
+
+  PushInstanceData(RenderObject, UnicodeLen, UnicodeLen*sizeof(gl_text), (void*) GlText);
+}
+
+
 
 void SortRenderingPipeline(application_render_commands* RenderCommands)
 {
@@ -1210,59 +1472,58 @@ void SortRenderingPipeline(application_render_commands* RenderCommands)
 
   blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
   BlitOperation->ReadFrameBufferHandle = GlobalState->MsaaFrameBuffer;
-//  BlitOperation->DrawFrameBufferHandle = GlobalState->GaussianAFrameBuffer;
-   BlitOperation->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
+  BlitOperation->DrawFrameBufferHandle = GlobalState->GaussianAFrameBuffer;
+//   BlitOperation->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
 
-/*
   for (int i = 0; i < 4; ++i)
   {
     render_object* GaussianBlurX = PushNewRenderObject(RenderGroup);
-    GaussianBlurX->ProgramHandle = Scene->ProgramHandles[GAUSSIAN_BLUR_PROGRAM_X];
-    GaussianBlurX->MeshHandle = GameState->BlitPlane;
-    GaussianBlurX->FrameBufferHandle = GameState->GaussianBFrameBuffer;
-    GaussianBlurX->TextureHandles[0] = GameState->GaussianATexture;
+    GaussianBlurX->ProgramHandle = GlobalState->GaussianProgramX;
+    GaussianBlurX->MeshHandle = GlobalState->BlitPlane;
+    GaussianBlurX->FrameBufferHandle = GlobalState->GaussianBFrameBuffer;
+    GaussianBlurX->TextureHandles[0] = GlobalState->GaussianATexture;
     GaussianBlurX->TextureCount = 1;
 
     PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
     PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
     PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "kernerlSize"), KernelSize);
     PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "RenderedTexture"), (u32) 0);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "sideSize"), V2(Scene->Width, Scene->Height));
+    PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "sideSize"), V2(GlobalState->Width, GlobalState->Height));
 
     render_object* GaussianBlurY = PushNewRenderObject(RenderGroup);
-    GaussianBlurY->ProgramHandle = Scene->ProgramHandles[GAUSSIAN_BLUR_PROGRAM_Y];
-    GaussianBlurY->MeshHandle = GameState->BlitPlane;
-    GaussianBlurY->FrameBufferHandle = GameState->GaussianAFrameBuffer;
-    GaussianBlurY->TextureHandles[0] = GameState->GaussianBTexture;
+    GaussianBlurY->ProgramHandle = GlobalState->GaussianProgramY;
+    GaussianBlurY->MeshHandle = GlobalState->BlitPlane;
+    GaussianBlurY->FrameBufferHandle = GlobalState->GaussianAFrameBuffer;
+    GaussianBlurY->TextureHandles[0] = GlobalState->GaussianBTexture;
     GaussianBlurY->TextureCount = 1;
     
     PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
     PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
     PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "kernerlSize"), KernelSize);
     PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "RenderedTexture"), (u32) 0);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "sideSize"), V2(Scene->Width, Scene->Height));
+    PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "sideSize"), V2(GlobalState->Width, GlobalState->Height));
   }
-
   blit_operation* BlitOperation2 = PushNewBlitOperation(RenderGroup);
-  BlitOperation2->ReadFrameBufferHandle = GameState->GaussianBFrameBuffer;
-  BlitOperation2->DrawFrameBufferHandle = GameState->DefaultFrameBuffer;
+  BlitOperation2->ReadFrameBufferHandle = GlobalState->GaussianBFrameBuffer;
+  BlitOperation2->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
+
 
   // Overlay text
   utf8_byte K[] = "Hello my name is jonas.";
 
   render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
-  OverlayTextProgram->ProgramHandle = Scene->ProgramHandles[FONT_RENDER_PROGRAM];
-  OverlayTextProgram->MeshHandle = Scene->Meshes[LOADED_MESH_BLIT_PLANE];
-  OverlayTextProgram->FrameBufferHandle = Scene->FrameBufferObjects[FRAME_BUFFER_DEFAULT];
-  OverlayTextProgram->TextureHandles[0] = Scene->Textures[LOADED_TEXTURE_FONT];
+  OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
+  OverlayTextProgram->MeshHandle = GlobalState->BlitPlane;
+  OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+  OverlayTextProgram->TextureHandles[0] = GlobalState->FontTexture;
   OverlayTextProgram->TextureCount = 1;
-  m4 ProjectionMatrix = GetOrthographicProjection(-1, 1, Commands->ScreenWidthPixels, 0, Commands->ScreenHeightPixels, 0);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, Scene->ProgramHandles[FONT_RENDER_PROGRAM], "Projection"), ProjectionMatrix);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, Scene->ProgramHandles[FONT_RENDER_PROGRAM], "RenderedTexture"), (u32)0);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, Scene->ProgramHandles[FONT_RENDER_PROGRAM], "OnEdgeValue"), 128/255.f);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, Scene->ProgramHandles[FONT_RENDER_PROGRAM], "PixelDistanceScale"), 32/255.f);
-  PushStringToGpu(RenderGroup, OverlayTextProgram, &Scene->Font,  &Scene->FontAtlas , 30, 64,  0.3, K);
-  */
+  m4 ProjectionMatrix = GetOrthographicProjection(-1, 1, GlobalState->Width, 0, GlobalState->Height, 0);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, OverlayTextProgram->ProgramHandle, "Projection"), ProjectionMatrix);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
+  PushStringToGpu(RenderGroup, OverlayTextProgram, &GlobalState->Font,  &GlobalState->FontAtlas , 30, 64,  0.3, K);
+  
 #endif
 
 #if 0
@@ -1322,6 +1583,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->SolidColorProgram = CreateSolidColorProgram(RenderGroup);
     GlobalState->EruptionBandProgram = CreateEruptionBandProgram(RenderGroup);
     GlobalState->TransparentCompositionProgram = CreateTransparentCompositionProgram(RenderGroup);
+    GlobalState->GaussianProgramX = CreateGaussianBlurProgramX(RenderGroup);
+    GlobalState->GaussianProgramY = CreateGaussianBlurProgramY(RenderGroup);
+    GlobalState->FontRenterProgram =  CreateFontProgram(RenderGroup);
 
     GlobalState->Cube = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cube));
     GlobalState->Plane = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, plane));
@@ -1657,7 +1921,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     CompileShader(RenderGroup,GlobalState->TransparentCompositionProgram,
     1, GetTransparentCompositionVertexCode(),
     1, GetTransparentCompositionFragmentCode());
-
+    
+    CompileShader(RenderGroup, GlobalState->GaussianProgramY, 1, getGaussianVertexCodeY(), 1, getGaussianFragmentCodeY());
+    CompileShader(RenderGroup, GlobalState->GaussianProgramX, 1, getGaussianVertexCodeX(), 1, getGaussianFragmentCodeX());
     
    // GlobalDebugRenderCommands->PhongProgramNoTex = GlReloadProgram(OpenGL, GlobalDebugRenderCommands->PhongProgramNoTex,
    //   1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),

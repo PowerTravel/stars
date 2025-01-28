@@ -26,6 +26,9 @@ struct application_state
   u32 SolidColorProgram;
   u32 EruptionBandProgram;
   u32 TransparentCompositionProgram;
+  u32 GaussianProgramY;
+  u32 GaussianProgramX;
+  u32 FontRenterProgram;
 
   u32 BlitPlane;
   u32 Plane;
