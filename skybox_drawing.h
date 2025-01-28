@@ -13,6 +13,13 @@ enum skybox_side{
   SIDE_COUNT
 };
 
+struct bitmap {
+  u32   BPP; // Bits Per Pixel
+  u32   Width;
+  u32   Height;
+  void* Pixels;
+};
+
 struct sky_vectors {
   v3 TopLeft;
   skybox_side TopLeftSide;
@@ -516,7 +523,7 @@ sky_vectors GetSkyVectors(v3 TexForward, v3 TexRight, v3 TexUp, r32 SkyAngle)
 }
 
 
-v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, skybox_side Side, opengl_bitmap* Bitmap)
+v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, skybox_side Side, bitmap* Bitmap)
 {
   jwin_Assert(Bitmap->Width / 3.f == Bitmap->Height / 2.f);
 
@@ -601,7 +608,7 @@ v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, skybox_side Side,
 }
 
 
-v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, opengl_bitmap* Bitmap)
+v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, bitmap* Bitmap)
 {
   return GetTextureCoordinateFromUnitSphereCoordinate(UnitSphere, GetSkyboxSide(UnitSphere), Bitmap);
 }
@@ -632,7 +639,7 @@ r32 EdgeFunction( v2& a, v2& b, v2& p )
   return(Result);
 }
 
-void DrawPixels(v2* DstPixels, v2* SrcPixels, opengl_bitmap* DstBitmap, opengl_bitmap* SrcBitmap){
+void DrawPixels(v2* DstPixels, v2* SrcPixels, bitmap* DstBitmap, bitmap* SrcBitmap){
 
   // Bottom left triangle made up by right handed pointing vectors
   r32 Area2Inverse = 1/EdgeFunction(DstPixels[0], DstPixels[1], DstPixels[2]);
@@ -695,7 +702,7 @@ void DrawPixels(v2* DstPixels, v2* SrcPixels, opengl_bitmap* DstBitmap, opengl_b
 }
 
 
-void BlitToSkybox(camera* Camera, r32 SkyAngle, opengl_bitmap SkyboxTexture, opengl_bitmap TgaBitmap)
+void BlitToSkybox(camera* Camera, r32 SkyAngle, bitmap SkyboxTexture, bitmap TgaBitmap)
 {  
   local_persist v3 CamUp = {};
   local_persist v3 CamRight = {};

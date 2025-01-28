@@ -123,15 +123,3 @@ opengl_buffer_data MapObjToOpenGLMesh(memory_arena* Arena, obj_loaded_file* Obj)
 
   return Result;
 }
-
-opengl_bitmap MapObjBitmapToOpenGLBitmap(memory_arena* Arena, obj_bitmap* texture)
-{
-  opengl_bitmap Result = {};
-  Result.BPP = texture->BPP;
-  Result.Width = texture->Width;
-  Result.Height = texture->Height;
-  u32 ByteSize = (texture->BPP/8) * texture->Width * texture->Height;
-  Result.Pixels = PushCopy(Arena, ByteSize, texture->Pixels);
-
-  return Result;
-}

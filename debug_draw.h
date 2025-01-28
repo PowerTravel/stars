@@ -1,7 +1,6 @@
 #pragma once
 
 #include "renderer/render_push_buffer.h"
-#include "renderer/application_opengl.h"
 #include "platform/obj_loader.h"
 #include "utils.h"
 

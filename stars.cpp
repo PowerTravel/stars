@@ -461,7 +461,6 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
 {
   r32 StarSize = 1;
   camera* Camera = &GameState->Camera;
-  open_gl* OpenGL = &RenderCommands->OpenGL;
   render_group* RenderGroup = RenderCommands->RenderGroup;
   m4 Sphere1ModelMat = {};
   m4 Sphere1RotationMatrix = GetRotationMatrix(Input->Time/20.f, V4(0,1,0,0));
@@ -1556,12 +1555,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   local_persist v3 LightPosition = V3(0,3,0);
-  open_gl* OpenGL = &RenderCommands->OpenGL;
   r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
   if(!GlobalState->Initialized)
   {
     RenderCommands->RenderGroup = InitiateRenderGroup();
-    RenderCommands->LoadDebugCode = true;
 
     CreateFontAtlas(GlobalState);
     obj_loaded_file* plane = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
@@ -2156,10 +2153,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     SkyBox->ViewMat = ModelView;
   }
 #endif
-
-  RenderCommands->DebugCameraV = Camera->V;
-  RenderCommands->DebugCameraP = Camera->P;
-
 
   SortRenderingPipeline(RenderCommands);
 }
