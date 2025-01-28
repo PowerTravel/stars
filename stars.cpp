@@ -878,10 +878,9 @@ void CreateFontAtlas(application_state* State)
 //  push_buffer_header* Next;
 //};
 
-u32 CreateTransparentCompositionProgram(render_group* RenderGroup)
+char** GetTransparentCompositionVertexCode()
 {
-
-local_persist char TransparentCompositionVertexShaderCode[] = R"Foo(
+ local_persist char TransparentCompositionVertexShaderCode[] = R"Foo(
 #version 330 core
 
 layout (location = 0) in vec3 v;
@@ -894,7 +893,13 @@ void main()
 
 )Foo";
 
-local_persist char TransparentCompositionFragmentShaderCode[] = R"Foo(
+  local_persist char* TransparentCompositionVertexShaderCodeArr2[] =  {TransparentCompositionVertexShaderCode};
+  return TransparentCompositionVertexShaderCodeArr2;
+}
+
+char** GetTransparentCompositionFragmentCode()
+{
+  local_persist char TransparentCompositionFragmentShaderCode[] = R"Foo(
 #version 330 core
 
 in vec2 uv;
@@ -911,8 +916,15 @@ void main()
 
 )Foo";
 
-  local_persist char* TransparentCompositionVertexShaderCodeArr[1] = {TransparentCompositionVertexShaderCode};
-  local_persist char* TransparentCompositionFragmentShaderCodeArr[1]  = {TransparentCompositionFragmentShaderCode};
+  local_persist char* TransparentCompositionFragmentShaderCodeArr2[]  = {TransparentCompositionFragmentShaderCode};
+  return TransparentCompositionFragmentShaderCodeArr2;
+}
+
+u32 CreateTransparentCompositionProgram(render_group* RenderGroup)
+{
+
+  local_persist char* TransparentCompositionVertexShaderCodeArr[1] = {};
+  local_persist char* TransparentCompositionFragmentShaderCodeArr[1]  = {};
 
 
   u32 ProgramHandle = NewShaderProgram(RenderGroup,
@@ -921,8 +933,8 @@ void main()
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AccumTex");
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RevealTex");
   CompileShader(RenderGroup, ProgramHandle,  
-    1, TransparentCompositionVertexShaderCodeArr,
-    1, TransparentCompositionFragmentShaderCodeArr);
+    1, GetTransparentCompositionVertexCode(),
+    1, GetTransparentCompositionFragmentCode());
   return ProgramHandle;
 }
 
@@ -1309,6 +1321,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->PlaneStarProgram = CreatePlaneStarProgram(RenderGroup);
     GlobalState->SolidColorProgram = CreateSolidColorProgram(RenderGroup);
     GlobalState->EruptionBandProgram = CreateEruptionBandProgram(RenderGroup);
+    GlobalState->TransparentCompositionProgram = CreateTransparentCompositionProgram(RenderGroup);
+
     GlobalState->Cube = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cube));
     GlobalState->Plane = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, plane));
     GlobalState->Sphere = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, sphere));
@@ -1362,7 +1376,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     void* WhitePixelPtr = PushCopy(GlobalTransientArena, sizeof(WhitePixel), (void*) WhitePixel);
     GlobalState->WhitePixelTexture = PushNewTexture(RenderGroup, 1, 1, WhitePixelParam, WhitePixelPtr);
 
-    GlobalState->TransparentCompositionProgram = CreateTransparentCompositionProgram(RenderGroup);
 
     GlobalState->Initialized = true;
 
@@ -1625,27 +1638,32 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   if(jwin::Pushed(Input->Keyboard.Key_ENTER) || Input->ExecutableReloaded)
   {
     Platform.DEBUGPrint("We should reload debug code\n");
-    RenderCommands->LoadDebugCode = true;
-    GlobalState->PhongProgram = GlReloadProgram(OpenGL, GlobalState->PhongProgram,
+    render_group* RenderGroup = RenderCommands->RenderGroup;
+    CompileShader(RenderGroup,GlobalState->PhongProgram,
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
-    
-    GlobalDebugRenderCommands->PhongProgramNoTex = GlReloadProgram(OpenGL, GlobalDebugRenderCommands->PhongProgramNoTex,
-      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
-      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
-
-    GlobalState->PhongProgramTransparent = GlReloadProgram(OpenGL, GlobalState->PhongProgramTransparent,
+    CompileShader(RenderGroup,GlobalState->PhongProgramTransparent,
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewTransparent.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewTransparent.glsl"));
-    GlobalState->PlaneStarProgram = GlReloadProgram(OpenGL, GlobalState->PlaneStarProgram,
+    CompileShader(RenderGroup,GlobalState->PlaneStarProgram,
       1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
-    GlobalState->SolidColorProgram = GlReloadProgram(OpenGL, GlobalState->SolidColorProgram,
+    CompileShader(RenderGroup,GlobalState->SolidColorProgram,
      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"));
-    GlobalState->EruptionBandProgram = GlReloadProgram(OpenGL, GlobalState->EruptionBandProgram,
+    CompileShader(RenderGroup,GlobalState->EruptionBandProgram,
      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"));
+    CompileShader(RenderGroup,GlobalState->TransparentCompositionProgram,
+    1, GetTransparentCompositionVertexCode(),
+    1, GetTransparentCompositionFragmentCode());
+
+    
+   // GlobalDebugRenderCommands->PhongProgramNoTex = GlReloadProgram(OpenGL, GlobalDebugRenderCommands->PhongProgramNoTex,
+   //   1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
+   //   1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
+
+
   }
 
 
