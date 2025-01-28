@@ -11,6 +11,8 @@
 #include "math/geometry_math.h"
 #include "skybox_drawing.h"
 
+#include "utils.h"
+
 #define SPOTCOUNT 200
 
 local_persist render_state NoDepthTestNoCulling = {false,false};
@@ -158,71 +160,69 @@ internal void DrawChar(jfont::sdf_font* Font, jfont::sdf_fontchar* Char, platfor
     Char->xoff, Char->yoff, true);
 }
 
-
-
-u32 CreatePhongProgram(open_gl* OpenGL)
+u32 CreatePhongProgram(render_group* RenderGroup)
 {
-  u32 ProgramHandle = GlNewProgram(OpenGL,
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "PhongShading");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "ProjectionMat");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "ModelView");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "NormalView");
+  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "LightDirection");
+  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "LightColor");
+  AddUniform(RenderGroup, UniformType::V4,  ProgramHandle, "MaterialAmbient");
+  AddUniform(RenderGroup, UniformType::V4,  ProgramHandle, "MaterialDiffuse");
+  AddUniform(RenderGroup, UniformType::V4,  ProgramHandle, "MaterialSpecular");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Shininess");
+  CompileShader(RenderGroup, ProgramHandle,
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
-      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"),
-       "PhongShading");
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", UniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", UniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", UniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", UniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", UniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", UniformType::R32);
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraView.glsl"));
   return ProgramHandle;
 }
 
 
-u32 CreatePhongTransparentProgram(open_gl* OpenGL)
+u32 CreatePhongTransparentProgram(render_group* RenderGroup)
 {
-  u32 ProgramHandle = GlNewProgram(OpenGL,
+  u32 ProgramHandle = NewShaderProgram(RenderGroup,"PhongShadingTransparent");
+
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ProjectionMat");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ModelView");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "NormalView");
+  AddUniform(RenderGroup, UniformType::V3, ProgramHandle, "LightDirection");
+  AddUniform(RenderGroup, UniformType::V3, ProgramHandle, "LightColor");
+  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialAmbient");
+  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialDiffuse");
+  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialSpecular");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Shininess");
+  CompileShader(RenderGroup, ProgramHandle,
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewTransparent.glsl"),
-      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewTransparent.glsl"),
-      "PhongShadingTransparent");
-
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "NormalView", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightDirection", UniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "LightColor", UniformType::V3);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialAmbient", UniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialDiffuse", UniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "MaterialSpecular", UniformType::V4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Shininess", UniformType::R32);
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewTransparent.glsl"));
   return ProgramHandle;
 }
 
-u32 CreatePlaneStarProgram(open_gl* OpenGL)
+u32 CreatePlaneStarProgram(render_group* RenderGroup)
 {
-  u32 ProgramHandle = GlNewProgram(OpenGL,
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "StarPlane");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "ProjectionMat");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "ViewMat");
+  AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "ModelMat");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "Color");
+  AddVarying(RenderGroup, UniformType::R32, ProgramHandle, "Radius");
+  AddVarying(RenderGroup, UniformType::R32, ProgramHandle, "FadeDist");
+  AddVarying(RenderGroup, UniformType::V3,  ProgramHandle, "Center");
+  CompileShader(RenderGroup, ProgramHandle,
       1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
-      1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"),
-       "StarPlane");
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ViewMat", UniformType::M4);
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::M4,   "ModelMat");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::V4,   "Color");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::R32,  "Radius");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::R32,  "FadeDist");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::V3,   "Center");
+      1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
   return ProgramHandle;
 }
 
-u32 CreateSolidColorProgram(open_gl* OpenGL)
+u32 CreateSolidColorProgram(render_group* RenderGroup)
 {
-  u32 ProgramHandle = GlNewProgram(OpenGL,
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "SolidColor");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ProjectionMat");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ModelView");
+  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "Color");
+  CompileShader(RenderGroup, ProgramHandle,
      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
-     1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"),
-     "SolidColor");
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "Color", UniformType::V4);
+     1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"));
   return ProgramHandle;
 }
 
@@ -233,18 +233,18 @@ struct eurption_band{
   r32 OuterRadii;
 };
 
-u32 CreateEruptionBandProgram(open_gl* OpenGL)
+u32 CreateEruptionBandProgram(render_group* RenderGroup)
 {
-  u32 ProgramHandle = GlNewProgram(OpenGL,
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "EruptionBand");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "ProjectionMat");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "ModelView");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "Color");
+  AddVarying(RenderGroup, UniformType::V3,  ProgramHandle, "Center");
+  AddVarying(RenderGroup, UniformType::R32, ProgramHandle, "InnerRadii");
+  AddVarying(RenderGroup, UniformType::R32, ProgramHandle, "OuterRadii");
+  CompileShader(RenderGroup, ProgramHandle,
      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
-     1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"),
-     "EruptionBand");
-  GlDeclareUniform(OpenGL, ProgramHandle, "ProjectionMat", UniformType::M4);
-  GlDeclareUniform(OpenGL, ProgramHandle, "ModelView", UniformType::M4);
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::V4,  "Color");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::V3,  "Center");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::R32, "InnerRadii");
-  GlDeclareInstanceVarying(OpenGL, ProgramHandle, UniformType::R32, "OuterRadii");
+     1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"));
   return ProgramHandle;
 }
 
@@ -290,7 +290,6 @@ ray_cast CastRay(camera* Camera, r32 Angle, r32 Width, r32 Length, v4 Color, v3 
 void CastConeRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera, v3 PointOnUitSphere, r32 AngleOnSphere, r32 MaxAngleOnSphere, v4 Translation, m4 RotationMatrix)
 {
   ray_cast* Ray = PushStruct(GlobalTransientArena, ray_cast);
-
   m4 StaticAngle = QuaternionAsMatrix(GetRotation(V3(0,-1,0), PointOnUitSphere));
 
   m4 ModelMat = M4Identity();
@@ -304,12 +303,14 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
   Ray->FaceDist = 1.f;
   Ray->Center = V3(Translation);
 
-  render_object* RayObj = PushNewRenderObject(RenderCommands->RenderGroup);
+  render_group* RenderGroup = RenderCommands->RenderGroup;
+  render_object* RayObj = PushNewRenderObject(RenderGroup);
   RayObj->ProgramHandle = GlobalState->PlaneStarProgram;
   RayObj->MeshHandle = GlobalState->Cone;
+  RayObj->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
 
-  PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
-  PushUniform(RayObj, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+  PushUniform(RayObj, GetUniformHandle(&RenderGroup->RenderContext, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+  PushUniform(RayObj, GetUniformHandle(&RenderGroup->RenderContext, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
 
   PushInstanceData(RayObj, 1, sizeof(ray_cast), (void*) Ray);
   PushRenderState(RayObj, DepthTestNoCulling);
@@ -337,10 +338,11 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
   render_object* Ray = PushNewRenderObject(RenderCommands->RenderGroup);
   Ray->ProgramHandle = GlobalState->PlaneStarProgram;
   Ray->MeshHandle = GlobalState->Triangle;
+  Ray->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
   Ray->Transparent = true;
 
-  PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
-  PushUniform(Ray, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+  PushUniform(Ray, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
   u32 InstanceCount = ThinRayCount + ThickRayCount;
   PushInstanceData(Ray, InstanceCount, InstanceCount * sizeof(ray_cast), (void*) Rays);
   PushRenderState(Ray, DepthTestCulling);
@@ -419,12 +421,12 @@ void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device
   render_object* Eruptions = PushNewRenderObject(RenderCommands->RenderGroup);
   Eruptions->ProgramHandle = GlobalState->EruptionBandProgram;
   Eruptions->MeshHandle = GlobalState->Sphere;
-  PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->EruptionBandProgram, "ProjectionMat"), GlobalState->Camera.P);
-  PushUniform(Eruptions, GlGetUniformHandle(&RenderCommands->OpenGL, GlobalState->EruptionBandProgram, "ModelView"), GlobalState->Camera.V*StarModelMat);
+  Eruptions->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+  PushUniform(Eruptions, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GlobalState->EruptionBandProgram, "ProjectionMat"), GlobalState->Camera.P);
+  PushUniform(Eruptions, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GlobalState->EruptionBandProgram, "ModelView"), GlobalState->Camera.V*StarModelMat);
   PushInstanceData(Eruptions, BandCount, BandCount * sizeof(eurption_band), (void*) EruptionBands);
   PushRenderState(Eruptions, NoDepthTestCulling);
 }
-
 
 void InitializeEruption(eruption_params* Param, random_generator* Generator, u32 BandCount, v4* Colors, r32 MinEruptionSize, r32 MaxEruptionSize, r32 MaxRayProbability, r32 Theta, r32 Phi)
 {
@@ -461,62 +463,67 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   r32 StarSize = 1;
   camera* Camera = &GameState->Camera;
   open_gl* OpenGL = &RenderCommands->OpenGL;
+  render_group* RenderGroup = RenderCommands->RenderGroup;
   m4 Sphere1ModelMat = {};
   m4 Sphere1RotationMatrix = GetRotationMatrix(Input->Time/20.f, V4(0,1,0,0));
   {
-    render_object* Sphere1 = PushNewRenderObject(RenderCommands->RenderGroup);
-    Sphere1->ProgramHandle = GlobalState->SolidColorProgram;
-    Sphere1->MeshHandle = GlobalState->Sphere;
+    render_object* Sphere1 = PushNewRenderObject(RenderGroup);
+    Sphere1->ProgramHandle = GameState->SolidColorProgram;
+    Sphere1->MeshHandle = GameState->Sphere;
+    Sphere1->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     r32 FinalSizeOscillation = StarSize * ( 1 + 0.01* Sin(0.05*Input->Time));
     Sphere1ModelMat = GetTranslationMatrix(V4(Position, 1))*  Sphere1RotationMatrix * GetScaleMatrix(V4(FinalSizeOscillation,FinalSizeOscillation,FinalSizeOscillation,1));
 
-    PushUniform(Sphere1, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Sphere1, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere1ModelMat);
-    PushUniform(Sphere1, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
+    PushUniform(Sphere1, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Sphere1, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere1ModelMat);
+    PushUniform(Sphere1, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "Color"), V4(45.0/255.0, 51.0/255, 197.0/255.0, 1));
     PushRenderState(Sphere1, DepthTestCulling);
   }
 
   // Second Largest Sphere
   {
-    render_object* Sphere2 = PushNewRenderObject(RenderCommands->RenderGroup);
+    render_object* Sphere2 = PushNewRenderObject(RenderGroup);
     Sphere2->ProgramHandle = GameState->SolidColorProgram;
     Sphere2->MeshHandle = GameState->Sphere;
+    Sphere2->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     r32 LargeSize = 0.95 * StarSize;
     r32 LargeSizeOscillation = LargeSize * ( 1 + 0.02* Sin(0.1 * Input->Time+ 1.1));
     m4 Sphere2ModelMat = GetTranslationMatrix(V4(Position, 1)) * GetScaleMatrix(V4(LargeSizeOscillation,LargeSizeOscillation,LargeSizeOscillation,1));
 
-    PushUniform(Sphere2, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Sphere2, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere2ModelMat);
-    PushUniform(Sphere2, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "Color"), V4(56.0/255.0, 75.0/255, 220.0/255.0, 1));
+    PushUniform(Sphere2, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Sphere2, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere2ModelMat);
+    PushUniform(Sphere2, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "Color"), V4(56.0/255.0, 75.0/255, 220.0/255.0, 1));
     PushRenderState(Sphere2, DepthTestCulling);
   }
 
   {
-    render_object* Sphere3 = PushNewRenderObject(RenderCommands->RenderGroup);
+    render_object* Sphere3 = PushNewRenderObject(RenderGroup);
     Sphere3->ProgramHandle = GameState->SolidColorProgram;
     Sphere3->MeshHandle = GameState->Sphere;
+    Sphere3->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     r32 MediumSize = 0.85 * StarSize;
     r32 MediumScaleOccilation = MediumSize * ( 1 + 0.02* Sin(Input->Time+Pi32/4.f));
     m4 Sphere3ModelMat = GetTranslationMatrix(V4(Position, 1)) * GetScaleMatrix(V4(MediumScaleOccilation,MediumScaleOccilation,MediumScaleOccilation,1));
 
-    PushUniform(Sphere3, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Sphere3, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere3ModelMat);
-    PushUniform(Sphere3, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "Color"), V4(57.0/255.0, 110.0/255, 247.0/255.0, 1));
+    PushUniform(Sphere3, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Sphere3, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere3ModelMat);
+    PushUniform(Sphere3, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "Color"), V4(57.0/255.0, 110.0/255, 247.0/255.0, 1));
     PushRenderState(Sphere3, NoDepthTestCulling);
   }
 
   // Smallest Sphere
   {
-    render_object* Sphere4 = PushNewRenderObject(RenderCommands->RenderGroup);
+    render_object* Sphere4 = PushNewRenderObject(RenderGroup);
     Sphere4->ProgramHandle = GameState->SolidColorProgram;
     Sphere4->MeshHandle = GameState->Sphere;
+    Sphere4->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     r32 SmallSize = 0.65;
     r32 SmallScaleOccilation = SmallSize * ( 1 + 0.03* Sin(Input->Time+3/4.f *Pi32));
     m4 Sphere4ModelMat = GetTranslationMatrix(V4(Position, 1)) * GetScaleMatrix(V4(SmallScaleOccilation,SmallScaleOccilation,SmallScaleOccilation,1));
 
-    PushUniform(Sphere4, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Sphere4, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere4ModelMat);
-    PushUniform(Sphere4, GlGetUniformHandle(OpenGL, GameState->SolidColorProgram, "Color"), V4(107.0/255.0, 196.0/255, 1, 1));
+    PushUniform(Sphere4, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Sphere4, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "ModelView"), Camera->V*Sphere4ModelMat);
+    PushUniform(Sphere4, GetUniformHandle(&RenderGroup->RenderContext, GameState->SolidColorProgram, "Color"), V4(107.0/255.0, 196.0/255, 1, 1));
     PushRenderState(Sphere4, NoDepthTestCulling);
   }
 
@@ -629,10 +636,11 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
     render_object* Halo = PushNewRenderObject(RenderCommands->RenderGroup);
     Halo->ProgramHandle = GameState->PlaneStarProgram;
     Halo->MeshHandle = GameState->Plane;
+    Halo->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
     Halo->Transparent = true;
 
-    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GameState->PlaneStarProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Halo, GlGetUniformHandle(&RenderCommands->OpenGL, GameState->PlaneStarProgram, "ViewMat"), Camera->V);
+    PushUniform(Halo, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GameState->PlaneStarProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Halo, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GameState->PlaneStarProgram, "ViewMat"), Camera->V);
     ray_cast* HaloRay = PushStruct(GlobalTransientArena, ray_cast);
     HaloRay->ModelMat = HaloModelMat;
     HaloRay->Color = V4(254.0/255.0, 254.0/255.0, 255/255, 0.3);
@@ -838,18 +846,454 @@ jfont::sdf_font LoadSDFFont(jfont::sdf_fontchar* CharMemory, s32 CharCount, c8 F
   return Font;
 }
 
+u32 Push32BitColorTexture(render_group* RenderGroup,  obj_bitmap* BitMap)
+{
+  texture_params Params = DefaultColorTextureParams();
+  Params.TextureFormat = texture_format::RGBA_U8;
+  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+  u32 Result = PushNewTexture(RenderGroup, BitMap->Width, BitMap->Height, Params, BitMap->Pixels);
+  return Result;
+}
+
+void CreateFontAtlas(application_state* State)
+{
+  u32 CharCount = 0x100;
+  char FontPath[] = "C:\\Windows\\Fonts\\consola.ttf";
+  State->OnedgeValue = 128;  // "Brightness" of the sdf. Higher value makes the SDF bigger and brighter.
+                                   // Has no impact on TextPixelSize since the char then is also bigger.
+  State->TextPixelSize = 64; // Size of the SDF
+  State->PixelDistanceScale = 32.0; // Smoothness of how fast the pixel-value goes to zero. Higher PixelDistanceScale, makes it go faster to 0;
+                                          // Lower PixelDistanceScale and Higher OnedgeValue gives a 'sharper' sdf.
+  State->FontRelativeScale = 1.f;
+  State->Font = LoadSDFFont(PushArray(GlobalPersistentArena, CharCount, jfont::sdf_fontchar),
+    CharCount, FontPath, State->TextPixelSize, 3, State->OnedgeValue, State->PixelDistanceScale);
+
+  midx AtlasFileSize = jfont::SDFAtlasRequiredMemoryAmount(&State->Font);
+  u8* FontMemory = PushArray(GlobalPersistentArena, AtlasFileSize, u8);
+  State->FontAtlas = jfont::CreateSDFAtlas(&State->Font, FontMemory);
+}
+//struct push_buffer_header
+//{
+//  render_buffer_entry_type Type;
+//  push_buffer_header* Next;
+//};
+
+u32 CreateTransparentCompositionProgram(render_group* RenderGroup)
+{
+
+local_persist char TransparentCompositionVertexShaderCode[] = R"Foo(
+#version 330 core
+
+layout (location = 0) in vec3 v;
+out vec2 uv;
+void main()
+{
+  gl_Position = vec4(v,1);
+  uv = (v.xy+vec2(1,1))/2.0; // Map from [(-1,-1),(1,1)] to [(0,0),(1,1)]
+}
+
+)Foo";
+
+local_persist char TransparentCompositionFragmentShaderCode[] = R"Foo(
+#version 330 core
+
+in vec2 uv;
+layout(location = 0) out vec4 color;
+uniform sampler2D AccumTex;
+uniform sampler2D RevealTex;
+
+void main()
+{
+  vec4 Accum = texelFetch(AccumTex, ivec2(gl_FragCoord.xy),0);
+  float Reveal = texelFetch(RevealTex, ivec2(gl_FragCoord.xy),0 ).r;
+  color = vec4(Accum.rgb/clamp(Accum.a, 0.0001, 50000), Reveal);
+}
+
+)Foo";
+
+  local_persist char* TransparentCompositionVertexShaderCodeArr[1] = {TransparentCompositionVertexShaderCode};
+  local_persist char* TransparentCompositionFragmentShaderCodeArr[1]  = {TransparentCompositionFragmentShaderCode};
+
+
+  u32 ProgramHandle = NewShaderProgram(RenderGroup,
+    "TransparentCompositionProgram");
+
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AccumTex");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RevealTex");
+  CompileShader(RenderGroup, ProgramHandle,  
+    1, TransparentCompositionVertexShaderCodeArr,
+    1, TransparentCompositionFragmentShaderCodeArr);
+  return ProgramHandle;
+}
+
+u32 PushPlitPlaneMesh(render_group* RenderGroup)
+{
+  u32 PlaneIndex[] = {
+    0,1,2,
+    2,1,3
+  };
+  opengl_vertex PlaneVertex [] = {
+    {{-1.0f, -1.0f, 0.0f},{0,0,0},{0,0}},
+    {{ 1.0f, -1.0f, 0.0f},{0,0,0},{1,0}},
+    {{-1.0f,  1.0f, 0.0f},{0,0,0},{0,1}},
+    {{ 1.0f,  1.0f, 0.0f},{0,0,0},{1,1}},
+  };
+
+  gl_vertex_buffer* VertexBuffer = PushStruct(GlobalTransientArena, gl_vertex_buffer);
+  VertexBuffer->IndexCount = ArrayCount(PlaneIndex);
+  VertexBuffer->Indeces = (u32*) PushCopy(GlobalTransientArena, sizeof(PlaneIndex), PlaneIndex);
+  VertexBuffer->VertexCount = ArrayCount(PlaneVertex);
+  VertexBuffer->VertexData = (opengl_vertex*) PushCopy(GlobalTransientArena, sizeof(PlaneVertex), PlaneVertex);
+  opengl_buffer_data GlBufferData = {};
+  GlBufferData.BufferCount = 1;
+  GlBufferData.BufferData = VertexBuffer;
+  u32 Result = PushNewMesh(RenderGroup, GlBufferData);
+  return Result;
+}
+
+
+// Note: BinomialDepth must be even.
+// CutOff must be less than half BinomialDepth
+u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWeight)
+{
+  r32 CoefficientsA[1028] = {};
+  r32 CoefficientsB[1028] = {};
+  r32 Offset[1028] = {};
+  r32* Current = CoefficientsA;
+  r32* Previous = CoefficientsB;
+  for (int i = 0; i <= BinomialDepth; ++i)
+  {
+    if(i > 0)
+    {
+      for (int j = 0; j <= i; ++j)
+      {
+        if(j == 0)
+        {
+          Current[0] = Previous[0];
+        }else if (j == i)
+        {
+          Current[j] = Previous[i-1];
+        }else{
+          Current[j] = Previous[j] + Previous[j-1];
+        }
+      }  
+    }else{
+      Current[0] = 1;
+    }
+    r32* Tmp = Previous;
+    Previous = Current;
+    Current = Tmp;
+  }
+  
+  for (int i = CutOff; i <= BinomialDepth-CutOff; ++i)
+  {
+    Current[i-CutOff] = Previous[i];
+  }
+
+  u32 ReducedSize = BinomialDepth-2*CutOff + 1;
+  r32 Sum = 0;
+  for (int i = 0; i < ReducedSize; ++i)
+  {
+    Sum += Current[i];
+  }
+
+  for (int i = 0; i < ReducedSize; ++i)
+  {
+    Current[i] /= Sum;
+  }
+
+  u32 ReducedHalfSize = ReducedSize / 2 + 1;
+
+  
+  r32* Tmp = Previous;
+  Previous = Current;
+  Current = Tmp;
+  for (int i = 0; i < ReducedHalfSize; ++i)
+  {
+    Offset[i] = i;
+    Current[ReducedHalfSize - 1 - i] = Previous[i];
+  }
+
+  u32 Size = ReducedHalfSize/2 + 1;
+  Tmp = Previous;
+  Previous = Current;
+  Current = Tmp;
+  OutWeight[0] = Previous[0];
+  for (int i = 1; i < Size; ++i)
+  {
+    u32 idx = 2*i-1;
+    OutWeight[i] = Previous[idx] + Previous[idx+1];
+    OutOffset[i] = (Previous[idx] * Offset[idx] + Previous[idx+1] * Offset[idx+1]) / OutWeight[i];
+  }
+
+  return Size;
+}
+
+void SortRenderingPipeline(application_render_commands* RenderCommands)
+{
+  // Some Gaussian Blur just cause I can
+  r32* KernelOffset = PushArray(GlobalTransientArena, 64, r32);
+  r32* KernelWeight = PushArray(GlobalTransientArena, 64, r32);
+  u32 KernelSize = GetGaussianKernel(12, 2, KernelOffset, KernelWeight);
+
+  // Set up the rendering pipeline for phong shaded program.
+
+  // Add states, draw solid MSAA, draw transparent MSAA, composit image, blit to window-size, Do post effect (if you want) etc etc
+  render_group* RenderGroup = RenderCommands->RenderGroup;
+  render_context* RenderContext = &RenderGroup->RenderContext;
+
+  push_buffer_header* SolidBase = 0;
+  push_buffer_header* Solid = 0;
+  push_buffer_header* TransparentBase = 0;
+  push_buffer_header* Transparent = 0;
+  push_buffer_header* OtherBase = 0;
+  push_buffer_header* Other = 0;
+
+  push_buffer_header* Head = RenderGroup->First;
+  while(Head)
+  {
+    push_buffer_header* NextHead = Head->Next;
+    Head->Next = 0;
+    if(Head->Type == render_buffer_entry_type::RENDER_OBJECT)
+    {
+      render_object* RenderObject = (render_object*) AdvanceByType(Head, push_buffer_header);
+      if(RenderObject->FrameBufferHandle == GlobalState->TransparentFrameBuffer)
+      {
+        if(!TransparentBase){
+          TransparentBase = Head;
+          Transparent = Head;
+        }else{
+          Transparent->Next = Head;
+          Transparent  = Transparent->Next;
+        }
+      }else if(RenderObject->FrameBufferHandle == GlobalState->MsaaFrameBuffer){
+        if(!SolidBase){
+          SolidBase = Head;
+          Solid = Head;
+        }else{
+          Solid->Next = Head;
+          Solid = Solid->Next;
+        }
+      }else{
+        INVALID_CODE_PATH
+      }
+    }else{
+      if(!OtherBase){
+          OtherBase = Head;
+          Other = Head;
+      }else{
+        Other->Next = Head;
+        Other = Other->Next;
+      }
+    }
+
+    Head = NextHead;
+  }
+  
+  RenderGroup->First = OtherBase;
+  RenderGroup->Last = Other;
+
+#if 1
+  u32 MSAA = 4;
+  render_state_3* DefaultState = PushNewState(RenderGroup);
+  r32 DesiredAspectRatio = GlobalState->Width/(r32)GlobalState->Height;
+  *DefaultState = DefaultRenderState3(GlobalState->MSAA * GlobalState->Width, GlobalState->MSAA * GlobalState->Height, DesiredAspectRatio);
+
+  clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
+  DefClearColor->BufferType = OPEN_GL_COLOR;
+  DefClearColor->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+  DefClearColor->TextureIndex = 0;
+  DefClearColor->Color = V4(0,0,0,1);
+
+  clear_operation* DefClearDepth = PushNewClearOperation(RenderGroup);
+  DefClearDepth->BufferType = OPEN_GL_DEPTH;
+  DefClearDepth->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+  DefClearDepth->TextureIndex = 0;
+  DefClearDepth->Depth = 1;
+
+  clear_operation* ClearMSAAColor = PushNewClearOperation(RenderGroup);
+  ClearMSAAColor->BufferType = OPEN_GL_COLOR;
+  ClearMSAAColor->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+  ClearMSAAColor->TextureIndex = 0;
+  ClearMSAAColor->Color = V4(0,0,0,1);
+
+  clear_operation* ClearMSAADepth = PushNewClearOperation(RenderGroup);
+  ClearMSAADepth->BufferType = OPEN_GL_DEPTH;
+  ClearMSAADepth->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+  ClearMSAADepth->TextureIndex = 0;
+  ClearMSAADepth->Depth = 1;
+
+  clear_operation* TransparenClearOp0 = PushNewClearOperation(RenderGroup);
+  TransparenClearOp0->BufferType = OPEN_GL_COLOR;
+  TransparenClearOp0->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+  TransparenClearOp0->TextureIndex = 0;
+  TransparenClearOp0->Color = V4(0,0,0,0);
+
+  clear_operation* TransparenClearOp1 = PushNewClearOperation(RenderGroup);
+  TransparenClearOp1->BufferType = OPEN_GL_COLOR;
+  TransparenClearOp1->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+  TransparenClearOp1->TextureIndex = 1;
+  TransparenClearOp1->Color = V4(1,0,0,0);
+
+  // First draw solid objects
+  RenderGroup->Last->Next = SolidBase;
+  RenderGroup->Last = Solid;
+
+  // move to transparent drawing
+  render_state_3* TransparentState = PushNewState(RenderGroup);
+  depth_state DepthState = {};
+  DepthState.TestActive = true;
+  DepthState.WriteActive = false;
+  SetState(TransparentState, DepthState);
+
+  blend_state BlendState = {};
+  BlendState.Active = true;
+  BlendState.TextureCount = 2;
+  BlendState.TextureBlendStates[0].TextureIndex = 0;
+  BlendState.TextureBlendStates[0].SrcFactor = OPEN_GL_ONE;
+  BlendState.TextureBlendStates[0].DstFactor = OPEN_GL_ONE;
+  BlendState.TextureBlendStates[1].TextureIndex = 1;
+  BlendState.TextureBlendStates[1].SrcFactor = OPEN_GL_ZERO;
+  BlendState.TextureBlendStates[1].DstFactor = OPEN_GL_ONE_MINUS_SRC_ALPHA;
+  SetState(TransparentState, BlendState);
+
+  // Then draw Transparent objects
+    // First draw solid objects
+  RenderGroup->Last->Next = TransparentBase;
+  RenderGroup->Last = Transparent;
+
+  render_state_3* CompositState = PushNewState(RenderGroup);
+  blend_state CompositBlend = {};
+  CompositBlend.Active = true;
+  CompositBlend.TextureCount = 1;
+  CompositBlend.TextureBlendStates[0].TextureIndex = 0;
+  CompositBlend.TextureBlendStates[0].SrcFactor = OPEN_GL_ONE_MINUS_SRC_ALPHA;
+  CompositBlend.TextureBlendStates[0].DstFactor = OPEN_GL_SRC_ALPHA;
+  SetState(CompositState, CompositBlend);
+
+
+  depth_state CompositDepth = {};
+  CompositDepth.TestActive = false;
+  CompositDepth.WriteActive = false;
+  SetState(CompositState, CompositDepth);
+
+  // Then composit the solid and transparent objects into a single image
+  render_object* CompositionObject = PushNewRenderObject(RenderGroup);
+  CompositionObject->ProgramHandle = GlobalState->TransparentCompositionProgram;
+  CompositionObject->MeshHandle = GlobalState->BlitPlane;
+  CompositionObject->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+  CompositionObject->TextureHandles[0] = GlobalState->AccumTexture;
+  CompositionObject->TextureHandles[1] = GlobalState->RevealTexture;
+  CompositionObject->TextureCount = 2;
+
+  PushUniform(CompositionObject, GetUniformHandle(RenderContext, GlobalState->TransparentCompositionProgram,  "AccumTex"), (u32)0);
+  PushUniform(CompositionObject, GetUniformHandle(RenderContext, GlobalState->TransparentCompositionProgram , "RevealTex"), (u32)1);
+
+  // Shrink to regular screeen sice
+  render_state_3* ViewportAndBlend = PushNewState(RenderGroup);
+  SetState(ViewportAndBlend, ViewportState(GlobalState->Width, GlobalState->Height, DesiredAspectRatio));
+  SetState(ViewportAndBlend, DefaultBlendState());
+
+  // Gaussian blur
+
+  blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
+  BlitOperation->ReadFrameBufferHandle = GlobalState->MsaaFrameBuffer;
+//  BlitOperation->DrawFrameBufferHandle = GlobalState->GaussianAFrameBuffer;
+   BlitOperation->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
+
+/*
+  for (int i = 0; i < 4; ++i)
+  {
+    render_object* GaussianBlurX = PushNewRenderObject(RenderGroup);
+    GaussianBlurX->ProgramHandle = Scene->ProgramHandles[GAUSSIAN_BLUR_PROGRAM_X];
+    GaussianBlurX->MeshHandle = GameState->BlitPlane;
+    GaussianBlurX->FrameBufferHandle = GameState->GaussianBFrameBuffer;
+    GaussianBlurX->TextureHandles[0] = GameState->GaussianATexture;
+    GaussianBlurX->TextureCount = 1;
+
+    PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
+    PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
+    PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "kernerlSize"), KernelSize);
+    PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "RenderedTexture"), (u32) 0);
+    PushUniform(GaussianBlurX, GetUniformHandle(RenderContext, GaussianBlurX->ProgramHandle, "sideSize"), V2(Scene->Width, Scene->Height));
+
+    render_object* GaussianBlurY = PushNewRenderObject(RenderGroup);
+    GaussianBlurY->ProgramHandle = Scene->ProgramHandles[GAUSSIAN_BLUR_PROGRAM_Y];
+    GaussianBlurY->MeshHandle = GameState->BlitPlane;
+    GaussianBlurY->FrameBufferHandle = GameState->GaussianAFrameBuffer;
+    GaussianBlurY->TextureHandles[0] = GameState->GaussianBTexture;
+    GaussianBlurY->TextureCount = 1;
+    
+    PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
+    PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
+    PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "kernerlSize"), KernelSize);
+    PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "RenderedTexture"), (u32) 0);
+    PushUniform(GaussianBlurY, GetUniformHandle(RenderContext, GaussianBlurY->ProgramHandle, "sideSize"), V2(Scene->Width, Scene->Height));
+  }
+
+  blit_operation* BlitOperation2 = PushNewBlitOperation(RenderGroup);
+  BlitOperation2->ReadFrameBufferHandle = GameState->GaussianBFrameBuffer;
+  BlitOperation2->DrawFrameBufferHandle = GameState->DefaultFrameBuffer;
+
+  // Overlay text
+  utf8_byte K[] = "Hello my name is jonas.";
+
+  render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
+  OverlayTextProgram->ProgramHandle = Scene->ProgramHandles[FONT_RENDER_PROGRAM];
+  OverlayTextProgram->MeshHandle = Scene->Meshes[LOADED_MESH_BLIT_PLANE];
+  OverlayTextProgram->FrameBufferHandle = Scene->FrameBufferObjects[FRAME_BUFFER_DEFAULT];
+  OverlayTextProgram->TextureHandles[0] = Scene->Textures[LOADED_TEXTURE_FONT];
+  OverlayTextProgram->TextureCount = 1;
+  m4 ProjectionMatrix = GetOrthographicProjection(-1, 1, Commands->ScreenWidthPixels, 0, Commands->ScreenHeightPixels, 0);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, Scene->ProgramHandles[FONT_RENDER_PROGRAM], "Projection"), ProjectionMatrix);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, Scene->ProgramHandles[FONT_RENDER_PROGRAM], "RenderedTexture"), (u32)0);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, Scene->ProgramHandles[FONT_RENDER_PROGRAM], "OnEdgeValue"), 128/255.f);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderContext, Scene->ProgramHandles[FONT_RENDER_PROGRAM], "PixelDistanceScale"), 32/255.f);
+  PushStringToGpu(RenderGroup, OverlayTextProgram, &Scene->Font,  &Scene->FontAtlas , 30, 64,  0.3, K);
+  */
+#endif
+
+#if 0
+
+  Head = RenderGroup->First;
+  while(Head)
+  {
+    switch(Head->Type)
+    { 
+      case render_buffer_entry_type::RENDER_OBJECT:{ Platform.DEBUGPrint("%s\n", "RENDER_OBJECT");}break;
+      case render_buffer_entry_type::BLIT_OPERATION:{ Platform.DEBUGPrint("%s\n", "BLIT_OPERATION");}break;
+      case render_buffer_entry_type::CLEAR_OPERATION:{ Platform.DEBUGPrint("%s\n", "CLEAR_OPERATION");}break;
+      case render_buffer_entry_type::SET_STATE:{ Platform.DEBUGPrint("%s\n", "SET_STATE");}break;
+      case render_buffer_entry_type::NEW_TEXTURE:{ Platform.DEBUGPrint("%s\n", "NEW_TEXTURE");}break;
+      case render_buffer_entry_type::NEW_SHADER_PROGRAM:{ Platform.DEBUGPrint("%s\n", "NEW_SHADER_PROGRAM");}break;
+      case render_buffer_entry_type::NEW_FBO:{ Platform.DEBUGPrint("%s\n", "NEW_FBO");}break;
+      case render_buffer_entry_type::NEW_MESH:{ Platform.DEBUGPrint("%s\n", "NEW_MESH");}break;
+      case render_buffer_entry_type::SKYBOX:{ Platform.DEBUGPrint("%s\n", "SKYBOX");}break;
+      case render_buffer_entry_type::NEW_LEVEL:{ Platform.DEBUGPrint("%s\n", "NEW_LEVEL");}break;
+      case render_buffer_entry_type::COUNT:{ Platform.DEBUGPrint("%s\n", "COUN");}break;
+    }
+    Head = Head->Next;
+  }
+
+#endif
+}
 
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
   GlobalState = JwinBeginFrameMemory(application_state);
-
+  ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   local_persist v3 LightPosition = V3(0,3,0);
   open_gl* OpenGL = &RenderCommands->OpenGL;
+  r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
   if(!GlobalState->Initialized)
   {
+    RenderCommands->RenderGroup = InitiateRenderGroup();
+    RenderCommands->LoadDebugCode = true;
+
+    CreateFontAtlas(GlobalState);
     obj_loaded_file* plane = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
     obj_loaded_file* billboard = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\plane.obj");
     obj_loaded_file* sphere = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\sphere.obj");
@@ -857,64 +1301,86 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     obj_loaded_file* cone = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\cone.obj");
     obj_loaded_file* cube = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\qube.obj");
     obj_loaded_file* cylinder = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\cylinder.obj");
+
+    render_group* RenderGroup = RenderCommands->RenderGroup;
+    // This memory only needs to exist until the data is loaded to the GPU
+    GlobalState->PhongProgram = CreatePhongProgram(RenderGroup);
+    GlobalState->PhongProgramTransparent = CreatePhongTransparentProgram(RenderGroup);
+    GlobalState->PlaneStarProgram = CreatePlaneStarProgram(RenderGroup);
+    GlobalState->SolidColorProgram = CreateSolidColorProgram(RenderGroup);
+    GlobalState->EruptionBandProgram = CreateEruptionBandProgram(RenderGroup);
+    GlobalState->Cube = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cube));
+    GlobalState->Plane = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, plane));
+    GlobalState->Sphere = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, sphere));
+    GlobalState->Cone = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cone));
+    GlobalState->Cylinder = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cylinder));
+    GlobalState->Triangle = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, triangle));
+    GlobalState->Billboard = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena,  billboard));
+    GlobalState->BlitPlane =  PushPlitPlaneMesh(RenderGroup);
+
     obj_bitmap* BrickWallTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\brick_wall_base.tga");
     obj_bitmap* FadedRayTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\faded_ray.tga");
     obj_bitmap* EarthTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\8081_earthmap4k.tga");
 
-    // This memory only needs to exist until the data is loaded to the GPU
-    GlobalState->PhongProgram = CreatePhongProgram(OpenGL);
-    GlobalState->PhongProgramTransparent = CreatePhongTransparentProgram(OpenGL);
-    GlobalState->PlaneStarProgram = CreatePlaneStarProgram(OpenGL);
-    GlobalState->SolidColorProgram = CreateSolidColorProgram(OpenGL);
-    GlobalState->EruptionBandProgram = CreateEruptionBandProgram(OpenGL);
-    GlobalState->Cube = GlLoadMesh(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, cube));
-    GlobalState->Plane = GlLoadMesh(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, plane));
-    GlobalState->Sphere = GlLoadMesh(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, sphere));
-    GlobalState->Cone = GlLoadMesh(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, cone));
-    GlobalState->Cylinder = GlLoadMesh(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, cylinder));
-    GlobalState->Triangle = GlLoadMesh(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena, triangle));
-    GlobalState->Billboard = GlLoadMesh(OpenGL, MapObjToOpenGLMesh(GlobalTransientArena,  billboard));
-    GlobalState->CheckerBoardTexture = GlLoadTexture(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, plane->MaterialData->Materials[0].MapKd));
-    GlobalState->BrickWallTexture = GlLoadTexture(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, BrickWallTexture));
-    GlobalState->FadedRayTexture = GlLoadTexture(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, FadedRayTexture));
-    GlobalState->EarthTexture = GlLoadTexture(OpenGL, MapObjBitmapToOpenGLBitmap(GlobalTransientArena, EarthTexture));
+    GlobalState->CheckerBoardTexture = Push32BitColorTexture(RenderGroup, plane->MaterialData->Materials[0].MapKd);
+    GlobalState->BrickWallTexture = Push32BitColorTexture(RenderGroup, BrickWallTexture);
+    GlobalState->FadedRayTexture = Push32BitColorTexture(RenderGroup, FadedRayTexture);
+    GlobalState->EarthTexture = Push32BitColorTexture(RenderGroup, EarthTexture);
     
-    u8 WhitePixel[4] = {255,255,255,255};
-    opengl_bitmap WhitePixelBitmap = {};
-    WhitePixelBitmap.BPP = 32;
-    WhitePixelBitmap.Width = 1;
-    WhitePixelBitmap.Height = 1;
-    u32 ByteSize = (WhitePixelBitmap.BPP/8) * WhitePixelBitmap.Width * WhitePixelBitmap.Height;
-    WhitePixelBitmap.Pixels = PushCopy(GlobalTransientArena, ByteSize, (void*)WhitePixel);
-    GlobalState->WhitePixelTexture = GlLoadTexture(OpenGL, WhitePixelBitmap);
 
-    u32 CharCount = 0x100;
-    char FontPath[] = "C:\\Windows\\Fonts\\consola.ttf";
-    GlobalState->OnedgeValue = 128;  // "Brightness" of the sdf. Higher value makes the SDF bigger and brighter.
-                                     // Has no impact on TextPixelSize since the char then is also bigger.
-    GlobalState->TextPixelSize = 64; // Size of the SDF
-    GlobalState->PixelDistanceScale = 32.0; // Smoothness of how fast the pixel-value goes to zero. Higher PixelDistanceScale, makes it go faster to 0;
-                                            // Lower PixelDistanceScale and Higher OnedgeValue gives a 'sharper' sdf.
-    GlobalState->FontRelativeScale = 1.f;
-    GlobalState->Font = LoadSDFFont(PushArray(GlobalPersistentArena, CharCount, jfont::sdf_fontchar),
-      CharCount, FontPath, GlobalState->TextPixelSize, 3, GlobalState->OnedgeValue, GlobalState->PixelDistanceScale);
+    texture_params FontTexParam = DefaultDepthTextureParams();
+    FontTexParam.TextureFormat = texture_format::R_8;
+    FontTexParam.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+    texture_params DefaultColor = DefaultColorTextureParams();
+    texture_params DefaultDepth = DefaultDepthTextureParams();
+    texture_params RevealTexParam = DefaultColorTextureParams();
+    RevealTexParam.TextureFormat = texture_format::R_8;
+    
+
+    GlobalState->MSAA = 4;
+    GlobalState->Width = RenderCommands->ScreenWidthPixels;
+    GlobalState->Height = RenderCommands->ScreenHeightPixels;
+    GlobalState->MsaaColorTexture = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, DefaultColor, 0);
+    GlobalState->MsaaDepthTexture = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, DefaultDepth, 0);
+    GlobalState->AccumTexture     = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, DefaultColor, 0);
+    GlobalState->RevealTexture    = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, RevealTexParam, 0);
+    GlobalState->GaussianATexture = PushNewTexture(RenderGroup, GlobalState->Width, GlobalState->Height, DefaultColor, 0);
+    GlobalState->GaussianBTexture = PushNewTexture(RenderGroup, GlobalState->Width, GlobalState->Height, DefaultColor, 0);
+    GlobalState->FontTexture      = PushNewTexture(RenderGroup, GlobalState->FontAtlas.AtlasWidth, GlobalState->FontAtlas.AtlasHeight, FontTexParam, GlobalState->FontAtlas.AtlasPixels);
+
+    u32 TransparentColorTexture[]       = {GlobalState->AccumTexture,GlobalState->RevealTexture};
+    GlobalState->DefaultFrameBuffer     = PushNewFrameBuffer(RenderGroup,  GlobalState->Width,       GlobalState->Height, 0, 0, 0, 0);
+    GlobalState->MsaaFrameBuffer        = PushNewFrameBuffer(RenderGroup,  GlobalState->MSAA*GlobalState->Width,  GlobalState->MSAA*GlobalState->Height, 1, &GlobalState->MsaaColorTexture, GlobalState->MsaaDepthTexture, 0);
+    GlobalState->TransparentFrameBuffer = PushNewFrameBuffer(RenderGroup,  GlobalState->MSAA*GlobalState->Width,  GlobalState->MSAA*GlobalState->Height, ArrayCount(TransparentColorTexture), TransparentColorTexture, GlobalState->MsaaDepthTexture, 0);
+    GlobalState->GaussianAFrameBuffer   = PushNewFrameBuffer(RenderGroup,  GlobalState->Width,       GlobalState->Height, 1, &GlobalState->GaussianATexture, 0, 0);
+    GlobalState->GaussianBFrameBuffer   = PushNewFrameBuffer(RenderGroup,  GlobalState->Width,       GlobalState->Height, 1, &GlobalState->GaussianBTexture, 0, 0);
+
+    texture_params WhitePixelParam = DefaultColorTextureParams();
+    WhitePixelParam.TextureFormat = texture_format::RGBA_U8;
+    WhitePixelParam.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+    u8 WhitePixel[4] = {255,255,255,255};
+    void* WhitePixelPtr = PushCopy(GlobalTransientArena, sizeof(WhitePixel), (void*) WhitePixel);
+    GlobalState->WhitePixelTexture = PushNewTexture(RenderGroup, 1, 1, WhitePixelParam, WhitePixelPtr);
+
+    GlobalState->TransparentCompositionProgram = CreateTransparentCompositionProgram(RenderGroup);
+
     GlobalState->Initialized = true;
 
     GlobalState->Camera = {};
-    r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32)RenderCommands->ScreenHeightPixels;
     InitiateCamera(&GlobalState->Camera, 70, AspectRatio, 0.1);
     LookAt(&GlobalState->Camera, V3(0,0,4), V3(0,0,0));
-    RenderCommands->RenderGroup = InitiateRenderGroup();
-    RenderCommands->LoadDebugCode = true;
+
     
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
 
     GlobalState->DebugRenderCommands = PushStruct(GlobalPersistentArena, debug_application_render_commands);
     *GlobalState->DebugRenderCommands = DebugApplicationRenderCommands(RenderCommands, &GlobalState->Camera);
+    GlobalState->DebugRenderCommands->MsaaFrameBuffer = GlobalState->MsaaFrameBuffer;
+    GlobalState->DebugRenderCommands->DefaultFrameBuffer = GlobalState->DefaultFrameBuffer;
   }
+
   GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
-  r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
-  ResetRenderGroup(RenderCommands->RenderGroup);
+  
 
 
   camera* Camera = &GlobalState->Camera;
@@ -1188,6 +1654,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
   RenderStar(GlobalState, RenderCommands, Input, V3(0,10,0));
+  
+  render_context* Context = &RenderCommands->RenderGroup->RenderContext;
 
 #if 0
   // Ray
@@ -1198,17 +1666,19 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     render_object* Ray = PushNewRenderObject(RenderCommands->RenderGroup);
     Ray->ProgramHandle = GlobalState->PhongProgramTransparent;
     Ray->MeshHandle = GlobalState->Plane;
-    Ray->TextureHandle = GlobalState->FadedRayTexture;
+    Ray->TextureHandles[0] = GlobalState->FadedRayTexture;
+    Ray->TextureCount = 1;
     Ray->Transparent = true;
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "ModelView"), ModelViewPlane);
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "NormalView"), NormalViewPlane);
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
-    PushUniform(Ray, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
+    Ray->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ModelView"), ModelViewPlane);
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "NormalView"), NormalViewPlane);
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
+    PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
     PushRenderState(Ray, DepthTestCulling);
 
   }
@@ -1224,17 +1694,18 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     render_object* Floor = PushNewRenderObject(RenderCommands->RenderGroup);
     Floor->ProgramHandle = GlobalState->PhongProgram;
     Floor->MeshHandle = GlobalState->Plane;
-    Floor->TextureHandle = GlobalState->CheckerBoardTexture;
-
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelViewPlane);
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalViewPlane);
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
-    PushUniform(Floor, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
+    Floor->TextureHandles[0] = GlobalState->CheckerBoardTexture;
+    Floor->TextureCount = 1;
+    Floor->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "ModelView"), ModelViewPlane);
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "NormalView"), NormalViewPlane);
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
+    PushUniform(Floor, GetUniformHandle(Context, GlobalState->PhongProgram, "Shininess"), (r32) 20);
     PushRenderState(Floor, DepthTestCulling);
   }
 
@@ -1242,6 +1713,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   r32 Alpha2 = 0.5;
   r32 Alpha3 = 0.8;
 
+  if(true)
   {
     // Sphere
     m4 ModelMat = GetTranslationMatrix( V4(0,0,2,0));
@@ -1254,20 +1726,23 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
     Object->ProgramHandle = GlobalState->PhongProgramTransparent;
     Object->MeshHandle = GlobalState->Sphere;
-    Object->TextureHandle = GlobalState->WhitePixelTexture;
+    Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
+    Object->TextureCount = 1;
     Object->Transparent = true;
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0,  0.0, 0.01, Alpha1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0,  0.0, 0.25, Alpha1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0,  Alpha1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
+    Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0,  0.0, 0.01, Alpha1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0,  0.0, 0.25, Alpha1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0,  Alpha1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
     PushRenderState(Object, DepthTestCulling);
   }
 
+  if(true)
   {
     // Cone
     m4 ModelMat = GetTranslationMatrix( V4(0,0,0,0));
@@ -1279,19 +1754,22 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
     Object->ProgramHandle = GlobalState->PhongProgramTransparent;
     Object->MeshHandle = GlobalState->Cone;
-    Object->TextureHandle = GlobalState->WhitePixelTexture;
+    Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
+    Object->TextureCount = 1;
     Object->Transparent = true;
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.01, 0.0, 0.0, Alpha2));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.25, 0.0, 0.0, Alpha2));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha2));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
+    Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.01, 0.0, 0.0, Alpha2));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.25, 0.0, 0.0, Alpha2));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha2));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
     PushRenderState(Object, DepthTestCulling);
   }
+  if(true)
   {
     // Cube
     m4 ModelMat = GetTranslationMatrix( V4(2,0,2,0));
@@ -1303,21 +1781,24 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
     Object->ProgramHandle = GlobalState->PhongProgramTransparent;
     Object->MeshHandle = GlobalState->Cube;
-    Object->TextureHandle = GlobalState->WhitePixelTexture;
+    Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
+    Object->TextureCount = 1;
     Object->Transparent = true;
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0, 0.01, 0.0, Alpha3));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0, 0.25, 0.0, Alpha3));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha3));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
+    Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0, 0.01, 0.0, Alpha3));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0, 0.25, 0.0, Alpha3));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha3));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
     PushRenderState(Object, DepthTestCulling);
   }
 
   // Solid Cone
+  if(true)
   {
     m4 ModelMat = GetTranslationMatrix(V4(2,0,0,0));
     Rotate( 1/120.f, V4(0,1,0,0), ModelMat );
@@ -1328,22 +1809,24 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
     Object->ProgramHandle = GlobalState->PhongProgram;
     Object->MeshHandle = GlobalState->Cone;
-    Object->TextureHandle = GlobalState->WhitePixelTexture;
-
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "ModelView"), ModelView);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "NormalView"), NormalView);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.01,0.01,0.01,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.25,0.25,0.25,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "MaterialSpecular"), V4(1,1,1,1));
-    PushUniform(Object, GlGetUniformHandle(OpenGL, GlobalState->PhongProgram, "Shininess"), (r32) 20);
+    Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
+    Object->TextureCount = 1;
+    Object->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "ModelView"), ModelView);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "NormalView"), NormalView);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.01,0.01,0.01,1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.25,0.25,0.25,1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "MaterialSpecular"), V4(1,1,1,1));
+    PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgram, "Shininess"), (r32) 20);
     PushRenderState(Object, DepthTestCulling);
   }
 #endif
 
 
+#if 0
   {
     DebugDrawVector(V3(0,0,0), V3(1,0,0), V3(1,0,0), 0.05);
     DebugDrawVector(V3(0,0,0), V3(0,1,0), V3(0,1,0), 0.05);
@@ -1395,8 +1878,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ModelView.E[11] = 0;
     SkyBox->ViewMat = ModelView;
   }
-
+#endif
 
   RenderCommands->DebugCameraV = Camera->V;
   RenderCommands->DebugCameraP = Camera->P;
+
+
+  SortRenderingPipeline(RenderCommands);
 }

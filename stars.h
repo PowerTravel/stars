@@ -4,7 +4,6 @@
 #include "commons/random.h"
 #include "camera.h"
 #include "debug_draw.h"
-#include "utils.h"
 
 struct application_state
 {
@@ -14,6 +13,7 @@ struct application_state
   float PixelDistanceScale;
   float FontRelativeScale = 1;
   jfont::sdf_font Font;
+  jfont::sdf_atlas FontAtlas;
   camera Camera;
 
   random_generator RandomGenerator;
@@ -25,6 +25,9 @@ struct application_state
   u32 SphereStarProgram;
   u32 SolidColorProgram;
   u32 EruptionBandProgram;
+  u32 TransparentCompositionProgram;
+
+  u32 BlitPlane;
   u32 Plane;
   u32 Sphere;
   u32 Triangle;
@@ -38,6 +41,25 @@ struct application_state
   u32 EarthTexture;
   u32 WhitePixelTexture;
   u32 Skybox;
+
+
+  u32 MsaaColorTexture;
+  u32 MsaaDepthTexture;
+  u32 AccumTexture;
+  u32 RevealTexture;
+  u32 GaussianATexture;
+  u32 GaussianBTexture;
+  u32 FontTexture;
+
+  u32 DefaultFrameBuffer;
+  u32 MsaaFrameBuffer;
+  u32 TransparentFrameBuffer;
+  u32 GaussianAFrameBuffer;
+  u32 GaussianBFrameBuffer;
+
+  u32 MSAA;
+  u32 Width;
+  u32 Height;
 
 
   debug_application_render_commands* DebugRenderCommands;
