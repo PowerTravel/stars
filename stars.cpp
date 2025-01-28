@@ -315,7 +315,6 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
 
   PushInstanceData(RayObj, 1, sizeof(ray_cast), (void*) Ray);
   PushRenderState(RayObj, DepthTestNoCulling);
-  RayObj->Transparent = true;
 }
 
 void CastRays(application_render_commands* RenderCommands, jwin::device_input* Input, camera* Camera, v3 Position)
@@ -340,7 +339,6 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
   Ray->ProgramHandle = GlobalState->PlaneStarProgram;
   Ray->MeshHandle = GlobalState->Triangle;
   Ray->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-  Ray->Transparent = true;
 
   PushUniform(Ray, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
   PushUniform(Ray, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GlobalState->PlaneStarProgram, "ViewMat"), Camera->V);
@@ -638,7 +636,6 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
     Halo->ProgramHandle = GameState->PlaneStarProgram;
     Halo->MeshHandle = GameState->Plane;
     Halo->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-    Halo->Transparent = true;
 
     PushUniform(Halo, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GameState->PlaneStarProgram, "ProjectionMat"), Camera->P);
     PushUniform(Halo, GetUniformHandle(&RenderCommands->RenderGroup->RenderContext, GameState->PlaneStarProgram, "ViewMat"), Camera->V);
@@ -1952,7 +1949,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Ray->MeshHandle = GlobalState->Plane;
     Ray->TextureHandles[0] = GlobalState->FadedRayTexture;
     Ray->TextureCount = 1;
-    Ray->Transparent = true;
     Ray->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
     PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
     PushUniform(Ray, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ModelView"), ModelViewPlane);
@@ -2012,7 +2008,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Object->MeshHandle = GlobalState->Sphere;
     Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
     Object->TextureCount = 1;
-    Object->Transparent = true;
     Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
     PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
     PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
@@ -2040,7 +2035,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Object->MeshHandle = GlobalState->Cone;
     Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
     Object->TextureCount = 1;
-    Object->Transparent = true;
     Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
     PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
     PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
@@ -2067,7 +2061,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Object->MeshHandle = GlobalState->Cube;
     Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
     Object->TextureCount = 1;
-    Object->Transparent = true;
     Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
     PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
     PushUniform(Object, GetUniformHandle(Context, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);

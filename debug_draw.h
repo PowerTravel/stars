@@ -85,7 +85,6 @@ void DrawDebugDot(v3 Pos, v3 Color, r32 scale)
   render_object* Sphere = PushNewRenderObject(RenderCommands->RenderGroup);
   Sphere->ProgramHandle = PhongProgramNoTex;
   Sphere->MeshHandle = GlobalDebugRenderCommands->Sphere;
-  Sphere->TextureHandle = U32Max;
   Sphere->FrameBufferHandle = GlobalDebugRenderCommands->MsaaFrameBuffer;
 
   render_context* Context = &RenderCommands->RenderGroup->RenderContext;
@@ -129,7 +128,6 @@ void DrawDebugLine(v3 LineStart, v3 LineEnd, v3 Color, r32 scale)
   render_object* Vec = PushNewRenderObject(RenderCommands->RenderGroup);
   Vec->ProgramHandle = PhongProgramNoTex;
   Vec->MeshHandle = GlobalDebugRenderCommands->Cylinder;
-  Vec->TextureHandle = U32Max;
   Vec->FrameBufferHandle = GlobalDebugRenderCommands->MsaaFrameBuffer;
 
   render_context* Context = &RenderCommands->RenderGroup->RenderContext;
@@ -178,7 +176,6 @@ void DebugDrawVector(v3 From, v3 Direction, v3 Color, r32 scale)
   render_object* Vec = PushNewRenderObject(RenderCommands->RenderGroup);
   Vec->ProgramHandle = PhongProgramNoTex;
   Vec->MeshHandle = Cylinder;
-  Vec->TextureHandle = U32Max;
   Vec->FrameBufferHandle = GlobalDebugRenderCommands->MsaaFrameBuffer;
 
   render_context* Context = &RenderCommands->RenderGroup->RenderContext;
@@ -208,7 +205,6 @@ void DebugDrawVector(v3 From, v3 Direction, v3 Color, r32 scale)
   render_object* VecTop = PushNewRenderObject(RenderCommands->RenderGroup);
   VecTop->ProgramHandle = PhongProgramNoTex;
   VecTop->MeshHandle = Cone;
-  VecTop->TextureHandle = U32Max;
   VecTop->FrameBufferHandle = GlobalDebugRenderCommands->MsaaFrameBuffer;
 
   PushUniform(VecTop, GetUniformHandle(Context, PhongProgramNoTex, "ProjectionMat"), P);
