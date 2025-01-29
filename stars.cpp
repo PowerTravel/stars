@@ -6,7 +6,7 @@
 #include "platform/obj_loader.cpp"
 #include "platform/text_input.cpp"
 #include "renderer/software_render_functions.cpp"
-#include "renderer/render_push_buffer.cpp"
+#include "renderer/render_push_buffer/application_render_push_buffer.cpp"
 #include "math/AABB.cpp"
 #include "camera.cpp"
 #include "math/geometry_math.h"
@@ -453,9 +453,7 @@ void InitializeEruption(eruption_params* Param, random_generator* Generator, u32
   {
     Param->Colors[i] = Colors[i];
   }
-  
 }
-
 
 void RenderStar(application_state* GameState, application_render_commands* RenderCommands, jwin::device_input* Input, v3 Position)
 {
