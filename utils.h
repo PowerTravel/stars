@@ -101,12 +101,12 @@ opengl_buffer_data MapObjToOpenGLMesh(memory_arena* Arena, obj_loaded_file* Obj)
   Result.BufferCount = Obj->ObjectCount;
   Result.BufferData = PushArray(Arena, Obj->ObjectCount,gl_vertex_buffer);
   obj_mesh_data* ObjMeshData = Obj->MeshData;
-  jwin_Assert(ObjMeshData->v && ObjMeshData->vt && ObjMeshData->vn);
+  Assert(ObjMeshData->v && ObjMeshData->vt && ObjMeshData->vn);
   for (int i = 0; i < Obj->ObjectCount; ++i)
   {
     obj_mesh_indeces* ObjIndeces = Obj->ObjectGroups[i].Indeces;
     
-    jwin_Assert(ObjIndeces->Count && ObjIndeces->vi && ObjIndeces->ti &&  ObjIndeces->ni);
+    Assert(ObjIndeces->Count && ObjIndeces->vi && ObjIndeces->ti &&  ObjIndeces->ni);
     Result.BufferData[i] = CreateGLVertexBuffer(
         Arena,
         ObjIndeces->Count,

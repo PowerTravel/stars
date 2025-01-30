@@ -525,7 +525,7 @@ sky_vectors GetSkyVectors(v3 TexForward, v3 TexRight, v3 TexUp, r32 SkyAngle)
 
 v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, skybox_side Side, bitmap* Bitmap)
 {
-  jwin_Assert(Bitmap->Width / 3.f == Bitmap->Height / 2.f);
+  Assert(Bitmap->Width / 3.f == Bitmap->Height / 2.f);
 
   u32 TextureStartX = 0;
   u32 TextureStartY = 0;
@@ -536,7 +536,7 @@ v2 GetTextureCoordinateFromUnitSphereCoordinate(v3 UnitSphere, skybox_side Side,
   r32 AbsX = Abs(UnitSphere.X);
   r32 AbsY = Abs(UnitSphere.Y);
   r32 AbsZ = Abs(UnitSphere.Z);
-  jwin_Assert(AbsX <= 1 && AbsY <= 1 && AbsZ <= 1);
+  Assert(AbsX <= 1 && AbsY <= 1 && AbsZ <= 1);
 
   switch(Side)
   {
@@ -689,12 +689,12 @@ void DrawPixels(v2* DstPixels, v2* SrcPixels, bitmap* DstBitmap, bitmap* SrcBitm
         u32 SrxPixelX = TruncateReal32ToInt32(Lerp(InterpolatedTextureCoord.X, 0, SrcBitmap->Width-1));
         u32 SrxPixelY = TruncateReal32ToInt32(Lerp(InterpolatedTextureCoord.Y, 0, SrcBitmap->Height-1));
         u32 SrcPixelIndex = SrcBitmap->Width *  SrxPixelY + SrxPixelX;
-        jwin_Assert(SrcPixelIndex <  SrcBitmap->Width * SrcBitmap->Height);
+        Assert(SrcPixelIndex <  SrcBitmap->Width * SrcBitmap->Height);
         u32* SrcPixels = (u32*) SrcBitmap->Pixels;
         u32 TextureValue = SrcPixels[SrcPixelIndex];
         u32* DstPixels = (u32*) DstBitmap->Pixels;
         u32 TextureCoordIndex = Y * DstBitmap->Width + X;
-        jwin_Assert(TextureCoordIndex < (DstBitmap->Width * DstBitmap->Height));
+        Assert(TextureCoordIndex < (DstBitmap->Width * DstBitmap->Height));
         DstPixels[TextureCoordIndex] = TextureValue;
       }
     }

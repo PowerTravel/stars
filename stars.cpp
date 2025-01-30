@@ -689,7 +689,7 @@ u32 GetColorFromUnitVector(v3 UnitVec)
   //P.X = Clamp(LinearRemap(UnitVec.X, -1,1, -1,1),0,1);
   //P.Y = Clamp(LinearRemap(UnitVec.Y, -1,1, -1,1),0,1);
   //P.Z = Clamp(LinearRemap(UnitVec.Z, -1,1, -1,1),0,1);
-  //jwin_Assert(P.X >= 0);
+  //Assert(P.X >= 0);
   //P.X = 0;
   //P.Y = 0;
   //P.Z = 0;
@@ -833,7 +833,7 @@ jfont::sdf_font LoadSDFFont(jfont::sdf_fontchar* CharMemory, s32 CharCount, c8 F
   r32 PixelDistanceScale)
 {
   debug_read_file_result TTFFile = Platform.DEBUGPlatformReadEntireFile(FontFilePath);
-  jwin_Assert(TTFFile.Contents);
+  Assert(TTFFile.Contents);
 
   jfont::sdf_font Font = jfont::LoadSDFFont(CharMemory, CharCount, TTFFile.Contents, TextPixelSize, Padding, OnedgeValue, PixelDistanceScale);
 
