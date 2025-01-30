@@ -4,7 +4,13 @@
 #include "commons/random.h"
 #include "camera.h"
 #include "debug_draw.h"
+#include "containers/chunk_list.h"
+#include "entity_components.h"
 
+struct world {
+  entity_manager* EntityManager;
+  chunk_list PositionNodes;
+};
 
 struct application_state
 {
@@ -67,6 +73,8 @@ struct application_state
 
 
   debug_application_render_commands* DebugRenderCommands;
+
+  world World;
 };
 
 debug_application_render_commands* GlobalDebugRenderCommands = 0;

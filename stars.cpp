@@ -11,6 +11,10 @@
 #include "camera.cpp"
 #include "math/geometry_math.h"
 #include "skybox_drawing.h"
+#include "entity_components_backend.cpp"
+#include "entity_components.cpp"
+#include "containers/chunk_list.cpp"
+#include "component_position.cpp"
 
 #include "utils.h"
 
@@ -1544,6 +1548,13 @@ void SortRenderingPipeline(application_render_commands* RenderCommands)
 #endif
 }
 
+world InitiateWorld()
+{
+  world Result = {};
+  Result.EntityManager = CreateEntityManager();
+  Result.PositionNodes = NewChunkList(GlobalPersistentArena, sizeof(position_node), 128);
+  return Result;
+}
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
@@ -1556,6 +1567,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   if(!GlobalState->Initialized)
   {
     RenderCommands->RenderGroup = InitiateRenderGroup();
+
+
 
     CreateFontAtlas(GlobalState);
     obj_loaded_file* plane = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
@@ -1645,10 +1658,25 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     *GlobalState->DebugRenderCommands = DebugApplicationRenderCommands(RenderCommands, &GlobalState->Camera);
     GlobalState->DebugRenderCommands->MsaaFrameBuffer = GlobalState->MsaaFrameBuffer;
     GlobalState->DebugRenderCommands->DefaultFrameBuffer = GlobalState->DefaultFrameBuffer;
+
+
+    GlobalState->World = InitiateWorld();
+
+    entity_id CubeEntity = NewEntity(GlobalState->World.EntityManager, COMPONENT_FLAG_POSITION);
+    component_position* CubePosition = GetPositionComponent(&CubeEntity);
+    InitiatePositionComponent(CubePosition, V3(0,0,0), 0);
+
+    position_node* CubePositionNode = CreatePositionNode({}, Pi32/6);
+    //InsertPositionNode(CubePosition, CubePositionNode->FirstChild, RadialPositionNode);
+
+    //SetRelativePosition(position_node* Node, world_coordinate Position, r32 Rotation);
+
+    int a  = 10;
+
   }
 
   GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
-  
+
 
 
   camera* Camera = &GlobalState->Camera;
@@ -1924,11 +1952,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 
 
+  PositionSystemUpdate(GlobalState->World.EntityManager);
+
   
   UpdateViewMatrix(Camera);
 
   v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
   RenderStar(GlobalState, RenderCommands, Input, V3(0,10,0));
+
 
 #if 0
   // Ray
@@ -1955,6 +1986,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   }
 #endif
+
 
 #if 1
   // Floor
