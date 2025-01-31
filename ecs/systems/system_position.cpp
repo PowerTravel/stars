@@ -1,7 +1,7 @@
 #include "ecs/systems/system_position.h"
 #include "platform/jwin_platform.h"
 
-namespace ecs::system{
+namespace ecs::position{
 
 using namespace component;
 
@@ -19,7 +19,7 @@ internal inline void UpdateAbsolutePositionFromParent(position_node* Node, world
 }
 
 // Note untested with several siblings
-void UpdateAbsolutePosition(memory_arena* Arena, position* Position)
+void UpdateAbsolutePosition(memory_arena* Arena, component* Position)
 {
   if(!Position->Dirty)
   {
@@ -68,7 +68,7 @@ void UpdateAbsolutePosition(memory_arena* Arena, position* Position)
 
 void UpdateAbsolutePosition(memory_arena* Arena, position_node* PositionNode)
 {
-  position* PositionComponent = GetPositionComponentFromNode(PositionNode);
+  component* PositionComponent = GetPositionComponentFromNode(PositionNode);
   UpdateAbsolutePosition(Arena, PositionComponent);
 }
 
@@ -78,7 +78,7 @@ void UpdatePositions(entity_manager* EntityManager)
 
   while(Next(&EntityIterator))
   {
-    position* Position = GetPositionComponent(&EntityIterator);
+    component* Position = GetPositionComponent(&EntityIterator);
     if(Position->Dirty)
     {
       UpdateAbsolutePosition(GlobalTransientArena, Position);  

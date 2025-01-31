@@ -1550,7 +1550,7 @@ world InitiateWorld()
 {
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
-  Result.PositionNodes = NewChunkList(GlobalPersistentArena, sizeof(ecs::component::position_node), 128);
+  Result.PositionNodes = NewChunkList(GlobalPersistentArena, sizeof(ecs::position::position_node), 128);
   return Result;
 }
 
@@ -1660,9 +1660,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     GlobalState->World = InitiateWorld();
 
-    ecs::entity_id CubeEntity = NewEntity(GlobalState->World.EntityManager, ecs::flag::POSITION | ecs::flag::RENDER);
-    ecs::component::position* CubePosition = GetPositionComponent(&CubeEntity);
+    ecs::entity_id CubeEntity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+    ecs::position::component* CubePosition = GetPositionComponent(&CubeEntity);
     InitiatePositionComponent(CubePosition, V3(0,0,0), 0);
+    ecs::render::component* CubeRender = GetRenderComponent(&CubeEntity);
+    
+    CubeRender->MeshHandle = GlobalState->Cube;
+    CubeRender->TextureHandle = 0;
+    CubeRender->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
 
 
     // position_node* CubePositionNode = CreatePositionNode({}, Pi32/6);
@@ -1948,7 +1953,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 
 
-  ecs::system::UpdatePositions(GlobalState->World.EntityManager);
+  ecs::position::UpdatePositions(GlobalState->World.EntityManager);
 
   
   UpdateViewMatrix(Camera);

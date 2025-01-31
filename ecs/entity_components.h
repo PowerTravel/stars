@@ -26,5 +26,5 @@ namespace flag{
 }
 
 
-#define GetPositionComponent(EntityID) ((ecs::component::position*) ecs::GetComponent(GlobalState->World.EntityManager, EntityID, ecs::flag::POSITION))
-#define GetRenderComponent(EntityID) ((ecs::component::render*) ecs::GetComponent(GlobalState->World.EntityManager, EntityID, ecs::flag::RENDER))
+#define GetPositionComponent(EntityID) ((ecs::position::component*) ecs::GetComponent(GlobalState->World.EntityManager, EntityID, ecs::flag::POSITION))
+#define GetRenderComponent(EntityID) ((ecs::render::component*) ecs::GetComponent(GlobalState->World.EntityManager, EntityID, ecs::flag::RENDER))

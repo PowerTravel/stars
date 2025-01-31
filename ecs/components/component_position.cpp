@@ -1,9 +1,8 @@
 #include "ecs/components/component_position.h"
 #include "platform/jwin_platform.h"
-namespace ecs{ 
-namespace component {
+namespace ecs::position {
 
-void InsertPositionNode(position* PositionComponent, position_node* Parent, position_node* Child)
+void InsertPositionNode(component* PositionComponent, position_node* Parent, position_node* Child)
 {
   PositionComponent->NodeCount++;
   Assert(Parent->PositionComponent);
@@ -30,7 +29,7 @@ position_node* CreatePositionNode(world_coordinate Position, r32 Rotation)
   return Result;
 }
 
-void InitiatePositionComponent(position* PositionComponent, world_coordinate Position, r32 Rotation)
+void InitiatePositionComponent(component* PositionComponent, world_coordinate Position, r32 Rotation)
 {
   Assert(!PositionComponent->FirstChild);
 
@@ -40,7 +39,7 @@ void InitiatePositionComponent(position* PositionComponent, world_coordinate Pos
   PositionComponent->Dirty = true;
 }
 
-position* GetPositionComponentFromNode(position_node const * Node)
+component* GetPositionComponentFromNode(position_node const * Node)
 {
   Assert(Node->PositionComponent);
   return Node->PositionComponent;
@@ -52,7 +51,7 @@ world_coordinate GetPositionRelativeTo(position_node const * Node, world_coordin
   return Result;
 }
 
-world_coordinate GetPositionRelativeTo(position const * PositionComponent, world_coordinate Position)
+world_coordinate GetPositionRelativeTo(component const * PositionComponent, world_coordinate Position)
 {
   world_coordinate Result = GetPositionRelativeTo(PositionComponent->FirstChild, Position);
   return Result;
@@ -64,7 +63,7 @@ world_coordinate GetAbsolutePosition(position_node const * PositionNode)
   return Result;
 }
 
-world_coordinate GetAbsolutePosition(position const * PositionComponent)
+world_coordinate GetAbsolutePosition(component const * PositionComponent)
 {
   world_coordinate Result = GetAbsolutePosition(PositionComponent->FirstChild);
   return Result;
@@ -75,7 +74,7 @@ r32 GetAbsoluteRotation(position_node const * PositionNode)
   r32 Result = PositionNode->AbsoluteRotation;
   return Result;
 }
-r32 GetAbsoluteRotation(position const * PositionComponent)
+r32 GetAbsoluteRotation(component const * PositionComponent)
 {
   r32 Result = GetAbsoluteRotation(PositionComponent->FirstChild);
   return Result;
@@ -124,7 +123,7 @@ void SetRelativePosition(position_node* Node, world_coordinate Position, r32 Rot
 }
 
 // Note untested with several siblings
-void ClearPositionComponent(position* PositionComponent)
+void ClearPositionComponent(component* PositionComponent)
 {
   temporary_memory TempMem = BeginTemporaryMemory(GlobalTransientArena);
 
@@ -158,4 +157,3 @@ void ClearPositionComponent(position* PositionComponent)
 }
 
 } 
-}

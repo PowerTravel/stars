@@ -1,6 +1,6 @@
 #pragma once
 
-namespace ecs::system{
+namespace ecs::position{
 
 void UpdatePositions(entity_manager* EntityManager);
 
