@@ -96,7 +96,6 @@ void DrawDebugDot(v3 Pos, v3 Color, r32 scale)
   PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(Sphere, GetUniformHandle(RenderGroup, PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(Sphere, {true,true});
 }
 
 void DrawDebugLine(v3 LineStart, v3 LineEnd, v3 Color, r32 scale)
@@ -139,7 +138,6 @@ void DrawDebugLine(v3 LineStart, v3 LineEnd, v3 Color, r32 scale)
   PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(Vec, {true,true});
 
 }
 
@@ -187,7 +185,6 @@ void DebugDrawVector(v3 From, v3 Direction, v3 Color, r32 scale)
   PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(Vec, GetUniformHandle(RenderGroup, PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(Vec, {true, true});
 
   m4 ModelMatVecTop = M4Identity();
   Scale(V4(0.2,0.2,0.2,0),ModelMatVecTop);
@@ -215,5 +212,4 @@ void DebugDrawVector(v3 From, v3 Direction, v3 Color, r32 scale)
   PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialDiffuse"), Diff);
   PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "MaterialSpecular"),Spec);
   PushUniform(VecTop, GetUniformHandle(RenderGroup, PhongProgramNoTex, "Shininess"), (r32) 20);
-  PushRenderState(VecTop, {true, true});
 }
