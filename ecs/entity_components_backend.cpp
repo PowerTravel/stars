@@ -2,6 +2,8 @@
 #include "commons/macros.h"
 
 
+namespace ecs{
+  
 // entity_component_link: A struct holding references between entities and components
 // Types is a bitmask where each set references a specific component
 // NOTE: Extract the variable sized bitfield in chunk_list to its own type and use here
@@ -589,4 +591,6 @@ void DeleteEntity(entity_manager* EM, entity_id* EntityID)
   }
 
   FreeBlock(&EM->EntityList, (bptr) Entity);
+}
+
 }

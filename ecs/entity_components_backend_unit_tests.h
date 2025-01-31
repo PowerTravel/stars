@@ -1,7 +1,7 @@
 #include "entity_components_backend.h"
-
 namespace entity_components_backend_tests
 {
+namespace ecs{
 
 enum component_type_test
 {
@@ -469,4 +469,4 @@ void RunUnitTests(memory_arena* Arena)
   RunUnitTestsA(Arena);
 }
 
-}
+}}

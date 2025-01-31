@@ -2,10 +2,13 @@
 #include "commons/types.h"
 #include "containers/chunk_list.h"
 
+namespace ecs{
+
 struct component_head;
 struct component_list;
 struct entity;
 
+  
 
 // TODO: Assemble entities into a balanced binary search tree for "easy" search and access
 
@@ -96,3 +99,5 @@ bptr GetComponent(entity_manager* EM, filtered_entity_iterator* ComponentList, b
 void DeleteComponent(entity_manager* EM, entity_id* EntityID, bitmask32 ComponentFlag);
 void DeleteEntity(entity_manager* EM, entity_id* EntityID);
 void DeleteEntities(entity_manager* EM, u32 Count, entity_id* EntityID);
+
+}

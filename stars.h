@@ -5,10 +5,10 @@
 #include "camera.h"
 #include "debug_draw.h"
 #include "containers/chunk_list.h"
-#include "entity_components.h"
+#include "ecs/entity_components.h"
 
 struct world {
-  entity_manager* EntityManager;
+  ecs::entity_manager* EntityManager;
   chunk_list PositionNodes;
 };
 
