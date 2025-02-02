@@ -16,6 +16,9 @@ struct position_node
   // These values are modified directly
   world_coordinate RelativePosition;
   r32 RelativeRotation;
+
+  quat RelativeRotation_2; // Not implemented yet
+  quat AbsoluteRotation_2; // Not implemented yet
   
   // These values are calculated from the tree structure once per frame
   // after Relative position / Rotations have been updated.

@@ -84,7 +84,14 @@ data::material GetMaterial(u32 MaterialIndex) {
 struct component {
   u32 MeshHandle;
   u32 TextureHandle;
+  v3 Scale;
   data::material Material;
+
+//  b32 ModifyRenderState;
+//  b32 UseZBuffer;
+//  b32 BackfaceCulling;
+//
+//  component* Next;
 };
 
 } // namespace render

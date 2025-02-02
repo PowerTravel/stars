@@ -1178,361 +1178,6 @@ u32 PushPlitPlaneMesh(render_group* RenderGroup)
   return Result;
 }
 
-
-// Note: BinomialDepth must be even.
-// CutOff must be less than half BinomialDepth
-u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWeight)
-{
-  r32 CoefficientsA[1028] = {};
-  r32 CoefficientsB[1028] = {};
-  r32 Offset[1028] = {};
-  r32* Current = CoefficientsA;
-  r32* Previous = CoefficientsB;
-  for (int i = 0; i <= BinomialDepth; ++i)
-  {
-    if(i > 0)
-    {
-      for (int j = 0; j <= i; ++j)
-      {
-        if(j == 0)
-        {
-          Current[0] = Previous[0];
-        }else if (j == i)
-        {
-          Current[j] = Previous[i-1];
-        }else{
-          Current[j] = Previous[j] + Previous[j-1];
-        }
-      }  
-    }else{
-      Current[0] = 1;
-    }
-    r32* Tmp = Previous;
-    Previous = Current;
-    Current = Tmp;
-  }
-  
-  for (int i = CutOff; i <= BinomialDepth-CutOff; ++i)
-  {
-    Current[i-CutOff] = Previous[i];
-  }
-
-  u32 ReducedSize = BinomialDepth-2*CutOff + 1;
-  r32 Sum = 0;
-  for (int i = 0; i < ReducedSize; ++i)
-  {
-    Sum += Current[i];
-  }
-
-  for (int i = 0; i < ReducedSize; ++i)
-  {
-    Current[i] /= Sum;
-  }
-
-  u32 ReducedHalfSize = ReducedSize / 2 + 1;
-
-  
-  r32* Tmp = Previous;
-  Previous = Current;
-  Current = Tmp;
-  for (int i = 0; i < ReducedHalfSize; ++i)
-  {
-    Offset[i] = i;
-    Current[ReducedHalfSize - 1 - i] = Previous[i];
-  }
-
-  u32 Size = ReducedHalfSize/2 + 1;
-  Tmp = Previous;
-  Previous = Current;
-  Current = Tmp;
-  OutWeight[0] = Previous[0];
-  for (int i = 1; i < Size; ++i)
-  {
-    u32 idx = 2*i-1;
-    OutWeight[i] = Previous[idx] + Previous[idx+1];
-    OutOffset[i] = (Previous[idx] * Offset[idx] + Previous[idx+1] * Offset[idx+1]) / OutWeight[i];
-  }
-
-  return Size;
-}
-
-struct gl_text
-{
-  v4 TextCoord;
-  m4 ModelMatrix;
-};
-
-void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas,r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])
-{
-  codepoint TextString[1024] = {};
-  u32 UnicodeLen = ConvertToUnicode(Text, TextString);
-  jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
-  gl_text* GlText = PushArray(&RenderGroup->Arena, UnicodeLen, gl_text);
-  jfont::GetTextPrintCoordinates(Font, FontAtlas, RelativeScale, X0, Y0, TextString, TextPrintCoordinates);
-
-  for (int i = 0; i < UnicodeLen; ++i)
-  {
-    jfont::print_coordinates* tc = TextPrintCoordinates+i;
-    gl_text* Gltc = GlText+i;
-    Gltc->TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
-    Gltc->ModelMatrix = M4Identity();
-    Scale(V4(tc->sx, tc->sy,1,0), Gltc->ModelMatrix);
-    Translate(V4(tc->x,tc->y, 0, 1), Gltc->ModelMatrix);
-    Gltc->ModelMatrix = Transpose(Gltc->ModelMatrix);
-  }
-
-  PushInstanceData(RenderObject, UnicodeLen, UnicodeLen*sizeof(gl_text), (void*) GlText);
-}
-
-
-
-void SortRenderingPipeline(application_render_commands* RenderCommands)
-{
-  // Some Gaussian Blur just cause I can
-  r32* KernelOffset = PushArray(GlobalTransientArena, 64, r32);
-  r32* KernelWeight = PushArray(GlobalTransientArena, 64, r32);
-  u32 KernelSize = GetGaussianKernel(12, 2, KernelOffset, KernelWeight);
-
-  // Set up the rendering pipeline for phong shaded program.
-
-  // Add states, draw solid MSAA, draw transparent MSAA, composit image, blit to window-size, Do post effect (if you want) etc etc
-  render_group* RenderGroup = RenderCommands->RenderGroup;
-
-  push_buffer_header* SolidBase = 0;
-  push_buffer_header* Solid = 0;
-  push_buffer_header* TransparentBase = 0;
-  push_buffer_header* Transparent = 0;
-  push_buffer_header* OtherBase = 0;
-  push_buffer_header* Other = 0;
-
-  push_buffer_header* Head = RenderGroup->First;
-  while(Head)
-  {
-    push_buffer_header* NextHead = Head->Next;
-    Head->Next = 0;
-    if(Head->Type == render_buffer_entry_type::RENDER_OBJECT)
-    {
-      render_object* RenderObject = (render_object*) AdvanceByType(Head, push_buffer_header);
-      if(RenderObject->FrameBufferHandle == GlobalState->TransparentFrameBuffer)
-      {
-        if(!TransparentBase){
-          TransparentBase = Head;
-          Transparent = Head;
-        }else{
-          Transparent->Next = Head;
-          Transparent  = Transparent->Next;
-        }
-      }else if(RenderObject->FrameBufferHandle == GlobalState->MsaaFrameBuffer){
-        if(!SolidBase){
-          SolidBase = Head;
-          Solid = Head;
-        }else{
-          Solid->Next = Head;
-          Solid = Solid->Next;
-        }
-      }else{
-        INVALID_CODE_PATH
-      }
-    }else{
-      if(!OtherBase){
-          OtherBase = Head;
-          Other = Head;
-      }else{
-        Other->Next = Head;
-        Other = Other->Next;
-      }
-    }
-
-    Head = NextHead;
-  }
-  
-  RenderGroup->First = OtherBase;
-  RenderGroup->Last = Other;
-
-#if 1
-  u32 MSAA = 4;
-  render_state* DefaultState = PushNewState(RenderGroup);
-  r32 DesiredAspectRatio = GlobalState->Width/(r32)GlobalState->Height;
-  *DefaultState = DefaultRenderState3(GlobalState->MSAA * GlobalState->Width, GlobalState->MSAA * GlobalState->Height, DesiredAspectRatio);
-
-  clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
-  DefClearColor->BufferType = OPEN_GL_COLOR;
-  DefClearColor->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  DefClearColor->TextureIndex = 0;
-  DefClearColor->Color = V4(0,0,0,1);
-
-  clear_operation* DefClearDepth = PushNewClearOperation(RenderGroup);
-  DefClearDepth->BufferType = OPEN_GL_DEPTH;
-  DefClearDepth->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  DefClearDepth->TextureIndex = 0;
-  DefClearDepth->Depth = 1;
-
-  clear_operation* ClearMSAAColor = PushNewClearOperation(RenderGroup);
-  ClearMSAAColor->BufferType = OPEN_GL_COLOR;
-  ClearMSAAColor->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-  ClearMSAAColor->TextureIndex = 0;
-  ClearMSAAColor->Color = V4(0,0,0,1);
-
-  clear_operation* ClearMSAADepth = PushNewClearOperation(RenderGroup);
-  ClearMSAADepth->BufferType = OPEN_GL_DEPTH;
-  ClearMSAADepth->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-  ClearMSAADepth->TextureIndex = 0;
-  ClearMSAADepth->Depth = 1;
-
-  clear_operation* TransparenClearOp0 = PushNewClearOperation(RenderGroup);
-  TransparenClearOp0->BufferType = OPEN_GL_COLOR;
-  TransparenClearOp0->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-  TransparenClearOp0->TextureIndex = 0;
-  TransparenClearOp0->Color = V4(0,0,0,0);
-
-  clear_operation* TransparenClearOp1 = PushNewClearOperation(RenderGroup);
-  TransparenClearOp1->BufferType = OPEN_GL_COLOR;
-  TransparenClearOp1->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-  TransparenClearOp1->TextureIndex = 1;
-  TransparenClearOp1->Color = V4(1,0,0,0);
-
-  // First draw solid objects
-  RenderGroup->Last->Next = SolidBase;
-  RenderGroup->Last = Solid;
-
-  // move to transparent drawing
-  render_state* TransparentState = PushNewState(RenderGroup);
-  depth_state DepthState = {};
-  DepthState.TestActive = true;
-  DepthState.WriteActive = false;
-  SetState(TransparentState, DepthState);
-
-  blend_state BlendState = {};
-  BlendState.Active = true;
-  BlendState.TextureCount = 2;
-  BlendState.TextureBlendStates[0].TextureIndex = 0;
-  BlendState.TextureBlendStates[0].SrcFactor = OPEN_GL_ONE;
-  BlendState.TextureBlendStates[0].DstFactor = OPEN_GL_ONE;
-  BlendState.TextureBlendStates[1].TextureIndex = 1;
-  BlendState.TextureBlendStates[1].SrcFactor = OPEN_GL_ZERO;
-  BlendState.TextureBlendStates[1].DstFactor = OPEN_GL_ONE_MINUS_SRC_ALPHA;
-  SetState(TransparentState, BlendState);
-
-  // Then draw Transparent objects
-    // First draw solid objects
-  RenderGroup->Last->Next = TransparentBase;
-  RenderGroup->Last = Transparent;
-
-  render_state* CompositState = PushNewState(RenderGroup);
-  blend_state CompositBlend = {};
-  CompositBlend.Active = true;
-  CompositBlend.TextureCount = 1;
-  CompositBlend.TextureBlendStates[0].TextureIndex = 0;
-  CompositBlend.TextureBlendStates[0].SrcFactor = OPEN_GL_ONE_MINUS_SRC_ALPHA;
-  CompositBlend.TextureBlendStates[0].DstFactor = OPEN_GL_SRC_ALPHA;
-  SetState(CompositState, CompositBlend);
-
-
-  depth_state CompositDepth = {};
-  CompositDepth.TestActive = false;
-  CompositDepth.WriteActive = false;
-  SetState(CompositState, CompositDepth);
-
-  // Then composit the solid and transparent objects into a single image
-  render_object* CompositionObject = PushNewRenderObject(RenderGroup);
-  CompositionObject->ProgramHandle = GlobalState->TransparentCompositionProgram;
-  CompositionObject->MeshHandle = GlobalState->BlitPlane;
-  CompositionObject->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-  CompositionObject->TextureHandles[0] = GlobalState->AccumTexture;
-  CompositionObject->TextureHandles[1] = GlobalState->RevealTexture;
-  CompositionObject->TextureCount = 2;
-
-  PushUniform(CompositionObject, GetUniformHandle(RenderGroup, GlobalState->TransparentCompositionProgram,  "AccumTex"), (u32)0);
-  PushUniform(CompositionObject, GetUniformHandle(RenderGroup, GlobalState->TransparentCompositionProgram , "RevealTex"), (u32)1);
-
-  // Shrink to regular screeen sice
-  render_state* ViewportAndBlend = PushNewState(RenderGroup);
-  SetState(ViewportAndBlend, ViewportState(GlobalState->Width, GlobalState->Height, DesiredAspectRatio));
-  SetState(ViewportAndBlend, DefaultBlendState());
-
-  // Gaussian blur
-
-  blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
-  BlitOperation->ReadFrameBufferHandle = GlobalState->MsaaFrameBuffer;
-  BlitOperation->DrawFrameBufferHandle = GlobalState->GaussianAFrameBuffer;
-//   BlitOperation->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
-
-  for (int i = 0; i < 4; ++i)
-  {
-    render_object* GaussianBlurX = PushNewRenderObject(RenderGroup);
-    GaussianBlurX->ProgramHandle = GlobalState->GaussianProgramX;
-    GaussianBlurX->MeshHandle = GlobalState->BlitPlane;
-    GaussianBlurX->FrameBufferHandle = GlobalState->GaussianBFrameBuffer;
-    GaussianBlurX->TextureHandles[0] = GlobalState->GaussianATexture;
-    GaussianBlurX->TextureCount = 1;
-
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "kernerlSize"), KernelSize);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "RenderedTexture"), (u32) 0);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "sideSize"), V2(GlobalState->Width, GlobalState->Height));
-
-    render_object* GaussianBlurY = PushNewRenderObject(RenderGroup);
-    GaussianBlurY->ProgramHandle = GlobalState->GaussianProgramY;
-    GaussianBlurY->MeshHandle = GlobalState->BlitPlane;
-    GaussianBlurY->FrameBufferHandle = GlobalState->GaussianAFrameBuffer;
-    GaussianBlurY->TextureHandles[0] = GlobalState->GaussianBTexture;
-    GaussianBlurY->TextureCount = 1;
-    
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "kernerlSize"), KernelSize);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "RenderedTexture"), (u32) 0);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "sideSize"), V2(GlobalState->Width, GlobalState->Height));
-  }
-  blit_operation* BlitOperation2 = PushNewBlitOperation(RenderGroup);
-  BlitOperation2->ReadFrameBufferHandle = GlobalState->GaussianBFrameBuffer;
-  BlitOperation2->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
-
-
-  // Overlay text
-  utf8_byte K[] = "Hello my name is jonas.";
-
-  render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
-  OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
-  OverlayTextProgram->MeshHandle = GlobalState->BlitPlane;
-  OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  OverlayTextProgram->TextureHandles[0] = GlobalState->FontTexture;
-  OverlayTextProgram->TextureCount = 1;
-  m4 ProjectionMatrix = GetOrthographicProjection(-1, 1, GlobalState->Width, 0, GlobalState->Height, 0);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"), ProjectionMatrix);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
-  PushStringToGpu(RenderGroup, OverlayTextProgram, &GlobalState->Font,  &GlobalState->FontAtlas , 30, 64,  0.3, K);
-  
-#endif
-
-#if 0
-
-  Head = RenderGroup->First;
-  while(Head)
-  {
-    switch(Head->Type)
-    { 
-      case render_buffer_entry_type::RENDER_OBJECT:{ Platform.DEBUGPrint("%s\n", "RENDER_OBJECT");}break;
-      case render_buffer_entry_type::BLIT_OPERATION:{ Platform.DEBUGPrint("%s\n", "BLIT_OPERATION");}break;
-      case render_buffer_entry_type::CLEAR_OPERATION:{ Platform.DEBUGPrint("%s\n", "CLEAR_OPERATION");}break;
-      case render_buffer_entry_type::SET_STATE:{ Platform.DEBUGPrint("%s\n", "SET_STATE");}break;
-      case render_buffer_entry_type::NEW_TEXTURE:{ Platform.DEBUGPrint("%s\n", "NEW_TEXTURE");}break;
-      case render_buffer_entry_type::NEW_SHADER_PROGRAM:{ Platform.DEBUGPrint("%s\n", "NEW_SHADER_PROGRAM");}break;
-      case render_buffer_entry_type::NEW_FBO:{ Platform.DEBUGPrint("%s\n", "NEW_FBO");}break;
-      case render_buffer_entry_type::NEW_MESH:{ Platform.DEBUGPrint("%s\n", "NEW_MESH");}break;
-      case render_buffer_entry_type::SKYBOX:{ Platform.DEBUGPrint("%s\n", "SKYBOX");}break;
-      case render_buffer_entry_type::NEW_LEVEL:{ Platform.DEBUGPrint("%s\n", "NEW_LEVEL");}break;
-      case render_buffer_entry_type::COUNT:{ Platform.DEBUGPrint("%s\n", "COUN");}break;
-    }
-    Head = Head->Next;
-  }
-
-#endif
-}
-
 world InitiateWorld()
 {
   world Result = {};
@@ -1647,17 +1292,60 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     GlobalState->World = InitiateWorld();
 
-    ecs::entity_id CubeEntity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
-    ecs::position::component* CubePosition = GetPositionComponent(&CubeEntity);
-    InitiatePositionComponent(CubePosition, V3(0,0,0), 0);
-    ecs::render::component* CubeRender = GetRenderComponent(&CubeEntity);
+    { // Checker Floor
+      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+      ecs::position::component* Position = GetPositionComponent(&Entity);
+      InitiatePositionComponent(Position, V3(0,-1.1,0), 0);
+      ecs::render::component* Render = GetRenderComponent(&Entity);
+      Render->MeshHandle = GlobalState->Plane;
+      Render->TextureHandle = GlobalState->CheckerBoardTexture;
+      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_PEARL);
+      Render->Scale = V3(10,1,10);
+    }
+
+    { // Transparent Cube
+      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+      ecs::position::component* Position = GetPositionComponent(&Entity);
+      InitiatePositionComponent(Position, V3(2,0,0), 0);
+      ecs::render::component* Render = GetRenderComponent(&Entity);
+      Render->MeshHandle = GlobalState->Cube;
+      Render->TextureHandle = GlobalState->WhitePixelTexture;
+      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
+      Render->Scale = V3(1,1,1);
+    }
     
-    CubeRender->MeshHandle = GlobalState->Cube;
-    CubeRender->TextureHandle = 0;
-    CubeRender->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
+    { // Transparent Cone
+      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+      ecs::position::component* Position = GetPositionComponent(&Entity);
+      InitiatePositionComponent(Position, V3(0,0,2), 0);
+      ecs::render::component* Render = GetRenderComponent(&Entity);
+      Render->MeshHandle = GlobalState->Cone;
+      Render->TextureHandle = GlobalState->WhitePixelTexture;
+      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_EMERALD);
+      Render->Scale = V3(1,1,1);
+    }
+    
+    { // Transparent Sphere
+      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+      ecs::position::component* Position = GetPositionComponent(&Entity);
+      InitiatePositionComponent(Position, V3(2,0,2), 0);
+      ecs::render::component* Render = GetRenderComponent(&Entity);
+      Render->MeshHandle = GlobalState->Sphere;
+      Render->TextureHandle = GlobalState->WhitePixelTexture;
+      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_JADE);
+      Render->Scale = V3(1,1,1);
+    }
 
-
-    // position_node* CubePositionNode = CreatePositionNode({}, Pi32/6);
+    { // Solid Cone
+      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+      ecs::position::component* Position = GetPositionComponent(&Entity);
+      InitiatePositionComponent(Position, V3(0,0,0), 0);
+      ecs::render::component* Render = GetRenderComponent(&Entity);
+      Render->MeshHandle = GlobalState->Cone;
+      Render->TextureHandle = GlobalState->WhitePixelTexture;
+      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_SILVER);
+      Render->Scale = V3(1,1,1);
+    }
 
     int a  = 10;
 
@@ -1946,168 +1634,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   UpdateViewMatrix(Camera);
 
   v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
-  RenderStar(GlobalState, RenderCommands, Input, V3(0,10,0));
-
-
-#if 0
-  // Ray
-  {
-    m4 ModelViewPlane = Camera->V* GetTranslationMatrix(V4(0,-1,0,0)) * GetScaleMatrix(V4(10,0,10,1));
-    m4 NormalViewPlane = Transpose(RigidInverse(ModelViewPlane));
-
-    render_object* Ray = PushNewRenderObject(RenderCommands->RenderGroup);
-    Ray->ProgramHandle = GlobalState->PhongProgramTransparent;
-    Ray->MeshHandle = GlobalState->Plane;
-    Ray->TextureHandles[0] = GlobalState->FadedRayTexture;
-    Ray->TextureCount = 1;
-    Ray->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "ModelView"), ModelViewPlane);
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "NormalView"), NormalViewPlane);
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
-    PushUniform(Ray, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
-
-  }
-#endif
-
-
-#if 1
-  // Floor
-  {
-    m4 ModelMatPlane = GetTranslationMatrix( V4(0,-1.1,0,0)) * GetScaleMatrix( V4(10,0.1,10,0));
-    m4 ModelViewPlane = Camera->V*ModelMatPlane;
-    m4 NormalViewPlane = Transpose(RigidInverse(ModelViewPlane));
-
-    render_object* Floor = PushNewRenderObject(RenderCommands->RenderGroup);
-    Floor->ProgramHandle = GlobalState->PhongProgram;
-    Floor->MeshHandle = GlobalState->Plane;
-    Floor->TextureHandles[0] = GlobalState->CheckerBoardTexture;
-    Floor->TextureCount = 1;
-    Floor->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"), ModelViewPlane);
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalViewPlane);
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.4,0.4,0.4,1));
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.5,0.5,0.5,1));
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), V4(0.75,0.75,0.75,1));
-    PushUniform(Floor, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), (r32) 20);
-  }
-
-  r32 Alpha1 = 0.3;
-  r32 Alpha2 = 0.5;
-  r32 Alpha3 = 0.8;
-
-  if(true)
-  {
-    // Sphere
-    m4 ModelMat = GetTranslationMatrix( V4(0,0,2,0));
-    Rotate( 1/120.f, -V4(0,1,0,0), ModelMat );
-
-    m4 ModelView = Camera->V*ModelMat;
-    m4 NormalView = Transpose(RigidInverse(ModelView));
-
-
-    render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
-    Object->ProgramHandle = GlobalState->PhongProgramTransparent;
-    Object->MeshHandle = GlobalState->Sphere;
-    Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
-    Object->TextureCount = 1;
-    Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0,  0.0, 0.01, Alpha1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0,  0.0, 0.25, Alpha1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0,  Alpha1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
-  }
-
-  if(true)
-  {
-    // Cone
-    m4 ModelMat = GetTranslationMatrix( V4(0,0,0,0));
-    Rotate( 1/120.f, -V4(0,1,0,0), ModelMat );
-
-    m4 ModelView = Camera->V*ModelMat;
-    m4 NormalView = Transpose(RigidInverse(ModelView));
-
-    render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
-    Object->ProgramHandle = GlobalState->PhongProgramTransparent;
-    Object->MeshHandle = GlobalState->Cone;
-    Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
-    Object->TextureCount = 1;
-    Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.01, 0.0, 0.0, Alpha2));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.25, 0.0, 0.0, Alpha2));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha2));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
-  }
-  if(true)
-  {
-    // Cube
-    m4 ModelMat = GetTranslationMatrix( V4(2,0,2,0));
-    Rotate( 1/120.f, -V4(0,1,0,0), ModelMat );
-
-    m4 ModelView = Camera->V*ModelMat;
-    m4 NormalView = Transpose(RigidInverse(ModelView));
-
-    render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
-    Object->ProgramHandle = GlobalState->PhongProgramTransparent;
-    Object->MeshHandle = GlobalState->Cube;
-    Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
-    Object->TextureCount = 1;
-    Object->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "ProjectionMat"), Camera->P);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "ModelView"), ModelView);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "NormalView"), NormalView);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "LightDirection"), LightDirection);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialAmbient"), V4(0.0, 0.01, 0.0, Alpha3));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialDiffuse"), V4(0.0, 0.25, 0.0, Alpha3));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "MaterialSpecular"), V4(1.0, 1.0, 1.0, Alpha3));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgramTransparent, "Shininess"), (r32) 20);
-  }
-
-  // Solid Cone
-  if(true)
-  {
-    m4 ModelMat = GetTranslationMatrix(V4(2,0,0,0));
-    Rotate( 1/120.f, V4(0,1,0,0), ModelMat );
-
-    m4 ModelView = Camera->V*ModelMat;
-    m4 NormalView = Transpose(RigidInverse(ModelView));
-
-    render_object* Object = PushNewRenderObject(RenderCommands->RenderGroup);
-    Object->ProgramHandle = GlobalState->PhongProgram;
-    Object->MeshHandle = GlobalState->Cone;
-    Object->TextureHandles[0] = GlobalState->WhitePixelTexture;
-    Object->TextureCount = 1;
-    Object->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"), Camera->P);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"), ModelView);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), V3(1,1,1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), V4(0.01,0.01,0.01,1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), V4(0.25,0.25,0.25,1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), V4(1,1,1,1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), (r32) 20);
-  }
-#endif
-
+ // RenderStar(GlobalState, RenderCommands, Input, V3(0,10,0));
 
 #if 0
   {
@@ -2161,7 +1688,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ModelView.E[11] = 0;
     SkyBox->ViewMat = ModelView;
   }
-#endif
-
   SortRenderingPipeline(RenderCommands);
+#endif
+  ecs::render::Draw(GlobalState->World.EntityManager, RenderGroup, Camera->P, Camera->V);
+  
 }

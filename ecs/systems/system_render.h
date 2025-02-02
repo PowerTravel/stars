@@ -30,6 +30,6 @@ namespace render {
     return Result;
   }
 
-  void Draw(system* RenderSystem, entity_manager* EntityManager);
+  void Draw(entity_manager* EntityManager, render_group* RenderGroup, m4 ProjectionMatrix, m4 ViewMatrix);
 }
 }
