@@ -818,17 +818,6 @@ skybox_triangle GetTopRightTriangle(skybox_quad* Quad) {
   return {Quad->A, Quad->B, Quad->C};
 }
 
-jfont::sdf_font LoadSDFFont(jfont::sdf_fontchar* CharMemory, s32 CharCount, c8 FontFilePath[], r32 TextPixelSize, s32 Padding, s32 OnedgeValue, 
-  r32 PixelDistanceScale)
-{
-  debug_read_file_result TTFFile = Platform.DEBUGPlatformReadEntireFile(FontFilePath);
-  Assert(TTFFile.Contents);
-
-  jfont::sdf_font Font = jfont::LoadSDFFont(CharMemory, CharCount, TTFFile.Contents, TextPixelSize, Padding, OnedgeValue, PixelDistanceScale);
-
-  Platform.DEBUGPlatformFreeFileMemory(TTFFile.Contents);
-  return Font;
-}
 
 u32 Push32BitColorTexture(render_group* RenderGroup,  obj_bitmap* BitMap)
 {
@@ -839,23 +828,7 @@ u32 Push32BitColorTexture(render_group* RenderGroup,  obj_bitmap* BitMap)
   return Result;
 }
 
-void CreateFontAtlas(application_state* State)
-{
-  u32 CharCount = 0x100;
-  char FontPath[] = "C:\\Windows\\Fonts\\consola.ttf";
-  State->OnedgeValue = 128;  // "Brightness" of the sdf. Higher value makes the SDF bigger and brighter.
-                                   // Has no impact on TextPixelSize since the char then is also bigger.
-  State->TextPixelSize = 64; // Size of the SDF
-  State->PixelDistanceScale = 32.0; // Smoothness of how fast the pixel-value goes to zero. Higher PixelDistanceScale, makes it go faster to 0;
-                                          // Lower PixelDistanceScale and Higher OnedgeValue gives a 'sharper' sdf.
-  State->FontRelativeScale = 1.f;
-  State->Font = LoadSDFFont(PushArray(GlobalPersistentArena, CharCount, jfont::sdf_fontchar),
-    CharCount, FontPath, State->TextPixelSize, 3, State->OnedgeValue, State->PixelDistanceScale);
 
-  midx AtlasFileSize = jfont::SDFAtlasRequiredMemoryAmount(&State->Font);
-  u8* FontMemory = PushArray(GlobalPersistentArena, AtlasFileSize, u8);
-  State->FontAtlas = jfont::CreateSDFAtlas(&State->Font, FontMemory);
-}
 //struct push_buffer_header
 //{
 //  render_buffer_entry_type Type;
@@ -1178,11 +1151,12 @@ u32 PushPlitPlaneMesh(render_group* RenderGroup)
   return Result;
 }
 
-world InitiateWorld()
+world InitiateWorld(render_group* RenderGroup)
 {
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
   Result.PositionNodes = NewChunkList(GlobalPersistentArena, sizeof(ecs::position::position_node), 128);
+  Result.RenderSystem = ecs::render::CreateRenderSystem(RenderGroup);
   return Result;
 }
 
@@ -1198,9 +1172,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   {
     RenderCommands->RenderGroup = InitiateRenderGroup();
 
-
-
-    CreateFontAtlas(GlobalState);
     obj_loaded_file* plane = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
     obj_loaded_file* billboard = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\plane.obj");
     obj_loaded_file* sphere = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\sphere.obj");
@@ -1240,9 +1211,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->EarthTexture = Push32BitColorTexture(RenderGroup, EarthTexture);
     
 
-    texture_params FontTexParam = DefaultDepthTextureParams();
-    FontTexParam.TextureFormat = texture_format::R_8;
-    FontTexParam.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+
     texture_params DefaultColor = DefaultColorTextureParams();
     texture_params DefaultDepth = DefaultDepthTextureParams();
     texture_params RevealTexParam = DefaultColorTextureParams();
@@ -1258,7 +1227,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->RevealTexture    = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, RevealTexParam, 0);
     GlobalState->GaussianATexture = PushNewTexture(RenderGroup, GlobalState->Width, GlobalState->Height, DefaultColor, 0);
     GlobalState->GaussianBTexture = PushNewTexture(RenderGroup, GlobalState->Width, GlobalState->Height, DefaultColor, 0);
-    GlobalState->FontTexture      = PushNewTexture(RenderGroup, GlobalState->FontAtlas.AtlasWidth, GlobalState->FontAtlas.AtlasHeight, FontTexParam, GlobalState->FontAtlas.AtlasPixels);
+    
 
     u32 TransparentColorTexture[]       = {GlobalState->AccumTexture,GlobalState->RevealTexture};
     GlobalState->DefaultFrameBuffer     = PushNewFrameBuffer(RenderGroup,  GlobalState->Width,       GlobalState->Height, 0, 0, 0, 0);
@@ -1290,7 +1259,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->DebugRenderCommands->DefaultFrameBuffer = GlobalState->DefaultFrameBuffer;
 
 
-    GlobalState->World = InitiateWorld();
+    GlobalState->World = InitiateWorld(RenderGroup);
 
     { // Checker Floor
       ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
@@ -1619,11 +1588,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     
     CompileShader(RenderGroup, GlobalState->GaussianProgramY, 1, getGaussianVertexCodeY(), 1, getGaussianFragmentCodeY());
     CompileShader(RenderGroup, GlobalState->GaussianProgramX, 1, getGaussianVertexCodeX(), 1, getGaussianFragmentCodeX());
-    
-   // GlobalDebugRenderCommands->PhongProgramNoTex = GlReloadProgram(OpenGL, GlobalDebugRenderCommands->PhongProgramNoTex,
-   //   1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
-   //   1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
-
 
   }
 
@@ -1690,6 +1654,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
   SortRenderingPipeline(RenderCommands);
 #endif
-  ecs::render::Draw(GlobalState->World.EntityManager, RenderGroup, Camera->P, Camera->V);
+  ecs::render::Draw(GlobalState->World.EntityManager, GlobalState->World.RenderSystem, Camera->P, Camera->V);
   
 }

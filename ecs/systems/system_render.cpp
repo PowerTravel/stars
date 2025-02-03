@@ -143,8 +143,10 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
 
 }
 
-void Draw(entity_manager* EntityManager, render_group* RenderGroup, m4 ProjectionMatrix, m4 ViewMatrix)
+void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix)
 {
+  render_group* RenderGroup = RenderSystem->RenderGroup;
+
   v3 LightColor = V3(1,1,1);
   v3 LightPosition = V3(1,1,1);
   v3 LightDirection = V3(Transpose(RigidInverse(ViewMatrix)) * V4(LightPosition,0));
@@ -327,15 +329,67 @@ void Draw(entity_manager* EntityManager, render_group* RenderGroup, m4 Projectio
   OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
   OverlayTextProgram->MeshHandle = GlobalState->BlitPlane;
   OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  OverlayTextProgram->TextureHandles[0] = GlobalState->FontTexture;
+  OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
   OverlayTextProgram->TextureCount = 1;
   m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, GlobalState->Width, 0, GlobalState->Height, 0);
   PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"), OrthoProjectionMatrix);
   PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
   PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
   PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
-  PushStringToGpu(RenderGroup, OverlayTextProgram, &GlobalState->Font,  &GlobalState->FontAtlas , 30, 64,  0.3, K);
+  PushStringToGpu(RenderGroup, OverlayTextProgram, &RenderSystem->Font.Font,  &RenderSystem->Font.FontAtlas , 30, 64,  0.3, K);
 
+}
+
+jfont::sdf_font LoadSDFFont(jfont::sdf_fontchar* CharMemory, s32 CharCount, c8 FontFilePath[], r32 TextPixelSize, s32 Padding, s32 OnedgeValue, 
+  r32 PixelDistanceScale)
+{
+  debug_read_file_result TTFFile = Platform.DEBUGPlatformReadEntireFile(FontFilePath);
+  Assert(TTFFile.Contents);
+
+  jfont::sdf_font Font = jfont::LoadSDFFont(CharMemory, CharCount, TTFFile.Contents, TextPixelSize, Padding, OnedgeValue, PixelDistanceScale);
+
+  Platform.DEBUGPlatformFreeFileMemory(TTFFile.Contents);
+  return Font;
+}
+
+data::font CreateFont(memory_arena* Arena)
+{
+  u32 CharCount = 0x100;
+  char FontPath[] = "C:\\Windows\\Fonts\\consola.ttf";
+  data::font Font = {};
+  Font.OnedgeValue = 128;  // "Brightness" of the sdf. Higher value makes the SDF bigger and brighter.
+                                   // Has no impact on TextPixelSize since the char then is also bigger.
+  Font.TextPixelSize = 64; // Size of the SDF
+  Font.PixelDistanceScale = 32.0; // Smoothness of how fast the pixel-value goes to zero. Higher PixelDistanceScale, makes it go faster to 0;
+                                          // Lower PixelDistanceScale and Higher OnedgeValue gives a 'sharper' sdf.
+  Font.FontRelativeScale = 1.f;
+  Font.Font = LoadSDFFont(PushArray(Arena, CharCount, jfont::sdf_fontchar),
+    CharCount, FontPath, Font.TextPixelSize, 3, Font.OnedgeValue, Font.PixelDistanceScale);
+
+  midx AtlasFileSize = jfont::SDFAtlasRequiredMemoryAmount(&Font.Font);
+  u8* FontMemory = PushArray(Arena, AtlasFileSize, u8);
+  Font.FontAtlas = jfont::CreateSDFAtlas(&Font.Font, FontMemory);
+
+  return Font;
+}
+
+system* CreateRenderSystem(render_group* RenderGroup)
+{
+  system* Result = BootstrapPushStruct(system, Arena);
+  Result->SolidObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
+  Result->TransparentObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
+  Result->OverlayText = NewChunkList(&Result->Arena, sizeof(render_object), 128);
+  Result->RenderGroup = RenderGroup;
+  Result->Font = CreateFont(&Result->Arena);
+
+  jfont::sdf_atlas* FontAtlas = &Result->Font.FontAtlas;
+
+  texture_params FontTexParam = DefaultColorTextureParams();
+  FontTexParam.TextureFormat = texture_format::R_8;
+  FontTexParam.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+  Result->FontTextureHandle = PushNewTexture(RenderGroup, FontAtlas->AtlasWidth, FontAtlas->AtlasHeight, FontTexParam, FontAtlas->AtlasPixels);
+
+  return Result;
 }
 
 }

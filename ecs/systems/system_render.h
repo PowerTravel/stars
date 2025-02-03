@@ -1,6 +1,7 @@
 #pragma once
 
 #include "platform/jwin_platform.h"
+#include "platform/jfont.h"
 #include "containers/chunk_list.h"
 
 namespace ecs {
@@ -14,22 +15,30 @@ namespace render {
     TRANSPARENT_COMPOSITION
   };
 
+    struct font
+    {
+      int TextPixelSize;
+      int OnedgeValue;
+      float PixelDistanceScale;
+      float FontRelativeScale;
+      jfont::sdf_font Font;
+      jfont::sdf_atlas FontAtlas;
+    };
+
   }// namespace data
+
 
   struct system {
     memory_arena Arena;
+    render_group* RenderGroup;
     chunk_list SolidObjects;
     chunk_list TransparentObjects;
+    chunk_list OverlayText;
+    data::font Font;
+    u32 FontTextureHandle;
   };
-  
-  system* InitiateRenderSystem()
-  {
-    system* Result = BootstrapPushStruct(system, Arena);
-    Result->SolidObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
-    Result->TransparentObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
-    return Result;
-  }
 
-  void Draw(entity_manager* EntityManager, render_group* RenderGroup, m4 ProjectionMatrix, m4 ViewMatrix);
+  system* CreateRenderSystem(render_group* RenderGroup);
+  void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix);
 }
 }

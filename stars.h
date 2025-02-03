@@ -6,21 +6,17 @@
 #include "debug_draw.h"
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
+#include "ecs/systems/system_render.h"
 
 struct world {
   ecs::entity_manager* EntityManager;
+  ecs::render::system* RenderSystem;
   chunk_list PositionNodes;
 };
 
 struct application_state
 {
   b32 Initialized;
-  int TextPixelSize;
-  int OnedgeValue;
-  float PixelDistanceScale;
-  float FontRelativeScale = 1;
-  jfont::sdf_font Font;
-  jfont::sdf_atlas FontAtlas;
   camera Camera;
 
   random_generator RandomGenerator;
@@ -59,7 +55,6 @@ struct application_state
   u32 RevealTexture;
   u32 GaussianATexture;
   u32 GaussianBTexture;
-  u32 FontTexture;
 
   u32 DefaultFrameBuffer;
   u32 MsaaFrameBuffer;
