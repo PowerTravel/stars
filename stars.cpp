@@ -1596,8 +1596,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   
   UpdateViewMatrix(Camera);
-
-  v3 LightDirection = V3(Transpose(RigidInverse(Camera->V)) * V4(LightPosition,0));
+  utf8_byte K[] = "Hello my name is jonas.";
+  DrawOverlayText(GlobalState->World.RenderSystem, K, 30, 30, 0.5);
  // RenderStar(GlobalState, RenderCommands, Input, V3(0,10,0));
 
 #if 0
@@ -1652,7 +1652,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ModelView.E[11] = 0;
     SkyBox->ViewMat = ModelView;
   }
-  SortRenderingPipeline(RenderCommands);
 #endif
   ecs::render::Draw(GlobalState->World.EntityManager, GlobalState->World.RenderSystem, Camera->P, Camera->V);
   

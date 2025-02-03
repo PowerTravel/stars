@@ -15,15 +15,16 @@ namespace render {
     TRANSPARENT_COMPOSITION
   };
 
-    struct font
-    {
-      int TextPixelSize;
-      int OnedgeValue;
-      float PixelDistanceScale;
-      float FontRelativeScale;
-      jfont::sdf_font Font;
-      jfont::sdf_atlas FontAtlas;
-    };
+  struct font
+  {
+    int TextPixelSize;
+    int OnedgeValue;
+    float PixelDistanceScale;
+    float FontRelativeScale;
+    jfont::sdf_font Font;
+    jfont::sdf_atlas FontAtlas;
+  };
+
 
   }// namespace data
 
@@ -31,8 +32,8 @@ namespace render {
   struct system {
     memory_arena Arena;
     render_group* RenderGroup;
-    chunk_list SolidObjects;
-    chunk_list TransparentObjects;
+//    chunk_list SolidObjects;
+//    chunk_list TransparentObjects;
     chunk_list OverlayText;
     data::font Font;
     u32 FontTextureHandle;
@@ -40,5 +41,6 @@ namespace render {
 
   system* CreateRenderSystem(render_group* RenderGroup);
   void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix);
+  void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale);
 }
 }

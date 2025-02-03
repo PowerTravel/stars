@@ -9,7 +9,9 @@ struct gl_text
   m4 ModelMatrix;
 };
 
-void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas,r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])
+
+
+void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas, r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])
 {
   codepoint TextString[1024] = {};
   u32 UnicodeLen = ConvertToUnicode(Text, TextString);
@@ -142,7 +144,7 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Render->Material.Shininess);
 
 }
-
+void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale);
 void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix)
 {
   render_group* RenderGroup = RenderSystem->RenderGroup;
@@ -323,21 +325,60 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 #endif
 
   // Overlay text
-  utf8_byte K[] = "Hello my name is jonas.";
+  u32 Count = GetBlockCount(&RenderSystem->OverlayText);
+  if(Count)
+  {
+    render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
+    OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
+    OverlayTextProgram->MeshHandle = GlobalState->BlitPlane;
+    OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+    OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
+    OverlayTextProgram->TextureCount = 1;
+    m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, GlobalState->Width, 0, GlobalState->Height, 0);
+    PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"), OrthoProjectionMatrix);
+    PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
+    PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
+    PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
+    
+    u32 Count = GetBlockCount(&RenderSystem->OverlayText);
+    gl_text* Text = PushArray(GlobalTransientArena, Count, gl_text);
+    chunk_list_iterator TextIt = BeginIterator(&RenderSystem->OverlayText);
+    u32 i = 0;
+    while(Valid(&TextIt)) {
+      gl_text* GlChar = (gl_text*) Next(&TextIt);
+      Text[i] = *GlChar;
+      i++;
+    }
 
-  render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
-  OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
-  OverlayTextProgram->MeshHandle = GlobalState->BlitPlane;
-  OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
-  OverlayTextProgram->TextureCount = 1;
-  m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, GlobalState->Width, 0, GlobalState->Height, 0);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"), OrthoProjectionMatrix);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
-  PushStringToGpu(RenderGroup, OverlayTextProgram, &RenderSystem->Font.Font,  &RenderSystem->Font.FontAtlas , 30, 64,  0.3, K);
+    Platform.DEBUGPrint("%d\n", Count);
+    PushInstanceData(OverlayTextProgram, Count, Count*sizeof(gl_text), (void*) Text);
+    Clear(&RenderSystem->OverlayText);
+  }
 
+  
+}
+
+void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale) {
+  SCOPED_TRANSIENT_ARENA;
+  u32 Length = jstr::StringLength((const char*)Text);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, Length, codepoint);
+  u32 UnicodeLen = ConvertToUnicode(Text, CodePoints);
+  jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
+  jfont::sdf_font* Font = &RenderSystem->Font.Font;
+  jfont::sdf_atlas* FontAtlas = &RenderSystem->Font.FontAtlas;
+  jfont::GetTextPrintCoordinates(Font, FontAtlas, RelativeScale, X0, Y0, CodePoints, TextPrintCoordinates);
+
+  for (int i = 0; i < UnicodeLen; ++i)
+  {
+    jfont::print_coordinates* tc = TextPrintCoordinates+i;
+    gl_text GlText = {};
+    GlText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
+    GlText.ModelMatrix = M4Identity();
+    Scale(V4(tc->sx, tc->sy,1,0), GlText.ModelMatrix);
+    Translate(V4(tc->x,tc->y, 0, 1), GlText.ModelMatrix);
+    GlText.ModelMatrix = Transpose(GlText.ModelMatrix);
+    Push(&RenderSystem->Arena, &RenderSystem->OverlayText, (bptr)&GlText);
+  }
 }
 
 jfont::sdf_font LoadSDFFont(jfont::sdf_fontchar* CharMemory, s32 CharCount, c8 FontFilePath[], r32 TextPixelSize, s32 Padding, s32 OnedgeValue, 
@@ -376,9 +417,9 @@ data::font CreateFont(memory_arena* Arena)
 system* CreateRenderSystem(render_group* RenderGroup)
 {
   system* Result = BootstrapPushStruct(system, Arena);
-  Result->SolidObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
-  Result->TransparentObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
-  Result->OverlayText = NewChunkList(&Result->Arena, sizeof(render_object), 128);
+  //Result->SolidObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
+  //Result->TransparentObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
+  Result->OverlayText = NewChunkList(&Result->Arena, sizeof(gl_text), 512);
   Result->RenderGroup = RenderGroup;
   Result->Font = CreateFont(&Result->Arena);
 
