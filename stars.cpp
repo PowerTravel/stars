@@ -1598,61 +1598,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   UpdateViewMatrix(Camera);
   utf8_byte K[] = "Hello my name is jonas.";
   DrawOverlayText(GlobalState->World.RenderSystem, K, 30, 30, 0.5);
- // RenderStar(GlobalState, RenderCommands, Input, V3(0,10,0));
 
-#if 0
-  {
-    DebugDrawVector(V3(0,0,0), V3(1,0,0), V3(1,0,0), 0.05);
-    DebugDrawVector(V3(0,0,0), V3(0,1,0), V3(0,1,0), 0.05);
-    DebugDrawVector(V3(0,0,0), V3(0,0,1), V3(0,0,1), 0.05);
-    
-    if(jwin::Active(Input->Keyboard.Key_K))
-    {
-      // Skybox
-
-      local_persist opengl_bitmap SkyboxTexture = {};
-      u32 SideSize = 1024;
-      SkyboxTexture.BPP = 32;
-      SkyboxTexture.Width = (u32) SideSize*3;
-      SkyboxTexture.Height = SideSize*2;
-      local_persist opengl_bitmap TgaBitmap = {};
-      if(!SkyboxTexture.Pixels)
-      {
-        GlobalState->Skybox = GlLoadTexture(OpenGL, SkyboxTexture); // Has permanent data managed by the graphics-layer which we can update
-        SkyboxTexture.Pixels = PushSize(GlobalPersistentArena, sizeof(u32) * SkyboxTexture.Width*SkyboxTexture.Height);
-        TgaBitmap = MapObjBitmapToOpenGLBitmap(GlobalPersistentArena, LoadTGA(GlobalTransientArena, "..\\data\\textures\\background_stars_spritesheet_20x20.tga"));
-      }
-
-      local_persist u32 ChosenKeyCount = 0;
-      local_persist r32 SkyAngle = 0.1f;
-      if(Input->Mouse.dZ != 0)
-      {
-        SkyAngle *= (Input->Mouse.dZ > 0) ? 0.85 : 1.1;
-      }
-
-      //if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
-      {
-        BlitToSkybox(Camera, SkyAngle, SkyboxTexture, TgaBitmap);
-      }
-
-      // Need system to update only parts of a texture.
-      GlUpdateTexture(OpenGL, GlobalState->Skybox, SkyboxTexture);
-    }
-    skybox* SkyBox = PushNewSkybox(RenderCommands->RenderGroup);
-    SkyBox->SkyboxTexture = GlobalState->Skybox;
-    SkyBox->ProjectionMat = Camera->P;
-    SkyBox->ViewMat = M4(
-      V4(V3(Camera->V.r0),0),
-      V4(V3(Camera->V.r1),0),
-      V4(V3(Camera->V.r1),0),
-      V4(V3(Camera->V.r2),1));
-    m4 ModelView = Camera->V * GetScaleMatrix(V4(1,1,1,1));
-    ModelView.E[3] = 0;
-    ModelView.E[7] = 0;
-    ModelView.E[11] = 0;
-    SkyBox->ViewMat = ModelView;
-  }
-#endif
   ecs::render::Draw(GlobalState->World.EntityManager, GlobalState->World.RenderSystem, Camera->P, Camera->V);
   
 }
