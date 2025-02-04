@@ -12,11 +12,13 @@
 #include "math/geometry_math.h"
 #include "skybox_drawing.h"
 #include "containers/chunk_list.cpp"
+#include "containers/linked_memory.cpp"
 #include "ecs/entity_components_backend.cpp"
 #include "ecs/entity_components.cpp"
 #include "ecs/components/component_position.cpp"
 #include "ecs/systems/system_position.cpp"
 #include "ecs/systems/system_render.cpp"
+#include "menu/menu_interface.cpp"
 
 #include "utils.h"
 
@@ -854,6 +856,19 @@ void main()
 
 }
 
+u32 CreateColoredSquareOverlayProgram(render_group* RenderGroup)
+{
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "ColoredOverlayQuad");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "Projection");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "InColor");
+  AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "Model");
+  
+  CompileShader(RenderGroup, ProgramHandle, 
+    1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadVertex.glsl"),
+    1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadFragment.glsl"));
+  return ProgramHandle;
+}
+
 char** getGaussianFragmentCodeY() {
 
   local_persist char GaussianFragmentShaderCodeY[] = R"Foo(
@@ -1151,12 +1166,13 @@ u32 PushPlitPlaneMesh(render_group* RenderGroup)
   return Result;
 }
 
-world InitiateWorld(render_group* RenderGroup)
+world InitiateWorld(render_group* RenderGroup, r32 ResolutuionWidthPixels, r32 ResolutuionHeightPixels)
 {
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
   Result.PositionNodes = NewChunkList(GlobalPersistentArena, sizeof(ecs::position::position_node), 128);
-  Result.RenderSystem = ecs::render::CreateRenderSystem(RenderGroup);
+  Result.RenderSystem = ecs::render::CreateRenderSystem(RenderGroup, ResolutuionWidthPixels, ResolutuionHeightPixels);
+
   return Result;
 }
 
@@ -1191,6 +1207,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->GaussianProgramX = CreateGaussianBlurProgramX(RenderGroup);
     GlobalState->GaussianProgramY = CreateGaussianBlurProgramY(RenderGroup);
     GlobalState->FontRenterProgram =  CreateFontProgram(RenderGroup);
+    GlobalState->ColoredSquareOverlayProgram = CreateColoredSquareOverlayProgram(RenderGroup);
+
 
     GlobalState->Cube = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cube));
     GlobalState->Plane = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, plane));
@@ -1249,8 +1267,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Camera = {};
     InitiateCamera(&GlobalState->Camera, 70, AspectRatio, 0.1);
     LookAt(&GlobalState->Camera, V3(0,0,4), V3(0,0,0));
-
-    
+ 
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
 
     GlobalState->DebugRenderCommands = PushStruct(GlobalPersistentArena, debug_application_render_commands);
@@ -1259,7 +1276,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->DebugRenderCommands->DefaultFrameBuffer = GlobalState->DefaultFrameBuffer;
 
 
-    GlobalState->World = InitiateWorld(RenderGroup);
+    GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
+    GlobalState->World = InitiateWorld(RenderGroup, RenderCommands->ScreenWidthPixels, RenderCommands->ScreenHeightPixels);
+    GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, Megabytes(1));
+    menu_tree* WindowsDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Windows");
 
     { // Checker Floor
       ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
@@ -1526,46 +1546,46 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   {
     TranslateCamera(Camera, V3(0,-CamSpeed,0));
   }
-  if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
+  
+  v3 WUp, WRight, WForward;
+  GetCameraDirections(Camera, &WUp, &WRight, &WForward);
+  if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
   {
-    if(Input->Mouse.dX != 0)
+    if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
     {
-      RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
-      //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
-    }
-    if(Input->Mouse.dY != 0)
-    {
-      RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );
-      v3 Up, Right, Forward;
-      GetCameraDirections(Camera, &Up, &Right, &Forward);
-      v3 CamPos = GetCameraPosition(Camera);
-     // Platform.DEBUGPrint("CamPos: (%1.2f %1.2f %1.2f) CamForward (%1.2f %1.2f %1.2f)\n",
-     //   CamPos.X, CamPos.Y, CamPos.Z, -Forward.X, -Forward.Y, -Forward.Z);
-    }
-  }else{
-    if(Input->Mouse.dX != 0)
-    {
-      v3 Up, Right, Forward;
-      GetCameraDirections(Camera, &Up, &Right, &Forward);
-      RotateAround(Camera, -5*Input->Mouse.dX, Up);
-      char Buf[32] = {};
-      jstr::ToString( Right.E, 2, ArrayCount(Buf), Buf );
-      Platform.DEBUGPrint("Right   : %s\n", Buf);
-    }
-    if(Input->Mouse.dY != 0)
-    {
-      v3 Up, Right, Forward;
-      GetCameraDirections(Camera, &Up, &Right, &Forward);
-      RotateAround(Camera, -5*Input->Mouse.dY, -Right);
-      char Buf[32] = {};
-      jstr::ToString( Up.E, 2, ArrayCount(Buf), Buf );
-      Platform.DEBUGPrint("Up: %s\n", Buf);
+      if(Input->Mouse.dX != 0)
+      {
+        //RotateAround(Camera, -5*Input->Mouse.dX, Up);
+        RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
+        //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
+      }
+      if(Input->Mouse.dY != 0)
+      {
+        RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );      
+        v3 CamPos = GetCameraPosition(Camera);
+      }
+    }else{
+      if(Input->Mouse.dX != 0)
+      {
+        RotateAround(Camera, -5*Input->Mouse.dX, WUp);
+        char Buf[32] = {};
+        jstr::ToString( WRight.E, 2, ArrayCount(Buf), Buf );
+        Platform.DEBUGPrint("Right   : %s\n", Buf);
+      }
+      if(Input->Mouse.dY != 0)
+      {
+        RotateAround(Camera, -5*Input->Mouse.dY, -WRight);
+        char Buf[32] = {};
+        jstr::ToString( Up.E, 2, ArrayCount(Buf), Buf );
+        Platform.DEBUGPrint("Up: %s\n", Buf);
+      }
     }
   }
 
   render_group* RenderGroup = RenderCommands->RenderGroup;
   if(jwin::Pushed(Input->Keyboard.Key_ENTER) || Input->ExecutableReloaded)
   {
+    ReinitiatePool();
     Platform.DEBUGPrint("We should reload debug code\n");
     CompileShader(RenderGroup,GlobalState->PhongProgram,
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),
@@ -1585,6 +1605,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     CompileShader(RenderGroup,GlobalState->TransparentCompositionProgram,
     1, GetTransparentCompositionVertexCode(),
     1, GetTransparentCompositionFragmentCode());
+    CompileShader(RenderGroup, GlobalState->ColoredSquareOverlayProgram, 
+    1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadVertex.glsl"),
+    1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadFragment.glsl"));
     
     CompileShader(RenderGroup, GlobalState->GaussianProgramY, 1, getGaussianVertexCodeY(), 1, getGaussianFragmentCodeY());
     CompileShader(RenderGroup, GlobalState->GaussianProgramX, 1, getGaussianVertexCodeX(), 1, getGaussianFragmentCodeX());
@@ -1596,9 +1619,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   
   UpdateViewMatrix(Camera);
-  utf8_byte K[] = "Hello my name is jonas.";
-  DrawOverlayText(GlobalState->World.RenderSystem, K, 30, 30, 0.5);
+  utf8_byte K[] = "Hello my name is jonas.";  
+  ecs::render::DrawTextPixelSpace(GetRenderSystem(), V2(30, 29.5), 16, K);
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(0.5, 0.5), 16, K);
+  
+  UpdateAndRenderMenuInterface(Input, GlobalState->World.MenuInterface);
 
   ecs::render::Draw(GlobalState->World.EntityManager, GlobalState->World.RenderSystem, Camera->P, Camera->V);
   
-}
+} 

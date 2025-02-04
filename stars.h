@@ -7,10 +7,27 @@
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
 #include "ecs/systems/system_render.h"
+#include "menu/menu_interface.h"
+
+typedef void(*func_ptr_void)(void);
+
+struct function_ptr
+{
+  c8* Name;
+  func_ptr_void Function;
+};
+
+struct function_pool
+{
+  u32 Count;
+  function_ptr Functions[256];
+};
+
 
 struct world {
   ecs::entity_manager* EntityManager;
   ecs::render::system* RenderSystem;
+  menu_interface* MenuInterface;
   chunk_list PositionNodes;
 };
 
@@ -32,6 +49,7 @@ struct application_state
   u32 GaussianProgramY;
   u32 GaussianProgramX;
   u32 FontRenterProgram;
+  u32 ColoredSquareOverlayProgram;
 
   u32 BlitPlane;
   u32 Plane;
@@ -69,8 +87,47 @@ struct application_state
 
   debug_application_render_commands* DebugRenderCommands;
 
+  function_pool* FunctionPool;
+
   world World;
 };
 
 debug_application_render_commands* GlobalDebugRenderCommands = 0;
 application_state* GlobalState = 0;
+
+// Global Singleton Getters
+ecs::render::system* GetRenderSystem() {
+  return GlobalState->World.RenderSystem;
+}
+
+ecs::entity_manager* GetEntityManager() {
+  return GlobalState->World.EntityManager;
+}
+
+inline func_ptr_void* _DeclareFunction(func_ptr_void Function, const c8* Name)
+{
+  Assert(GlobalState);
+  function_pool* Pool = GlobalState->FunctionPool;
+  Assert(Pool->Count < ArrayCount(Pool->Functions))
+    function_ptr* Result = Pool->Functions;
+  u32 FunctionIndex = 0;
+  while(Result->Name && !jstr::ExactlyEquals(Result->Name, Name))
+  {
+    Result++;
+  }
+  if(!Result->Function)
+  {
+    Assert(Pool->Count == (Result - Pool->Functions))
+      Pool->Count++;
+    Result->Name = (c8*) PushCopy(GlobalPersistentArena, (jstr::StringLength(Name)+1)*sizeof(c8), (void*) Name);
+    Result->Function = Function;
+  }else{
+    Result->Function = Function;
+  }
+  return &Result->Function;
+}
+
+
+#define DeclareFunction(Type, Name) (Type**) _DeclareFunction((func_ptr_void) (&Name), #Name )
+#define CallFunctionPointer(PtrToFunPtr, ... ) (**PtrToFunPtr)(__VA_ARGS__)
+#include "menu/function_pointer_pool.h"

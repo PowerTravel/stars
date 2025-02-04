@@ -34,6 +34,67 @@ void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfo
 }
 
 
+v2 PixelToCanonicalSpace(system* System, v2 PixelPos)
+{
+  r32 AspectRatio = System->WindowSize.ResolutionWidthPixels / (r32) System->WindowSize.ResolutionHeightPixels;
+  v2 CanonicalPos = V2( 
+    LinearRemap(PixelPos.X, 0, System->WindowSize.ResolutionWidthPixels,  0, AspectRatio),
+    LinearRemap(PixelPos.Y, 0, System->WindowSize.ResolutionHeightPixels, 0, 1));
+  return CanonicalPos;
+}
+
+v2 GetTextSizePixelSpace(system* System, r32 PixelSize, utf8_byte const * Text)
+{ 
+  SCOPED_TRANSIENT_ARENA;
+  r32 FontRelativeScale = GetScaleFromPixelSize(System, PixelSize);
+  u32 Length = jstr::StringLength((const char*)Text);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, Length, codepoint);
+  u32 UnicodeLen = ConvertToUnicode((utf8_byte*) Text, CodePoints);
+  v2 Result = {};
+  jfont::GetTextDim(&System->Font.Font, FontRelativeScale, &Result.X, &Result.Y, CodePoints);
+  return Result;
+}
+
+v2 GetTextSizeCanonicalSpace(system* System, r32 PixelSize, utf8_byte const * Text)
+{
+  v2 PixelPos = GetTextSizePixelSpace(System, PixelSize, Text);
+  v2 CanonicalPos = PixelToCanonicalSpace(System, PixelPos);
+  return CanonicalPos;
+}
+
+void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte const * Text)
+{
+  SCOPED_TRANSIENT_ARENA;
+  u32 Length = jstr::StringLength((const char*) Text);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, Length, codepoint);
+  u32 UnicodeLen = ConvertToUnicode(Text, CodePoints);
+  r32 RelativeScale =  GetScaleFromPixelSize(System, PixelSize);
+  jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
+  jfont::GetTextPrintCoordinates(&System->Font.Font, &System->Font.FontAtlas, RelativeScale, PixelPos.X, PixelPos.Y, CodePoints, TextPrintCoordinates);
+
+  for (int i = 0; i < UnicodeLen; ++i)
+  {
+    jfont::print_coordinates* tc = TextPrintCoordinates+i;
+    gl_text GlText = {};
+    GlText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
+    GlText.ModelMatrix = M4Identity();
+    Scale(V4(tc->sx, tc->sy,1,0), GlText.ModelMatrix);
+    Translate(V4(tc->x,tc->y, 0, 1), GlText.ModelMatrix);
+    GlText.ModelMatrix = Transpose(GlText.ModelMatrix);
+    Push(&System->Arena, &System->OverlayText, (bptr)&GlText);
+  }
+}
+
+void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
+{
+  r32 AspectRatio = System->WindowSize.ResolutionWidthPixels / (r32) System->WindowSize.ResolutionHeightPixels;
+  v2 PixelPos = V2(LinearRemap(CanonicalPos.X, 0, AspectRatio, 0, System->WindowSize.ResolutionWidthPixels),
+                   LinearRemap(CanonicalPos.Y, 0, 1, 0,           System->WindowSize.ResolutionHeightPixels));
+
+  DrawTextPixelSpace(System, PixelPos, PixelSize, Text);
+}
+
+
 // Note: BinomialDepth must be even.
 // CutOff must be less than half BinomialDepth
 u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWeight)
@@ -144,6 +205,12 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Render->Material.Shininess);
 
 }
+
+struct overlay_quad {
+  v4 Color;
+  m4 Model;
+};
+
 void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale);
 void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix)
 {
@@ -326,6 +393,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 
   // Overlay text
   u32 Count = GetBlockCount(&RenderSystem->OverlayText);
+  m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, GlobalState->Width, 0, GlobalState->Height, 0);
   if(Count)
   {
     render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
@@ -334,7 +402,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
     OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
     OverlayTextProgram->TextureCount = 1;
-    m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, GlobalState->Width, 0, GlobalState->Height, 0);
+    
     PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"), OrthoProjectionMatrix);
     PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
     PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
@@ -350,36 +418,93 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       i++;
     }
 
-    Platform.DEBUGPrint("%d\n", Count);
     PushInstanceData(OverlayTextProgram, Count, Count*sizeof(gl_text), (void*) Text);
     Clear(&RenderSystem->OverlayText);
   }
 
+#if 1
+
+  render_state* TestState = PushNewState(RenderGroup);
+  depth_state NoDepthTest = {};
+  NoDepthTest.TestActive = false;
+  NoDepthTest.WriteActive = false;
+  SetState(TestState, NoDepthTest);
+
+  render_object* test = PushNewRenderObject(RenderGroup);
+  test->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
+  test->MeshHandle = GlobalState->BlitPlane;
+  test->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+  m4 Proj = M4Identity();
+  PushUniform(test, GetUniformHandle(RenderGroup, test->ProgramHandle, "Projection"), OrthoProjectionMatrix);
+  
+  r32 BoxWidth = 128;
+
+  u32 BoxCount = 5;
+
+  m4 m0 = M4Identity();
+  //Translate(V4(1, 1, 0,0), m0);
+  Scale(V4(BoxWidth,BoxWidth,0,1), m0);
+  Translate(V4(0, 0, 0,0), m0);
+  m0 = Transpose(m0);
+  
+  m4 m1 = M4Identity();
+  //Translate(V4(1, 1, 0,0), m1);
+  Scale(V4(BoxWidth,BoxWidth,0,1), m1);
+  Translate(V4(GlobalState->Width-BoxWidth, 0, 0,0), m1);
+  m1 = Transpose(m1);
+
+  m4 m2 = M4Identity();
+  //Translate(V4(1, 1, 0,0), m2);
+  Scale(V4(BoxWidth,BoxWidth,0,1), m2);
+  Translate(V4(GlobalState->Width-BoxWidth, GlobalState->Height-BoxWidth, 0,0), m2);
+  m2 = Transpose(m2);
+
+//  m4 m3 = M4Identity();
+//  //Scale(V4(0.5,0.5, 0, 1), m3);
+//  //Translate(V4(0.5,0.5, 0,0), m3);
+//  Scale(V4(BoxWidth,BoxWidth, 0, 1), m3);
+//  Translate(V4(0, GlobalState->Height-BoxWidth, 0,0), m3);
+//  m3 = Transpose(m3);
+
+  local_persist r32 t = 0;
+  t+=0.01;
+  r32 XX = 0.5*(Sin(t) + 1) * (GlobalState->Width - BoxWidth) + BoxWidth/2;
+  r32 YY = 0.5*(Sin(t) + 1) * (GlobalState->Height - BoxWidth) + BoxWidth/2;
+
+
+  m4 m3 = M4Identity();
+  Scale(V4(0.5,0.5, 0, 1), m3);
+  Scale(V4(BoxWidth,BoxWidth,0,1), m3);
+  Translate(V4(XX, YY, 0, 0), m3);
+  m3 = Transpose(m3);
+
+  m4 M4 = M4Identity();
+  Scale(V4(0.5,0.5, 0, 1), M4);
+  Scale(V4(0.95*BoxWidth,0.95*BoxWidth,0,1), M4);
+  Translate(V4(XX, YY, 0, 0), M4);
+  M4 = Transpose(M4);
+
+  overlay_quad* Quads = PushArray(GlobalTransientArena, BoxCount, overlay_quad);
+  Quads[0].Color = V4(0.7,0.2,0.2,1);
+  Quads[0].Model = m0;
+  Quads[1].Color = V4(0.2,0.7,0.2,1);
+  Quads[1].Model = m1;
+  Quads[2].Color = V4(0.2,0.2,0.7,1);
+  Quads[2].Model = m2;
+  Quads[3].Color = V4(1,1,1,1);
+  Quads[3].Model = m3;
+  Quads[4].Color = V4(0,0,0,1);
+  Quads[4].Model = M4;
+  //Platform.DEBUGPrint(" \n");
+  //Platform.DEBUGPrint(" | %1.2f,%1.2f,%1.2f,%1.2f | \n", Row(m1,0).X, Row(m1,0).Y, Row(m1,0).Z, Row(m1,0).W);
+  //Platform.DEBUGPrint(" | %1.2f,%1.2f,%1.2f,%1.2f | \n", Row(m1,1).X, Row(m1,1).Y, Row(m1,1).Z, Row(m1,1).W);
+  //Platform.DEBUGPrint(" | %1.2f,%1.2f,%1.2f,%1.2f | \n", Row(m1,2).X, Row(m1,2).Y, Row(m1,2).Z, Row(m1,2).W);
+  //Platform.DEBUGPrint(" | %1.2f,%1.2f,%1.2f,%1.2f | \n", Row(m1,3).X, Row(m1,3).Y, Row(m1,3).Z, Row(m1,3).W);
+  PushInstanceData(test, BoxCount, BoxCount*sizeof(overlay_quad), Quads);
+#endif
   
 }
 
-void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale) {
-  SCOPED_TRANSIENT_ARENA;
-  u32 Length = jstr::StringLength((const char*)Text);
-  codepoint* CodePoints = PushArray(GlobalTransientArena, Length, codepoint);
-  u32 UnicodeLen = ConvertToUnicode(Text, CodePoints);
-  jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
-  jfont::sdf_font* Font = &RenderSystem->Font.Font;
-  jfont::sdf_atlas* FontAtlas = &RenderSystem->Font.FontAtlas;
-  jfont::GetTextPrintCoordinates(Font, FontAtlas, RelativeScale, X0, Y0, CodePoints, TextPrintCoordinates);
-
-  for (int i = 0; i < UnicodeLen; ++i)
-  {
-    jfont::print_coordinates* tc = TextPrintCoordinates+i;
-    gl_text GlText = {};
-    GlText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
-    GlText.ModelMatrix = M4Identity();
-    Scale(V4(tc->sx, tc->sy,1,0), GlText.ModelMatrix);
-    Translate(V4(tc->x,tc->y, 0, 1), GlText.ModelMatrix);
-    GlText.ModelMatrix = Transpose(GlText.ModelMatrix);
-    Push(&RenderSystem->Arena, &RenderSystem->OverlayText, (bptr)&GlText);
-  }
-}
 
 jfont::sdf_font LoadSDFFont(jfont::sdf_fontchar* CharMemory, s32 CharCount, c8 FontFilePath[], r32 TextPixelSize, s32 Padding, s32 OnedgeValue, 
   r32 PixelDistanceScale)
@@ -389,7 +514,8 @@ jfont::sdf_font LoadSDFFont(jfont::sdf_fontchar* CharMemory, s32 CharCount, c8 F
 
   jfont::sdf_font Font = jfont::LoadSDFFont(CharMemory, CharCount, TTFFile.Contents, TextPixelSize, Padding, OnedgeValue, PixelDistanceScale);
 
-  Platform.DEBUGPlatformFreeFileMemory(TTFFile.Contents);
+  // TODO: MaybeCopyData To GlobalTransientArena so we can free the file
+  //Platform.DEBUGPlatformFreeFileMemory(TTFFile.Contents);
   return Font;
 }
 
@@ -402,7 +528,7 @@ data::font CreateFont(memory_arena* Arena)
                                    // Has no impact on TextPixelSize since the char then is also bigger.
   Font.TextPixelSize = 64; // Size of the SDF
   Font.PixelDistanceScale = 32.0; // Smoothness of how fast the pixel-value goes to zero. Higher PixelDistanceScale, makes it go faster to 0;
-                                          // Lower PixelDistanceScale and Higher OnedgeValue gives a 'sharper' sdf.
+                                  // Lower PixelDistanceScale and Higher OnedgeValue gives a 'sharper' sdf.
   Font.FontRelativeScale = 1.f;
   Font.Font = LoadSDFFont(PushArray(Arena, CharCount, jfont::sdf_fontchar),
     CharCount, FontPath, Font.TextPixelSize, 3, Font.OnedgeValue, Font.PixelDistanceScale);
@@ -411,10 +537,12 @@ data::font CreateFont(memory_arena* Arena)
   u8* FontMemory = PushArray(Arena, AtlasFileSize, u8);
   Font.FontAtlas = jfont::CreateSDFAtlas(&Font.Font, FontMemory);
 
+
+
   return Font;
 }
 
-system* CreateRenderSystem(render_group* RenderGroup)
+system* CreateRenderSystem(render_group* RenderGroup, r32 ResolutionWidthPixels, r32 ResolutionHeightPixels)
 {
   system* Result = BootstrapPushStruct(system, Arena);
   //Result->SolidObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
@@ -429,7 +557,8 @@ system* CreateRenderSystem(render_group* RenderGroup)
   FontTexParam.TextureFormat = texture_format::R_8;
   FontTexParam.InputDataType = OPEN_GL_UNSIGNED_BYTE;
   Result->FontTextureHandle = PushNewTexture(RenderGroup, FontAtlas->AtlasWidth, FontAtlas->AtlasHeight, FontTexParam, FontAtlas->AtlasPixels);
-
+  Result->WindowSize.ResolutionWidthPixels = ResolutionWidthPixels;
+  Result->WindowSize.ResolutionHeightPixels = ResolutionHeightPixels;
   return Result;
 }
 
