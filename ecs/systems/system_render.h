@@ -31,8 +31,16 @@ namespace render {
   }// namespace data
 
   struct window_size_pixel {
-    r32 ResolutionWidthPixels;
-    r32 ResolutionHeightPixels;
+    r32 WindowWidth;
+    r32 WindowHeight;
+    r32 MonitorWidth;
+    r32 MonitorHeight;
+    r32 MonitorDPI;
+    r32 EffectiveDPI;
+    r32 ApplicationAspectRatio;
+    r32 ApplicationWidth;
+    r32 ApplicationHeight;
+    r32 MSAA;
   };
 
 
@@ -48,7 +56,12 @@ namespace render {
     window_size_pixel WindowSize;
   };
 
-  system* CreateRenderSystem(render_group* RenderGroup, r32 ResolutionWidthPixels, r32 ResolutionHeightPixels);
+  void SetWindowSize(system* System, application_render_commands* RenderCommands)
+  {
+    System->WindowSize.WindowWidth       = (r32) RenderCommands->WindowInfo.Width;
+    System->WindowSize.WindowHeight      = (r32) RenderCommands->WindowInfo.Height;
+  }
+  system* CreateRenderSystem(render_group* RenderGroup, r32 ResolutionWidth, r32 ResolutionHeight, application_render_commands* RenderCommands);
   void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix);
   void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale);
 

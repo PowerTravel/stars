@@ -80,11 +80,6 @@ struct application_state
   u32 GaussianAFrameBuffer;
   u32 GaussianBFrameBuffer;
 
-  u32 MSAA;
-  u32 Width;
-  u32 Height;
-
-
   debug_application_render_commands* DebugRenderCommands;
 
   function_pool* FunctionPool;

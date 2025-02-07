@@ -1166,12 +1166,12 @@ u32 PushPlitPlaneMesh(render_group* RenderGroup)
   return Result;
 }
 
-world InitiateWorld(render_group* RenderGroup, r32 ResolutuionWidthPixels, r32 ResolutuionHeightPixels)
+world InitiateWorld(application_render_commands* RenderCommands)
 {
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
   Result.PositionNodes = NewChunkList(GlobalPersistentArena, sizeof(ecs::position::position_node), 128);
-  Result.RenderSystem = ecs::render::CreateRenderSystem(RenderGroup, ResolutuionWidthPixels, ResolutuionHeightPixels);
+  Result.RenderSystem = ecs::render::CreateRenderSystem(RenderCommands->RenderGroup, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height, RenderCommands);
 
   return Result;
 }
@@ -1183,10 +1183,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   local_persist v3 LightPosition = V3(0,3,0);
-  r32 AspectRatio = RenderCommands->ScreenWidthPixels / (r32) RenderCommands->ScreenHeightPixels;
   if(!GlobalState->Initialized)
   {
     RenderCommands->RenderGroup = InitiateRenderGroup();
+    GlobalState->World = InitiateWorld(RenderCommands);
+    ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
 
     obj_loaded_file* plane = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
     obj_loaded_file* billboard = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\plane.obj");
@@ -1236,23 +1237,20 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     RevealTexParam.TextureFormat = texture_format::R_8;
     
 
-    GlobalState->MSAA = 4;
-    GlobalState->Width = RenderCommands->ScreenWidthPixels;
-    GlobalState->Height = RenderCommands->ScreenHeightPixels;
-    GlobalState->MsaaColorTexture = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, DefaultColor, 0);
-    GlobalState->MsaaDepthTexture = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, DefaultDepth, 0);
-    GlobalState->AccumTexture     = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, DefaultColor, 0);
-    GlobalState->RevealTexture    = PushNewTexture(RenderGroup, GlobalState->MSAA*GlobalState->Width, GlobalState->MSAA*GlobalState->Height, RevealTexParam, 0);
-    GlobalState->GaussianATexture = PushNewTexture(RenderGroup, GlobalState->Width, GlobalState->Height, DefaultColor, 0);
-    GlobalState->GaussianBTexture = PushNewTexture(RenderGroup, GlobalState->Width, GlobalState->Height, DefaultColor, 0);
+    GlobalState->MsaaColorTexture = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
+    GlobalState->MsaaDepthTexture = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultDepth, 0);
+    GlobalState->AccumTexture     = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
+    GlobalState->RevealTexture    = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, RevealTexParam, 0);
+    GlobalState->GaussianATexture = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
+    GlobalState->GaussianBTexture = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
     
 
     u32 TransparentColorTexture[]       = {GlobalState->AccumTexture,GlobalState->RevealTexture};
-    GlobalState->DefaultFrameBuffer     = PushNewFrameBuffer(RenderGroup,  GlobalState->Width,       GlobalState->Height, 0, 0, 0, 0);
-    GlobalState->MsaaFrameBuffer        = PushNewFrameBuffer(RenderGroup,  GlobalState->MSAA*GlobalState->Width,  GlobalState->MSAA*GlobalState->Height, 1, &GlobalState->MsaaColorTexture, GlobalState->MsaaDepthTexture, 0);
-    GlobalState->TransparentFrameBuffer = PushNewFrameBuffer(RenderGroup,  GlobalState->MSAA*GlobalState->Width,  GlobalState->MSAA*GlobalState->Height, ArrayCount(TransparentColorTexture), TransparentColorTexture, GlobalState->MsaaDepthTexture, 0);
-    GlobalState->GaussianAFrameBuffer   = PushNewFrameBuffer(RenderGroup,  GlobalState->Width,       GlobalState->Height, 1, &GlobalState->GaussianATexture, 0, 0);
-    GlobalState->GaussianBFrameBuffer   = PushNewFrameBuffer(RenderGroup,  GlobalState->Width,       GlobalState->Height, 1, &GlobalState->GaussianBTexture, 0, 0);
+    GlobalState->DefaultFrameBuffer     = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth,       Window->ApplicationHeight, 0, 0, 0, 0);
+    GlobalState->MsaaFrameBuffer        = PushNewFrameBuffer(RenderGroup,  Window->MSAA * Window->ApplicationWidth,  Window->MSAA * Window->ApplicationHeight, 1, &GlobalState->MsaaColorTexture, GlobalState->MsaaDepthTexture, 0);
+    GlobalState->TransparentFrameBuffer = PushNewFrameBuffer(RenderGroup,  Window->MSAA * Window->ApplicationWidth,  Window->MSAA * Window->ApplicationHeight, ArrayCount(TransparentColorTexture), TransparentColorTexture, GlobalState->MsaaDepthTexture, 0);
+    GlobalState->GaussianAFrameBuffer   = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth,       Window->ApplicationHeight, 1, &GlobalState->GaussianATexture, 0, 0);
+    GlobalState->GaussianBFrameBuffer   = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth,       Window->ApplicationHeight, 1, &GlobalState->GaussianBTexture, 0, 0);
 
     texture_params WhitePixelParam = DefaultColorTextureParams();
     WhitePixelParam.TextureFormat = texture_format::RGBA_U8;
@@ -1265,7 +1263,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Initialized = true;
 
     GlobalState->Camera = {};
-    InitiateCamera(&GlobalState->Camera, 70, AspectRatio, 0.1);
+    InitiateCamera(&GlobalState->Camera, 70, GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio, 0.1);
     LookAt(&GlobalState->Camera, V3(0,0,4), V3(0,0,0));
  
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
@@ -1277,7 +1275,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
-    GlobalState->World = InitiateWorld(RenderGroup, RenderCommands->ScreenWidthPixels, RenderCommands->ScreenHeightPixels);
+    
     GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, Megabytes(1));
     menu_tree* WindowsDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Windows");
 
@@ -1339,9 +1337,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     int a  = 10;
 
   }
+  ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
+  ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
+  CreateFrameBuffer(RenderCommands->RenderGroup, GlobalState->DefaultFrameBuffer,  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
+
 
   GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
-
 
 
   camera* Camera = &GlobalState->Camera;
@@ -1549,6 +1550,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   
   v3 WUp, WRight, WForward;
   GetCameraDirections(Camera, &WUp, &WRight, &WForward);
+//  Platform.DEBUGPrint("%1.4f, %1.4f\n",Input->Mouse.dX,Input->Mouse.dY);
   if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
   {
     if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))

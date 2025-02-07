@@ -33,13 +33,22 @@ void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfo
   PushInstanceData(RenderObject, UnicodeLen, UnicodeLen*sizeof(gl_text), (void*) GlText);
 }
 
+// How I want it to work: 3 sceen space coordinate systems. Origin is always lower left.
+//  - Pixel Space. (self explanatory)
+//  - Canonical Space. Here the height goes from 0 to 1 and width from 0 to aspect ratio, Aspect ratio is Width / Height
+//  - Real space or metric space. This is in cm or inches. This is dependant on screen resolution.
+//  Things we need to know is. These should be available in the render commands struct and passed down to the render_push_buffer.
+//  - Screen size in Real space, how many inches.
+//  - Screen resolution, how many pixels per inch
+//  - Render resolution. How big is the Opengl viewport.
+//  - Window resolution. How big is the window we are rendering to?
+
 
 v2 PixelToCanonicalSpace(system* System, v2 PixelPos)
 {
-  r32 AspectRatio = System->WindowSize.ResolutionWidthPixels / (r32) System->WindowSize.ResolutionHeightPixels;
   v2 CanonicalPos = V2( 
-    LinearRemap(PixelPos.X, 0, System->WindowSize.ResolutionWidthPixels,  0, AspectRatio),
-    LinearRemap(PixelPos.Y, 0, System->WindowSize.ResolutionHeightPixels, 0, 1));
+    LinearRemap(PixelPos.X, 0, System->WindowSize.ApplicationWidth,  0, System->WindowSize.ApplicationAspectRatio),
+    LinearRemap(PixelPos.Y, 0, System->WindowSize.ApplicationHeight, 0, 1));
   return CanonicalPos;
 }
 
@@ -87,9 +96,8 @@ void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte co
 
 void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
 {
-  r32 AspectRatio = System->WindowSize.ResolutionWidthPixels / (r32) System->WindowSize.ResolutionHeightPixels;
-  v2 PixelPos = V2(LinearRemap(CanonicalPos.X, 0, AspectRatio, 0, System->WindowSize.ResolutionWidthPixels),
-                   LinearRemap(CanonicalPos.Y, 0, 1, 0,           System->WindowSize.ResolutionHeightPixels));
+  v2 PixelPos = V2(LinearRemap(CanonicalPos.X, 0, System->WindowSize.ApplicationAspectRatio, 0, System->WindowSize.ApplicationWidth),
+                   LinearRemap(CanonicalPos.Y, 0, 1, 0,           System->WindowSize.ApplicationHeight));
 
   DrawTextPixelSpace(System, PixelPos, PixelSize, Text);
 }
@@ -241,10 +249,11 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   r32* KernelWeight = PushArray(GlobalTransientArena, 64, r32);
   u32 KernelSize = GetGaussianKernel(12, 2, KernelOffset, KernelWeight);
 
+  window_size_pixel* Window = &RenderSystem->WindowSize;
+
   u32 MSAA = 4;
   render_state* DefaultState = PushNewState(RenderGroup);
-  r32 DesiredAspectRatio = GlobalState->Width/(r32)GlobalState->Height;
-  *DefaultState = DefaultRenderState3(GlobalState->MSAA * GlobalState->Width, GlobalState->MSAA * GlobalState->Height, DesiredAspectRatio);
+  *DefaultState = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
 
   clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
   DefClearColor->BufferType = OPEN_GL_COLOR;
@@ -345,7 +354,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 
   // Shrink to regular screeen sice
   render_state* ViewportAndBlend = PushNewState(RenderGroup);
-  SetState(ViewportAndBlend, ViewportState(GlobalState->Width, GlobalState->Height, DesiredAspectRatio));
+  ///SetState(ViewportAndBlend, ViewportState(Window->ApplicationWidth, Window->ApplicationHeight, Window->ApplicationAspectRatio));
+  SetState(ViewportAndBlend, ViewportState(Window->WindowWidth, Window->WindowHeight, Window->ApplicationAspectRatio));
   SetState(ViewportAndBlend, DefaultBlendState());
 
   // Gaussian blur
@@ -371,7 +381,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
     PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "kernerlSize"), KernelSize);
     PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "RenderedTexture"), (u32) 0);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "sideSize"), V2(GlobalState->Width, GlobalState->Height));
+    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "sideSize"), V2(Window->ApplicationWidth, Window->ApplicationHeight));
 
     render_object* GaussianBlurY = PushNewRenderObject(RenderGroup);
     GaussianBlurY->ProgramHandle = GlobalState->GaussianProgramY;
@@ -384,7 +394,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "kernerlSize"), KernelSize);
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "RenderedTexture"), (u32) 0);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "sideSize"), V2(GlobalState->Width, GlobalState->Height));
+    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "sideSize"), V2(Window->ApplicationWidth, Window->ApplicationHeight));
   }
   blit_operation* BlitOperation2 = PushNewBlitOperation(RenderGroup);
   BlitOperation2->ReadFrameBufferHandle = GlobalState->GaussianBFrameBuffer;
@@ -393,7 +403,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 
   // Overlay text
   u32 Count = GetBlockCount(&RenderSystem->OverlayText);
-  m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, GlobalState->Width, 0, GlobalState->Height, 0);
+  m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
   if(Count)
   {
     render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
@@ -450,26 +460,26 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   m4 m1 = M4Identity();
   //Translate(V4(1, 1, 0,0), m1);
   Scale(V4(BoxWidth,BoxWidth,0,1), m1);
-  Translate(V4(GlobalState->Width-BoxWidth, 0, 0,0), m1);
+  Translate(V4(Window->ApplicationWidth-BoxWidth, 0, 0,0), m1);
   m1 = Transpose(m1);
 
   m4 m2 = M4Identity();
   //Translate(V4(1, 1, 0,0), m2);
   Scale(V4(BoxWidth,BoxWidth,0,1), m2);
-  Translate(V4(GlobalState->Width-BoxWidth, GlobalState->Height-BoxWidth, 0,0), m2);
+  Translate(V4(Window->ApplicationWidth-BoxWidth, Window->ApplicationHeight-BoxWidth, 0,0), m2);
   m2 = Transpose(m2);
 
 //  m4 m3 = M4Identity();
 //  //Scale(V4(0.5,0.5, 0, 1), m3);
 //  //Translate(V4(0.5,0.5, 0,0), m3);
 //  Scale(V4(BoxWidth,BoxWidth, 0, 1), m3);
-//  Translate(V4(0, GlobalState->Height-BoxWidth, 0,0), m3);
+//  Translate(V4(0, Window->ApplicationHeight-BoxWidth, 0,0), m3);
 //  m3 = Transpose(m3);
 
   local_persist r32 t = 0;
   t+=0.01;
-  r32 XX = 0.5*(Sin(t) + 1) * (GlobalState->Width - BoxWidth) + BoxWidth/2;
-  r32 YY = 0.5*(Sin(t) + 1) * (GlobalState->Height - BoxWidth) + BoxWidth/2;
+  r32 XX = 0.5*(Sin(t) + 1) * (Window->ApplicationWidth - BoxWidth) + BoxWidth/2;
+  r32 YY = 0.5*(Sin(t) + 1) * (Window->ApplicationHeight - BoxWidth) + BoxWidth/2;
 
 
   m4 m3 = M4Identity();
@@ -542,7 +552,7 @@ data::font CreateFont(memory_arena* Arena)
   return Font;
 }
 
-system* CreateRenderSystem(render_group* RenderGroup, r32 ResolutionWidthPixels, r32 ResolutionHeightPixels)
+system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands)
 {
   system* Result = BootstrapPushStruct(system, Arena);
   //Result->SolidObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
@@ -557,8 +567,17 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ResolutionWidthPixels,
   FontTexParam.TextureFormat = texture_format::R_8;
   FontTexParam.InputDataType = OPEN_GL_UNSIGNED_BYTE;
   Result->FontTextureHandle = PushNewTexture(RenderGroup, FontAtlas->AtlasWidth, FontAtlas->AtlasHeight, FontTexParam, FontAtlas->AtlasPixels);
-  Result->WindowSize.ResolutionWidthPixels = ResolutionWidthPixels;
-  Result->WindowSize.ResolutionHeightPixels = ResolutionHeightPixels;
+
+  Result->WindowSize.WindowWidth       = (r32) RenderCommands->WindowInfo.Width;
+  Result->WindowSize.WindowHeight      = (r32) RenderCommands->WindowInfo.Height;
+  Result->WindowSize.MonitorWidth      = (r32) RenderCommands->MonitorInfo.Width;
+  Result->WindowSize.MonitorHeight     = (r32) RenderCommands->MonitorInfo.Height;
+  Result->WindowSize.MonitorDPI        = (r32) RenderCommands->MonitorInfo.RawDPI;
+  Result->WindowSize.EffectiveDPI      = (r32) RenderCommands->MonitorInfo.EffectiveDPI;
+  Result->WindowSize.MSAA              = 4;
+  Result->WindowSize.ApplicationWidth   = ApplicationWidth;
+  Result->WindowSize.ApplicationHeight  = ApplicationHeight;
+  Result->WindowSize.ApplicationAspectRatio = ApplicationWidth / ApplicationHeight;
   return Result;
 }
 

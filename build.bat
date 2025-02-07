@@ -10,10 +10,10 @@ set ConfigFilePath=/I..
 set IncludeDirectories=/I..\jwin %ConfigFilePath%
 
 set OutputFiles=/Fm%OutputFileName%.map /Fe%OutputFileName%.exe /Fo%OutputFileName%.obj
-set LinkFlags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib opengl32.lib
+set LinkFlags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib opengl32.lib shcore.lib
 REM -fp:fast -fp:except- -GR- -EHa- -Zo -Oi -WX -W4 -wd4018 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -wd4706 -FC -Z7 -GS- -Gs9999999 -wd4702
 set CommonLinkerFlags=%LinkFlags%
-set CommonCompilerFlags=%IncludeDirectories% /DEBUG:FULL -nologo %DisableOptimization% %GenerateDebugInfo%  /std:c++17
+set CommonCompilerFlags=%IncludeDirectories% /DEBUG:FULL -nologo %DisableOptimization% %GenerateDebugInfo% /std:c++17
 set CommonCompilerFlags=%CommonCompilerFlags% -DJWIN_SLOW -DJWIN_INTERNAL
 REM "USER_APPLICATION_TMP.dll"
   

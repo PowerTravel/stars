@@ -588,8 +588,7 @@ void DrawMenu( memory_arena* Arena, menu_interface* Interface, u32 NodeCount, co
 
       r32 X0 = (Parent->Region.X + Parent->Region.W/2.f) - TextSize.X/2.f;
       r32 Y0 = (Parent->Region.Y + Parent->Region.H/2.f) - TextSize.Y/3.f;
-      r32 Scale = ecs::render::GetScaleFromPixelSize(RenderSystem, Text->FontSize);
-      ecs::render::DrawTextCanonicalSpace(RenderSystem, V2(X0, Y0), Scale,  (utf8_byte*)Text->Text, Text->Color);
+      ecs::render::DrawTextCanonicalSpace(RenderSystem, V2(X0, Y0), Text->FontSize,  (utf8_byte*)Text->Text, Text->Color);
     }
 
     if(HasAttribute(Parent, ATTRIBUTE_TEXTURE))
@@ -2198,7 +2197,7 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   r32 FontHeight = ecs::render::GetLineSpacingPixelSpace(RenderSystem, FontSize);
   r32 TextWidth =  ecs::render::GetTextSizeCanonicalSpace(RenderSystem, FontSize, (utf8_byte*) Name).X;
 
-  r32 AspectRatio = WindowSize.ResolutionWidthPixels/WindowSize.ResolutionHeightPixels;
+  r32 AspectRatio = WindowSize.ApplicationAspectRatio;
   if(!Interface->MenuBar)
   {
     Interface->MenuBar = NewMenuTree(Interface);
