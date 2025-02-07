@@ -1336,6 +1336,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     int a  = 10;
 
+  }else{
+    ResetRenderGroup(RenderCommands->RenderGroup);
   }
   ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
