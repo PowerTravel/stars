@@ -10,11 +10,6 @@ namespace ecs {
 namespace render {
 
   namespace data {
-  enum class programs{
-    PHONG,
-    TRANSPARENT_PHONG,
-    TRANSPARENT_COMPOSITION
-  };
 
   struct font
   {
@@ -26,7 +21,16 @@ namespace render {
     jfont::sdf_atlas FontAtlas;
   };
 
-  
+  struct overlay_text
+  {
+    v4 TextCoord;
+    m4 ModelMatrix;
+  };
+
+  struct overlay_quad {
+    v4 Color;
+    m4 ModelMatrix; // PixelSpace
+  };
 
   }// namespace data
 
@@ -47,9 +51,8 @@ namespace render {
   struct system {
     memory_arena Arena;
     render_group* RenderGroup;
-//    chunk_list SolidObjects;
-//    chunk_list TransparentObjects;
     chunk_list OverlayText;
+    chunk_list OverlayQuads;
     data::font Font;
     u32 FontTextureHandle;
 
@@ -73,16 +76,34 @@ namespace render {
   r32 PixelToCanonicalWidth(system* System, r32 X);
   r32 PixelToCanonicalHeight(system* System, r32 Y);
   v2 PixelToCanonicalSpace(system* System, v2 PixelPos);
+
+  r32 CanonicalToPixelWidth(system* System, r32 X);
+  r32 CanonicalToPixelHeight(system* System, r32 Y);
+  v2 CanonicalToPixelSpace(system* System, v2 CanPos);
+
   r32 GetLineSpacingPixelSpace(system* System, r32 PixelSize);
   r32 GetLineSpacingCanonicalSpace(system* System, r32 PixelSize);
 
   v2 GetTextSizePixelSpace(system* System, r32 PixelSize, utf8_byte const * Text);
   v2 GetTextSizeCanonicalSpace(system* System, r32 PixelSize, utf8_byte const * Text);
 
+  rect2f RectCenterBotLeft(rect2f Rect)
+  {
+    rect2f Result = Rect2f(Rect.X + Rect.W*0.5f,Rect.Y + Rect.H*0.5f, Rect.W, Rect.H);
+    return Result;
+  }
+
+
   void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte const * Text);
   void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color = V4(1,1,1,1));
 
-  void PushOverlayQuad(system* System, rect2f Rect, v4 Color){}
-  void PushTexturedOverlayQuad(system* System, rect2f Rect, rect2f TextureCoords, u32 TextureHandle){};
+  void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color);
+  void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color);
+
+  void DrawTexturedOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, rect2f TextureCoordinates, u32 TextureHandle)
+  {
+    Platform.DEBUGPrint("Warning: DrawTexturedOverlayQuadCanonicalSpace has no implementation\n");
+  }
+  //void PushTexturedOverlayQuadCanonnicalSpace(system* System, rect2f Rect, rect2f TextureCoords, u32 TextureHandle){};
 }
 }

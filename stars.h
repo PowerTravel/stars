@@ -8,7 +8,7 @@
 #include "ecs/entity_components.h"
 #include "ecs/systems/system_render.h"
 #include "menu/menu_interface.h"
-
+#include "menu/color_table.h"
 typedef void(*func_ptr_void)(void);
 
 struct function_ptr
@@ -83,7 +83,7 @@ struct application_state
   debug_application_render_commands* DebugRenderCommands;
 
   function_pool* FunctionPool;
-
+  menu::color_table ColorTable;
   world World;
 };
 
@@ -97,6 +97,11 @@ ecs::render::system* GetRenderSystem() {
 
 ecs::entity_manager* GetEntityManager() {
   return GlobalState->World.EntityManager;
+}
+
+menu::color_table* GetColorTable()
+{
+  return &GlobalState->ColorTable;
 }
 
 inline func_ptr_void* _DeclareFunction(func_ptr_void Function, const c8* Name)

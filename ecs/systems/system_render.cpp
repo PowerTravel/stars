@@ -2,27 +2,18 @@
 //#include "math/vector_math.h"
 namespace ecs::render {
 
-
-struct gl_text
-{
-  v4 TextCoord;
-  m4 ModelMatrix;
-};
-
-
-
 void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas, r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])
 {
   codepoint TextString[1024] = {};
   u32 UnicodeLen = ConvertToUnicode(Text, TextString);
   jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
-  gl_text* GlText = PushArray(&RenderGroup->Arena, UnicodeLen, gl_text);
-  jfont::GetTextPrintCoordinates(Font, FontAtlas, RelativeScale, X0, Y0, TextString, TextPrintCoordinates);
+  data::overlay_text* GlText = PushArray(&RenderGroup->Arena, UnicodeLen, data::overlay_text);
+  GetTextPrintCoordinates(Font, FontAtlas, RelativeScale, X0, Y0, TextString, TextPrintCoordinates);
 
   for (int i = 0; i < UnicodeLen; ++i)
   {
     jfont::print_coordinates* tc = TextPrintCoordinates+i;
-    gl_text* Gltc = GlText+i;
+    data::overlay_text* Gltc = GlText+i;
     Gltc->TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
     Gltc->ModelMatrix = M4Identity();
     Scale(V4(tc->sx, tc->sy,1,0), Gltc->ModelMatrix);
@@ -30,7 +21,7 @@ void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfo
     Gltc->ModelMatrix = Transpose(Gltc->ModelMatrix);
   }
 
-  PushInstanceData(RenderObject, UnicodeLen, UnicodeLen*sizeof(gl_text), (void*) GlText);
+  PushInstanceData(RenderObject, UnicodeLen, UnicodeLen*sizeof(data::overlay_text), (void*) GlText);
 }
 
 // How I want it to work: 3 sceen space coordinate systems. Origin is always lower left.
@@ -61,6 +52,25 @@ inline v2 PixelToCanonicalSpace(system* System, v2 PixelPos)
   v2 CanonicalPos = V2( PixelToCanonicalWidth(System, PixelPos.X),
                         PixelToCanonicalHeight(System, PixelPos.Y));
   return CanonicalPos;
+}
+
+inline r32 CanonicalToPixelWidth(system* System, r32 X)
+{
+  r32 Result = LinearRemap(X, 0, System->WindowSize.ApplicationAspectRatio,  0, System->WindowSize.ApplicationWidth);
+  return Result;
+}
+
+inline r32 CanonicalToPixelHeight(system* System, r32 Y)
+{
+  r32 Result = LinearRemap(Y, 0, 1, 0, System->WindowSize.ApplicationHeight);
+  return Result;
+}
+
+inline v2 CanonicalToPixelSpace(system* System, v2 CanPos)
+{
+  v2 PixelPos = V2( CanonicalToPixelWidth(System, CanPos.X),
+                        CanonicalToPixelHeight(System, CanPos.Y));
+  return PixelPos;
 }
 
 r32 GetLineSpacingPixelSpace(system* System, r32 PixelSize)
@@ -114,24 +124,45 @@ void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte co
   for (int i = 0; i < UnicodeLen; ++i)
   {
     jfont::print_coordinates* tc = TextPrintCoordinates+i;
-    gl_text GlText = {};
-    GlText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
-    GlText.ModelMatrix = M4Identity();
-    Scale(V4(tc->sx, tc->sy,1,0), GlText.ModelMatrix);
-    Translate(V4(tc->x,tc->y, 0, 1), GlText.ModelMatrix);
-    GlText.ModelMatrix = Transpose(GlText.ModelMatrix);
-    Push(&System->Arena, &System->OverlayText, (bptr)&GlText);
+    data::overlay_text OverlayText = {};
+    OverlayText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
+    OverlayText.ModelMatrix = M4Identity();
+    Scale(V4(tc->sx, tc->sy,1,0), OverlayText.ModelMatrix);
+    Translate(V4(tc->x,tc->y, 0, 1), OverlayText.ModelMatrix);
+    OverlayText.ModelMatrix = Transpose(OverlayText.ModelMatrix);
+    Push(&System->Arena, &System->OverlayText, (bptr)&OverlayText);
   }
 }
 
 void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
 {
-  v2 PixelPos = V2(LinearRemap(CanonicalPos.X, 0, 1, 0, System->WindowSize.ApplicationHeight),
-                   LinearRemap(CanonicalPos.Y, 0, 1, 0,           System->WindowSize.ApplicationHeight));
-
+  v2 PixelPos = CanonicalToPixelSpace(System, CanonicalPos);
   DrawTextPixelSpace(System, PixelPos, PixelSize, Text);
 }
 
+
+void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color)
+{
+  m4 ModelMatrix = M4Identity();
+  Scale(V4(0.5,0.5, 0, 1), ModelMatrix);
+  Scale(V4(PixelRect.W,PixelRect.H,0,1), ModelMatrix);
+  Translate(V4(PixelRect.X, PixelRect.Y, 0, 0), ModelMatrix);
+  ModelMatrix = Transpose(ModelMatrix);
+
+  data::overlay_quad Quad = {};
+  Quad.Color = Color;
+  Quad.ModelMatrix = ModelMatrix;
+  
+  Push(&System->Arena, &System->OverlayQuads, (bptr)&Quad);
+}
+
+void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color)
+{
+  rect2f PixelRect = Rect2f( CanonicalToPixelSpace(System, V2(CanonicalRect.X,CanonicalRect.Y)),
+                             CanonicalToPixelSpace(System, V2(CanonicalRect.W,CanonicalRect.H)));
+
+  DrawOverlayQuadPixelSpace(System, PixelRect, Color);
+}
 
 // Note: BinomialDepth must be even.
 // CutOff must be less than half BinomialDepth
@@ -244,12 +275,6 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
 
 }
 
-struct overlay_quad {
-  v4 Color;
-  m4 Model;
-};
-
-void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale);
 void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix)
 {
   render_group* RenderGroup = RenderSystem->RenderGroup;
@@ -430,11 +455,37 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   BlitOperation2->ReadFrameBufferHandle = GlobalState->GaussianBFrameBuffer;
   BlitOperation2->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
 #endif
+  depth_state OverlayDepthState = {};
+  OverlayDepthState.TestActive = false;
+  OverlayDepthState.WriteActive = false;
+  SetState(CompositState, OverlayDepthState);
+  m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
+
+  chunk_list_iterator OverlayQuadsIT = BeginIterator(&RenderSystem->OverlayQuads);
+  u32 QuadCount = GetBlockCount(&RenderSystem->OverlayQuads);
+  if(QuadCount)
+  {
+    render_object* QuadObject = PushNewRenderObject(RenderGroup);
+    QuadObject->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
+    QuadObject->MeshHandle = GlobalState->BlitPlane;
+    QuadObject->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+    u32 i = 0;
+    data::overlay_quad* QuadInstanceData = PushArray(GlobalTransientArena, QuadCount, data::overlay_quad);
+    while(Valid(&OverlayQuadsIT)) {
+      data::overlay_quad* OverlayQuad = (data::overlay_quad*) Next(&OverlayQuadsIT);
+
+      QuadInstanceData[i++] = *OverlayQuad;
+    }
+    
+    PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
+    PushInstanceData(QuadObject, QuadCount, QuadCount*sizeof(data::overlay_quad), QuadInstanceData);
+    Clear(&RenderSystem->OverlayQuads);
+  }
+  
 
   // Overlay text
-  u32 Count = GetBlockCount(&RenderSystem->OverlayText);
-  m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
-  if(Count)
+  u32 TextCount = GetBlockCount(&RenderSystem->OverlayText);
+  if(TextCount)
   {
     render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
     OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
@@ -448,65 +499,19 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
     PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
     
-    u32 Count = GetBlockCount(&RenderSystem->OverlayText);
-    gl_text* Text = PushArray(GlobalTransientArena, Count, gl_text);
+    data::overlay_text* Text = PushArray(GlobalTransientArena, TextCount, data::overlay_text);
     chunk_list_iterator TextIt = BeginIterator(&RenderSystem->OverlayText);
     u32 i = 0;
     while(Valid(&TextIt)) {
-      gl_text* GlChar = (gl_text*) Next(&TextIt);
-      Text[i] = *GlChar;
+      data::overlay_text* OverlayText = (data::overlay_text*) Next(&TextIt);
+      Text[i] = *OverlayText;
       i++;
     }
 
-    PushInstanceData(OverlayTextProgram, Count, Count*sizeof(gl_text), (void*) Text);
+    PushInstanceData(OverlayTextProgram, TextCount, TextCount*sizeof(data::overlay_text), (void*) Text);
     Clear(&RenderSystem->OverlayText);
   }
 
-#if 1
-
-  render_state* TestState = PushNewState(RenderGroup);
-  depth_state NoDepthTest = {};
-  NoDepthTest.TestActive = false;
-  NoDepthTest.WriteActive = false;
-  SetState(TestState, NoDepthTest);
-
-  render_object* test = PushNewRenderObject(RenderGroup);
-  test->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
-  test->MeshHandle = GlobalState->BlitPlane;
-  test->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  m4 Proj = M4Identity();
-  PushUniform(test, GetUniformHandle(RenderGroup, test->ProgramHandle, "Projection"), OrthoProjectionMatrix);
-  
-  r32 BoxWidth = 128;
-
-  u32 BoxCount = 2;
-
-  local_persist r32 t = 0;
-  t+=0.01;
-  r32 XX = 0.5*(Cos(t)+1) * (Window->ApplicationWidth - BoxWidth) + BoxWidth/2;
-  r32 YY = 0.5*(1-Cos(t)) * (Window->ApplicationHeight - BoxWidth) + BoxWidth/2;
-
-
-  m4 m3 = M4Identity();
-  Scale(V4(0.5,0.5, 0, 1), m3);
-  Scale(V4(BoxWidth,BoxWidth,0,1), m3);
-  Translate(V4(XX, YY, 0, 0), m3);
-  m3 = Transpose(m3);
-
-  m4 M4 = M4Identity();
-  Scale(V4(0.5,0.5, 0, 1), M4);
-  Scale(V4(0.95*BoxWidth,0.95*BoxWidth,0,1), M4);
-  Translate(V4(XX, YY, 0, 0), M4);
-  M4 = Transpose(M4);
-
-  overlay_quad* Quads = PushArray(GlobalTransientArena, BoxCount, overlay_quad);
-  Quads[0].Color = V4(1,1,1,1);
-  Quads[0].Model = m3;
-  Quads[1].Color = V4(0,0,0,1);
-  Quads[1].Model = M4;
-  PushInstanceData(test, BoxCount, BoxCount*sizeof(overlay_quad), Quads);
-#endif
-  
 }
 
 
@@ -551,7 +556,8 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   system* Result = BootstrapPushStruct(system, Arena);
   //Result->SolidObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
   //Result->TransparentObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
-  Result->OverlayText = NewChunkList(&Result->Arena, sizeof(gl_text), 512);
+  Result->OverlayText = NewChunkList(&Result->Arena, sizeof(data::overlay_text), 512);
+  Result->OverlayQuads = NewChunkList(&Result->Arena, sizeof(data::overlay_quad), 512);
   Result->RenderGroup = RenderGroup;
   Result->Font = CreateFont(&Result->Arena);
 

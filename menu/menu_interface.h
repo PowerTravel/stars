@@ -204,6 +204,8 @@ typedef MENU_EVENT_CALLBACK( menu_event_callback );
 struct color_attribute
 {
   v4 Color;
+  v4 RestingColor;
+  v4 HighlightedColor;
 };
 
 struct text_attribute
@@ -337,11 +339,6 @@ struct menu_interface
   menu_tree MenuSentinel;
 
   linked_memory LinkedMemory;
-  //u32 ActiveMemory;
-  //u32 MaxMemSize;
-  //u8* MemoryBase;
-  //u8* Memory;
-  //memory_link Sentinel;
 
   v2 MousePos;
   v2 PreviousMousePos;

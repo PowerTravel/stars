@@ -1046,10 +1046,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   local_persist v3 LightPosition = V3(0,3,0);
   if(!GlobalState->Initialized)
   {
+    GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
     RenderCommands->RenderGroup = InitiateRenderGroup();
     GlobalState->World = InitiateWorld(RenderCommands);
     ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
-
     obj_loaded_file* plane = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
     obj_loaded_file* billboard = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\plane.obj");
     obj_loaded_file* sphere = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\sphere.obj");
@@ -1133,7 +1133,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     *GlobalState->DebugRenderCommands = DebugApplicationRenderCommands(RenderCommands, &GlobalState->Camera);
     GlobalState->DebugRenderCommands->MsaaFrameBuffer = GlobalState->MsaaFrameBuffer;
     GlobalState->DebugRenderCommands->DefaultFrameBuffer = GlobalState->DefaultFrameBuffer;
-
 
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
     
@@ -1491,14 +1490,17 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   t+=0.01;
   v2 size = GetTextSizeCanonicalSpace(GetRenderSystem(), 16, K);
   v2 size2 = GetTextSizePixelSpace(GetRenderSystem(), 16, K);
-  r32 XX = 0.5*(Cos(t)+1) * Window->ApplicationAspectRatio;
-  r32 YY = 0.5*(Cos(t)+1);
+  r32 CanWidth = 0.25;
+  r32 XX = 0.5*(Cos(t)+1) * (Window->ApplicationAspectRatio - CanWidth);
+  r32 YY = 0.5*(Cos(t)+1) * (1-CanWidth);
+
+  
 
   //ecs::render::DrawTextPixelSpace(GetRenderSystem(), V2(0, Window->ApplicationHeight-size2.Y), 16, K);
   ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(Window->ApplicationAspectRatio-size.X, 1-size.Y), 16, K);
   
   UpdateAndRenderMenuInterface(Input, GlobalState->World.MenuInterface);
-
-  ecs::render::Draw(GlobalState->World.EntityManager, GlobalState->World.RenderSystem, Camera->P, Camera->V);
+  
+  ecs::render::Draw(GlobalState->World.EntityManager, GetRenderSystem(), Camera->P, Camera->V);
   
 } 

@@ -537,7 +537,7 @@ void DrawMergeSlots(container_node* Node)
   {
     for (u32 Index = 0; Index < ArrayCount(Merge->MergeZone); ++Index)
     {
-      ecs::render::PushOverlayQuad(GetRenderSystem(), Merge->MergeZone[Index], Index == EnumToIdx(Merge->HotMergeZone) ? V4(0,1,0,0.5) : V4(0,1,0,0.3));
+      ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), Merge->MergeZone[Index], Index == EnumToIdx(Merge->HotMergeZone) ? V4(0,1,0,0.5) : V4(0,1,0,0.3));
     }
   }
 }
@@ -555,7 +555,7 @@ void DrawMenu( memory_arena* Arena, menu_interface* Interface, u32 NodeCount, co
   {
     t-=2*Pi32;
   }
-  Platform.DEBUGPrint("%1.2f\n", Height);
+  
   u32 StackCount = 0;
   container_node** ContainerStack = PushArray(Arena, NodeCount, container_node*);
 
@@ -571,7 +571,8 @@ void DrawMenu( memory_arena* Arena, menu_interface* Interface, u32 NodeCount, co
     if(HasAttribute(Parent, ATTRIBUTE_COLOR))
     {
       color_attribute* Color = (color_attribute*) GetAttributePointer(Parent, ATTRIBUTE_COLOR);
-      ecs::render::PushOverlayQuad(GetRenderSystem(), Parent->Region, Color->Color);
+      rect2f DrawRegion = ecs::render::RectCenterBotLeft(Parent->Region);
+      ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), DrawRegion, Color->Color);
     }
 
     if(Parent->Functions.Draw)
@@ -594,7 +595,7 @@ void DrawMenu( memory_arena* Arena, menu_interface* Interface, u32 NodeCount, co
     if(HasAttribute(Parent, ATTRIBUTE_TEXTURE))
     {
       texture_attribute* Texture = (texture_attribute*) GetAttributePointer(Parent, ATTRIBUTE_TEXTURE);
-      ecs::render::PushTexturedOverlayQuad(GetRenderSystem(), Parent->Region, Rect2f(0,0,1,1), Texture->Handle);
+      ecs::render::DrawTexturedOverlayQuadCanonicalSpace(GetRenderSystem(), Parent->Region, Rect2f(0,0,1,1), Texture->Handle);
     }
 
     if(HasAttribute(Parent,ATTRIBUTE_MERGE))
@@ -2194,8 +2195,9 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   u32 FontSize = 14;
   ecs::render::system* RenderSystem = GetRenderSystem();
   ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(RenderSystem);
-  r32 FontHeight = ecs::render::GetLineSpacingPixelSpace(RenderSystem, FontSize);
-  r32 TextWidth =  ecs::render::GetTextSizeCanonicalSpace(RenderSystem, FontSize, (utf8_byte*) Name).X;
+  r32 PixelFontHeight = ecs::render::GetLineSpacingPixelSpace(RenderSystem, FontSize);
+  r32 CanonicalFontHeight = ecs::render::PixelToCanonicalHeight(RenderSystem, PixelFontHeight) * 1.1f;
+  v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(RenderSystem, FontSize, (utf8_byte*) Name);
 
   r32 AspectRatio = WindowSize.ApplicationAspectRatio;
   if(!Interface->MenuBar)
@@ -2203,9 +2205,13 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
     Interface->MenuBar = NewMenuTree(Interface);
     Interface->MenuBar->Visible = true;
     Interface->MenuBar->Root = NewContainer(Interface);
-    r32 MainMenuHeight = ecs::render::PixelToCanonicalSpace(RenderSystem, V2(0,FontHeight * 1.1f)).Y;
-    Interface->MenuBar->Root->Region = Rect2f(0, 1 - MainMenuHeight, AspectRatio, MainMenuHeight);
+    Interface->MenuBar->Root->Region = Rect2f(0, 1 - CanonicalFontHeight, AspectRatio, CanonicalFontHeight);
   
+    color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, Interface->MenuBar->Root, ATTRIBUTE_COLOR);
+    ColorAttr->Color = menu::GetColor(&GlobalState->ColorTable,"charcoal");
+    ColorAttr->HighlightedColor = ColorAttr->Color;
+    ColorAttr->RestingColor = ColorAttr->Color;
+
     container_node* DropDownContainer = ConnectNodeToBack(Interface->MenuBar->Root, NewContainer(Interface, container_type::Grid));
     grid_node* Grid = GetGridNode(DropDownContainer);
     Grid->Col = 0;
@@ -2220,11 +2226,13 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   container_node* NewMenu = ConnectNodeToBack(DropDownContainer, NewContainer(Interface));
 
   color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_COLOR);
-  ColorAttr->Color = V4(0.3,0,0.3,1);
+  ColorAttr->Color = menu::GetColor(&GlobalState->ColorTable,"charcoal");
+  ColorAttr->RestingColor = ColorAttr->Color;
+  ColorAttr->HighlightedColor = ColorAttr->Color*1.5;
 
   size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_SIZE);
-  SizeAttr->Width = ContainerSizeT(menu_size_type::ABSOLUTE_, TextWidth + 0.05f);
-  SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, FontHeight);
+  SizeAttr->Width = ContainerSizeT(menu_size_type::ABSOLUTE_, TextSize.X * 1.2f);
+  SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, CanonicalFontHeight);
   SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
   SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
   SizeAttr->XAlignment = menu_region_alignment::CENTER;
@@ -2233,7 +2241,7 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   text_attribute* Text = (text_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_TEXT);
   jstr::CopyStringsUnchecked(Name, Text->Text);
   Text->FontSize = FontSize;
-  Text->Color = V4(0.9,0.9,0.9,1);
+  Text->Color = menu::GetColor(&GlobalState->ColorTable,"white smoke");
 
   menu_tree* ViewMenuRoot = NewMenuTree(Interface);
   ViewMenuRoot->Root = NewContainer(Interface);
@@ -2248,10 +2256,12 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   Grid->TotalMarginX = 0.0;
   Grid->TotalMarginY = 0.0;
 
-  ColorAttr = (color_attribute*) PushAttribute(Interface, ViewMenuItems, ATTRIBUTE_COLOR);
-  ColorAttr->Color = V4(1,1,1,1);
+  //color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, ViewMenuItems, ATTRIBUTE_COLOR);
+  //ColorAttr->Color = menu::GetColor(&GlobalState->ColorTable,"charcoal");
 
   RegisterMenuEvent(Interface, menu_event_type::MouseDown, NewMenu, (void*) ViewMenuRoot, DropDownMenuButton, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseEnter, NewMenu, (void*) ViewMenuRoot, DropDownMouseEnter, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseExit, NewMenu, (void*) ViewMenuRoot, DropDownMouseExit, 0);
 
   return ViewMenuRoot;
 }
@@ -2314,13 +2324,13 @@ internal container_node* CreateTab(menu_interface* Interface, container_node* Pl
 MENU_EVENT_CALLBACK(DropDownMouseEnter)
 {
   color_attribute* MenuColor = (color_attribute*) GetAttributePointer(CallerNode, ATTRIBUTE_COLOR);
-  MenuColor->Color = V4(0.3,0.2,0.5,0.5);
+  MenuColor->Color = MenuColor->HighlightedColor;
 }
 
 MENU_EVENT_CALLBACK(DropDownMouseExit)
 {
   color_attribute* MenuColor = (color_attribute*) GetAttributePointer(CallerNode, ATTRIBUTE_COLOR);
-  MenuColor->Color = V4(1,1,1,0); 
+  MenuColor->Color = MenuColor->RestingColor;
 }
 
 MENU_EVENT_CALLBACK(DropDownMouseUp)
