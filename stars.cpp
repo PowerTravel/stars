@@ -1278,7 +1278,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     
     GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, Megabytes(1));
     menu_tree* WindowsDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Windows");
-
+    
+    
     { // Checker Floor
       ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
       ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1623,9 +1624,17 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   
   UpdateViewMatrix(Camera);
-  utf8_byte K[] = "Hello my name is jonas.";  
-  ecs::render::DrawTextPixelSpace(GetRenderSystem(), V2(30, 29.5), 16, K);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(0.5, 0.5), 16, K);
+  utf8_byte K[] = "Hello my name is jonas.";
+
+  local_persist r32 t = 0;
+  t+=0.01;
+  v2 size = GetTextSizeCanonicalSpace(GetRenderSystem(), 16, K);
+  v2 size2 = GetTextSizePixelSpace(GetRenderSystem(), 16, K);
+  r32 XX = 0.5*(Cos(t)+1) * Window->ApplicationAspectRatio;
+  r32 YY = 0.5*(Cos(t)+1);
+
+  //ecs::render::DrawTextPixelSpace(GetRenderSystem(), V2(0, Window->ApplicationHeight-size2.Y), 16, K);
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(Window->ApplicationAspectRatio-size.X, 1-size.Y), 16, K);
   
   UpdateAndRenderMenuInterface(Input, GlobalState->World.MenuInterface);
 

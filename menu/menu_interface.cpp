@@ -879,9 +879,9 @@ r32 PrintTree(u32 Count, container_node** HotLeafs, r32 YStart, r32 PixelSize, r
 void PrintHotLeafs(menu_interface* Interface)
 {
   ecs::render::system* RenderSystem = GetRenderSystem();
-  r32 TargetPixelSize = 8;
+  r32 TargetPixelSize = 12;
   ecs::render::window_size_pixel WindowSize = GetWindowSize(RenderSystem);
-  r32 HeightStep = ecs::render::GetLineSpacingPixelSpace(RenderSystem, TargetPixelSize);
+  r32 HeightStep = ecs::render::GetLineSpacingCanonicalSpace(RenderSystem, TargetPixelSize);
   r32 WidthStep  = 0.02;
   r32 YOff = 1 - 2*HeightStep;
 
@@ -2203,7 +2203,7 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
     Interface->MenuBar = NewMenuTree(Interface);
     Interface->MenuBar->Visible = true;
     Interface->MenuBar->Root = NewContainer(Interface);
-    r32 MainMenuHeight = FontHeight * 1.1f;
+    r32 MainMenuHeight = ecs::render::PixelToCanonicalSpace(RenderSystem, V2(0,FontHeight * 1.1f)).Y;
     Interface->MenuBar->Root->Region = Rect2f(0, 1 - MainMenuHeight, AspectRatio, MainMenuHeight);
   
     container_node* DropDownContainer = ConnectNodeToBack(Interface->MenuBar->Root, NewContainer(Interface, container_type::Grid));

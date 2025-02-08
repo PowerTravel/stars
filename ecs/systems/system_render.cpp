@@ -44,12 +44,42 @@ void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfo
 //  - Window resolution. How big is the window we are rendering to?
 
 
-v2 PixelToCanonicalSpace(system* System, v2 PixelPos)
+inline r32 PixelToCanonicalWidth(system* System, r32 X)
 {
-  v2 CanonicalPos = V2( 
-    LinearRemap(PixelPos.X, 0, System->WindowSize.ApplicationWidth,  0, System->WindowSize.ApplicationAspectRatio),
-    LinearRemap(PixelPos.Y, 0, System->WindowSize.ApplicationHeight, 0, 1));
+  r32 Result = LinearRemap(X, 0, System->WindowSize.ApplicationWidth,  0, System->WindowSize.ApplicationAspectRatio);
+  return Result;
+}
+
+inline r32 PixelToCanonicalHeight(system* System, r32 Y)
+{
+  r32 Result = LinearRemap(Y, 0, System->WindowSize.ApplicationHeight, 0, 1);
+  return Result;
+}
+
+inline v2 PixelToCanonicalSpace(system* System, v2 PixelPos)
+{
+  v2 CanonicalPos = V2( PixelToCanonicalWidth(System, PixelPos.X),
+                        PixelToCanonicalHeight(System, PixelPos.Y));
   return CanonicalPos;
+}
+
+r32 GetLineSpacingPixelSpace(system* System, r32 PixelSize)
+{
+  r32 SizePixel = jfont::GetLineSpacingPixelSpace(&System->Font.Font, PixelSize);
+  return SizePixel;
+}
+
+r32 GetLineSpacingCanonicalSpace(system* System, r32 PixelSize)
+{
+  r32 SizePixel = jfont::GetLineSpacingPixelSpace(&System->Font.Font, PixelSize);
+  r32 Result = PixelToCanonicalHeight(System, SizePixel);
+  return Result;
+}
+
+internal inline r32 GetScaleFromPixelSize(system* System, r32 PixelSize)
+{
+  r32 Result = jfont::GetScaleFromPixelSize(&System->Font.Font, PixelSize);
+  return Result;
 }
 
 v2 GetTextSizePixelSpace(system* System, r32 PixelSize, utf8_byte const * Text)
@@ -96,7 +126,7 @@ void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte co
 
 void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
 {
-  v2 PixelPos = V2(LinearRemap(CanonicalPos.X, 0, System->WindowSize.ApplicationAspectRatio, 0, System->WindowSize.ApplicationWidth),
+  v2 PixelPos = V2(LinearRemap(CanonicalPos.X, 0, 1, 0, System->WindowSize.ApplicationHeight),
                    LinearRemap(CanonicalPos.Y, 0, 1, 0,           System->WindowSize.ApplicationHeight));
 
   DrawTextPixelSpace(System, PixelPos, PixelSize, Text);
@@ -449,37 +479,12 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   
   r32 BoxWidth = 128;
 
-  u32 BoxCount = 5;
-
-  m4 m0 = M4Identity();
-  //Translate(V4(1, 1, 0,0), m0);
-  Scale(V4(BoxWidth,BoxWidth,0,1), m0);
-  Translate(V4(0, 0, 0,0), m0);
-  m0 = Transpose(m0);
-  
-  m4 m1 = M4Identity();
-  //Translate(V4(1, 1, 0,0), m1);
-  Scale(V4(BoxWidth,BoxWidth,0,1), m1);
-  Translate(V4(Window->ApplicationWidth-BoxWidth, 0, 0,0), m1);
-  m1 = Transpose(m1);
-
-  m4 m2 = M4Identity();
-  //Translate(V4(1, 1, 0,0), m2);
-  Scale(V4(BoxWidth,BoxWidth,0,1), m2);
-  Translate(V4(Window->ApplicationWidth-BoxWidth, Window->ApplicationHeight-BoxWidth, 0,0), m2);
-  m2 = Transpose(m2);
-
-//  m4 m3 = M4Identity();
-//  //Scale(V4(0.5,0.5, 0, 1), m3);
-//  //Translate(V4(0.5,0.5, 0,0), m3);
-//  Scale(V4(BoxWidth,BoxWidth, 0, 1), m3);
-//  Translate(V4(0, Window->ApplicationHeight-BoxWidth, 0,0), m3);
-//  m3 = Transpose(m3);
+  u32 BoxCount = 2;
 
   local_persist r32 t = 0;
   t+=0.01;
-  r32 XX = 0.5*(Sin(t) + 1) * (Window->ApplicationWidth - BoxWidth) + BoxWidth/2;
-  r32 YY = 0.5*(Sin(t) + 1) * (Window->ApplicationHeight - BoxWidth) + BoxWidth/2;
+  r32 XX = 0.5*(Cos(t)+1) * (Window->ApplicationWidth - BoxWidth) + BoxWidth/2;
+  r32 YY = 0.5*(1-Cos(t)) * (Window->ApplicationHeight - BoxWidth) + BoxWidth/2;
 
 
   m4 m3 = M4Identity();
@@ -495,21 +500,10 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   M4 = Transpose(M4);
 
   overlay_quad* Quads = PushArray(GlobalTransientArena, BoxCount, overlay_quad);
-  Quads[0].Color = V4(0.7,0.2,0.2,1);
-  Quads[0].Model = m0;
-  Quads[1].Color = V4(0.2,0.7,0.2,1);
-  Quads[1].Model = m1;
-  Quads[2].Color = V4(0.2,0.2,0.7,1);
-  Quads[2].Model = m2;
-  Quads[3].Color = V4(1,1,1,1);
-  Quads[3].Model = m3;
-  Quads[4].Color = V4(0,0,0,1);
-  Quads[4].Model = M4;
-  //Platform.DEBUGPrint(" \n");
-  //Platform.DEBUGPrint(" | %1.2f,%1.2f,%1.2f,%1.2f | \n", Row(m1,0).X, Row(m1,0).Y, Row(m1,0).Z, Row(m1,0).W);
-  //Platform.DEBUGPrint(" | %1.2f,%1.2f,%1.2f,%1.2f | \n", Row(m1,1).X, Row(m1,1).Y, Row(m1,1).Z, Row(m1,1).W);
-  //Platform.DEBUGPrint(" | %1.2f,%1.2f,%1.2f,%1.2f | \n", Row(m1,2).X, Row(m1,2).Y, Row(m1,2).Z, Row(m1,2).W);
-  //Platform.DEBUGPrint(" | %1.2f,%1.2f,%1.2f,%1.2f | \n", Row(m1,3).X, Row(m1,3).Y, Row(m1,3).Z, Row(m1,3).W);
+  Quads[0].Color = V4(1,1,1,1);
+  Quads[0].Model = m3;
+  Quads[1].Color = V4(0,0,0,1);
+  Quads[1].Model = M4;
   PushInstanceData(test, BoxCount, BoxCount*sizeof(overlay_quad), Quads);
 #endif
   

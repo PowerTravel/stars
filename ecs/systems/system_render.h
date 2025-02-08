@@ -69,9 +69,13 @@ namespace render {
   {
     return System->WindowSize;
   }
-
-
+  
+  r32 PixelToCanonicalWidth(system* System, r32 X);
+  r32 PixelToCanonicalHeight(system* System, r32 Y);
   v2 PixelToCanonicalSpace(system* System, v2 PixelPos);
+  r32 GetLineSpacingPixelSpace(system* System, r32 PixelSize);
+  r32 GetLineSpacingCanonicalSpace(system* System, r32 PixelSize);
+
   v2 GetTextSizePixelSpace(system* System, r32 PixelSize, utf8_byte const * Text);
   v2 GetTextSizeCanonicalSpace(system* System, r32 PixelSize, utf8_byte const * Text);
 
@@ -80,25 +84,5 @@ namespace render {
 
   void PushOverlayQuad(system* System, rect2f Rect, v4 Color){}
   void PushTexturedOverlayQuad(system* System, rect2f Rect, rect2f TextureCoords, u32 TextureHandle){};
-
-  
-
-  r32 GetLineSpacingPixelSpace(system* System, r32 PixelSize)
-  {
-    r32 SizePixel = jfont::GetLineSpacingPixelSpace(&System->Font.Font, PixelSize);
-    return SizePixel;
-  }
-  r32 GetCanonicalFontHeightFromPixelSize(system* System, r32 PixelSize)
-  {
-    r32 SizePixel =  GetLineSpacingPixelSpace(System, PixelSize);
-    v2 Result = PixelToCanonicalSpace(System, V2(0, SizePixel));
-    return Result.Y;
-  }
-
-  r32 GetScaleFromPixelSize(system* System, r32 PixelSize)
-  {
-    r32 Result = jfont::GetScaleFromPixelSize(&System->Font.Font, PixelSize);
-    return Result;
-  }
 }
 }
