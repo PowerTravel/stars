@@ -97,7 +97,7 @@ v2 GetTextSizePixelSpace(system* System, r32 PixelSize, utf8_byte const * Text)
   SCOPED_TRANSIENT_ARENA;
   r32 FontRelativeScale = GetScaleFromPixelSize(System, PixelSize);
   u32 Length = jstr::StringLength((const char*)Text);
-  codepoint* CodePoints = PushArray(GlobalTransientArena, Length, codepoint);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, Length+1, codepoint);
   u32 UnicodeLen = ConvertToUnicode((utf8_byte*) Text, CodePoints);
   v2 Result = {};
   jfont::GetTextDim(&System->Font.Font, FontRelativeScale, &Result.X, &Result.Y, CodePoints);
@@ -111,11 +111,11 @@ v2 GetTextSizeCanonicalSpace(system* System, r32 PixelSize, utf8_byte const * Te
   return CanonicalPos;
 }
 
-void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte const * Text)
+void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
 {
   SCOPED_TRANSIENT_ARENA;
   u32 Length = jstr::StringLength((const char*) Text);
-  codepoint* CodePoints = PushArray(GlobalTransientArena, Length, codepoint);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, Length+1, codepoint);
   u32 UnicodeLen = ConvertToUnicode(Text, CodePoints);
   r32 RelativeScale =  GetScaleFromPixelSize(System, PixelSize);
   jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
@@ -130,6 +130,7 @@ void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte co
     Scale(V4(tc->sx, tc->sy,1,0), OverlayText.ModelMatrix);
     Translate(V4(tc->x,tc->y, 0, 1), OverlayText.ModelMatrix);
     OverlayText.ModelMatrix = Transpose(OverlayText.ModelMatrix);
+    OverlayText.Color = Color;
     Push(&System->Arena, &System->OverlayText, (bptr)&OverlayText);
   }
 }
@@ -137,7 +138,7 @@ void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte co
 void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
 {
   v2 PixelPos = CanonicalToPixelSpace(System, CanonicalPos);
-  DrawTextPixelSpace(System, PixelPos, PixelSize, Text);
+  DrawTextPixelSpace(System, PixelPos, PixelSize, Text, Color);
 }
 
 

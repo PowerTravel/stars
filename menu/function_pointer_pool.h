@@ -34,8 +34,13 @@ MENU_UPDATE_FUNCTION(SplitWindowBorderUpdate);
 MENU_EVENT_CALLBACK(DropDownMouseEnter);
 MENU_EVENT_CALLBACK(DropDownMouseExit);
 MENU_EVENT_CALLBACK(DropDownMouseUp);
-
 MENU_EVENT_CALLBACK(DropDownMenuButton);
+
+
+MENU_EVENT_CALLBACK(HeaderMenuMouseEnter);
+MENU_EVENT_CALLBACK(HeaderMenuMouseExit);
+MENU_EVENT_CALLBACK(HeaderMenuMouseUp);
+
 
 #ifdef JWIN_INTERNAL
 
@@ -73,7 +78,10 @@ void _ReinitiatePool(function_pool* Pool)
     NewFunPtr(DropDownMouseEnter)
     NewFunPtr(DropDownMouseExit)
     NewFunPtr(DropDownMouseUp)
+    NewFunPtr(HeaderMenuMouseUp)
     NewFunPtr(DropDownMenuButton)
+    NewFunPtr(HeaderMenuMouseEnter)
+    NewFunPtr(HeaderMenuMouseExit)
     {
       INVALID_CODE_PATH;
     }    

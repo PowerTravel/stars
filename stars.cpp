@@ -847,14 +847,17 @@ char** GetFontVertexShader(){
 layout (location = 0)  in vec3 v;
 layout (location = 1)  in vec3 vn;
 layout (location = 2)  in vec2 vt;
-layout (location = 3)  in vec4 TexCoord_in;
-layout (location = 4)  in mat4 Model;
+layout (location = 3)  in vec4 TextColor_in;
+layout (location = 4)  in vec4 TexCoord_in;
+layout (location = 5)  in mat4 Model;
+out vec4 TextColor;
 out vec4 TexCoord;
 out vec2 uv;
 uniform mat4 Projection;
 void main()
 {
   uv = vt;
+  TextColor = TextColor_in;
   TexCoord = TexCoord_in;
   gl_Position = Projection * Model * vec4(v,1);
 }
@@ -870,6 +873,7 @@ char** GetFontFragmentShader(){
 #version 330 core
 
 in vec2 uv;
+in vec4 TextColor;
 in vec4 TexCoord;
 out vec4 color;
 uniform sampler2D RenderedTexture;
@@ -892,7 +896,7 @@ void main()
     discard;
   }
 
-  color = vec4(1,1,1,value);
+  color = vec4(TextColor.xyz,value*TextColor.w);
 }
 )Foo";
 
@@ -909,6 +913,7 @@ u32 CreateFontProgram(render_group* RenderGroup)
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RenderedTexture");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "OnEdgeValue");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "PixelDistanceScale");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TextColor_in");
   AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TexCoord_in");
   AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "Model");
   CompileShader(RenderGroup, ProgramHandle, 1, GetFontVertexShader(), 1, GetFontFragmentShader());
@@ -1137,66 +1142,99 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
     
     GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, Megabytes(1));
+    menu_interface* Interface = GlobalState->World.MenuInterface;
     menu_tree* WindowsDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Windows");
+    menu_tree* TestDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Test");
+    {
+      container_node* SettingsPlugin = 0;
+      // Create Option Window
+      container_node* EntityContainer =  NewContainer(Interface, container_type::Grid);
+      grid_node* Grid = GetGridNode(EntityContainer);
+      Grid->Col = 1;
+      Grid->Row = 0;
+      Grid->TotalMarginX = 0.0;
+      Grid->TotalMarginY = 0.0;
+
+      color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
+      BackgroundColor->Color = V4(0,0,0,0.7);
+
+      SettingsPlugin = CreatePlugin(Interface, "Settings", Interface->MenuColor, EntityContainer);
+      RegisterWindow(Interface, WindowsDropDownMenu, SettingsPlugin);
+    }
+    {
+      container_node* SettingsPlugin = 0;
+      // Create Option Window
+      container_node* EntityContainer =  NewContainer(Interface, container_type::Grid);
+      grid_node* Grid = GetGridNode(EntityContainer);
+      Grid->Col = 1;
+      Grid->Row = 0;
+      Grid->TotalMarginX = 0.0;
+      Grid->TotalMarginY = 0.0;
+
+      color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
+      BackgroundColor->Color = V4(0,0,0,0.7);
+
+      SettingsPlugin = CreatePlugin(Interface, "Test2", Interface->MenuColor, EntityContainer);
+      RegisterWindow(Interface, TestDropDownMenu, SettingsPlugin);
+    }
     
     
-    { // Checker Floor
-      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
-      ecs::position::component* Position = GetPositionComponent(&Entity);
-      InitiatePositionComponent(Position, V3(0,-1.1,0), 0);
-      ecs::render::component* Render = GetRenderComponent(&Entity);
-      Render->MeshHandle = GlobalState->Plane;
-      Render->TextureHandle = GlobalState->CheckerBoardTexture;
-      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_PEARL);
-      Render->Scale = V3(10,1,10);
-    }
+    { // Create some entities
+      { // Checker Floor
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::position::component* Position = GetPositionComponent(&Entity);
+        InitiatePositionComponent(Position, V3(0,-1.1,0), 0);
+        ecs::render::component* Render = GetRenderComponent(&Entity);
+        Render->MeshHandle = GlobalState->Plane;
+        Render->TextureHandle = GlobalState->CheckerBoardTexture;
+        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_PEARL);
+        Render->Scale = V3(10,1,10);
+      }
 
-    { // Transparent Cube
-      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
-      ecs::position::component* Position = GetPositionComponent(&Entity);
-      InitiatePositionComponent(Position, V3(2,0,0), 0);
-      ecs::render::component* Render = GetRenderComponent(&Entity);
-      Render->MeshHandle = GlobalState->Cube;
-      Render->TextureHandle = GlobalState->WhitePixelTexture;
-      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
-      Render->Scale = V3(1,1,1);
-    }
-    
-    { // Transparent Cone
-      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
-      ecs::position::component* Position = GetPositionComponent(&Entity);
-      InitiatePositionComponent(Position, V3(0,0,2), 0);
-      ecs::render::component* Render = GetRenderComponent(&Entity);
-      Render->MeshHandle = GlobalState->Cone;
-      Render->TextureHandle = GlobalState->WhitePixelTexture;
-      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_EMERALD);
-      Render->Scale = V3(1,1,1);
-    }
-    
-    { // Transparent Sphere
-      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
-      ecs::position::component* Position = GetPositionComponent(&Entity);
-      InitiatePositionComponent(Position, V3(2,0,2), 0);
-      ecs::render::component* Render = GetRenderComponent(&Entity);
-      Render->MeshHandle = GlobalState->Sphere;
-      Render->TextureHandle = GlobalState->WhitePixelTexture;
-      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_JADE);
-      Render->Scale = V3(1,1,1);
-    }
+      { // Transparent Cube
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::position::component* Position = GetPositionComponent(&Entity);
+        InitiatePositionComponent(Position, V3(2,0,0), 0);
+        ecs::render::component* Render = GetRenderComponent(&Entity);
+        Render->MeshHandle = GlobalState->Cube;
+        Render->TextureHandle = GlobalState->WhitePixelTexture;
+        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
+        Render->Scale = V3(1,1,1);
+      }
+      
+      { // Transparent Cone
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::position::component* Position = GetPositionComponent(&Entity);
+        InitiatePositionComponent(Position, V3(0,0,2), 0);
+        ecs::render::component* Render = GetRenderComponent(&Entity);
+        Render->MeshHandle = GlobalState->Cone;
+        Render->TextureHandle = GlobalState->WhitePixelTexture;
+        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_EMERALD);
+        Render->Scale = V3(1,1,1);
+      }
+      
+      { // Transparent Sphere
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::position::component* Position = GetPositionComponent(&Entity);
+        InitiatePositionComponent(Position, V3(2,0,2), 0);
+        ecs::render::component* Render = GetRenderComponent(&Entity);
+        Render->MeshHandle = GlobalState->Sphere;
+        Render->TextureHandle = GlobalState->WhitePixelTexture;
+        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_JADE);
+        Render->Scale = V3(1,1,1);
+      }
 
-    { // Solid Cone
-      ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
-      ecs::position::component* Position = GetPositionComponent(&Entity);
-      InitiatePositionComponent(Position, V3(0,0,0), 0);
-      ecs::render::component* Render = GetRenderComponent(&Entity);
-      Render->MeshHandle = GlobalState->Cone;
-      Render->TextureHandle = GlobalState->WhitePixelTexture;
-      Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_SILVER);
-      Render->Scale = V3(1,1,1);
+      { // Solid Cone
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::position::component* Position = GetPositionComponent(&Entity);
+        InitiatePositionComponent(Position, V3(0,0,0), 0);
+        ecs::render::component* Render = GetRenderComponent(&Entity);
+        Render->MeshHandle = GlobalState->Cone;
+        Render->TextureHandle = GlobalState->WhitePixelTexture;
+        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_SILVER);
+        Render->Scale = V3(1,1,1);
+      }
     }
-
-    int a  = 10;
-
   }else{
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
@@ -1484,21 +1522,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   
   UpdateViewMatrix(Camera);
-  utf8_byte K[] = "Hello my name is jonas.";
 
-  local_persist r32 t = 0;
-  t+=0.01;
-  v2 size = GetTextSizeCanonicalSpace(GetRenderSystem(), 16, K);
-  v2 size2 = GetTextSizePixelSpace(GetRenderSystem(), 16, K);
-  r32 CanWidth = 0.25;
-  r32 XX = 0.5*(Cos(t)+1) * (Window->ApplicationAspectRatio - CanWidth);
-  r32 YY = 0.5*(Cos(t)+1) * (1-CanWidth);
-
-  
-
-  //ecs::render::DrawTextPixelSpace(GetRenderSystem(), V2(0, Window->ApplicationHeight-size2.Y), 16, K);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(Window->ApplicationAspectRatio-size.X, 1-size.Y), 16, K);
-  
   UpdateAndRenderMenuInterface(Input, GlobalState->World.MenuInterface);
   
   ecs::render::Draw(GlobalState->World.EntityManager, GetRenderSystem(), Camera->P, Camera->V);

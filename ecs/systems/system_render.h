@@ -23,6 +23,7 @@ namespace render {
 
   struct overlay_text
   {
+    v4 Color;
     v4 TextCoord;
     m4 ModelMatrix;
   };

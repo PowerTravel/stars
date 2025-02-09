@@ -364,6 +364,7 @@ menu_functions GetMenuFunction(container_type Type)
     case container_type::TabWindow: return GetTabWindowFunctions();
     case container_type::Tab:       return GetDefaultFunctions();
     case container_type::Plugin:    return GetDefaultFunctions();
+    case container_type::DropDown:  return GetDefaultFunctions();
 
     default: Assert(0);
   }
