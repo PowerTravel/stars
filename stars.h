@@ -28,6 +28,7 @@ struct world {
   ecs::entity_manager* EntityManager;
   ecs::render::system* RenderSystem;
   menu_interface* MenuInterface;
+  container_node* ScenePlugin;
   chunk_list PositionNodes;
 };
 

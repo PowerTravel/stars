@@ -721,11 +721,12 @@ void DisconnectNode(container_node* Node)
 }
 
 
-internal inline b32 IsFocusWindow(menu_interface* Interface, menu_tree* Menu)
+b32 IsFocusWindow(menu_interface* Interface, menu_tree* Menu)
 {
   b32 Result = (Interface->MenuInFocus && Menu == Interface->MenuInFocus);
   return Result;
 }
+
 
 // Put Menu on top of the renderqueue and on the Focused Window Ptr and call it's "Gainding Focus"-Functions
 // If Menu is 0 and Focused Window Ptr is not 0, call its LoosingFocus function and set Focused Window Ptr to 0
@@ -957,6 +958,40 @@ menu_tree* GetMenu(menu_interface* Interface, container_node* Node)
     MenuRoot = MenuRoot->Next;
   }
   return Result;
+}
+
+b32 IsHotLeef(menu_tree* Menu, container_node* Container)
+{
+  for (int i = 0; i < Menu->HotLeafCount; ++i)
+  {
+    if(Menu->HotLeafs[i] == Container)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+b32 IsPluginContainerInFocus(menu_interface* Interface, container_node* Container, b32* HasMenu)
+{
+  Assert(Container->Type == container_type::Plugin);
+  if(!Interface->MenuVisible)
+  {
+    return false;
+  }
+  menu_tree* Tree = GetMenu(Interface,Container);
+  if(HasMenu)
+  {
+    *HasMenu = Tree != 0;
+  }
+  if(Tree && Tree->Visible && Tree == Interface->MenuSentinel.Next)
+  {
+    if(IsHotLeef(Tree, Container->FirstChild))
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 void * PushAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType)

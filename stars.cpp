@@ -1087,15 +1087,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     menu_tree* WindowsDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Windows");
     menu_tree* TestDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Test");
     {
-      // Create Option Window
+      // Create Scene Window
       container_node* SceneContainer =  NewContainer(Interface);
       
       SceneContainer->Functions.Draw = DeclareFunction(menu_draw, RenderScene);
-      color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, SceneContainer, ATTRIBUTE_COLOR);
-      BackgroundColor->Color = V4(0,0,0,0.7);
 
       container_node* ScenePlugin = CreatePlugin(Interface, "Scene", Interface->MenuColor, SceneContainer);
       RegisterWindow(Interface, WindowsDropDownMenu, ScenePlugin);
+      GlobalState->World.ScenePlugin = ScenePlugin;
     }
     {
       container_node* SettingsPlugin = 0;
@@ -1404,40 +1403,44 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   v3 WUp, WRight, WForward;
   GetCameraDirections(Camera, &WUp, &WRight, &WForward);
 //  Platform.DEBUGPrint("%1.4f, %1.4f\n",Input->Mouse.dX,Input->Mouse.dY);
-  #if 0
-  if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
+  b32 HasMenu = false;
+  b32 MenuIsInFocus = IsPluginContainerInFocus(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin, &HasMenu);
+  if(MenuIsInFocus || !HasMenu)
   {
-    if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
+    if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
     {
-      if(Input->Mouse.dX != 0)
+      if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
       {
-        //RotateAround(Camera, -5*Input->Mouse.dX, Up);
-        RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
-        //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
-      }
-      if(Input->Mouse.dY != 0)
-      {
-        RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );      
-        v3 CamPos = GetCameraPosition(Camera);
-      }
-    }else{
-      if(Input->Mouse.dX != 0)
-      {
-        RotateAround(Camera, -5*Input->Mouse.dX, WUp);
-        char Buf[32] = {};
-        jstr::ToString( WRight.E, 2, ArrayCount(Buf), Buf );
-        Platform.DEBUGPrint("Right   : %s\n", Buf);
-      }
-      if(Input->Mouse.dY != 0)
-      {
-        RotateAround(Camera, -5*Input->Mouse.dY, -WRight);
-        char Buf[32] = {};
-        jstr::ToString( Up.E, 2, ArrayCount(Buf), Buf );
-        Platform.DEBUGPrint("Up: %s\n", Buf);
+        if(Input->Mouse.dX != 0)
+        {
+          //RotateAround(Camera, -5*Input->Mouse.dX, Up);
+          RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
+          //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
+        }
+        if(Input->Mouse.dY != 0)
+        {
+          RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );      
+          v3 CamPos = GetCameraPosition(Camera);
+        }
+      }else{
+        if(Input->Mouse.dX != 0)
+        {
+          RotateAround(Camera, -5*Input->Mouse.dX, WUp);
+          char Buf[32] = {};
+          jstr::ToString( WRight.E, 2, ArrayCount(Buf), Buf );
+          Platform.DEBUGPrint("Right   : %s\n", Buf);
+        }
+        if(Input->Mouse.dY != 0)
+        {
+          RotateAround(Camera, -5*Input->Mouse.dY, -WRight);
+          char Buf[32] = {};
+          jstr::ToString( Up.E, 2, ArrayCount(Buf), Buf );
+          Platform.DEBUGPrint("Up: %s\n", Buf);
+        }
       }
     }
   }
-#endif
+
   render_group* RenderGroup = RenderCommands->RenderGroup;
   if(jwin::Pushed(Input->Keyboard.Key_ENTER) || Input->ExecutableReloaded)
   {

@@ -421,6 +421,8 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name);
 void RegisterWindow(menu_interface* Interface, menu_tree* DropDownMenu, container_node* Plugin);
 void ToggleWindow(menu_interface* Interface, char* WindowName);
 
+b32 IsPluginContainerInFocus(menu_interface* Interface, container_node* Container, b32* HasMenu = 0);
+
 void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, container_node* CallerNode, void* Data, menu_event_callback** Callback,  menu_event_callback** OnDelete);
 #define RegisterMenuEvent(Interface, EventType, CallerNode, Data, Callback, OnDeleteCallback ) \
     _RegisterMenuEvent(Interface, EventType, CallerNode, (void*) Data,                         \
