@@ -17,6 +17,7 @@ MENU_UPDATE_CHILD_REGIONS(UpdateTabWindowChildRegions);
 MENU_DRAW(DrawFunctionTimeline);
 MENU_DRAW(DrawStatistics);
 MENU_DRAW(DrawFrameFunctions);
+MENU_DRAW(RenderScene);
 
 MENU_EVENT_CALLBACK(DebugToggleButton);
 MENU_EVENT_CALLBACK(DebugRecompileButton);
@@ -65,6 +66,7 @@ void _ReinitiatePool(function_pool* Pool)
     //NewFunPtr(DrawFunctionTimeline)
     //NewFunPtr(DrawStatistics)
     //NewFunPtr(DrawFrameFunctions)
+    NewFunPtr(RenderScene)
     //NewFunPtr(DebugToggleButton)
     //NewFunPtr(DebugRecompileButton)
     NewFunPtr(InitiateTabDrag)

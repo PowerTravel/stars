@@ -839,72 +839,6 @@ void main()
   return GaussianFragmentShaderXArr;
 }
 
-char** GetFontVertexShader(){
-
-  local_persist char FontVertexShaderCode[] = R"Foo(
-#version 330 core
-
-layout (location = 0)  in vec3 v;
-layout (location = 1)  in vec3 vn;
-layout (location = 2)  in vec2 vt;
-layout (location = 3)  in vec4 TextColor_in;
-layout (location = 4)  in vec4 TexCoord_in;
-layout (location = 5)  in mat4 Model;
-out vec4 TextColor;
-out vec4 TexCoord;
-out vec2 uv;
-uniform mat4 Projection;
-void main()
-{
-  uv = vt;
-  TextColor = TextColor_in;
-  TexCoord = TexCoord_in;
-  gl_Position = Projection * Model * vec4(v,1);
-}
-
-)Foo";
-
-  local_persist char* FontVertexShaderCodeArr[1]   = {FontVertexShaderCode};
-  return FontVertexShaderCodeArr;
-}
-
-char** GetFontFragmentShader(){
-  local_persist char FontFragmentShaderCode[] = R"Foo(
-#version 330 core
-
-in vec2 uv;
-in vec4 TextColor;
-in vec4 TexCoord;
-out vec4 color;
-uniform sampler2D RenderedTexture;
-// Maps x from range [a0,a1] to [b0,b1]
-float LinearRemap(float x, float a0, float a1, float b0, float b1){
-  float Slope = (b1-b0) / (a1-a0);
-  float Result = Slope * (x - a0) + b0;
-  return Result;
-}
-uniform float OnEdgeValue;
-uniform float PixelDistanceScale;
-void main()
-{
-  float x = LinearRemap(uv.x, 0,1, TexCoord.x, TexCoord.z);
-  float y = LinearRemap(uv.y, 0,1, TexCoord.y, TexCoord.w);
-  float data = texture(RenderedTexture, vec2(x,y)).r;
-  float value = LinearRemap(data, OnEdgeValue, OnEdgeValue + PixelDistanceScale, 0, 1);
-  value = LinearRemap(value, -0.5, 0.5, 0, 1);
-  if(value <= 0){
-    discard;
-  }
-
-  color = vec4(TextColor.xyz,value*TextColor.w);
-}
-)Foo";
-
-
-  local_persist char* FontFragmentShaderCodeArr[1] = {FontFragmentShaderCode};
-  return FontFragmentShaderCodeArr;
-}
-
 u32 CreateFontProgram(render_group* RenderGroup)
 {
   u32 ProgramHandle = NewShaderProgram(RenderGroup, "FontRenderProgram");
@@ -916,7 +850,9 @@ u32 CreateFontProgram(render_group* RenderGroup)
   AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TextColor_in");
   AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TexCoord_in");
   AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "Model");
-  CompileShader(RenderGroup, ProgramHandle, 1, GetFontVertexShader(), 1, GetFontFragmentShader());
+  CompileShader(RenderGroup, ProgramHandle, 
+     1, LoadFileFromDisk("..\\jwin\\shaders\\FontRenderVertex.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\FontRenderFragment.glsl"));
   return ProgramHandle;
 }
 
@@ -1042,6 +978,11 @@ world InitiateWorld(application_render_commands* RenderCommands)
   return Result;
 }
 
+MENU_DRAW(RenderScene)
+{
+  ecs::render::SetDrawWindowCanCord(GetRenderSystem(), Node->Region);
+}
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1141,10 +1082,21 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
     
-    GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, Megabytes(1));
+    GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
     menu_interface* Interface = GlobalState->World.MenuInterface;
     menu_tree* WindowsDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Windows");
     menu_tree* TestDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Test");
+    {
+      // Create Option Window
+      container_node* SceneContainer =  NewContainer(Interface);
+      
+      SceneContainer->Functions.Draw = DeclareFunction(menu_draw, RenderScene);
+      color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, SceneContainer, ATTRIBUTE_COLOR);
+      BackgroundColor->Color = V4(0,0,0,0.7);
+
+      container_node* ScenePlugin = CreatePlugin(Interface, "Scene", Interface->MenuColor, SceneContainer);
+      RegisterWindow(Interface, WindowsDropDownMenu, ScenePlugin);
+    }
     {
       container_node* SettingsPlugin = 0;
       // Create Option Window
@@ -1452,6 +1404,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   v3 WUp, WRight, WForward;
   GetCameraDirections(Camera, &WUp, &WRight, &WForward);
 //  Platform.DEBUGPrint("%1.4f, %1.4f\n",Input->Mouse.dX,Input->Mouse.dY);
+  #if 0
   if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
   {
     if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
@@ -1484,7 +1437,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
     }
   }
-
+#endif
   render_group* RenderGroup = RenderCommands->RenderGroup;
   if(jwin::Pushed(Input->Keyboard.Key_ENTER) || Input->ExecutableReloaded)
   {
@@ -1511,7 +1464,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     CompileShader(RenderGroup, GlobalState->ColoredSquareOverlayProgram, 
     1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadVertex.glsl"),
     1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadFragment.glsl"));
-    
+    CompileShader(RenderGroup, GlobalState->FontRenterProgram, 
+     1, LoadFileFromDisk("..\\jwin\\shaders\\FontRenderVertex.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\FontRenderFragment.glsl"));
     CompileShader(RenderGroup, GlobalState->GaussianProgramY, 1, getGaussianVertexCodeY(), 1, getGaussianFragmentCodeY());
     CompileShader(RenderGroup, GlobalState->GaussianProgramX, 1, getGaussianVertexCodeX(), 1, getGaussianFragmentCodeX());
 
@@ -1524,7 +1479,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   UpdateViewMatrix(Camera);
 
   UpdateAndRenderMenuInterface(Input, GlobalState->World.MenuInterface);
+
+  if(!GlobalState->World.MenuInterface->MenuVisible){
+    ecs::render::SetDrawWindow(GetRenderSystem(),
+      Rect2f(0,0,1,1));
+  }
   
-  ecs::render::Draw(GlobalState->World.EntityManager, GetRenderSystem(), Camera->P, Camera->V);
-  
+  ecs::render::Draw(GlobalState->World.EntityManager, GetRenderSystem(), Camera->P, Camera->V);  
 } 

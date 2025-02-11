@@ -56,8 +56,9 @@ namespace render {
     chunk_list OverlayQuads;
     data::font Font;
     u32 FontTextureHandle;
-
+    rect2f UnitDrawRegion; // UnitCoordinate [0,0,1,1], Percentage of applicationWidth/Height
     window_size_pixel WindowSize;
+
   };
 
   void SetWindowSize(system* System, application_render_commands* RenderCommands)
@@ -100,6 +101,17 @@ namespace render {
 
   void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color);
   void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color);
+
+  void SetDrawWindow(system* System, rect2f DrawRegion){
+    System->UnitDrawRegion = DrawRegion;
+  }
+  void SetDrawWindowCanCord(system* System, rect2f DrawRegion){
+    System->UnitDrawRegion = Rect2f(
+      DrawRegion.X / System->WindowSize.ApplicationAspectRatio,
+      DrawRegion.Y,
+      DrawRegion.W / System->WindowSize.ApplicationAspectRatio,
+      DrawRegion.H);
+  }
 
   void DrawTexturedOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, rect2f TextureCoordinates, u32 TextureHandle)
   {

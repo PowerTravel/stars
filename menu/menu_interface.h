@@ -19,7 +19,6 @@ enum class container_type
   Grid,
   Plugin,
   TabWindow,
-  DropDown,
   Tab
 };
 
@@ -47,7 +46,6 @@ const c8* ToString(container_type Type)
     case container_type::Plugin: return "Plugin";
     case container_type::TabWindow: return "TabWindow";
     case container_type::Tab: return "Tab";
-    case container_type::DropDown: return "DropDown";
   }
   return "";
 };
@@ -70,7 +68,7 @@ struct container_node;
 struct menu_interface;
 struct menu_tree;
 
-menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize);
+menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 AspectRatio);
 void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interface* Interface);
 container_node* NewContainer(menu_interface* Interface, container_type Type = container_type::None);
 void DeleteContainer(menu_interface* Interface, container_node* Node);
@@ -179,10 +177,6 @@ struct plugin_node
   char Title[256];
   container_node* Tab;
   v4 Color;
-};
-
-struct drop_down_node{
-  b32 Active;
 };
 
 enum class merge_zone
@@ -344,8 +338,9 @@ struct menu_interface
   menu_tree* MenuBar;
   menu_tree MenuSentinel;
 
-  u32 MainDropDownMenuCount;
-  menu_tree* MainDropDownMenus[8];
+  b32 MainMenuBarActive;
+  u32 MainMenuTabCount;
+  menu_tree* MainMenuTabs[8];
 
   linked_memory LinkedMemory;
 
@@ -413,13 +408,6 @@ inline tab_node* GetTabNode(container_node* Container)
 {
   Assert(Container->Type == container_type::Tab);
   tab_node* Result = (tab_node*) GetContainerPayload(Container);
-  return Result;
-}
-
-inline drop_down_node* GetDropDownNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::DropDown);
-  drop_down_node* Result = (drop_down_node*) GetContainerPayload(Container);
   return Result;
 }
 

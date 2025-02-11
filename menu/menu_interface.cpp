@@ -17,7 +17,6 @@ GetContainerPayloadSize(container_type Type)
     case container_type::TabWindow: return sizeof(tab_window_node);
     case container_type::Tab:       return sizeof(tab_node);
     case container_type::Plugin:    return sizeof(plugin_node);
-    case container_type::DropDown:  return sizeof(drop_down_node);
     default: INVALID_CODE_PATH;
   }
   return 0;
@@ -2113,7 +2112,7 @@ container_node* CreateSplitWindow( menu_interface* Interface, b32 Vertical, r32 
 }
 
 
-menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize)
+menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 AspectRatio)
 {
   menu_interface* Interface = PushStruct(Arena, menu_interface);
   Interface->LinkedMemory = NewLinkedMemory(Arena, MaxMemSize);
@@ -2189,35 +2188,13 @@ MENU_EVENT_CALLBACK(DropDownMenuButton)
   menu_tree* Menu = (menu_tree*) Data;
   Menu->Root->Region.X = CallerNode->Region.X;
   Menu->Root->Region.Y = CallerNode->Region.Y - Menu->Root->Region.H;
-  //drop_down_node* DropDownNode = GetDropDownNode(CallerNode);
-  //if(!DropDownNode->Active)
-  #if 0
-  menu_tree* VisibleDropDownMenu = 0;
-  for (int i = 0; i < Interface->MainDropDownMenuCount; ++i)
-  {
-    menu_tree* DropDown = Interface->MainDropDownMenus[i];
-    if(DropDown->Visible)
-    {
-      VisibleDropDownMenu = DropDown;
-      break;
-    }
-  }
-  #endif
-//  if(VisibleDropDownMenu)
-//  {
-//    DropDownMenu->Root->Region.X = CallerNode->Region.X;
-//    DropDownMenu->Root->Region.Y = CallerNode->Region.Y - DropDownMenu->Root->Region.H;
-//    SetFocusWindow(Interface, DropDownMenu);
-//  }
+
   if(!Menu->Visible)
   {
     SetFocusWindow(Interface, Menu);
-    //DropDownNode->Active = true;
-  }else if(VisibleDropDownMenu){
-    SetFocusWindow(Interface, 0);
-    //DropDownNode->Active = false;
   }
 }
+
 
 menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
 {
@@ -2254,7 +2231,7 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   container_node* MainSettingBar =  Interface->MenuBar->Root;
   container_node* DropDownContainer = MainSettingBar->FirstChild;
 
-  container_node* NewMenu = ConnectNodeToBack(DropDownContainer, NewContainer(Interface, container_type::DropDown));
+  container_node* NewMenu = ConnectNodeToBack(DropDownContainer, NewContainer(Interface, container_type::Tab));
 
   color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_COLOR);
   ColorAttr->Color = Interface->MenuColor;
@@ -2300,23 +2277,6 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   RegisterMenuEvent(Interface, menu_event_type::MouseEnter, NewMenu, (void*) ViewMenuRoot, HeaderMenuMouseEnter, 0);
   RegisterMenuEvent(Interface, menu_event_type::MouseExit,  NewMenu, (void*) ViewMenuRoot, HeaderMenuMouseExit, 0);
 
-  //drop_down_node* DropDownNode = GetDropDownNode(NewMenu);
-  //DropDownNode->Payload = ViewMenuRoot;
-#if 0
-  container_node* HeaderMenus = Interface->MenuBar->Root->FirstChild;
-  Assert(HeaderMenus->Type == container_type::Grid);
-  container_node* ThisDropDownMenu = HeaderMenus->FirstChild;
-  while(ThisDropDownMenu)
-  {
-    Assert(ThisDropDownMenu->Type == container_type::DropDown);
-    text_attribute* DropDownText = (text_attribute*) GetAttributePointer(ThisDropDownMenu, ATTRIBUTE_TEXT);
-    if(jstr::Equals(DropDownText->Text, PluginNode->Title)) {
-      drop_down_node* DropDownNode = GetDropDownNode(ThisDropDownMenu);
-      DropDownNode->Payload = DropDownMenu;
-    }
-    ThisDropDownMenu = ThisDropDownMenu->NextSibling;
-  }
-#endif
   return ViewMenuRoot;
 }
 
@@ -2385,9 +2345,9 @@ MENU_EVENT_CALLBACK(HeaderMenuMouseEnter)
   menu_tree* VisibleDropDownMenu = 0;
   
   // See if any drop down menu is visible
-  for (int i = 0; i < Interface->MainDropDownMenuCount; ++i)
+  for (int i = 0; i < Interface->MainMenuTabCount; ++i)
   {
-    menu_tree* DropDown = Interface->MainDropDownMenus[i];
+    menu_tree* DropDown = Interface->MainMenuTabs[i];
     if(DropDown->Visible && DropDown != DropDownMenu)
     {
       VisibleDropDownMenu = DropDown;
@@ -2407,12 +2367,6 @@ MENU_EVENT_CALLBACK(HeaderMenuMouseExit)
 {
   color_attribute* MenuColor = (color_attribute*) GetAttributePointer(CallerNode, ATTRIBUTE_COLOR);
   MenuColor->Color = MenuColor->RestingColor;
-
-  drop_down_node* DropDownNode = GetDropDownNode(CallerNode);
-  //if(DropDownNode->Active)
-  //{
-  //  DropDownNode->Active = false;
-  //}
 }
 
 MENU_EVENT_CALLBACK(HeaderMenuMouseUp)
@@ -2466,7 +2420,7 @@ void RegisterWindow(menu_interface* Interface, menu_tree* DropDownMenu, containe
 
   color_attribute* DropDownColor = (color_attribute*) PushAttribute(Interface, MenuItem, ATTRIBUTE_COLOR);
   DropDownColor->Color = Interface->MenuColor;
-  DropDownColor->HighlightedColor = Interface->MenuColor * 31.5;
+  DropDownColor->HighlightedColor = Interface->MenuColor * 1.5;
   DropDownColor->RestingColor = Interface->MenuColor;
 
   v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), Interface->BodyFontSize, (utf8_byte*)PluginNode->Title );
@@ -2481,8 +2435,8 @@ void RegisterWindow(menu_interface* Interface, menu_tree* DropDownMenu, containe
   RegisterMenuEvent(Interface, menu_event_type::MouseEnter, MenuItem, Tab, DropDownMouseEnter, 0);
   RegisterMenuEvent(Interface, menu_event_type::MouseExit,  MenuItem, Tab, DropDownMouseExit, 0);
 
-  Assert(Interface->MainDropDownMenuCount < ArrayCount(Interface->MainDropDownMenus));
-  Interface->MainDropDownMenus[Interface->MainDropDownMenuCount++] = DropDownMenu;
+  Assert(Interface->MainMenuTabCount < ArrayCount(Interface->MainMenuTabs));
+  Interface->MainMenuTabs[Interface->MainMenuTabCount++] = DropDownMenu;
 }
 
 void ToggleWindow(menu_interface* Interface, char* WindowName)

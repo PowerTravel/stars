@@ -414,14 +414,16 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   SetState(ViewportAndBlend, ViewportState(Window->WindowWidth, Window->WindowHeight, Window->ApplicationAspectRatio));
   SetState(ViewportAndBlend, DefaultBlendState());
 
-  // Gaussian blur
 
   blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
   BlitOperation->ReadFrameBufferHandle = GlobalState->MsaaFrameBuffer;
   
 #if 1
   BlitOperation->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
+  BlitOperation->DrawRegionUnitCoord = RenderSystem->UnitDrawRegion;
+    
 #else
+  // Gaussian blur
   BlitOperation->DrawFrameBufferHandle = GlobalState->GaussianAFrameBuffer;
 
   for (int i = 0; i < 4; ++i)
