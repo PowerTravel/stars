@@ -78,7 +78,7 @@ container_node* ConnectNodeToFront(container_node* Parent, container_node* NewNo
 container_node* ConnectNodeToBack(container_node* Parent, container_node* NewNode);
 void DisconnectNode(container_node* Node);
 
-container_node* CreateBorderNode(menu_interface* Interface, b32 Vertical=false, r32 Position = 0.5f,  v4 Color =  V4(0,0,0.4,1));
+container_node* CreateBorderNode(menu_interface* Interface, v4 Color);
 
 struct update_args;
 
@@ -177,6 +177,7 @@ struct plugin_node
   char Title[256];
   container_node* Tab;
   v4 Color;
+  rect2f CachedRegion;
 };
 
 enum class merge_zone
@@ -333,7 +334,12 @@ struct menu_interface
   u32 PermanentWindowCount = 0;
   container_node* PermanentWindows[32];
 
+  // Menu In Focus means that the mouse is hovering over a menu_tree which is on top
   menu_tree* MenuInFocus;
+
+  // Selected Plugin is the pluginwindow which was last clicked;
+  container_node* SelectedPlugin;
+
   menu_tree* SpawningWindow; // This SpawningWinow is a root window that all new windows gets attached to.
   menu_tree* MenuBar;
   menu_tree MenuSentinel;
@@ -352,6 +358,7 @@ struct menu_interface
   v2 MouseLeftButtonRelese;
 
   r32 BorderSize;
+  v4 BorderColor;
   r32 HeaderSize;
   r32 MinSize;
 
@@ -421,7 +428,7 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name);
 void RegisterWindow(menu_interface* Interface, menu_tree* DropDownMenu, container_node* Plugin);
 void ToggleWindow(menu_interface* Interface, char* WindowName);
 
-b32 IsPluginContainerInFocus(menu_interface* Interface, container_node* Container, b32* HasMenu = 0);
+b32 IsPluginSelected(menu_interface* Interface, container_node* Container);
 
 void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, container_node* CallerNode, void* Data, menu_event_callback** Callback,  menu_event_callback** OnDelete);
 #define RegisterMenuEvent(Interface, EventType, CallerNode, Data, Callback, OnDeleteCallback ) \

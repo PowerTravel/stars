@@ -11,6 +11,8 @@
 #include "menu/color_table.h"
 typedef void(*func_ptr_void)(void);
 
+#define DEBUGPrintRect(Rect) Platform.DEBUGPrint("%1.2f,%1.2f,%1.2f,%1.2f\n",(Rect).X, (Rect).Y ,(Rect).W, (Rect).H);
+
 struct function_ptr
 {
   c8* Name;
@@ -92,17 +94,21 @@ debug_application_render_commands* GlobalDebugRenderCommands = 0;
 application_state* GlobalState = 0;
 
 // Global Singleton Getters
-ecs::render::system* GetRenderSystem() {
+inline ecs::render::system* GetRenderSystem() {
   return GlobalState->World.RenderSystem;
 }
 
-ecs::entity_manager* GetEntityManager() {
+inline ecs::entity_manager* GetEntityManager() {
   return GlobalState->World.EntityManager;
 }
 
-menu::color_table* GetColorTable()
+inline menu::color_table* GetColorTable()
 {
   return &GlobalState->ColorTable;
+}
+
+inline menu_interface* GetMenuInterface() {
+  return GlobalState->World.MenuInterface;
 }
 
 inline func_ptr_void* _DeclareFunction(func_ptr_void Function, const c8* Name)

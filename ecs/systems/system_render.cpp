@@ -111,6 +111,51 @@ v2 GetTextSizeCanonicalSpace(system* System, r32 PixelSize, utf8_byte const * Te
   return CanonicalPos;
 }
 
+data::render_level* GetTopRenderLevel(system* System)
+{
+  if(ListEmpty(&System->RenderSentinel))
+  {
+    NewRenderLevel(System);
+  }
+  return System->RenderSentinel.Previous;
+}
+
+inline internal chunk_list* GetOverlayText(system* System, data::render_level* RenderLevel)
+{
+  if(!IsInitiated(&RenderLevel->OverlayText))
+  {
+    RenderLevel->OverlayText = NewChunkList(&System->Arena, sizeof(data::overlay_text), 512);
+  }
+  return &RenderLevel->OverlayText;
+}
+
+inline internal chunk_list* GetOverlayQuads(system* System, data::render_level* RenderLevel)
+{
+  if(!IsInitiated(&RenderLevel->OverlayQuads))
+  {
+    RenderLevel->OverlayQuads = NewChunkList(&System->Arena, sizeof(data::overlay_quad), 512);
+  }
+  return &RenderLevel->OverlayQuads;
+}
+  
+inline internal chunk_list* GetSolidObjects(system* System, data::render_level* RenderLevel)
+{
+  if(!IsInitiated(&RenderLevel->SolidObjects))
+  {
+    RenderLevel->SolidObjects = NewChunkList(&System->Arena, sizeof(component**), 32);
+  }
+  return &RenderLevel->SolidObjects;
+}
+
+inline internal chunk_list* GetTransparentObjects(system* System, data::render_level* RenderLevel)
+{
+  if(!IsInitiated(&RenderLevel->TransparentObjects))
+  {
+    RenderLevel->TransparentObjects = NewChunkList(&System->Arena, sizeof(component**), 32);
+  }
+  return &RenderLevel->TransparentObjects;
+}
+
 void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
 {
   SCOPED_TRANSIENT_ARENA;
@@ -121,6 +166,8 @@ void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte co
   jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
   jfont::GetTextPrintCoordinates(&System->Font.Font, &System->Font.FontAtlas, RelativeScale, PixelPos.X, PixelPos.Y, CodePoints, TextPrintCoordinates);
 
+  data::render_level* RenderLevel = GetTopRenderLevel(System);
+  chunk_list* TextBuffer = GetOverlayText(System, RenderLevel);
   for (int i = 0; i < UnicodeLen; ++i)
   {
     jfont::print_coordinates* tc = TextPrintCoordinates+i;
@@ -131,7 +178,7 @@ void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte co
     Translate(V4(tc->x,tc->y, 0, 1), OverlayText.ModelMatrix);
     OverlayText.ModelMatrix = Transpose(OverlayText.ModelMatrix);
     OverlayText.Color = Color;
-    Push(&System->Arena, &System->OverlayText, (bptr)&OverlayText);
+    Push(&System->Arena, &RenderLevel->OverlayText, (bptr)&OverlayText);
   }
 }
 
@@ -153,8 +200,30 @@ void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color)
   data::overlay_quad Quad = {};
   Quad.Color = Color;
   Quad.ModelMatrix = ModelMatrix;
-  
-  Push(&System->Arena, &System->OverlayQuads, (bptr)&Quad);
+ 
+  data::render_level* RenderLevel = GetTopRenderLevel(System); 
+  chunk_list* QuadBuffer = GetOverlayQuads(System, RenderLevel);
+  Push(&System->Arena, &RenderLevel->OverlayQuads, (bptr)&Quad);
+}
+
+void DrawScene(system* System, ecs::entity_manager* EntityManager)
+{
+  filtered_entity_iterator EntityIterator = GetComponentsOfType(EntityManager, flag::RENDER);
+
+  data::render_level* RenderLevel = GetTopRenderLevel(System);
+
+  while(Next(&EntityIterator))
+  {
+    component* Component = GetRenderComponent(&EntityIterator);
+    if(Component->Material.Ambient.W < 1)
+    {
+      chunk_list* TransparentObjects = GetTransparentObjects(System, RenderLevel);
+      Push(&System->Arena, TransparentObjects, (bptr) &Component);
+    }else{
+      chunk_list* SolidObjects = GetSolidObjects(System, RenderLevel);
+      Push(&System->Arena, SolidObjects, (bptr) &Component);
+    }
+  }
 }
 
 void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color)
@@ -276,6 +345,14 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
 
 }
 
+void DEBUGPrintMatrix(m4 Matrix)
+{
+  Platform.DEBUGPrint("| %1.2f, %1.2f, %1.2f, %1.2f |\n", Matrix.r0.X, Matrix.r0.Y,Matrix.r0.Z,Matrix.r0.W);
+  Platform.DEBUGPrint("| %1.2f, %1.2f, %1.2f, %1.2f |\n", Matrix.r1.X, Matrix.r1.Y,Matrix.r1.Z,Matrix.r1.W);
+  Platform.DEBUGPrint("| %1.2f, %1.2f, %1.2f, %1.2f |\n", Matrix.r2.X, Matrix.r2.Y,Matrix.r2.Z,Matrix.r2.W);
+  Platform.DEBUGPrint("| %1.2f, %1.2f, %1.2f, %1.2f |\n", Matrix.r3.X, Matrix.r3.Y,Matrix.r3.Z,Matrix.r3.W);
+}
+
 void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix)
 {
   render_group* RenderGroup = RenderSystem->RenderGroup;
@@ -284,22 +361,6 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   v3 LightPosition = V3(1,1,1);
   v3 LightDirection = V3(Transpose(RigidInverse(ViewMatrix)) * V4(LightPosition,0));
 
-  filtered_entity_iterator EntityIterator = GetComponentsOfType(EntityManager, flag::RENDER);
-
-  chunk_list SolidObjects = NewChunkList(GlobalTransientArena, sizeof(component**), 32);
-  chunk_list TransparentObjects = NewChunkList(GlobalTransientArena, sizeof(component**), 32);
-
-  while(Next(&EntityIterator))
-  {
-    component* Component = GetRenderComponent(&EntityIterator);
-    if(Component->Material.Ambient.W < 1)
-    {
-      Push(GlobalTransientArena, &TransparentObjects, (bptr) &Component);
-    }else{
-      Push(GlobalTransientArena, &SolidObjects, (bptr) &Component);
-    }
-  }
-
   // Some Gaussian Blur just cause I can
   r32* KernelOffset = PushArray(GlobalTransientArena, 64, r32);
   r32* KernelWeight = PushArray(GlobalTransientArena, 64, r32);
@@ -307,212 +368,246 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 
   window_size_pixel* Window = &RenderSystem->WindowSize;
 
-  u32 MSAA = 4;
-  render_state* DefaultState = PushNewState(RenderGroup);
-  *DefaultState = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
-
-  clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
-  DefClearColor->BufferType = OPEN_GL_COLOR;
-  DefClearColor->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  DefClearColor->TextureIndex = 0;
-  DefClearColor->Color = V4(0,0,0,1);
-
-  clear_operation* DefClearDepth = PushNewClearOperation(RenderGroup);
-  DefClearDepth->BufferType = OPEN_GL_DEPTH;
-  DefClearDepth->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  DefClearDepth->TextureIndex = 0;
-  DefClearDepth->Depth = 1;
-
-  clear_operation* ClearMSAAColor = PushNewClearOperation(RenderGroup);
-  ClearMSAAColor->BufferType = OPEN_GL_COLOR;
-  ClearMSAAColor->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-  ClearMSAAColor->TextureIndex = 0;
-  ClearMSAAColor->Color = V4(0,0,0,1);
-
-  clear_operation* ClearMSAADepth = PushNewClearOperation(RenderGroup);
-  ClearMSAADepth->BufferType = OPEN_GL_DEPTH;
-  ClearMSAADepth->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-  ClearMSAADepth->TextureIndex = 0;
-  ClearMSAADepth->Depth = 1;
-
-  clear_operation* TransparenClearOp0 = PushNewClearOperation(RenderGroup);
-  TransparenClearOp0->BufferType = OPEN_GL_COLOR;
-  TransparenClearOp0->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-  TransparenClearOp0->TextureIndex = 0;
-  TransparenClearOp0->Color = V4(0,0,0,0);
-
-  clear_operation* TransparenClearOp1 = PushNewClearOperation(RenderGroup);
-  TransparenClearOp1->BufferType = OPEN_GL_COLOR;
-  TransparenClearOp1->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
-  TransparenClearOp1->TextureIndex = 1;
-  TransparenClearOp1->Color = V4(1,0,0,0);
-
-  // First draw solid objects
-  chunk_list_iterator SolidIt = BeginIterator(&SolidObjects);
-  while(Valid(&SolidIt)) {
-    component** RenderPtr = (component**) Next(&SolidIt);
-    PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgram, GlobalState->MsaaFrameBuffer, ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
-  }
-
-
-  // move to transparent drawing
-  render_state* TransparentState = PushNewState(RenderGroup);
-  depth_state DepthState = {};
-  DepthState.TestActive = true;
-  DepthState.WriteActive = false;
-  SetState(TransparentState, DepthState);
-
-  blend_state BlendState = {};
-  BlendState.Active = true;
-  BlendState.TextureCount = 2;
-  BlendState.TextureBlendStates[0].TextureIndex = 0;
-  BlendState.TextureBlendStates[0].SrcFactor = OPEN_GL_ONE;
-  BlendState.TextureBlendStates[0].DstFactor = OPEN_GL_ONE;
-  BlendState.TextureBlendStates[1].TextureIndex = 1;
-  BlendState.TextureBlendStates[1].SrcFactor = OPEN_GL_ZERO;
-  BlendState.TextureBlendStates[1].DstFactor = OPEN_GL_ONE_MINUS_SRC_ALPHA;
-  SetState(TransparentState, BlendState);
-
-  // Then draw Transparent objects
-    // First draw solid objects
-  chunk_list_iterator TransparentIt = BeginIterator(&TransparentObjects);
-  while(Valid(&TransparentIt)) {
-    component** RenderPtr = (component**) Next(&TransparentIt);
-    PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgramTransparent, GlobalState->TransparentFrameBuffer, ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
-  }
-
-  render_state* CompositState = PushNewState(RenderGroup);
-  blend_state CompositBlend = {};
-  CompositBlend.Active = true;
-  CompositBlend.TextureCount = 1;
-  CompositBlend.TextureBlendStates[0].TextureIndex = 0;
-  CompositBlend.TextureBlendStates[0].SrcFactor = OPEN_GL_ONE_MINUS_SRC_ALPHA;
-  CompositBlend.TextureBlendStates[0].DstFactor = OPEN_GL_SRC_ALPHA;
-  SetState(CompositState, CompositBlend);
-
-
-  depth_state CompositDepth = {};
-  CompositDepth.TestActive = false;
-  CompositDepth.WriteActive = false;
-  SetState(CompositState, CompositDepth);
-
-  // Then composit the solid and transparent objects into a single image
-  render_object* CompositionObject = PushNewRenderObject(RenderGroup);
-  CompositionObject->ProgramHandle = GlobalState->TransparentCompositionProgram;
-  CompositionObject->MeshHandle = GlobalState->BlitPlane;
-  CompositionObject->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-  CompositionObject->TextureHandles[0] = GlobalState->AccumTexture;
-  CompositionObject->TextureHandles[1] = GlobalState->RevealTexture;
-  CompositionObject->TextureCount = 2;
-
-  PushUniform(CompositionObject, GetUniformHandle(RenderGroup, GlobalState->TransparentCompositionProgram,  "AccumTex"), (u32)0);
-  PushUniform(CompositionObject, GetUniformHandle(RenderGroup, GlobalState->TransparentCompositionProgram , "RevealTex"), (u32)1);
-
-  // Shrink to regular screeen sice
-  render_state* ViewportAndBlend = PushNewState(RenderGroup);
-  ///SetState(ViewportAndBlend, ViewportState(Window->ApplicationWidth, Window->ApplicationHeight, Window->ApplicationAspectRatio));
-  SetState(ViewportAndBlend, ViewportState(Window->WindowWidth, Window->WindowHeight, Window->ApplicationAspectRatio));
-  SetState(ViewportAndBlend, DefaultBlendState());
-
-
-  blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
-  BlitOperation->ReadFrameBufferHandle = GlobalState->MsaaFrameBuffer;
-  
-#if 1
-  BlitOperation->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
-  BlitOperation->DrawRegionUnitCoord = RenderSystem->UnitDrawRegion;
-    
-#else
-  // Gaussian blur
-  BlitOperation->DrawFrameBufferHandle = GlobalState->GaussianAFrameBuffer;
-
-  for (int i = 0; i < 4; ++i)
+  // ClearRenderState
   {
-    render_object* GaussianBlurX = PushNewRenderObject(RenderGroup);
-    GaussianBlurX->ProgramHandle = GlobalState->GaussianProgramX;
-    GaussianBlurX->MeshHandle = GlobalState->BlitPlane;
-    GaussianBlurX->FrameBufferHandle = GlobalState->GaussianBFrameBuffer;
-    GaussianBlurX->TextureHandles[0] = GlobalState->GaussianATexture;
-    GaussianBlurX->TextureCount = 1;
+    render_state* DefaultState = PushNewState(RenderGroup);
+    *DefaultState = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
 
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "kernerlSize"), KernelSize);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "RenderedTexture"), (u32) 0);
-    PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "sideSize"), V2(Window->ApplicationWidth, Window->ApplicationHeight));
+    clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
+    DefClearColor->BufferType = OPEN_GL_COLOR;
+    DefClearColor->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+    DefClearColor->TextureIndex = 0;
+    DefClearColor->Color = V4(0,0,0,1);
 
-    render_object* GaussianBlurY = PushNewRenderObject(RenderGroup);
-    GaussianBlurY->ProgramHandle = GlobalState->GaussianProgramY;
-    GaussianBlurY->MeshHandle = GlobalState->BlitPlane;
-    GaussianBlurY->FrameBufferHandle = GlobalState->GaussianAFrameBuffer;
-    GaussianBlurY->TextureHandles[0] = GlobalState->GaussianBTexture;
-    GaussianBlurY->TextureCount = 1;
-    
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "kernerlSize"), KernelSize);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "RenderedTexture"), (u32) 0);
-    PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "sideSize"), V2(Window->ApplicationWidth, Window->ApplicationHeight));
-  }
-  blit_operation* BlitOperation2 = PushNewBlitOperation(RenderGroup);
-  BlitOperation2->ReadFrameBufferHandle = GlobalState->GaussianBFrameBuffer;
-  BlitOperation2->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
-#endif
-  depth_state OverlayDepthState = {};
-  OverlayDepthState.TestActive = false;
-  OverlayDepthState.WriteActive = false;
-  SetState(CompositState, OverlayDepthState);
-  m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
+    clear_operation* DefClearDepth = PushNewClearOperation(RenderGroup);
+    DefClearDepth->BufferType = OPEN_GL_DEPTH;
+    DefClearDepth->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+    DefClearDepth->TextureIndex = 0;
+    DefClearDepth->Depth = 1;
 
-  chunk_list_iterator OverlayQuadsIT = BeginIterator(&RenderSystem->OverlayQuads);
-  u32 QuadCount = GetBlockCount(&RenderSystem->OverlayQuads);
-  if(QuadCount)
-  {
-    render_object* QuadObject = PushNewRenderObject(RenderGroup);
-    QuadObject->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
-    QuadObject->MeshHandle = GlobalState->BlitPlane;
-    QuadObject->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-    u32 i = 0;
-    data::overlay_quad* QuadInstanceData = PushArray(GlobalTransientArena, QuadCount, data::overlay_quad);
-    while(Valid(&OverlayQuadsIT)) {
-      data::overlay_quad* OverlayQuad = (data::overlay_quad*) Next(&OverlayQuadsIT);
+    clear_operation* ClearMSAAColor = PushNewClearOperation(RenderGroup);
+    ClearMSAAColor->BufferType = OPEN_GL_COLOR;
+    ClearMSAAColor->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+    ClearMSAAColor->TextureIndex = 0;
+    ClearMSAAColor->Color = V4(0,0,0,1);
 
-      QuadInstanceData[i++] = *OverlayQuad;
-    }
-    
-    PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
-    PushInstanceData(QuadObject, QuadCount, QuadCount*sizeof(data::overlay_quad), QuadInstanceData);
-    Clear(&RenderSystem->OverlayQuads);
+    clear_operation* ClearMSAADepth = PushNewClearOperation(RenderGroup);
+    ClearMSAADepth->BufferType = OPEN_GL_DEPTH;
+    ClearMSAADepth->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+    ClearMSAADepth->TextureIndex = 0;
+    ClearMSAADepth->Depth = 1;
+
+    clear_operation* TransparenClearOp0 = PushNewClearOperation(RenderGroup);
+    TransparenClearOp0->BufferType = OPEN_GL_COLOR;
+    TransparenClearOp0->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+    TransparenClearOp0->TextureIndex = 0;
+    TransparenClearOp0->Color = V4(0,0,0,0);
+
+    clear_operation* TransparenClearOp1 = PushNewClearOperation(RenderGroup);
+    TransparenClearOp1->BufferType = OPEN_GL_COLOR;
+    TransparenClearOp1->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+    TransparenClearOp1->TextureIndex = 1;
+    TransparenClearOp1->Color = V4(1,0,0,0);
   }
   
-
-  // Overlay text
-  u32 TextCount = GetBlockCount(&RenderSystem->OverlayText);
-  if(TextCount)
+  data::render_level* RenderLevel = RenderSystem->RenderSentinel.Next;
+  while(!ListEnd(&RenderSystem->RenderSentinel,RenderLevel))
   {
-    render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
-    OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
-    OverlayTextProgram->MeshHandle = GlobalState->BlitPlane;
-    OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-    OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
-    OverlayTextProgram->TextureCount = 1;
+    render_state* DefaultState2 = PushNewState(RenderGroup);
+    *DefaultState2 = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
+
+    chunk_list* SolidObjects = &RenderLevel->SolidObjects;
+    chunk_list* TransparentObjects = &RenderLevel->TransparentObjects;
+    if(GetBlockCount(SolidObjects) > 0 || GetBlockCount(TransparentObjects) > 0)
+    {
+//      render_state* MSAAViewport = PushNewState(RenderGroup);
+//      SetState(MSAAViewport, ViewportState(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio));
+      
+      // First draw solid objects
+      if(GetBlockCount(SolidObjects) > 0)
+      {
+        chunk_list_iterator SolidIt = BeginIterator(SolidObjects);
+        while(Valid(&SolidIt)) {
+          component** RenderPtr = (component**) Next(&SolidIt);
+          PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgram, GlobalState->MsaaFrameBuffer, ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
+        }
+        Clear(SolidObjects);
+      }
+
+      if(GetBlockCount(TransparentObjects) > 0)
+      {
+        render_state* TransparentState = PushNewState(RenderGroup);
+        depth_state DepthState = {};
+        DepthState.TestActive = true;
+        DepthState.WriteActive = false;
+        SetState(TransparentState, DepthState);
+
+        blend_state BlendState = {};
+        BlendState.Active = true;
+        BlendState.TextureCount = 2;
+        BlendState.TextureBlendStates[0].TextureIndex = 0;
+        BlendState.TextureBlendStates[0].SrcFactor = OPEN_GL_ONE;
+        BlendState.TextureBlendStates[0].DstFactor = OPEN_GL_ONE;
+        BlendState.TextureBlendStates[1].TextureIndex = 1;
+        BlendState.TextureBlendStates[1].SrcFactor = OPEN_GL_ZERO;
+        BlendState.TextureBlendStates[1].DstFactor = OPEN_GL_ONE_MINUS_SRC_ALPHA;
+        SetState(TransparentState, BlendState);
+
+        chunk_list_iterator TransparentIt = BeginIterator(TransparentObjects);
+        while(Valid(&TransparentIt)) {
+          component** RenderPtr = (component**) Next(&TransparentIt);
+          PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgramTransparent, GlobalState->TransparentFrameBuffer, ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
+        }
+        Clear(TransparentObjects);
+
+        render_state* CompositState = PushNewState(RenderGroup);
+        blend_state CompositBlend = {};
+        CompositBlend.Active = true;
+        CompositBlend.TextureCount = 1;
+        CompositBlend.TextureBlendStates[0].TextureIndex = 0;
+        CompositBlend.TextureBlendStates[0].SrcFactor = OPEN_GL_ONE_MINUS_SRC_ALPHA;
+        CompositBlend.TextureBlendStates[0].DstFactor = OPEN_GL_SRC_ALPHA;
+        SetState(CompositState, CompositBlend);
+
+
+        depth_state CompositDepth = {};
+        CompositDepth.TestActive = false;
+        CompositDepth.WriteActive = false;
+        SetState(CompositState, CompositDepth);
+
+        // Then composit the solid and transparent objects into a single image
+        render_object* CompositionObject = PushNewRenderObject(RenderGroup);
+        CompositionObject->ProgramHandle = GlobalState->TransparentCompositionProgram;
+        CompositionObject->MeshHandle = GlobalState->BlitPlane;
+        CompositionObject->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+        CompositionObject->TextureHandles[0] = GlobalState->AccumTexture;
+        CompositionObject->TextureHandles[1] = GlobalState->RevealTexture;
+        CompositionObject->TextureCount = 2;
+
+        PushUniform(CompositionObject, GetUniformHandle(RenderGroup, GlobalState->TransparentCompositionProgram,  "AccumTex"), (u32)0);
+        PushUniform(CompositionObject, GetUniformHandle(RenderGroup, GlobalState->TransparentCompositionProgram , "RevealTex"), (u32)1);
+
+      }
+      // Shrink to regular screeen sice
+      render_state* ViewportAndBlend = PushNewState(RenderGroup);
+      ///SetState(ViewportAndBlend, ViewportState(Window->ApplicationWidth, Window->ApplicationHeight, Window->ApplicationAspectRatio));
+      SetState(ViewportAndBlend, ViewportState(Window->WindowWidth, Window->WindowHeight, Window->ApplicationAspectRatio));
+      SetState(ViewportAndBlend, DefaultBlendState());
+
+      blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
+      BlitOperation->ReadFrameBufferHandle = GlobalState->MsaaFrameBuffer;
     
-    PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"), OrthoProjectionMatrix);
-    PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
-    PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
-    PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
+  #if 1
+      BlitOperation->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
+      BlitOperation->DrawRegionUnitCoord = RenderSystem->UnitDrawRegion;
+  #else
+    // Gaussian blur
+    BlitOperation->DrawFrameBufferHandle = GlobalState->GaussianAFrameBuffer;
+
+    for (int i = 0; i < 4; ++i)
+    {
+      render_object* GaussianBlurX = PushNewRenderObject(RenderGroup);
+      GaussianBlurX->ProgramHandle = GlobalState->GaussianProgramX;
+      GaussianBlurX->MeshHandle = GlobalState->BlitPlane;
+      GaussianBlurX->FrameBufferHandle = GlobalState->GaussianBFrameBuffer;
+      GaussianBlurX->TextureHandles[0] = GlobalState->GaussianATexture;
+      GaussianBlurX->TextureCount = 1;
+
+      PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
+      PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
+      PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "kernerlSize"), KernelSize);
+      PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "RenderedTexture"), (u32) 0);
+      PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "sideSize"), V2(Window->ApplicationWidth, Window->ApplicationHeight));
+
+      render_object* GaussianBlurY = PushNewRenderObject(RenderGroup);
+      GaussianBlurY->ProgramHandle = GlobalState->GaussianProgramY;
+      GaussianBlurY->MeshHandle = GlobalState->BlitPlane;
+      GaussianBlurY->FrameBufferHandle = GlobalState->GaussianAFrameBuffer;
+      GaussianBlurY->TextureHandles[0] = GlobalState->GaussianBTexture;
+      GaussianBlurY->TextureCount = 1;
+      
+      PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
+      PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "weight"), UniformType::R32, KernelWeight, KernelSize);
+      PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "kernerlSize"), KernelSize);
+      PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "RenderedTexture"), (u32) 0);
+      PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "sideSize"), V2(Window->ApplicationWidth, Window->ApplicationHeight));
+    }
+    blit_operation* BlitOperation2 = PushNewBlitOperation(RenderGroup);
+    BlitOperation2->ReadFrameBufferHandle = GlobalState->GaussianBFrameBuffer;
+    BlitOperation2->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
+  #endif
+
+    }else{
+      // Shrink to regular screeen sice
+      render_state* ViewportAndBlend = PushNewState(RenderGroup);
+      ///SetState(ViewportAndBlend, ViewportState(Window->ApplicationWidth, Window->ApplicationHeight, Window->ApplicationAspectRatio));
+      SetState(ViewportAndBlend, ViewportState(Window->WindowWidth, Window->WindowHeight, Window->ApplicationAspectRatio));
+      SetState(ViewportAndBlend, DefaultBlendState());
+    }
+      
+ 
+    render_state* OverlayState = PushNewState(RenderGroup);
+    depth_state OverlayDepthState = {};
+    OverlayDepthState.TestActive = false;
+    OverlayDepthState.WriteActive = false;
+    SetState(OverlayState, OverlayDepthState);
+    m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
+
+    chunk_list* OverlayQuads = &RenderLevel->OverlayQuads;
+    u32 QuadCount = GetBlockCount(OverlayQuads);
+    if(QuadCount)
+    {
+      render_object* QuadObject = PushNewRenderObject(RenderGroup);
+      QuadObject->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
+      QuadObject->MeshHandle = GlobalState->BlitPlane;
+      QuadObject->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+      
+      u32 i = 0;
+      data::overlay_quad* QuadInstanceData = PushArray(GlobalTransientArena, QuadCount, data::overlay_quad);
+      chunk_list_iterator OverlayQuadsIT = BeginIterator(OverlayQuads);
+      while(Valid(&OverlayQuadsIT)) {
+        data::overlay_quad* OverlayQuad = (data::overlay_quad*) Next(&OverlayQuadsIT);
+
+        QuadInstanceData[i++] = *OverlayQuad;
+      }
+      
+      PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
+      PushInstanceData(QuadObject, QuadCount, QuadCount*sizeof(data::overlay_quad), QuadInstanceData);
+      Clear(OverlayQuads);
+    }
     
-    data::overlay_text* Text = PushArray(GlobalTransientArena, TextCount, data::overlay_text);
-    chunk_list_iterator TextIt = BeginIterator(&RenderSystem->OverlayText);
-    u32 i = 0;
-    while(Valid(&TextIt)) {
-      data::overlay_text* OverlayText = (data::overlay_text*) Next(&TextIt);
-      Text[i] = *OverlayText;
-      i++;
+
+    // Overlay text
+    chunk_list* OverlayText = &RenderLevel->OverlayText;
+    u32 TextCount = GetBlockCount(OverlayText);
+    if(TextCount)
+    {
+      render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
+      OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
+      OverlayTextProgram->MeshHandle = GlobalState->BlitPlane;
+      OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+      OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
+      OverlayTextProgram->TextureCount = 1;
+      
+      PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"), OrthoProjectionMatrix);
+      PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
+      PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
+      PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
+      
+      u32 i = 0;
+      data::overlay_text* Text = PushArray(GlobalTransientArena, TextCount, data::overlay_text);
+      chunk_list_iterator TextIt = BeginIterator(OverlayText);
+      while(Valid(&TextIt)) {
+        data::overlay_text* OverlayText = (data::overlay_text*) Next(&TextIt);
+        Text[i] = *OverlayText;
+        i++;
+      }
+
+      PushInstanceData(OverlayTextProgram, TextCount, TextCount*sizeof(data::overlay_text), (void*) Text);
+      Clear(OverlayText);
     }
 
-    PushInstanceData(OverlayTextProgram, TextCount, TextCount*sizeof(data::overlay_text), (void*) Text);
-    Clear(&RenderSystem->OverlayText);
+    RenderLevel = RenderLevel->Next;
   }
 
 }
@@ -557,10 +652,7 @@ data::font CreateFont(memory_arena* Arena)
 system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands)
 {
   system* Result = BootstrapPushStruct(system, Arena);
-  //Result->SolidObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
-  //Result->TransparentObjects = NewChunkList(&Result->Arena, sizeof(render::component), 64);
-  Result->OverlayText = NewChunkList(&Result->Arena, sizeof(data::overlay_text), 512);
-  Result->OverlayQuads = NewChunkList(&Result->Arena, sizeof(data::overlay_quad), 512);
+  ListInitiate(&Result->RenderSentinel);
   Result->RenderGroup = RenderGroup;
   Result->Font = CreateFont(&Result->Arena);
 
@@ -581,6 +673,9 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   Result->WindowSize.ApplicationWidth   = ApplicationWidth;
   Result->WindowSize.ApplicationHeight  = ApplicationHeight;
   Result->WindowSize.ApplicationAspectRatio = ApplicationWidth / ApplicationHeight;
+
+  Result->TempMem = BeginTemporaryMemory(&Result->Arena);
+
   return Result;
 }
 

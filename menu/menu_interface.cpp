@@ -728,7 +728,7 @@ b32 IsFocusWindow(menu_interface* Interface, menu_tree* Menu)
 }
 
 
-// Put Menu on top of the renderqueue and on the Focused Window Ptr and call it's "Gainding Focus"-Functions
+// Put Menu on top of the renderqueue and on the Focused Window Ptr and call it's "Gaining Focus"-Functions
 // If Menu is 0 and Focused Window Ptr is not 0, call its LoosingFocus function and set Focused Window Ptr to 0
 void SetFocusWindow(menu_interface* Interface, menu_tree* Menu)
 {
@@ -742,16 +742,23 @@ void SetFocusWindow(menu_interface* Interface, menu_tree* Menu)
 
   if(Menu)
   {
-    if(Menu != Interface->MenuSentinel.Next)
+    // The MenuBar is always the background window.
+    if(Menu == Interface->MenuBar)
     {
-      // We put the menu in focus at the top of the queue so it get's rendered in the right order
       ListRemove( Menu );
-      ListInsertAfter(&Interface->MenuSentinel, Menu); 
-    }
-    if(Menu != Interface->MenuInFocus)
-    {
-      // Call gaining focus callback on previous focused window
-      CallFunctionPointer(Menu->GainingFocus, Interface, Menu);      
+      ListInsertBefore(&Interface->MenuSentinel, Menu); 
+    }else{
+      if(Menu != Interface->MenuSentinel.Next)
+      {
+        // We put the menu in focus at the top of the queue so it get's rendered in the right order
+        ListRemove( Menu );
+        ListInsertAfter(&Interface->MenuSentinel, Menu); 
+      }
+      if(Menu != Interface->MenuInFocus)
+      {
+        // Call gaining focus callback on previous focused window
+        CallFunctionPointer(Menu->GainingFocus, Interface, Menu);      
+      }
     }
   }
 
@@ -790,7 +797,7 @@ void FormatNodeString(container_node* Node, u32 BufferSize, c8 StringBuffer[])
   }
 }
 
-r32 PrintTree(u32 Count, container_node** HotLeafs, r32 YStart, r32 PixelSize, r32 HeightStep, r32 WidthStep  )
+r32 PrintTree(u32 Count, container_node** HotLeafs, r32 YStart, r32 PixelSize, r32 HeightStep, r32 WidthStep, menu_tree* FocusWindow  )
 {
   container_node* Node = HotLeafs[0];
   r32 XOff = 0;
@@ -829,6 +836,11 @@ r32 PrintTree(u32 Count, container_node** HotLeafs, r32 YStart, r32 PixelSize, r
         {
           Color = V4(1,0,0,1);
         }
+      }
+
+      if(FocusWindow && Sibling == FocusWindow->Root)
+      {
+        Color = V4(0,1,0,1);
       }
 
       u32 Attributes = Sibling->Attributes;
@@ -892,11 +904,12 @@ void PrintHotLeafs(menu_interface* Interface, r32 CanPosX, r32 CanPosY)
   YOff = 0.5f;
 
   menu_tree* Menu = Interface->MenuSentinel.Next;
+  menu_tree* FocusWindow = Interface->MenuInFocus;
   while(Menu != &Interface->MenuSentinel)
   {
     if(Menu->Visible && Menu->HotLeafCount > 0)
     {
-       YOff -= PrintTree(Menu->HotLeafCount, Menu->HotLeafs, YOff, TargetPixelSize, HeightStep, WidthStep);
+       YOff -= PrintTree(Menu->HotLeafCount, Menu->HotLeafs, YOff, TargetPixelSize, HeightStep, WidthStep, FocusWindow);
     }
     Menu = Menu->Next;
   }
@@ -972,26 +985,19 @@ b32 IsHotLeef(menu_tree* Menu, container_node* Container)
   return false;
 }
 
-b32 IsPluginContainerInFocus(menu_interface* Interface, container_node* Container, b32* HasMenu)
+b32 IsPluginSelected(menu_interface* Interface, container_node* Container)
 {
   Assert(Container->Type == container_type::Plugin);
   if(!Interface->MenuVisible)
   {
     return false;
   }
-  menu_tree* Tree = GetMenu(Interface,Container);
-  if(HasMenu)
+  if(!Interface->SelectedPlugin)
   {
-    *HasMenu = Tree != 0;
+    return false;
   }
-  if(Tree && Tree->Visible && Tree == Interface->MenuSentinel.Next)
-  {
-    if(IsHotLeef(Tree, Container->FirstChild))
-    {
-      return true;
-    }
-  }
-  return false;
+  b32 ContainerIsTheSelectedPlugin = Interface->SelectedPlugin == Container;
+  return ContainerIsTheSelectedPlugin;
 }
 
 void * PushAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType)
@@ -1229,21 +1235,14 @@ MENU_EVENT_CALLBACK(InitiateBorderDrag)
   PushToUpdateQueue(Interface, CallerNode, RootBorderDragUpdate, 0);
 }
 
-container_node* CreateBorderNode(menu_interface* Interface, b32 Vertical, r32 Position, v4 Color)
+container_node* CreateBorderNode(menu_interface* Interface, v4 Color)
 {
-  border_leaf Border = {};
-  Border.Vertical = Vertical;
-  Border.Position = Position;
-  Border.Thickness = Interface->BorderSize;
-
   container_node* Result = NewContainer(Interface, container_type::Border);
-  border_leaf* BorderLeaf = GetBorderNode(Result);
  
   color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, Result, ATTRIBUTE_COLOR);
   ColorAttr->Color = Color;
 
   Assert(Result->Type == container_type::Border);
-  *BorderLeaf = Border;
   return Result;
 }
 
@@ -1675,6 +1674,28 @@ void ClearMenuEvents(menu_interface* Interface, container_node* Node)
   }
 }
 
+void SetBorderData(container_node* Border, b32 Vertical, r32 Thickness, r32 Position)
+{
+  Assert(Border->Type == container_type::Border);
+  border_leaf* BorderLeaf = GetBorderNode(Border);
+  BorderLeaf->Position = Position;
+  BorderLeaf->Vertical = Vertical;
+  BorderLeaf->Thickness = Thickness;
+}
+
+void SetBorderPositionAndThickness(container_node* FirstBorder, r32 Thickness, rect2f Region)
+{
+  container_node* Border = FirstBorder;
+  SetBorderData(Border, true, Thickness, Region.X);
+  Border = Border->NextSibling;
+  SetBorderData(Border, true, Thickness, Region.X + Region.W);
+  Border = Border->NextSibling;
+  SetBorderData(Border, false, Thickness, Region.Y);
+  Border = Border->NextSibling;
+  SetBorderData(Border, false, Thickness, Region.Y + Region.H);
+  Border = Border->NextSibling;
+}
+
 menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f Region)
 {
   menu_tree* Root = NewMenuTree(Interface); // Root
@@ -1682,21 +1703,20 @@ menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* Bas
   Root->Root = NewContainer(Interface, container_type::Root);
 
   //  Root Node Complex, 4 Borders, 1 Header, 1 None
-  container_node* RootBody = 0; // Output
   { 
-    container_node* Border1 = CreateBorderNode(Interface, true, Region.X);
+    container_node* Border1 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border1);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border1, 0, InitiateBorderDrag, 0);
-    container_node* Border2 = CreateBorderNode(Interface, true, Region.X + Region.W);
+    container_node* Border2 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border2);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border2, 0, InitiateBorderDrag, 0);
-    container_node* Border3 = CreateBorderNode(Interface, false,Region.Y);
+    container_node* Border3 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border3);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border3, 0, InitiateBorderDrag, 0);
-    container_node* Border4 = CreateBorderNode(Interface, false, Region.Y + Region.H);
+    container_node* Border4 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border4);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border4, 0, InitiateBorderDrag, 0);
-
+    SetBorderPositionAndThickness(Border1, Interface->BorderSize, Region);
     //ConnectNodeToBack(Root->Root, RootHeader); // Header
     ConnectNodeToBack(Root->Root, BaseWindow); // Body
   }
@@ -2013,6 +2033,7 @@ internal void UpdateFocusWindow(menu_interface* Interface)
       menu_tree* Menu = Interface->MenuSentinel.Next;
       while(Menu != &Interface->MenuSentinel)
       {
+        // MenuBar is the background menu whos position is always furthest back (Should maybe handle that when sorting menus)
         if(Menu->Visible && Intersects(Menu->Root->Region, Interface->MousePos))
         {
           MenuFocusWindow = Menu;
@@ -2041,6 +2062,42 @@ internal void CallUpdateFunctions(menu_interface* Interface)
   }
 }
 
+void UpdateSelectedPlugin(menu_interface* Interface)
+{
+  b32 MouseWasClicked = Interface->MouseLeftButton.Edge && Interface->MouseLeftButton.Active;
+  if(!MouseWasClicked)
+  {
+    return;
+  }
+  menu_tree* TopMostWindow = Interface->MenuSentinel.Next;
+  container_node* SelectedPlugin = 0;
+  if(TopMostWindow != &Interface->MenuSentinel && TopMostWindow->Visible)
+  {
+    container_node* HotLeaf = 0;
+    if(TopMostWindow->HotLeafCount > 0)
+    {
+      HotLeaf = TopMostWindow->HotLeafs[0];
+    }
+
+    // Get the closest plugin
+    while(HotLeaf)
+    {
+      if(HotLeaf->Type == container_type::Plugin)
+      {
+        break;
+      }
+      HotLeaf = HotLeaf->Parent;
+    }
+
+    if(HotLeaf)
+    {
+      Assert(HotLeaf->Type == container_type::Plugin);
+      SelectedPlugin = HotLeaf;
+    }
+  }
+
+  Interface->SelectedPlugin = SelectedPlugin;
+}
 
 void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interface* Interface)
 { 
@@ -2067,12 +2124,16 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
   // * Calls Gaining/Loosing Focus Functions
   UpdateFocusWindow(Interface);
   
+  UpdateSelectedPlugin(Interface);
+
   // Calls Mouse Exit on the top most window
   Menu = Interface->MenuSentinel.Next;
   b32 MouseEnterCalled = false;
   b32 MouseExitCalled = false;
   b32 MouseDownCalled = false;
   b32 MouseUpCalled = false;
+
+  
   while(Menu != &Interface->MenuSentinel)
   {
     // If CallMouseEnter/ExitFunctions returns true, it means that a function wass successfully called
@@ -2118,7 +2179,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
         TreeSensus(Menu);
         UpdateRegions( Menu );
         DrawMenu( GlobalTransientArena, Interface, Menu->NodeCount, Menu->Root);
-        //PushNewRenderLevel(GlobalGameState->RenderCommands->OverlayGroup);
+        ecs::render::NewRenderLevel(GetRenderSystem());
       }
       Menu = Menu->Previous;
     }
@@ -2140,7 +2201,8 @@ container_node* CreatePlugin(menu_interface* Interface, c8* HeaderName, v4 Heade
 container_node* CreateSplitWindow( menu_interface* Interface, b32 Vertical, r32 BorderPos)
 {
   container_node* SplitNode  = NewContainer(Interface, container_type::Split);
-  container_node* BorderNode = CreateBorderNode(Interface, Vertical, BorderPos);
+  container_node* BorderNode = CreateBorderNode(Interface, Interface->BorderColor);
+  SetBorderData(BorderNode, Vertical, Interface->BorderSize, BorderPos);
   ConnectNodeToBack(SplitNode, BorderNode);
   RegisterMenuEvent(Interface, menu_event_type::MouseDown, BorderNode, 0, InitiateSplitWindowBorderDrag, 0);
   return SplitNode;
@@ -2154,6 +2216,7 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
   Interface->BorderSize = 0.007;
   Interface->HeaderSize = 0.02;
   Interface->MinSize = 0.2f; 
+  Interface->BorderColor = menu::GetColor(&GlobalState->ColorTable,"charcoal");
 
   Interface->MenuColor = menu::GetColor(&GlobalState->ColorTable,"charcoal");
   Interface->TextColor = menu::GetColor(&GlobalState->ColorTable,"white smoke");
@@ -2162,6 +2225,42 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
 
   ListInitiate(&Interface->MenuSentinel);
   ListInitiate(&Interface->EventSentinel);
+
+
+  r32 PixelFontHeight = ecs::render::GetLineSpacingPixelSpace(GetRenderSystem(), Interface->HeaderFontSize);
+  r32 CanonicalFontHeight = ecs::render::PixelToCanonicalHeight(GetRenderSystem(), PixelFontHeight) * 1.1f;
+
+  Interface->MenuBar = NewMenuTree(Interface);
+  Interface->MenuBar->Visible = true;
+  Interface->MenuBar->Root = NewContainer(Interface, container_type::TabWindow);
+  tab_window_node* TabWindowNode = GetTabWindowNode(Interface->MenuBar->Root);
+  TabWindowNode->HeaderSize = CanonicalFontHeight;
+
+  container_node* RootWindow = Interface->MenuBar->Root;
+  RootWindow->Region = Rect2f(0,0,AspectRatio,1);
+  { // Main Menu Header
+    container_node* HeaderBar = ConnectNodeToBack(RootWindow, NewContainer(Interface));
+    //HeaderBar->Region = Rect2f(0, 1 - CanonicalFontHeight, AspectRatio, CanonicalFontHeight);
+
+    color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_COLOR);
+
+    ColorAttr->Color = Interface->MenuColor;
+    ColorAttr->HighlightedColor = ColorAttr->Color;
+    ColorAttr->RestingColor = ColorAttr->Color;
+
+    container_node* DropDownContainer = ConnectNodeToBack(HeaderBar, NewContainer(Interface, container_type::Grid));
+    grid_node* Grid = GetGridNode(DropDownContainer);
+    Grid->Col = 0;
+    Grid->Row = 1;
+    Grid->TotalMarginX = 0.0;
+    Grid->TotalMarginY = 0.0;
+    Grid->Stack = true;
+  }
+
+  { // Main Menu Body
+    container_node* Body = ConnectNodeToBack(RootWindow, NewContainer(Interface));
+  }
+
   return Interface;
 }
 
@@ -2187,7 +2286,6 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
     if(!Interface->SpawningWindow)
     {
       TabWindow = CreateTabWindow(Interface);
-
       Interface->SpawningWindow = CreateNewRootContainer(Interface, TabWindow, Rect2f( 0.25, 0.25, 0.7, 0.5));
 
     }else{
@@ -2210,6 +2308,10 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
     if(Body)
     {
       ReplaceNode(Body, TabNode->Payload);
+      container_node* Plugin = TabNode->Payload;
+      Assert(Plugin->Type == container_type::Plugin);
+      plugin_node* PluginNode = GetPluginNode(Plugin);
+      //SetBorderPositionAndThickness(Body->FirstChild, Interface->BorderSize, PluginNode->CachedRegion)
     }else{
       ConnectNodeToBack(TabWindow, TabNode->Payload);
     }
@@ -2239,32 +2341,9 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   r32 CanonicalFontHeight = ecs::render::PixelToCanonicalHeight(RenderSystem, PixelFontHeight) * 1.1f;
   v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(RenderSystem, Interface->HeaderFontSize, (utf8_byte*) Name);
 
-  r32 AspectRatio = WindowSize.ApplicationAspectRatio;
-  if(!Interface->MenuBar)
-  {
-    Interface->MenuBar = NewMenuTree(Interface);
-    Interface->MenuBar->Visible = true;
-    Interface->MenuBar->Root = NewContainer(Interface);
-    container_node* MainSettingBar = Interface->MenuBar->Root;
-    MainSettingBar->Region = Rect2f(0, 1 - CanonicalFontHeight, AspectRatio, CanonicalFontHeight);
-  
-    color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, Interface->MenuBar->Root, ATTRIBUTE_COLOR);
-
-    ColorAttr->Color = Interface->MenuColor;
-    ColorAttr->HighlightedColor = ColorAttr->Color;
-    ColorAttr->RestingColor = ColorAttr->Color;
-
-    container_node* DropDownContainer = ConnectNodeToBack(MainSettingBar, NewContainer(Interface, container_type::Grid));
-    grid_node* Grid = GetGridNode(DropDownContainer);
-    Grid->Col = 0;
-    Grid->Row = 1;
-    Grid->TotalMarginX = 0.0;
-    Grid->TotalMarginY = 0.0;
-    Grid->Stack = true;
-  }
-
-  container_node* MainSettingBar =  Interface->MenuBar->Root;
+  container_node* MainSettingBar =  Interface->MenuBar->Root->FirstChild;
   container_node* DropDownContainer = MainSettingBar->FirstChild;
+  Assert(DropDownContainer->Type == container_type::Grid);
 
   container_node* NewMenu = ConnectNodeToBack(DropDownContainer, NewContainer(Interface, container_type::Tab));
 
@@ -2472,6 +2551,7 @@ void RegisterWindow(menu_interface* Interface, menu_tree* DropDownMenu, containe
 
   Assert(Interface->MainMenuTabCount < ArrayCount(Interface->MainMenuTabs));
   Interface->MainMenuTabs[Interface->MainMenuTabCount++] = DropDownMenu;
+
 }
 
 void ToggleWindow(menu_interface* Interface, char* WindowName)

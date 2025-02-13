@@ -185,7 +185,7 @@ menu_functions GetSplitFunctions()
   return Result;
 }
 
-MENU_UPDATE_CHILD_REGIONS( UpdateTabWindowChildRegions)
+MENU_UPDATE_CHILD_REGIONS(UpdateTabWindowChildRegions)
 {
   container_node* Child = Parent->FirstChild;
   u32 Index = 0;

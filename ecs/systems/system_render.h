@@ -33,6 +33,15 @@ namespace render {
     m4 ModelMatrix; // PixelSpace
   };
 
+  struct render_level {
+    chunk_list SolidObjects;
+    chunk_list TransparentObjects;
+    chunk_list OverlayText;
+    chunk_list OverlayQuads;
+    render_level* Next;
+    render_level* Previous;
+  };
+
   }// namespace data
 
   struct window_size_pixel {
@@ -52,13 +61,12 @@ namespace render {
   struct system {
     memory_arena Arena;
     render_group* RenderGroup;
-    chunk_list OverlayText;
-    chunk_list OverlayQuads;
     data::font Font;
     u32 FontTextureHandle;
+    data::render_level RenderSentinel;
     rect2f UnitDrawRegion; // UnitCoordinate [0,0,1,1], Percentage of applicationWidth/Height
     window_size_pixel WindowSize;
-
+    temporary_memory TempMem;
   };
 
   void SetWindowSize(system* System, application_render_commands* RenderCommands)
@@ -66,7 +74,15 @@ namespace render {
     System->WindowSize.WindowWidth       = (r32) RenderCommands->WindowInfo.Width;
     System->WindowSize.WindowHeight      = (r32) RenderCommands->WindowInfo.Height;
   }
+
   system* CreateRenderSystem(render_group* RenderGroup, r32 ResolutionWidth, r32 ResolutionHeight, application_render_commands* RenderCommands);
+  void BeginRender(system* System)
+  {
+    EndTemporaryMemory( System->TempMem );
+    System->TempMem = BeginTemporaryMemory(&System->Arena);
+    ListInitiate(&System->RenderSentinel);
+  }
+  void DrawScene(system* System, ecs::entity_manager* EntityManager);
   void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix);
   void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale);
 
@@ -105,6 +121,7 @@ namespace render {
   void SetDrawWindow(system* System, rect2f DrawRegion){
     System->UnitDrawRegion = DrawRegion;
   }
+
   void SetDrawWindowCanCord(system* System, rect2f DrawRegion){
     System->UnitDrawRegion = Rect2f(
       DrawRegion.X / System->WindowSize.ApplicationAspectRatio,
@@ -113,10 +130,14 @@ namespace render {
       DrawRegion.H);
   }
 
+  void NewRenderLevel(system* System){
+    data::render_level* RenderLevel = PushStruct(&System->Arena, data::render_level);
+    ListInsertBefore(&System->RenderSentinel, RenderLevel);
+  }
+
   void DrawTexturedOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, rect2f TextureCoordinates, u32 TextureHandle)
   {
     Platform.DEBUGPrint("Warning: DrawTexturedOverlayQuadCanonicalSpace has no implementation\n");
   }
-  //void PushTexturedOverlayQuadCanonnicalSpace(system* System, rect2f Rect, rect2f TextureCoords, u32 TextureHandle){};
 }
 }

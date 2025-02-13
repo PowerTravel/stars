@@ -981,6 +981,7 @@ world InitiateWorld(application_render_commands* RenderCommands)
 MENU_DRAW(RenderScene)
 {
   ecs::render::SetDrawWindowCanCord(GetRenderSystem(), Node->Region);
+  ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
 }
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
@@ -1094,6 +1095,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
       container_node* ScenePlugin = CreatePlugin(Interface, "Scene", Interface->MenuColor, SceneContainer);
       RegisterWindow(Interface, WindowsDropDownMenu, ScenePlugin);
+
       GlobalState->World.ScenePlugin = ScenePlugin;
     }
     {
@@ -1187,6 +1189,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
     }
   }else{
+    BeginRender(GetRenderSystem());
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
   ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
@@ -1402,10 +1405,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   
   v3 WUp, WRight, WForward;
   GetCameraDirections(Camera, &WUp, &WRight, &WForward);
-//  Platform.DEBUGPrint("%1.4f, %1.4f\n",Input->Mouse.dX,Input->Mouse.dY);
-  b32 HasMenu = false;
-  b32 MenuIsInFocus = IsPluginContainerInFocus(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin, &HasMenu);
-  if(MenuIsInFocus || !HasMenu)
+  if(!GlobalState->World.MenuInterface->MenuVisible || IsPluginSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin))
   {
     if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
     {
@@ -1476,17 +1476,18 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 
 
-  ecs::position::UpdatePositions(GlobalState->World.EntityManager);
+  ecs::position::UpdatePositions(GetEntityManager());
 
   
   UpdateViewMatrix(Camera);
 
-  UpdateAndRenderMenuInterface(Input, GlobalState->World.MenuInterface);
+  UpdateAndRenderMenuInterface(Input, GetMenuInterface());
 
   if(!GlobalState->World.MenuInterface->MenuVisible){
     ecs::render::SetDrawWindow(GetRenderSystem(),
       Rect2f(0,0,1,1));
+    ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
   }
   
-  ecs::render::Draw(GlobalState->World.EntityManager, GetRenderSystem(), Camera->P, Camera->V);  
+  ecs::render::Draw(GetEntityManager(), GetRenderSystem(), Camera->P, Camera->V);  
 } 
