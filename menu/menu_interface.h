@@ -275,6 +275,7 @@ typedef MENU_LOSING_FOCUS( menu_losing_focus );
 #define MENU_GAINING_FOCUS(name) void name(struct menu_interface* Interface, struct menu_tree* Menu)
 typedef MENU_GAINING_FOCUS( menu_gaining_focus );
 
+
 struct menu_tree
 {
   b32 Visible;
@@ -295,6 +296,25 @@ struct menu_tree
   menu_losing_focus** LosingFocus;
   menu_gaining_focus** GainingFocus;
 };
+
+// Holds the shape of the pluin containers, or rather the TabWindows holding the Plugins
+// Leaf nodes holds the actual plugins
+struct menu_layout_node {
+
+  c8* Name[64];
+  b32 Vertical;
+  r32 ChildBorderPosition; 
+
+  menu_layout_node* Parent;
+  menu_layout_node* FirstChild;
+  menu_layout_node* SecondChild;
+};
+
+struct menu_layout {
+
+  menu_layout_node* Root;
+};
+
 
 MENU_LOSING_FOCUS(DefaultLosingFocus)
 {
@@ -374,6 +394,7 @@ struct menu_interface
   update_args UpdateQueue[64];
 };
 
+menu_tree* BuildMenuTree(menu_interface* Interface, menu_layout* MenuLayout);
 
 inline u8* GetContainerPayload( container_node* Container )
 {
@@ -423,9 +444,8 @@ container_node* Previous( container_node* Node );
 
 menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f Region);
 container_node* CreateSplitWindow( menu_interface* Interface, b32 Vertical, r32 BorderPos = 0.5);
-container_node* CreatePlugin(menu_interface* Interface, c8* HeaderName, v4 HeaderColor, container_node* BodyNode);
+container_node* CreatePlugin(menu_interface* Interface, menu_tree* WindowsDropDownMenu, c8* HeaderName, v4 HeaderColor, container_node* BodyNode);
 menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name);
-void RegisterWindow(menu_interface* Interface, menu_tree* DropDownMenu, container_node* Plugin);
 void ToggleWindow(menu_interface* Interface, char* WindowName);
 
 b32 IsPluginSelected(menu_interface* Interface, container_node* Container);

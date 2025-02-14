@@ -1093,8 +1093,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       
       SceneContainer->Functions.Draw = DeclareFunction(menu_draw, RenderScene);
 
-      container_node* ScenePlugin = CreatePlugin(Interface, "Scene", Interface->MenuColor, SceneContainer);
-      RegisterWindow(Interface, WindowsDropDownMenu, ScenePlugin);
+      container_node* ScenePlugin = CreatePlugin(Interface, WindowsDropDownMenu, "Scene", Interface->MenuColor, SceneContainer);
 
       GlobalState->World.ScenePlugin = ScenePlugin;
     }
@@ -1107,12 +1106,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       Grid->Row = 0;
       Grid->TotalMarginX = 0.0;
       Grid->TotalMarginY = 0.0;
-
+//
       color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
-      BackgroundColor->Color = V4(0,0,0,0.7);
+      BackgroundColor->Color = V4(0.2,0,0,1);
 
-      SettingsPlugin = CreatePlugin(Interface, "Settings", Interface->MenuColor, EntityContainer);
-      RegisterWindow(Interface, WindowsDropDownMenu, SettingsPlugin);
+      SettingsPlugin = CreatePlugin(Interface,WindowsDropDownMenu, "Settings",  Interface->MenuColor, EntityContainer);
+      
     }
     {
       container_node* SettingsPlugin = 0;
@@ -1125,10 +1124,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       Grid->TotalMarginY = 0.0;
 
       color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
-      BackgroundColor->Color = V4(0,0,0,0.7);
+      BackgroundColor->Color = V4(0,0.3,0,1);
 
-      SettingsPlugin = CreatePlugin(Interface, "Test2", Interface->MenuColor, EntityContainer);
-      RegisterWindow(Interface, TestDropDownMenu, SettingsPlugin);
+      SettingsPlugin = CreatePlugin(Interface, TestDropDownMenu, "Test2", Interface->MenuColor, EntityContainer);
     }
     
     

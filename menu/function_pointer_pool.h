@@ -22,8 +22,11 @@ MENU_DRAW(RenderScene);
 MENU_EVENT_CALLBACK(DebugToggleButton);
 MENU_EVENT_CALLBACK(DebugRecompileButton);
 
-MENU_EVENT_CALLBACK(InitiateTabDrag);
-MENU_EVENT_CALLBACK(InitiateWindowDrag);
+MENU_EVENT_CALLBACK(TabMouseDown);
+MENU_EVENT_CALLBACK(TabMouseUp);
+MENU_EVENT_CALLBACK(TabMouseEnter);
+MENU_EVENT_CALLBACK(TabMouseExit);
+MENU_EVENT_CALLBACK(TabWindowHeaderMouseDown);
 MENU_EVENT_CALLBACK(InitiateSplitWindowBorderDrag);
 MENU_EVENT_CALLBACK(InitiateBorderDrag);
 
@@ -69,8 +72,11 @@ void _ReinitiatePool(function_pool* Pool)
     NewFunPtr(RenderScene)
     //NewFunPtr(DebugToggleButton)
     //NewFunPtr(DebugRecompileButton)
-    NewFunPtr(InitiateTabDrag)
-    NewFunPtr(InitiateWindowDrag)
+    NewFunPtr(TabMouseDown)
+    NewFunPtr(TabMouseUp)
+    NewFunPtr(TabMouseEnter)
+    NewFunPtr(TabMouseExit)
+    NewFunPtr(TabWindowHeaderMouseDown)
     NewFunPtr(InitiateSplitWindowBorderDrag)
     NewFunPtr(InitiateBorderDrag)
     NewFunPtr(TabDragUpdate)
