@@ -95,10 +95,8 @@ MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions)
     Width  - (Borders[0]->Thickness + Borders[1]->Thickness),
     Height - (Borders[2]->Thickness + Borders[3]->Thickness));
 
-  r32 HeaderHeight = 0.02f;
-  r32 BodyHeight = InteralRegion.H;//-HeaderHeight;
+  r32 BodyHeight = InteralRegion.H;
 
- // Header->Region = Rect2f(InteralRegion.X, InteralRegion.Y+BodyHeight, InteralRegion.W, HeaderHeight);
   Body->Region   = Rect2f(InteralRegion.X, InteralRegion.Y, InteralRegion.W, BodyHeight);
 
   Parent->Region = Rect2f(

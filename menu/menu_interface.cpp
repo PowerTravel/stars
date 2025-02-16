@@ -1145,7 +1145,7 @@ r32 GetAspectRatio(menu_interface* Interface)
   return WindowRegion.W / WindowRegion.H;
 }
 
-void UpdateBorderPosition(container_node* BorderNode, v2 MousePosition, rect2f MinimumWindowSize, rect2f MaximumWindowSize)
+void UpdateBorderPosition(container_node* BorderNode, v2 NewPosition, rect2f MinimumWindowSize, rect2f MaximumWindowSize)
 {
   border_leaf* Border = GetBorderNode(BorderNode);
   switch(Border->Type)
@@ -1153,25 +1153,25 @@ void UpdateBorderPosition(container_node* BorderNode, v2 MousePosition, rect2f M
     // A Root border work with canonical positions
     case border_type::LEFT: {
       Border->Position = Clamp(
-        MousePosition.X,
+        NewPosition.X,
         MaximumWindowSize.X + Border->Thickness * 0.5f,
         MinimumWindowSize.X + MinimumWindowSize.W - Border->Thickness * 0.5f);
     }break;
     case border_type::RIGHT:{
       Border->Position = Clamp(
-        MousePosition.X,
+        NewPosition.X,
         MinimumWindowSize.X + Border->Thickness * 0.5f,
         MaximumWindowSize.X + MaximumWindowSize.W - Border->Thickness * 0.5f);
     }break;
     case border_type::TOP:{
       Border->Position = Clamp(
-        MousePosition.Y,
+        NewPosition.Y,
         MinimumWindowSize.Y + Border->Thickness * 0.5f,
         MaximumWindowSize.Y + MaximumWindowSize.H - Border->Thickness * 0.5f);
     }break;
     case border_type::BOTTOM:{
       Border->Position = Clamp(
-        MousePosition.Y,
+        NewPosition.Y,
         MaximumWindowSize.Y + Border->Thickness * 0.5f,
         MinimumWindowSize.Y + MinimumWindowSize.H - Border->Thickness * 0.5f);
     }break;
@@ -1179,14 +1179,14 @@ void UpdateBorderPosition(container_node* BorderNode, v2 MousePosition, rect2f M
     // That means if a border position is at 10% it means 10% of parent window is for left split region and 90% is for right split region
     case border_type::SPLIT_VERTICAL:{
       Border->Position = Clamp(
-        MousePosition.X,
+        NewPosition.X,
         MinimumWindowSize.X,
         MinimumWindowSize.W);
       Platform.DEBUGPrint("%1.2f\n", Border->Position);
     }break;
     case border_type::SPLIT_HORIZONTAL:{
       Border->Position = Clamp(
-        MousePosition.Y,
+        NewPosition.Y,
         MinimumWindowSize.Y,
         MinimumWindowSize.H);
     }break;
@@ -1212,13 +1212,6 @@ MENU_UPDATE_FUNCTION(SplitWindowBorderUpdate)
       Unlerp(SplitNode->Region.W - Interface->MinSize * 0.5, 0, SplitNode->Region.W),
       Unlerp(SplitNode->Region.H - Interface->MinSize * 0.5, 0, SplitNode->Region.H)
     );
-
-  Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f, %1.2f\n", 
-    MinimumWindowSize.X,MinimumWindowSize.Y, MinimumWindowSize.W, MinimumWindowSize.H);
-  //Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f, %1.2f\n", 
-  //  SplitNode->Region.X,SplitNode->Region.Y, SplitNode->Region.W, SplitNode->Region.H);
-  //Platform.DEBUGPrint("%1.2f, %1.2f\n\n", 
-  //  MousePosWindowLocal.X,MousePosWindowLocal.Y);
 
   UpdateBorderPosition(BorderNode, MousePosWindowLocal, MinimumWindowSize, MaximumWindowSize);
   return Interface->MouseLeftButton.Active;
@@ -1397,7 +1390,7 @@ internal void UpdateHotLeafs(menu_interface* Interface, menu_tree* Menu)
 }
 
 
-internal inline container_node* GetRootBody(container_node* RootWindow)
+internal inline container_node* GetBodyFromRoot(container_node* RootWindow)
 {
   Assert(RootWindow->Type == container_type::Root);
   container_node* Result = RootWindow->FirstChild->NextSibling->NextSibling->NextSibling->NextSibling;
@@ -1467,7 +1460,7 @@ internal container_node* PopTab(container_node* Tab)
 
 internal u32 FillArrayWithTabs(u32 MaxArrSize, container_node* TabArr[], menu_tree* Menu)
 {
-  container_node* StartNode = GetRootBody(Menu->Root);
+  container_node* StartNode = GetBodyFromRoot(Menu->Root);
   SCOPED_TRANSIENT_ARENA;
   u32 StackCount = 0;
   u32 TabCount = 0;
@@ -1614,7 +1607,7 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
         }
         if(!NodeToInsert)
         {
-          NodeToInsert = GetRootBody(MenuToRemove->Root);
+          NodeToInsert = GetBodyFromRoot(MenuToRemove->Root);
           Assert(NodeToInsert->Type == container_type::TabWindow);
         }else{
           Assert(NodeToInsert->Type == container_type::Split);
@@ -1660,23 +1653,20 @@ container_node* GetRootContainer(menu_tree* MenuTree)
   return Result;
 }
 
-void UpdateFrameBorder( menu_interface* Interface, container_node* Border, v2 MousePos, v2 ClampRegion )
-{
-  border_leaf* BorderLeaf = GetBorderNode(Border);
-  if(BorderLeaf->Vertical)
-  {
-   // BorderLeaf->Position = Clamp(MousePos.X, ClampRegion.X, ClampRegion.Y);
-  }else{
-  //  BorderLeaf->Position = Clamp(MousePos.Y, ClampRegion.X, ClampRegion.Y);
-  }
-}
-
-
 struct mouse_position_in_window{
   v2 MousePos;
   v2 RelativeWindow;
-  v2 RelativeTabWindow;
 };
+
+mouse_position_in_window* GetPositionInRootWindow(menu_interface* Interface, container_node* Node)
+{
+  container_node* RootBodyNode = GetBodyFromRoot(GetRoot(Node));
+  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
+  Position->MousePos = Interface->MousePos;
+  Position->RelativeWindow = Position->MousePos - LowerLeftPoint(RootBodyNode->Region);
+  return Position;
+}
+
 
 MENU_UPDATE_FUNCTION(WindowDragUpdate)
 {
@@ -1684,65 +1674,38 @@ MENU_UPDATE_FUNCTION(WindowDragUpdate)
   menu_tree* Menu = GetMenu(Interface, CallerNode);
   container_node* RootContainer = GetRootContainer(Menu);
   root_border_collection Borders = GetRoorBorders(RootContainer);
+
+  border_leaf* LeftBorder  = GetBorderNode(Borders.Left);
+  border_leaf* RightBorder = GetBorderNode(Borders.Right);
+  border_leaf* BotBorder   = GetBorderNode(Borders.Bot);
+  border_leaf* TopBorder   = GetBorderNode(Borders.Top);
+  
+  r32 Width  = RightBorder->Position - LeftBorder->Position;
+  r32 Height = TopBorder->Position   - BotBorder->Position;
+
   r32 AspectRatio = GetAspectRatio(Interface);
+  v2 MousePos = V2(
+    Clamp(Interface->MousePos.X, 0, AspectRatio),
+    Clamp(Interface->MousePos.Y, 0, 1-Interface->HeaderSize - (Height - PosInWindow->RelativeWindow.Y)));
+  v2 BotLeftWindowPos = MousePos - PosInWindow->RelativeWindow;
 
-  border_leaf* LeftBorderLeaf = GetBorderNode(Borders.Left);
+  LeftBorder->Position  = BotLeftWindowPos.X - LeftBorder->Thickness * 0.5;
+  RightBorder->Position = BotLeftWindowPos.X + Width - RightBorder->Thickness * 0.5;
+  BotBorder->Position   = BotLeftWindowPos.Y - LeftBorder->Thickness * 0.5;
+  TopBorder->Position   = BotLeftWindowPos.Y + Height - TopBorder->Thickness * 0.5;
   
-  v2 MousePos = V2(Clamp(Interface->MousePos.X,0, AspectRatio), Interface->MousePos.Y);
-
-  v2 RootContainerPos = LowerLeftPoint(RootContainer->Region);
-  v2 TopBorderPos = LowerLeftPoint(Borders.Top->Region);
-  v2 TopBorderPosRelativeWindow = TopBorderPos - RootContainerPos;
-  v2 TopBorderPosRelativeMouse = TopBorderPosRelativeWindow - PosInWindow->RelativeWindow;
-  GetBorderNode(Borders.Top)->Position = 
-    Clamp(MousePos.Y + TopBorderPosRelativeMouse.Y + GetBorderNode(Borders.Top)->Thickness*0.5,
-    GetBorderNode(Borders.Top)->Thickness + Interface->HeaderSize,
-    1-(GetBorderNode(Borders.Top)->Thickness + Interface->HeaderSize));
-  
-  GetBorderNode(Borders.Bot)->Position = GetBorderNode(Borders.Top)->Position - RootContainer->Region.H + (GetBorderNode(Borders.Top)->Thickness + GetBorderNode(Borders.Bot)->Thickness)/2.f;;
-
-
-  v2 LeftBorderPos = LowerLeftPoint(Borders.Left->Region);
-  v2 LeftBorderPosRelativeWindow = LeftBorderPos - RootContainerPos;
-  v2 LeftBorderPosRelativeMouse = LeftBorderPosRelativeWindow - PosInWindow->RelativeWindow;
-  GetBorderNode(Borders.Left)->Position = MousePos.X + LeftBorderPosRelativeMouse.X + 1.5*GetBorderNode(Borders.Left)->Thickness - RootContainer->Region.W;
-  
-
-  GetBorderNode(Borders.Right)->Position = GetBorderNode(Borders.Left)->Position + RootContainer->Region.W - (GetBorderNode(Borders.Right)->Thickness + GetBorderNode(Borders.Left)->Thickness)/2.f;
-
-  //UpdateFrameBorder(Interface, Borders.Left,  Interface->MousePos, V2(0,AspectRatio));
-  //UpdateFrameBorder(Interface, Borders.Right, Interface->MousePos, V2(0,AspectRatio));
-  //UpdateFrameBorder(Interface, Borders.Top,   Interface->MousePos, V2(0,1));
-  //UpdateFrameBorder(Interface, Borders.Bot,   Interface->MousePos, V2(0,1));
-
   UpdateMergableAttribute(Interface, CallerNode);
 
   return Interface->MouseLeftButton.Active;
 }
 
 
-v2 GetPositionRelative(v2 Pos, r32 AspectRatio, rect2f Rect) {
-  v2 Result = {};
-  Result.X = Pos.X - Rect.X;
-  Result.Y = Pos.Y - Rect.Y;
-  return Result;
-}
-
 void InitiateWindowDrag(menu_interface* Interface, container_node* WindowHeader)
 {
   Assert(WindowHeader->Type == container_type::None);
   container_node* TabWindow = WindowHeader->Parent;
-  Assert(TabWindow->Type == container_type::TabWindow);
-  container_node* TabGrid = GetTabGridFromWindow(TabWindow);
 
-  u32 ChildCount = GetChildCount(TabGrid);
-
-  container_node* RootBodyNode = GetRoot(WindowHeader)->FirstChild->NextSibling;
-  r32 AspectRatio = GetAspectRatio(Interface);
-  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
-  Position->MousePos = Interface->MousePos;
-  Position->RelativeWindow    = GetPositionRelative(Position->MousePos, AspectRatio, RootBodyNode->Region);
-  Position->RelativeTabWindow = GetPositionRelative(Position->MousePos, AspectRatio, TabWindow->Region);
+  mouse_position_in_window* Position = GetPositionInRootWindow(Interface, WindowHeader);
 
   if(TabWindow->Parent->Type == container_type::Split)
   {
@@ -1751,6 +1714,9 @@ void InitiateWindowDrag(menu_interface* Interface, container_node* WindowHeader)
       PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, Position, true);
     }
   }else{
+    Assert(TabWindow->Type == container_type::TabWindow);
+    container_node* TabGrid = GetTabGridFromWindow(TabWindow);
+    u32 ChildCount = GetChildCount(TabGrid);
     if(ChildCount == 1)
     {
       PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, Position, true);
@@ -1817,22 +1783,22 @@ menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* Bas
     container_node* Border1 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border1);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border1, 0, InitiateBorderDrag, 0);
-    SetBorderData(Border1, true, Thickness, MaxRegion.X + HalfThickness, border_type::LEFT);
+    SetBorderData(Border1, true, Thickness, MaxRegion.X, border_type::LEFT);
 
     container_node* Border2 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border2);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border2, 0, InitiateBorderDrag, 0);
-    SetBorderData(Border2, true, Thickness, MaxRegion.X + MaxRegion.W - HalfThickness, border_type::RIGHT);
+    SetBorderData(Border2, true, Thickness, MaxRegion.X + MaxRegion.W, border_type::RIGHT);
 
     container_node* Border3 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border3);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border3, 0, InitiateBorderDrag, 0);
-    SetBorderData(Border3, false, Thickness, MaxRegion.Y + HalfThickness,  border_type::BOTTOM);
+    SetBorderData(Border3, false, Thickness, MaxRegion.Y,  border_type::BOTTOM);
     
     container_node* Border4 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border4);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border4, 0, InitiateBorderDrag, 0);
-    SetBorderData(Border4, false, Thickness, MaxRegion.Y + MaxRegion.H - HalfThickness,  border_type::TOP);
+    SetBorderData(Border4, false, Thickness, MaxRegion.Y + MaxRegion.H,  border_type::TOP);
 
     ConnectNodeToBack(Root->Root, BaseWindow); // Body
   }
@@ -1901,17 +1867,12 @@ container_node* GetWindowDragNode(container_node* TabWindow)
 }
 
 
-void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, v2 WindowSize, v2 HeaderOrigin)
+void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, rect2f TabbedWindowRegion)
 {
-  v2 MouseDownPos = Interface->MouseLeftButtonPush;
-
-  v2 MouseDownHeaderFrame = MouseDownPos - HeaderOrigin;
-  v2 NewOrigin = Interface->MousePos - MouseDownHeaderFrame - V2(0, WindowSize.Y - Interface->BorderSize);
-  rect2f NewRegion = Rect2f(NewOrigin.X, NewOrigin.Y, WindowSize.X, WindowSize.Y);
-  NewRegion = Shrink(NewRegion, -Interface->BorderSize/2);
-
+  rect2f NewRegion = Move(TabbedWindowRegion, V2(-Interface->BorderSize, Interface->BorderSize)*0.5); 
+  
   container_node* NewTabWindow = CreateTabWindow(Interface);
-  menu_tree* NewMenu = CreateNewRootContainer(Interface, NewTabWindow, NewRegion);
+  CreateNewRootContainer(Interface, NewTabWindow, NewRegion);
 
   PopTab(Tab);
   PushTab(NewTabWindow, Tab);
@@ -1919,11 +1880,7 @@ void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, v2 Wind
   ConnectNodeToBack(NewTabWindow, GetTabNode(Tab)->Payload);
 
   // Trigger the window-drag instead of this tab-drag
-  r32 AspectRatio = GetAspectRatio(Interface);
-  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
-  Position->MousePos = Interface->MousePos;
-  Position->RelativeWindow    = GetPositionRelative(Position->MousePos, AspectRatio, NewRegion);
-  Position->RelativeTabWindow = GetPositionRelative(Position->MousePos, AspectRatio, NewTabWindow->Region);
+  mouse_position_in_window* Position = GetPositionInRootWindow(Interface, NewTabWindow);
   PushToUpdateQueue(Interface, Tab, WindowDragUpdate, Position, true);
 }
 
@@ -1933,6 +1890,7 @@ b32 TabDrag(menu_interface* Interface, container_node* Tab)
 
   container_node* TabWindow = GetTabWindowFromTab(Tab);
   container_node* TabHeader = GetTabGridFromWindow(TabWindow);
+
 
   b32 Continue = Interface->MouseLeftButton.Active; // Tells us if we should continue to call the update function;
 
@@ -1947,8 +1905,17 @@ b32 TabDrag(menu_interface* Interface, container_node* Tab)
     {
       container_node* PreviousTab = Previous(Tab);
       Assert(PreviousTab);
-      if(Interface->MousePos.X < (PreviousTab->Region.X +PreviousTab->Region.W/2.f))
+      if(Interface->MousePos.X < (PreviousTab->Region.X + PreviousTab->Region.W/2.f))
       {
+        // Note: A bit of a hacky way to handle an issue. When the user pushes the mouse down, we store that mouse location in the Interface.
+        // If a person shifts the tab that mouse down position no longer holds the distance within the tab where the button was pushed.
+        // This means if a user Shifts a tab then splits it into a new window, the calculation below for NewRegion is wrong because 
+        // Mouse Left Button Push will no longer hold the information about where in the tab the user klicked.
+        // Therefore we update the "MouseLeftButtonPush" here to keep that information. It's hacky because it's no longer hold the actual mouseDownPosition.
+        // This is not an issue as long as we don't make use of the original mouseLeftButtonPush location somewehre else before the user klicks again.
+        // Should not be an issue since a tab-trag ends with a mouse-up event. Next mouse klick should not need to know where the previous klick was,
+        // but if any weird behaviour occurs later related to MouseLeftButtonPush, know that this is a possible cause of the issue.
+        Interface->MouseLeftButtonPush.X -= PreviousTab->Region.W;
         ShiftLeft(Tab);
       }
     }else if(dX > 0 && Index < Count-1){
@@ -1956,22 +1923,26 @@ b32 TabDrag(menu_interface* Interface, container_node* Tab)
       Assert(NextTab);
       if(Interface->MousePos.X > (NextTab->Region.X + NextTab->Region.W/2.f))
       {
+        // Note: See above
+        Interface->MouseLeftButtonPush.X += NextTab->Region.W;
         ShiftRight(Tab);
       }
     }else if(SplitWindowSignal(Interface, Tab->Parent))
     {
-      v2 HeaderOrigin = V2(TabHeader->Region.X, TabHeader->Region.Y);
-      v2 WindowSize   = V2(TabWindow->Region.W, TabWindow->Region.H);
-      SplitTabToNewWindow(Interface, Tab, WindowSize, HeaderOrigin);
+      // Note: See above
+      v2 MouseDiffFromClick = Interface->MousePos - Interface->MouseLeftButtonPush - (LowerLeftPoint(Tab->Parent->Region) - LowerLeftPoint(Tab->Region));
+      rect2f NewRegion = Move(TabWindow->Region, MouseDiffFromClick);
+      SplitTabToNewWindow(Interface, Tab, NewRegion);
       Continue = false;
     }
   }else if(TabWindow->Parent->Type == container_type::Split)
   {
     if(SplitWindowSignal(Interface, Tab->Parent))
     {
-      v2 HeaderOrigin = V2(TabHeader->Region.X, TabHeader->Region.Y);
-      v2 WindowSize   = V2(TabWindow->Region.W, TabWindow->Region.H);
-      SplitTabToNewWindow(Interface, Tab, WindowSize, HeaderOrigin);
+      // Note: See above
+      v2 MouseDiffFromClick = Interface->MousePos - Interface->MouseLeftButtonPush - (LowerLeftPoint(Tab->Parent->Region) - LowerLeftPoint(Tab->Region));
+      rect2f NewRegion = Move(TabWindow->Region, MouseDiffFromClick);
+      SplitTabToNewWindow(Interface, Tab, NewRegion);
       ReduceWindowTree(Interface, TabWindow);
       Continue = false;
     }  
@@ -2372,7 +2343,7 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
       Interface->SpawningWindow = CreateNewRootContainer(Interface, TabWindow, Rect2f( 0.25, 0.25, 0.7, 0.5));
 
     }else{
-      TabWindow = GetRootBody(Interface->SpawningWindow->Root);
+      TabWindow = GetBodyFromRoot(Interface->SpawningWindow->Root);
       while(TabWindow->Type != container_type::TabWindow)
       {
         if(TabWindow->Type ==  container_type::Split)
