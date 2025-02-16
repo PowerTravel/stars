@@ -7,59 +7,6 @@
 #include "tabbed_window/root_window.cpp"
 #include "tabbed_window/tabbed_window.cpp"
 
-inline container_node*
-Previous(container_node* Node)
-{
-  return Node->PreviousSibling;
-}
-
-inline container_node*
-Next(container_node* Node)
-{
-  Assert(Node);
-  return Node->NextSibling;
-}
-
-u32 GetChildCount(container_node* Node)
-{
-  container_node* Child = Node->FirstChild;
-  u32 Count = 0;
-  while(Child)
-  {
-    Child = Next(Child);
-    Count++;
-  }
-  return Count;
-}
-
-internal u32
-GetChildIndex(container_node* Node)
-{
-  Assert(Node->Parent);
-  container_node* Child = Node->Parent->FirstChild;
-  u32 Count = 0;
-  while(Child != Node)
-  {
-    Child = Next(Child);
-    Count++;
-  }
-  return Count;
-}
-
-internal container_node*
-GetChildFromIndex(container_node* Parent, u32 ChildIndex)
-{
-  u32 Idx = 0;
-  container_node* Result = Parent->FirstChild;
-  while(Idx++ < ChildIndex)
-  {
-    Result = Next(Result);
-    Assert(Result);
-  }
-  return Result; 
-}
-
-
 internal void
 PivotNodes(container_node* ShiftLeft, container_node* ShiftRight)
 {
@@ -389,6 +336,13 @@ void FreeMenuTree(menu_interface* Interface, menu_tree* MenuToFree)
   {
     Interface->SpawningWindow = GetNextSpawningWindow(Interface);
   }
+  if(MenuToFree == Interface->MenuInFocus)
+  {
+    CallFunctionPointer(MenuToFree->LosingFocus, Interface, MenuToFree);
+    Interface->MenuInFocus = 0;
+  }
+
+
   Assert(MenuToFree != &Interface->MenuSentinel);
 
   ListRemove( MenuToFree );
@@ -866,6 +820,7 @@ r32 PrintTree(u32 Count, container_node** HotLeafs, r32 YStart, r32 PixelSize, r
   return YStart-YOff;
 }
 
+void UpdateHotLeafs(menu_interface* Interface, menu_tree* Menu);
 void PrintHotLeafs(menu_interface* Interface, r32 CanPosX, r32 CanPosY)
 {
   ecs::render::system* RenderSystem = GetRenderSystem();
@@ -880,9 +835,10 @@ void PrintHotLeafs(menu_interface* Interface, r32 CanPosX, r32 CanPosY)
   menu_tree* FocusWindow = Interface->MenuInFocus;
   while(Menu != &Interface->MenuSentinel)
   {
+    UpdateHotLeafs(Interface, Menu);
     if(Menu->Visible && Menu->HotLeafCount > 0)
     {
-       YOff -= PrintTree(Menu->HotLeafCount, Menu->HotLeafs, YOff, TargetPixelSize, HeightStep, WidthStep, FocusWindow);
+      YOff -= PrintTree(Menu->HotLeafCount, Menu->HotLeafs, YOff, TargetPixelSize, HeightStep, WidthStep, FocusWindow);
     }
     Menu = Menu->Next;
   }
@@ -1089,7 +1045,6 @@ void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, co
   Event->Data = Data;
   RegisterEventWithNode(Interface, CallerNode, Index);
 }
-
 
 void UpdateBorderPosition(container_node* BorderNode, v2 NewPosition, rect2f MinimumWindowSize, rect2f MaximumWindowSize)
 {
@@ -1421,7 +1376,7 @@ mergable_attribute* GetFirstMergeNodeAttribute(container_node* Node )
   return Merge;
 }
 
-internal void UpdateMergableAttribute( menu_interface* Interface, container_node* Node )
+void UpdateMergableAttribute( menu_interface* Interface, container_node* Node )
 {
   container_node* PluginWindow = GetPluginWindow(Interface, Node);
   mergable_attribute* Merge = GetFirstMergeNodeAttribute(Node);
@@ -1546,47 +1501,6 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
 }
 
 
-
-container_node* GetRootContainer(menu_tree* MenuTree)
-{
-  container_node* Result = MenuTree->Root;
-  Assert(Result->Type == container_type::Root);
-  return Result;
-}
-
-
-MENU_UPDATE_FUNCTION(WindowDragUpdate)
-{
-  mouse_position_in_window* PosInWindow = (mouse_position_in_window*) Data;
-  menu_tree* Menu = GetMenu(Interface, CallerNode);
-  container_node* RootContainer = GetRootContainer(Menu);
-  root_border_collection Borders = GetRoorBorders(RootContainer);
-
-  border_leaf* LeftBorder  = GetBorderNode(Borders.Left);
-  border_leaf* RightBorder = GetBorderNode(Borders.Right);
-  border_leaf* BotBorder   = GetBorderNode(Borders.Bot);
-  border_leaf* TopBorder   = GetBorderNode(Borders.Top);
-  
-  r32 Width  = RightBorder->Position - LeftBorder->Position;
-  r32 Height = TopBorder->Position   - BotBorder->Position;
-
-  r32 AspectRatio = GetAspectRatio(Interface);
-  v2 MousePos = V2(
-    Clamp(Interface->MousePos.X, 0, AspectRatio),
-    Clamp(Interface->MousePos.Y, 0, 1-Interface->HeaderSize - (Height - PosInWindow->RelativeWindow.Y)));
-  v2 BotLeftWindowPos = MousePos - PosInWindow->RelativeWindow;
-
-  LeftBorder->Position  = BotLeftWindowPos.X - LeftBorder->Thickness * 0.5;
-  RightBorder->Position = BotLeftWindowPos.X + Width - RightBorder->Thickness * 0.5;
-  BotBorder->Position   = BotLeftWindowPos.Y - LeftBorder->Thickness * 0.5;
-  TopBorder->Position   = BotLeftWindowPos.Y + Height - TopBorder->Thickness * 0.5;
-  
-  UpdateMergableAttribute(Interface, CallerNode);
-
-  return Interface->MouseLeftButton.Active;
-}
-
-
 void DeregisterEvent(menu_interface* Interface, u32 Handle)
 {
   menu_event* Event = GetMenuEvent(Interface, Handle);
@@ -1612,17 +1526,6 @@ void ClearMenuEvents(menu_interface* Interface, container_node* Node)
     }
     EventHandles->HandleCount = 0;  
   }
-}
-
-
-void SetBorderData(container_node* Border, r32 Thickness, r32 Position, border_type Type)
-{
-  Assert(Border->Type == container_type::Border);
-  border_leaf* BorderLeaf = GetBorderNode(Border);
-  BorderLeaf->Type        = Type;
-  BorderLeaf->Position    = Position;
-  BorderLeaf->Thickness   = Thickness;
-  BorderLeaf->Active      = true;
 }
 
 menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f MaxRegion)
@@ -1735,7 +1638,8 @@ void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, rect2f 
   ConnectNodeToBack(NewTabWindow, GetTabNode(Tab)->Payload);
 
   // Trigger the window-drag instead of this tab-drag
-  mouse_position_in_window* Position = GetPositionInRootWindow(Interface, NewTabWindow);
+  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
+  *Position = GetPositionInRootWindow(Interface->MousePos, NewTabWindow);
   PushToUpdateQueue(Interface, Tab, WindowDragUpdate, Position, true);
 }
 
@@ -1825,11 +1729,11 @@ internal void GetInput(jwin::device_input* DeviceInput, menu_interface* Interfac
   {
     if(Interface->MouseLeftButton.Active)
     {
-      Interface->MouseLeftButtonPush = Interface->MousePos;
-      if( (Interface->Time - Interface->MouseLeftButtonPushTime) < Interface->DoubleKlickTime )
+      if((Interface->MouseLeftButtonPush == Interface->MousePos) && (Interface->Time - Interface->MouseLeftButtonPushTime) < Interface->DoubleKlickTime )
       {
         Interface->DoubleKlick = true;
       }
+      Interface->MouseLeftButtonPush = Interface->MousePos;
       Interface->MouseLeftButtonPushTime = Interface->Time;
     }else{
       Interface->MouseLeftButtonRelese = Interface->MousePos;
@@ -2114,6 +2018,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
       Menu = Menu->Previous;
     }
   }
+  
   #if 1
   PrintHotLeafs(Interface, 1-0.05, 1);
   #endif
@@ -2524,8 +2429,3 @@ void ToggleWindow(menu_interface* Interface, char* WindowName)
   }
 }
 
-
-menu_tree* BuildMenuTree(menu_interface* Interface, menu_layout* MenuLayout)
-{
-  return 0;
-}

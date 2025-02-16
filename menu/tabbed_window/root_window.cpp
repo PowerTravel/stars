@@ -13,17 +13,23 @@ container_node* GetRoot(container_node* Node)
 container_node* GetBodyFromRoot(container_node* RootWindow)
 {
   Assert(RootWindow->Type == container_type::Root);
-  container_node* Result = RootWindow->FirstChild->NextSibling->NextSibling->NextSibling->NextSibling;
+  
+  container_node* Result = RootWindow->FirstChild;
+  while(Result->Type == container_type::Border)
+  {
+    Result = Result->NextSibling;
+  }
+  
   return Result;
 }
 
-mouse_position_in_window* GetPositionInRootWindow(menu_interface* Interface, container_node* Node)
+mouse_position_in_window GetPositionInRootWindow(v2 Pos, container_node* Node)
 {
   container_node* RootBodyNode = GetBodyFromRoot(GetRoot(Node));
-  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
-  Position->MousePos = Interface->MousePos;
-  Position->RelativeWindow = Position->MousePos - LowerLeftPoint(RootBodyNode->Region);
-  return Position;
+  mouse_position_in_window Result = {};
+  Result.MousePos = Pos;
+  Result.RelativeWindow = Result.MousePos - LowerLeftPoint(RootBodyNode->Region);
+  return Result;
 }
 
 root_border_collection GetRoorBorders(container_node* RootContainer)
@@ -47,12 +53,11 @@ root_border_collection GetRoorBorders(container_node* RootContainer)
 MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions)
 {
   menu_tree* Menu = GetMenu(Interface, Parent);
-//  if(Menu->Maximized)
-//  {
-//    container_node* Body = GetBodyFromRoot(Parent);
-//    Body->Region = Rect2f(0,0, GetAspectRatio(Interface),1-Interface->HeaderSize);
-//    Parent->Region = Rect2f(0,0, GetAspectRatio(Interface),1-Interface->HeaderSize);
-//  }else{
+
+  if(Menu->Maximized)
+  {
+    Parent->FirstChild->Region = Parent->Region;
+  }else{
     container_node* Child = Parent->FirstChild;
     u32 BorderIndex = 0;
     container_node* Body = 0;
@@ -137,7 +142,108 @@ MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions)
       Borders[2]->Position - 0.5f*Borders[2]->Thickness,
       Width,
       Height);
-  
- // }
+  }
+}
 
+void SetBorderData(container_node* Border, r32 Thickness, r32 Position, border_type Type)
+{
+  Assert(Border->Type == container_type::Border);
+  border_leaf* BorderLeaf = GetBorderNode(Border);
+  BorderLeaf->Type        = Type;
+  BorderLeaf->Position    = Position;
+  BorderLeaf->Thickness   = Thickness;
+  BorderLeaf->Active      = true;
+}
+
+void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu)
+{
+  container_node* RootNode = Menu->Root;
+  if(!Menu->Maximized)
+  {
+
+    root_border_collection Borders = GetRoorBorders(RootNode);
+    container_node* Body = GetBodyFromRoot(RootNode);
+
+    Body->PreviousSibling = 0;
+    RootNode->FirstChild = Body;
+    
+    DeleteContainer(Interface, Borders.Left);
+    DeleteContainer(Interface, Borders.Right);
+    DeleteContainer(Interface, Borders.Top);
+    DeleteContainer(Interface, Borders.Bot);
+
+    Menu->CachedRegion = RootNode->FirstChild->Region;
+    Menu->Root->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
+    Menu->Maximized = true;
+  }else{
+
+    rect2f Region = Menu->CachedRegion;
+    r32 Thickness = Interface->BorderSize;
+    
+    container_node* Border1 = CreateBorderNode(Interface, Interface->BorderColor);
+    RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border1, 0, InitiateBorderDrag, 0);
+    SetBorderData(Border1, Thickness, Region.X, border_type::LEFT);
+
+    container_node* Border2 = CreateBorderNode(Interface, Interface->BorderColor);
+    RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border2, 0, InitiateBorderDrag, 0);
+    SetBorderData(Border2, Thickness, Region.X + Region.W, border_type::RIGHT);
+
+    container_node* Border3 = CreateBorderNode(Interface, Interface->BorderColor);
+    RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border3, 0, InitiateBorderDrag, 0);
+    SetBorderData(Border3, Thickness, Region.Y,  border_type::BOTTOM);
+    
+    container_node* Border4 = CreateBorderNode(Interface, Interface->BorderColor);
+    RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border4, 0, InitiateBorderDrag, 0);
+    SetBorderData(Border4, Thickness, Region.Y + Region.H, border_type::TOP);
+    
+    
+    ConnectNodeToFront(RootNode, Border4);
+    ConnectNodeToFront(RootNode, Border3);
+    ConnectNodeToFront(RootNode, Border2);
+    ConnectNodeToFront(RootNode, Border1);
+    Menu->Maximized = false;
+  }
+}
+
+void InitiateWindowDrag(menu_interface* Interface, container_node* Node)
+{
+  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
+  *Position = GetPositionInRootWindow(Interface->MousePos, Node);
+  PushToUpdateQueue(Interface, Node, WindowDragUpdate, Position, true);
+}
+
+MENU_UPDATE_FUNCTION(WindowDragUpdate)
+{
+  mouse_position_in_window* PosInWindow = (mouse_position_in_window*) Data;
+  menu_tree* Menu = GetMenu(Interface, CallerNode);
+  if(Menu->Maximized)
+  {
+    return false;
+  }
+
+  container_node* RootContainer = Menu->Root;
+  root_border_collection Borders = GetRoorBorders(RootContainer);
+
+  border_leaf* LeftBorder  = GetBorderNode(Borders.Left);
+  border_leaf* RightBorder = GetBorderNode(Borders.Right);
+  border_leaf* BotBorder   = GetBorderNode(Borders.Bot);
+  border_leaf* TopBorder   = GetBorderNode(Borders.Top);
+  
+  r32 Width  = RightBorder->Position - LeftBorder->Position;
+  r32 Height = TopBorder->Position   - BotBorder->Position;
+
+  r32 AspectRatio = GetAspectRatio(Interface);
+  v2 MousePos = V2(
+    Clamp(Interface->MousePos.X, 0, AspectRatio),
+    Clamp(Interface->MousePos.Y, 0, 1-Interface->HeaderSize - (Height - PosInWindow->RelativeWindow.Y)));
+  v2 BotLeftWindowPos = MousePos - PosInWindow->RelativeWindow;
+
+  LeftBorder->Position  = BotLeftWindowPos.X - LeftBorder->Thickness * 0.5;
+  RightBorder->Position = BotLeftWindowPos.X + Width - RightBorder->Thickness * 0.5;
+  BotBorder->Position   = BotLeftWindowPos.Y - LeftBorder->Thickness * 0.5;
+  TopBorder->Position   = BotLeftWindowPos.Y + Height - TopBorder->Thickness * 0.5;
+  
+  UpdateMergableAttribute(Interface, CallerNode);
+
+  return Interface->MouseLeftButton.Active;
 }

@@ -415,10 +415,8 @@ struct menu_interface
 };
 
 menu_tree* BuildMenuTree(menu_interface* Interface, menu_layout* MenuLayout);
-
-
-container_node* Next( container_node* Node );
-container_node* Previous( container_node* Node );
+ 
+container_node* GetPluginWindow(menu_interface* Interface, container_node* Node);
 
 menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f Region);
 container_node* CreateSplitWindow( menu_interface* Interface, b32 Vertical, r32 BorderPos = 0.5);
@@ -438,3 +436,5 @@ r32 GetAspectRatio(menu_interface* Interface)
   rect2f WindowRegion = Interface->MenuBar->Root->Region;
   return WindowRegion.W / WindowRegion.H;
 }
+
+void UpdateMergableAttribute( menu_interface* Interface, container_node* Node );

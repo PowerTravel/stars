@@ -41,33 +41,6 @@ internal container_node* GetTabGridFromWindow(container_node* TabbedWindow)
   return TabHeader;
 }
 
-
-void InitiateWindowDrag(menu_interface* Interface, container_node* WindowHeader)
-{
-  Assert(WindowHeader->Type == container_type::None);
-  container_node* TabWindow = WindowHeader->Parent;
-
-  mouse_position_in_window* Position = GetPositionInRootWindow(Interface, WindowHeader);
-
-  if(TabWindow->Parent->Type == container_type::Split)
-  {
-    if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos))
-    {
-      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, Position, true);
-    }
-  }else{
-    Assert(TabWindow->Type == container_type::TabWindow);
-    container_node* TabGrid = GetTabGridFromWindow(TabWindow);
-    u32 ChildCount = GetChildCount(TabGrid);
-    if(ChildCount == 1)
-    {
-      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, Position, true);
-    }else if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos)){
-      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, Position, true);
-    }
-  }
-}
-
 void SetRootWindowRegion(menu_tree* MenuTree, rect2f Region)
 {
   root_border_collection Borders = GetRoorBorders(MenuTree->Root);
@@ -93,18 +66,31 @@ MENU_EVENT_CALLBACK(TabWindowHeaderMouseDown)
   if(Interface->DoubleKlick)
   {
     menu_tree* MenuTree = GetMenu(Interface, CallerNode);
-    if(MenuTree->Maximized)
-    {
-      SetRootWindowRegion(MenuTree, MenuTree->CachedRegion);
-    }else{
-      MenuTree->CachedRegion = MenuTree->Root->Region;
-      rect2f ActiveRegion = GetActiveMenuRegion(Interface);
-      container_node* Root = GetRoot(CallerNode);
-      Shrink(ActiveRegion, -Interface->BorderSize);
-      SetRootWindowRegion(MenuTree, ActiveRegion);
-    }
-    MenuTree->Maximized = !MenuTree->Maximized;
+    ToggleMaximizeWindow(Interface, MenuTree);
   }else{
-    InitiateWindowDrag(Interface, CallerNode);
+      container_node* WindowHeader = CallerNode;
+      Assert(WindowHeader->Type == container_type::None);
+      container_node* TabWindow = WindowHeader->Parent;
+
+      mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
+      *Position = GetPositionInRootWindow(Interface->MousePos, WindowHeader);
+
+      if(TabWindow->Parent->Type == container_type::Split)
+      {
+        if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos))
+        {
+          InitiateWindowDrag(Interface, WindowHeader);
+        }
+      }else{
+        Assert(TabWindow->Type == container_type::TabWindow);
+        container_node* TabGrid = GetTabGridFromWindow(TabWindow);
+        u32 ChildCount = GetChildCount(TabGrid);
+        if(ChildCount == 1)
+        {
+          InitiateWindowDrag(Interface, WindowHeader);
+        }else if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos)){
+          InitiateWindowDrag(Interface, WindowHeader);
+        }
+      }
   }
 }

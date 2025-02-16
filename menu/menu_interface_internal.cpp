@@ -33,6 +33,54 @@ u32 GetAttributeSize(container_attribute Attribute)
   return 0; 
 }
 
+container_node* Previous(container_node* Node)
+{
+  return Node->PreviousSibling;
+}
+
+container_node* Next(container_node* Node)
+{
+  Assert(Node);
+  return Node->NextSibling;
+}
+
+u32 GetChildCount(container_node* Node)
+{
+  container_node* Child = Node->FirstChild;
+  u32 Count = 0;
+  while(Child)
+  {
+    Child = Next(Child);
+    Count++;
+  }
+  return Count;
+}
+
+u32 GetChildIndex(container_node* Node)
+{
+  Assert(Node->Parent);
+  container_node* Child = Node->Parent->FirstChild;
+  u32 Count = 0;
+  while(Child != Node)
+  {
+    Child = Next(Child);
+    Count++;
+  }
+  return Count;
+}
+
+container_node* GetChildFromIndex(container_node* Parent, u32 ChildIndex)
+{
+  u32 Idx = 0;
+  container_node* Result = Parent->FirstChild;
+  while(Idx++ < ChildIndex)
+  {
+    Result = Next(Result);
+    Assert(Result);
+  }
+  return Result; 
+}
+
 
 void * PushAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType)
 {
