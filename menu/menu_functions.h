@@ -142,6 +142,7 @@ MENU_UPDATE_CHILD_REGIONS(UpdateSplitChildRegions)
 
   Assert(Body1Node && Body2Node && BorderNode);
   border_leaf* Border = GetBorderNode(BorderNode);
+
   if(Border->Vertical)
   {
     BorderNode->Region = Rect2f(

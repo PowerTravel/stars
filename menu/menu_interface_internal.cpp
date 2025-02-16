@@ -1,5 +1,5 @@
 #include "menu_interface_internal.h"
-
+#include "tabbed_window/root_window.h"
 
 u32 GetContainerPayloadSize(container_type Type)
 {

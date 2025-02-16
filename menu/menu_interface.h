@@ -130,6 +130,7 @@ struct container_node
   container_node* PreviousSibling;
 
   rect2f Region;
+
   menu_functions Functions;
 };
 
@@ -141,17 +142,21 @@ struct root_node
   r32 FooterSize;
 };
 
-struct hbf_node
-{
-  r32 HeaderSize;
-  r32 FooterSize;
+enum class border_type {
+  LEFT,
+  RIGHT,
+  BOTTOM,
+  TOP,
+  SPLIT_VERTICAL,
+  SPLIT_HORIZONTAL
 };
 
 struct border_leaf
 {
-  b32 Vertical;
+  border_type Type;
   r32 Position;
   r32 Thickness;
+  b32 Vertical; // Deprecate in favour of border_type
 };
 
 struct grid_node
@@ -382,7 +387,8 @@ struct menu_interface
   r32 BorderSize;
   v4 BorderColor;
   r32 HeaderSize;
-  r32 MinSize;
+  r32 MinSize; // Note: We maybe want to set this per container_node and have some ATTRIBUTE which is the "Ground truth window minimum size" for certain containers
+               //       Could this attribute be the Size attribute? Or does that attribute do too many different things then?
 
   v4 MenuColor;
   v4 TextColor;

@@ -1145,6 +1145,54 @@ r32 GetAspectRatio(menu_interface* Interface)
   return WindowRegion.W / WindowRegion.H;
 }
 
+void UpdateBorderPosition(container_node* BorderNode, v2 MousePosition, rect2f MinimumWindowSize, rect2f MaximumWindowSize)
+{
+  border_leaf* Border = GetBorderNode(BorderNode);
+  switch(Border->Type)
+  {
+    // A Root border work with canonical positions
+    case border_type::LEFT: {
+      Border->Position = Clamp(
+        MousePosition.X,
+        MaximumWindowSize.X + Border->Thickness * 0.5f,
+        MinimumWindowSize.X + MinimumWindowSize.W - Border->Thickness * 0.5f);
+    }break;
+    case border_type::RIGHT:{
+      Border->Position = Clamp(
+        MousePosition.X,
+        MinimumWindowSize.X + Border->Thickness * 0.5f,
+        MaximumWindowSize.X + MaximumWindowSize.W - Border->Thickness * 0.5f);
+    }break;
+    case border_type::TOP:{
+      Border->Position = Clamp(
+        MousePosition.Y,
+        MinimumWindowSize.Y + Border->Thickness * 0.5f,
+        MaximumWindowSize.Y + MaximumWindowSize.H - Border->Thickness * 0.5f);
+    }break;
+    case border_type::BOTTOM:{
+      Border->Position = Clamp(
+        MousePosition.Y,
+        MaximumWindowSize.Y + Border->Thickness * 0.5f,
+        MinimumWindowSize.Y + MinimumWindowSize.H - Border->Thickness * 0.5f);
+    }break;
+    // A SPLIT border don't work with canonical positions, they work with percentage of parent region.
+    // That means if a border position is at 10% it means 10% of parent window is for left split region and 90% is for right split region
+    case border_type::SPLIT_VERTICAL:{
+      Border->Position = Clamp(
+        MousePosition.X,
+        MinimumWindowSize.X,
+        MinimumWindowSize.W);
+      Platform.DEBUGPrint("%1.2f\n", Border->Position);
+    }break;
+    case border_type::SPLIT_HORIZONTAL:{
+      Border->Position = Clamp(
+        MousePosition.Y,
+        MinimumWindowSize.Y,
+        MinimumWindowSize.H);
+    }break;
+  }
+}
+
 MENU_UPDATE_FUNCTION(SplitWindowBorderUpdate)
 {
   container_node* BorderNode = CallerNode;
@@ -1152,22 +1200,27 @@ MENU_UPDATE_FUNCTION(SplitWindowBorderUpdate)
   container_node* SplitNode = BorderNode->Parent;
   Assert(SplitNode->Type == container_type::Split);
   r32 AspectRatio = GetAspectRatio(Interface);
-  r32 WindowLocalX = Unlerp(Interface->MousePos.X, SplitNode->Region.X, SplitNode->Region.X + SplitNode->Region.W);
-  r32 WindowLocalY = Unlerp(Interface->MousePos.Y, SplitNode->Region.Y, SplitNode->Region.Y + SplitNode->Region.H);
-  // The Caller is the border which we want to update
-  border_leaf* Border = GetBorderNode(BorderNode);
-  if(Border->Vertical)
-  {
-    //Border->Position += (Interface->MousePos.X - Interface->PreviousMousePos.X)/SplitNode->Region.W;
-    //Border->Position = Clamp(Border->Position, 0.1 * SplitNode->Region.W, 1-0.1 * SplitNode->Region.W);
-    Border->Position = Clamp(WindowLocalX, 0.1 / SplitNode->Region.W, 1-0.1 / SplitNode->Region.W);
+  v2 MousePosWindowLocal = V2(
+      Unlerp(Interface->MousePos.X, SplitNode->Region.X, SplitNode->Region.X + SplitNode->Region.W),
+      Unlerp(Interface->MousePos.Y, SplitNode->Region.Y, SplitNode->Region.Y + SplitNode->Region.H)
+    );
 
-  }else{
-    //Border->Position += (Interface->MousePos.Y - Interface->PreviousMousePos.Y)/SplitNode->Region.H;
-    //Border->Position = Clamp(Border->Position, 0.1 * SplitNode->Region.H, 1-0.1 * SplitNode->Region.H);
-    Border->Position = Clamp(WindowLocalY,  0.1/SplitNode->Region.H,  1-0.1/SplitNode->Region.H);;
-  }
-  
+  rect2f MaximumWindowSize = Rect2f(0,0,1,1);
+  rect2f MinimumWindowSize = Rect2f(
+      Unlerp(Interface->MinSize * 0.5,                       0, SplitNode->Region.W),
+      Unlerp(Interface->MinSize * 0.5,                       0, SplitNode->Region.H),
+      Unlerp(SplitNode->Region.W - Interface->MinSize * 0.5, 0, SplitNode->Region.W),
+      Unlerp(SplitNode->Region.H - Interface->MinSize * 0.5, 0, SplitNode->Region.H)
+    );
+
+  Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f, %1.2f\n", 
+    MinimumWindowSize.X,MinimumWindowSize.Y, MinimumWindowSize.W, MinimumWindowSize.H);
+  //Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f, %1.2f\n", 
+  //  SplitNode->Region.X,SplitNode->Region.Y, SplitNode->Region.W, SplitNode->Region.H);
+  //Platform.DEBUGPrint("%1.2f, %1.2f\n\n", 
+  //  MousePosWindowLocal.X,MousePosWindowLocal.Y);
+
+  UpdateBorderPosition(BorderNode, MousePosWindowLocal, MinimumWindowSize, MaximumWindowSize);
   return Interface->MouseLeftButton.Active;
 }
 
@@ -1176,17 +1229,53 @@ MENU_EVENT_CALLBACK(InitiateSplitWindowBorderDrag)
   PushToUpdateQueue(Interface, CallerNode, SplitWindowBorderUpdate, 0, false);
 }
 
+union root_border_collection {
+  struct {
+    container_node* Left;
+    container_node* Right;
+    container_node* Bot;
+    container_node* Top;
+  };
+  container_node* E[4];
+};
+
+root_border_collection GetRoorBorders(container_node* RootContainer)
+{
+  Assert(RootContainer->Type == container_type::Root);
+  root_border_collection Borders = {};
+  Borders.Left = RootContainer->FirstChild;
+  Borders.Right = Borders.Left->NextSibling;
+  Borders.Bot = Borders.Right->NextSibling;
+  Borders.Top = Borders.Bot->NextSibling;
+
+  Assert(Borders.Left->Type  == container_type::Border);
+  Assert(Borders.Right->Type == container_type::Border);
+  Assert(Borders.Bot->Type   == container_type::Border);
+  Assert(Borders.Top->Type   == container_type::Border);
+
+  return Borders;
+}
+
+
+rect2f GetMinimumRootWindowSize(root_border_collection* BorderCollection, r32 MinimumRegionWidth, r32 MinimumRegionHeight)
+{
+  rect2f Result = {};
+  Result.X = GetBorderNode(BorderCollection->Left)->Position  + MinimumRegionWidth*0.5;
+  Result.W = GetBorderNode(BorderCollection->Right)->Position - MinimumRegionWidth*0.5 - Result.X;
+  Result.Y = GetBorderNode(BorderCollection->Bot)->Position   + MinimumRegionHeight*0.5;
+  Result.H = GetBorderNode(BorderCollection->Top)->Position   - MinimumRegionHeight*0.5 - Result.Y;
+  return Result;
+}
+
 MENU_UPDATE_FUNCTION(RootBorderDragUpdate)
 {
-  border_leaf* Border = GetBorderNode(CallerNode);
-  r32 HalfSize = Border->Thickness/2.f;
+  Assert(CallerNode->Parent->Type == container_type::Root);
   r32 AspectRatio = GetAspectRatio(Interface);
-  if(Border->Vertical)
-  {
-    Border->Position = Clamp(Interface->MousePos.X, HalfSize, AspectRatio-HalfSize);
-  }else{
-    Border->Position = Clamp(Interface->MousePos.Y, HalfSize, 1-HalfSize-Interface->HeaderSize- 2 * HalfSize);
-  }
+  rect2f MaximumWindowSize = Rect2f(0,0,AspectRatio,1 - Interface->HeaderSize);
+  root_border_collection BorderCollection = GetRoorBorders(CallerNode->Parent);
+  rect2f MinimumWindowSize = GetMinimumRootWindowSize(&BorderCollection, Interface->MinSize, Interface->MinSize);
+  UpdateBorderPosition(CallerNode, Interface->MousePos, MinimumWindowSize, MaximumWindowSize);
+
   return Interface->MouseLeftButton.Active;
 }
 
@@ -1562,29 +1651,7 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
   }
 }
 
-struct root_border_collection {
-  container_node* Left;
-  container_node* Right;
-  container_node* Bot;
-  container_node* Top;
-};
 
-root_border_collection GetRoorBorders(container_node* RootContainer)
-{
-  Assert(RootContainer->Type == container_type::Root);
-  root_border_collection Borders = {};
-  Borders.Left = RootContainer->FirstChild;
-  Borders.Right = Borders.Left->NextSibling;
-  Borders.Bot = Borders.Right->NextSibling;
-  Borders.Top = Borders.Bot->NextSibling;
-
-  Assert(Borders.Left->Type  == container_type::Border);
-  Assert(Borders.Right->Type == container_type::Border);
-  Assert(Borders.Bot->Type   == container_type::Border);
-  Assert(Borders.Top->Type   == container_type::Border);
-
-  return Borders;
-}
 
 container_node* GetRootContainer(menu_tree* MenuTree)
 {
@@ -1726,50 +1793,47 @@ void ClearMenuEvents(menu_interface* Interface, container_node* Node)
   }
 }
 
-void SetBorderData(container_node* Border, b32 Vertical, r32 Thickness, r32 Position)
+void SetBorderData(container_node* Border, b32 Vertical, r32 Thickness, r32 Position, border_type Type)
 {
   Assert(Border->Type == container_type::Border);
   border_leaf* BorderLeaf = GetBorderNode(Border);
+  BorderLeaf->Type = Type;
   BorderLeaf->Position = Position;
   BorderLeaf->Vertical = Vertical;
   BorderLeaf->Thickness = Thickness;
 }
 
-void SetBorderPositionAndThickness(container_node* FirstBorder, r32 Thickness, rect2f Region)
-{
-  container_node* Border = FirstBorder;
-  SetBorderData(Border, true, Thickness, Region.X);
-  Border = Border->NextSibling;
-  SetBorderData(Border, true, Thickness, Region.X + Region.W);
-  Border = Border->NextSibling;
-  SetBorderData(Border, false, Thickness, Region.Y);
-  Border = Border->NextSibling;
-  SetBorderData(Border, false, Thickness, Region.Y + Region.H);
-  Border = Border->NextSibling;
-}
-
-menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f Region)
+menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f MaxRegion)
 {
   menu_tree* Root = NewMenuTree(Interface); // Root
   Root->Visible = true;
   Root->Root = NewContainer(Interface, container_type::Root);
 
-  //  Root Node Complex, 4 Borders, 1 Header, 1 None
+  //  Root Node Complex, 4 Borders, 1 None
   { 
+    r32 Thickness = Interface->BorderSize;
+    r32 HalfThickness = Interface->BorderSize * 0.5;
+
     container_node* Border1 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border1);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border1, 0, InitiateBorderDrag, 0);
+    SetBorderData(Border1, true, Thickness, MaxRegion.X + HalfThickness, border_type::LEFT);
+
     container_node* Border2 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border2);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border2, 0, InitiateBorderDrag, 0);
+    SetBorderData(Border2, true, Thickness, MaxRegion.X + MaxRegion.W - HalfThickness, border_type::RIGHT);
+
     container_node* Border3 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border3);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border3, 0, InitiateBorderDrag, 0);
+    SetBorderData(Border3, false, Thickness, MaxRegion.Y + HalfThickness,  border_type::BOTTOM);
+    
     container_node* Border4 = CreateBorderNode(Interface, Interface->BorderColor);
     ConnectNodeToBack(Root->Root, Border4);
     RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border4, 0, InitiateBorderDrag, 0);
-    SetBorderPositionAndThickness(Border1, Interface->BorderSize, Region);
-    //ConnectNodeToBack(Root->Root, RootHeader); // Header
+    SetBorderData(Border4, false, Thickness, MaxRegion.Y + MaxRegion.H - HalfThickness,  border_type::TOP);
+
     ConnectNodeToBack(Root->Root, BaseWindow); // Body
   }
 
@@ -2224,7 +2288,7 @@ container_node* CreateSplitWindow( menu_interface* Interface, b32 Vertical, r32 
 {
   container_node* SplitNode  = NewContainer(Interface, container_type::Split);
   container_node* BorderNode = CreateBorderNode(Interface, Interface->BorderColor);
-  SetBorderData(BorderNode, Vertical, Interface->BorderSize, BorderPos);
+  SetBorderData(BorderNode, Vertical, Interface->BorderSize, BorderPos, Vertical? border_type::SPLIT_VERTICAL : border_type::SPLIT_HORIZONTAL);
   ConnectNodeToBack(SplitNode, BorderNode);
   RegisterMenuEvent(Interface, menu_event_type::MouseDown, BorderNode, 0, InitiateSplitWindowBorderDrag, 0);
   return SplitNode;
@@ -2330,7 +2394,6 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
       container_node* Plugin = TabNode->Payload;
       Assert(Plugin->Type == container_type::Plugin);
       plugin_node* PluginNode = GetPluginNode(Plugin);
-      //SetBorderPositionAndThickness(Body->FirstChild, Interface->BorderSize, PluginNode->CachedRegion)
     }else{
       ConnectNodeToBack(TabWindow, TabNode->Payload);
     }
