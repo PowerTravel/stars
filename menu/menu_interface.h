@@ -91,7 +91,8 @@ struct update_args
   container_node* Caller;
   void* Data;
   b32 InUse;
-  update_function** Function;
+  b32 FreeDataWhenComplete;
+  update_function** UpdateFunction;
 };
 
 #define MENU_UPDATE_CHILD_REGIONS(name) void name(container_node* Parent)
@@ -201,6 +202,7 @@ struct mergable_attribute
 
 #define MENU_EVENT_CALLBACK(name) void name( menu_interface* Interface, container_node* CallerNode, void* Data)
 typedef MENU_EVENT_CALLBACK( menu_event_callback );
+
 
 struct color_attribute
 {

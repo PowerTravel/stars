@@ -2,41 +2,9 @@
 #include "ecs/systems/system_render.h"
 #include "commons/string.h"
 #include "menu/color_table.h"
+#include "menu/menu_interface_internal.cpp"
 #include "menu/menu_functions.h"
-
-internal u32
-GetContainerPayloadSize(container_type Type)
-{
-  switch(Type)
-  {
-    case container_type::None:
-    case container_type::Split:
-    case container_type::Root:      return 0;
-    case container_type::Border:    return sizeof(border_leaf);
-    case container_type::Grid:      return sizeof(grid_node);
-    case container_type::TabWindow: return sizeof(tab_window_node);
-    case container_type::Tab:       return sizeof(tab_node);
-    case container_type::Plugin:    return sizeof(plugin_node);
-    default: INVALID_CODE_PATH;
-  }
-  return 0;
-}
-
-internal u32
-GetAttributeSize(container_attribute Attribute)
-{
-  switch(Attribute)
-  {
-    case ATTRIBUTE_MERGE:       return sizeof(mergable_attribute);
-    case ATTRIBUTE_COLOR:       return sizeof(color_attribute);
-    case ATTRIBUTE_TEXT:        return sizeof(text_attribute);
-    case ATTRIBUTE_SIZE:        return sizeof(size_attribute);
-    case ATTRIBUTE_MENU_EVENT_HANDLE: return sizeof(menu_event_handle_attribtue);
-    case ATTRIBUTE_TEXTURE:     return sizeof(texture_attribute);
-    default: INVALID_CODE_PATH;
-  }
-  return 0; 
-}
+#include "menu/tabbed_window/tabbed_window.cpp"
 
 inline container_node*
 Previous(container_node* Node)
@@ -269,6 +237,10 @@ internal void CancelAllUpdateFunctions(menu_interface* Interface, container_node
     update_args* Entry = &Interface->UpdateQueue[i];
     if(Entry->InUse && Entry->Caller == Node)
     {
+      if(Entry->FreeDataWhenComplete && Entry->Data)
+      {
+        FreeMemory(&Interface->LinkedMemory, Entry->Data);
+      }
       *Entry = {};
     }
   }
@@ -1000,25 +972,6 @@ b32 IsPluginSelected(menu_interface* Interface, container_node* Container)
   return ContainerIsTheSelectedPlugin;
 }
 
-void * PushAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType)
-{
-  Assert(!(Node->Attributes & AttributeType));
-
-  Node->Attributes = Node->Attributes | AttributeType;
-  menu_attribute_header** HeaderPtr = &Node->FirstAttribute;
-  while(*HeaderPtr)
-  {
-    menu_attribute_header* Header = *HeaderPtr;
-    HeaderPtr = &(Header->Next);
-  }
-
-  u32 TotalSize = sizeof(menu_attribute_header) + GetAttributeSize(AttributeType);
-  menu_attribute_header* Attr =  (menu_attribute_header*) Allocate(&Interface->LinkedMemory, TotalSize);
-  Attr->Type = AttributeType;
-  *HeaderPtr = Attr;
-  void* Result = (void*)(((u8*)Attr) + sizeof(menu_attribute_header));
-  return Result;
-}
 
 void * PushOrGetAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType)
 {
@@ -1093,17 +1046,7 @@ b32 SplitWindowSignal(menu_interface* Interface, container_node* HeaderNode)
   return false;
 }
 
-void UpdateFrameBorder( menu_interface* Interface, border_leaf* Border )
-{
-  if(Border->Vertical)
-  {
-    Border->Position += Interface->MousePos.X - Interface->PreviousMousePos.X;
-  }else{
-    Border->Position += Interface->MousePos.Y - Interface->PreviousMousePos.Y;
-  }
-}
-
-void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** Function, void* Data)
+void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData)
 {
   update_args* Entry = 0;
   for (u32 i = 0; i < ArrayCount(Interface->UpdateQueue); ++i)
@@ -1119,11 +1062,12 @@ void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, updat
   Entry->Interface = Interface;
   Entry->Caller = Caller;
   Entry->InUse = true;
-  Entry->Function = Function;
+  Entry->FreeDataWhenComplete = FreeData;
+  Entry->UpdateFunction = UpdateFunction;
   Entry->Data = Data;
 }
 
-#define PushToUpdateQueue(Interface, Caller, FunctionName, Data) _PushToUpdateQueue(Interface, Caller, DeclareFunction(update_function, FunctionName), (void*) Data)
+#define PushToUpdateQueue(Interface, Caller, FunctionName, Data, FreeData) _PushToUpdateQueue(Interface, Caller, DeclareFunction(update_function, FunctionName), (void*) Data, FreeData)
 
 void RegisterEventWithNode(menu_interface* Interface, container_node* Node, u32 Handle)
 {
@@ -1194,7 +1138,8 @@ void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, co
   RegisterEventWithNode(Interface, CallerNode, Index);
 }
 
-r32 GetApectRatio(menu_interface* Interface)
+
+r32 GetAspectRatio(menu_interface* Interface)
 {
   rect2f WindowRegion = Interface->MenuBar->Root->Region;
   return WindowRegion.W / WindowRegion.H;
@@ -1206,7 +1151,7 @@ MENU_UPDATE_FUNCTION(SplitWindowBorderUpdate)
   Assert(BorderNode->Type == container_type::Border);
   container_node* SplitNode = BorderNode->Parent;
   Assert(SplitNode->Type == container_type::Split);
-  r32 AspectRatio = GetApectRatio(Interface);
+  r32 AspectRatio = GetAspectRatio(Interface);
   r32 WindowLocalX = Unlerp(Interface->MousePos.X, SplitNode->Region.X, SplitNode->Region.X + SplitNode->Region.W);
   r32 WindowLocalY = Unlerp(Interface->MousePos.Y, SplitNode->Region.Y, SplitNode->Region.Y + SplitNode->Region.H);
   // The Caller is the border which we want to update
@@ -1228,26 +1173,26 @@ MENU_UPDATE_FUNCTION(SplitWindowBorderUpdate)
 
 MENU_EVENT_CALLBACK(InitiateSplitWindowBorderDrag)
 {
-  PushToUpdateQueue(Interface, CallerNode, SplitWindowBorderUpdate, 0);
+  PushToUpdateQueue(Interface, CallerNode, SplitWindowBorderUpdate, 0, false);
 }
 
 MENU_UPDATE_FUNCTION(RootBorderDragUpdate)
 {
   border_leaf* Border = GetBorderNode(CallerNode);
   r32 HalfSize = Border->Thickness/2.f;
-  r32 AspectRatio = GetApectRatio(Interface);
+  r32 AspectRatio = GetAspectRatio(Interface);
   if(Border->Vertical)
   {
     Border->Position = Clamp(Interface->MousePos.X, HalfSize, AspectRatio-HalfSize);
   }else{
-    Border->Position = Clamp(Interface->MousePos.Y, HalfSize, 1-HalfSize-Interface->HeaderSize);
+    Border->Position = Clamp(Interface->MousePos.Y, HalfSize, 1-HalfSize-Interface->HeaderSize- 2 * HalfSize);
   }
   return Interface->MouseLeftButton.Active;
 }
 
 MENU_EVENT_CALLBACK(InitiateBorderDrag)
 {
-  PushToUpdateQueue(Interface, CallerNode, RootBorderDragUpdate, 0);
+  PushToUpdateQueue(Interface, CallerNode, RootBorderDragUpdate, 0, false);
 }
 
 container_node* CreateBorderNode(menu_interface* Interface, v4 Color)
@@ -1400,8 +1345,6 @@ internal container_node* PushTab(container_node* TabbedWindow,  container_node* 
   ConnectNodeToFront(TabContainer, Tab);
   return Tab;
 }
-
-
 
 internal void SetTabAsActive(container_node* Tab)
 {
@@ -1619,26 +1562,103 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
   }
 }
 
+struct root_border_collection {
+  container_node* Left;
+  container_node* Right;
+  container_node* Bot;
+  container_node* Top;
+};
+
+root_border_collection GetRoorBorders(container_node* RootContainer)
+{
+  Assert(RootContainer->Type == container_type::Root);
+  root_border_collection Borders = {};
+  Borders.Left = RootContainer->FirstChild;
+  Borders.Right = Borders.Left->NextSibling;
+  Borders.Bot = Borders.Right->NextSibling;
+  Borders.Top = Borders.Bot->NextSibling;
+
+  Assert(Borders.Left->Type  == container_type::Border);
+  Assert(Borders.Right->Type == container_type::Border);
+  Assert(Borders.Bot->Type   == container_type::Border);
+  Assert(Borders.Top->Type   == container_type::Border);
+
+  return Borders;
+}
+
+container_node* GetRootContainer(menu_tree* MenuTree)
+{
+  container_node* Result = MenuTree->Root;
+  Assert(Result->Type == container_type::Root);
+  return Result;
+}
+
+void UpdateFrameBorder( menu_interface* Interface, container_node* Border, v2 MousePos, v2 ClampRegion )
+{
+  border_leaf* BorderLeaf = GetBorderNode(Border);
+  if(BorderLeaf->Vertical)
+  {
+   // BorderLeaf->Position = Clamp(MousePos.X, ClampRegion.X, ClampRegion.Y);
+  }else{
+  //  BorderLeaf->Position = Clamp(MousePos.Y, ClampRegion.X, ClampRegion.Y);
+  }
+}
+
+
+struct mouse_position_in_window{
+  v2 MousePos;
+  v2 RelativeWindow;
+  v2 RelativeTabWindow;
+};
+
 MENU_UPDATE_FUNCTION(WindowDragUpdate)
 {
+  mouse_position_in_window* PosInWindow = (mouse_position_in_window*) Data;
   menu_tree* Menu = GetMenu(Interface, CallerNode);
-  container_node* Child = Menu->Root->FirstChild;
+  container_node* RootContainer = GetRootContainer(Menu);
+  root_border_collection Borders = GetRoorBorders(RootContainer);
+  r32 AspectRatio = GetAspectRatio(Interface);
+
+  border_leaf* LeftBorderLeaf = GetBorderNode(Borders.Left);
+  
+  v2 MousePos = V2(Clamp(Interface->MousePos.X,0, AspectRatio), Interface->MousePos.Y);
+
+  v2 RootContainerPos = LowerLeftPoint(RootContainer->Region);
+  v2 TopBorderPos = LowerLeftPoint(Borders.Top->Region);
+  v2 TopBorderPosRelativeWindow = TopBorderPos - RootContainerPos;
+  v2 TopBorderPosRelativeMouse = TopBorderPosRelativeWindow - PosInWindow->RelativeWindow;
+  GetBorderNode(Borders.Top)->Position = 
+    Clamp(MousePos.Y + TopBorderPosRelativeMouse.Y + GetBorderNode(Borders.Top)->Thickness*0.5,
+    GetBorderNode(Borders.Top)->Thickness + Interface->HeaderSize,
+    1-(GetBorderNode(Borders.Top)->Thickness + Interface->HeaderSize));
+  
+  GetBorderNode(Borders.Bot)->Position = GetBorderNode(Borders.Top)->Position - RootContainer->Region.H + (GetBorderNode(Borders.Top)->Thickness + GetBorderNode(Borders.Bot)->Thickness)/2.f;;
+
+
+  v2 LeftBorderPos = LowerLeftPoint(Borders.Left->Region);
+  v2 LeftBorderPosRelativeWindow = LeftBorderPos - RootContainerPos;
+  v2 LeftBorderPosRelativeMouse = LeftBorderPosRelativeWindow - PosInWindow->RelativeWindow;
+  GetBorderNode(Borders.Left)->Position = MousePos.X + LeftBorderPosRelativeMouse.X + 1.5*GetBorderNode(Borders.Left)->Thickness - RootContainer->Region.W;
   
 
-  // Left, Right, Bot, Top
-  //border_leaf* TopBorder = GetBorderNode(Child->NextSibling->NextSibling->NextSibling);
-  //r32 Height = Interface->MenuBar->Root->FirstChild->NextSibling->Region.H - TopBorder->Thickness/2.f;
-  // Note: Clamp border position based on which border it is
-  while(Child->Type == container_type::Border)
-  {
-    border_leaf* Border = GetBorderNode(Child);
-    UpdateFrameBorder(Interface, Border);
-    Child = Next(Child);
-  }
-  
+  GetBorderNode(Borders.Right)->Position = GetBorderNode(Borders.Left)->Position + RootContainer->Region.W - (GetBorderNode(Borders.Right)->Thickness + GetBorderNode(Borders.Left)->Thickness)/2.f;
+
+  //UpdateFrameBorder(Interface, Borders.Left,  Interface->MousePos, V2(0,AspectRatio));
+  //UpdateFrameBorder(Interface, Borders.Right, Interface->MousePos, V2(0,AspectRatio));
+  //UpdateFrameBorder(Interface, Borders.Top,   Interface->MousePos, V2(0,1));
+  //UpdateFrameBorder(Interface, Borders.Bot,   Interface->MousePos, V2(0,1));
+
   UpdateMergableAttribute(Interface, CallerNode);
 
   return Interface->MouseLeftButton.Active;
+}
+
+
+v2 GetPositionRelative(v2 Pos, r32 AspectRatio, rect2f Rect) {
+  v2 Result = {};
+  Result.X = Pos.X - Rect.X;
+  Result.Y = Pos.Y - Rect.Y;
+  return Result;
 }
 
 void InitiateWindowDrag(menu_interface* Interface, container_node* WindowHeader)
@@ -1650,18 +1670,25 @@ void InitiateWindowDrag(menu_interface* Interface, container_node* WindowHeader)
 
   u32 ChildCount = GetChildCount(TabGrid);
 
+  container_node* RootBodyNode = GetRoot(WindowHeader)->FirstChild->NextSibling;
+  r32 AspectRatio = GetAspectRatio(Interface);
+  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
+  Position->MousePos = Interface->MousePos;
+  Position->RelativeWindow    = GetPositionRelative(Position->MousePos, AspectRatio, RootBodyNode->Region);
+  Position->RelativeTabWindow = GetPositionRelative(Position->MousePos, AspectRatio, TabWindow->Region);
+
   if(TabWindow->Parent->Type == container_type::Split)
   {
     if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos))
     {
-      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, 0);   
+      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, Position, true);
     }
   }else{
     if(ChildCount == 1)
     {
-      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, 0);
+      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, Position, true);
     }else if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos)){
-      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, 0);
+      PushToUpdateQueue(Interface, WindowHeader, WindowDragUpdate, Position, true);
     }
   }
 }
@@ -1757,34 +1784,6 @@ menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* Bas
   return Root;
 }
 
-container_node* CreateTabWindow(menu_interface* Interface)
-{
-  container_node* TabWindow = NewContainer(Interface, container_type::TabWindow);
-  GetTabWindowNode(TabWindow)->HeaderSize = 0.02f;
-
-  container_node* TabWindowHeader = ConnectNodeToBack(TabWindow, NewContainer(Interface, container_type::None));
-
-  color_attribute* Color = (color_attribute*) PushAttribute(Interface, TabWindowHeader, ATTRIBUTE_COLOR);
-  Color->Color = menu::GetColor(GetColorTable(),"café noir");
-  RegisterMenuEvent(Interface, menu_event_type::MouseDown, TabWindowHeader, 0, TabWindowHeaderMouseDown, 0);
-  PushAttribute(Interface, TabWindowHeader, ATTRIBUTE_MERGE);
-
-  container_node* TabItemCollection = ConnectNodeToBack(TabWindowHeader, NewContainer(Interface, container_type::Grid));
-  grid_node* Grid = GetGridNode(TabItemCollection);
-  Grid->Row = 1;
-  Grid->Stack = true;
-
-  size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, TabItemCollection, ATTRIBUTE_SIZE);
-  SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, 0.7);
-  SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, 1);
-  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-  SizeAttr->XAlignment = menu_region_alignment::LEFT;
-  SizeAttr->YAlignment = menu_region_alignment::CENTER;
-  
-  return TabWindow;
-}
-
 void ReduceSplitWindowTree(menu_interface* Interface, container_node* WindowToRemove)
 {
   container_node* SplitNodeToSwapOut = WindowToRemove->Parent;
@@ -1856,7 +1855,12 @@ void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, v2 Wind
   ConnectNodeToBack(NewTabWindow, GetTabNode(Tab)->Payload);
 
   // Trigger the window-drag instead of this tab-drag
-  PushToUpdateQueue(Interface, Tab, WindowDragUpdate, NewMenu->Root);
+  r32 AspectRatio = GetAspectRatio(Interface);
+  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
+  Position->MousePos = Interface->MousePos;
+  Position->RelativeWindow    = GetPositionRelative(Position->MousePos, AspectRatio, NewRegion);
+  Position->RelativeTabWindow = GetPositionRelative(Position->MousePos, AspectRatio, NewTabWindow->Region);
+  PushToUpdateQueue(Interface, Tab, WindowDragUpdate, Position, true);
 }
 
 b32 TabDrag(menu_interface* Interface, container_node* Tab)
@@ -2078,9 +2082,13 @@ internal void CallUpdateFunctions(menu_interface* Interface)
     update_args* Entry = &Interface->UpdateQueue[i];
     if(Entry->InUse)
     {
-      b32 Continue = CallFunctionPointer(Entry->Function, Interface, Entry->Caller, Entry->Data);
+      b32 Continue = CallFunctionPointer(Entry->UpdateFunction, Interface, Entry->Caller, Entry->Data);
       if(!Continue)
       {
+        if(Entry->FreeDataWhenComplete && Entry->Data)
+        {
+          FreeMemory(&Interface->LinkedMemory, Entry->Data);
+        }
         *Entry = {};
       }
     }
@@ -2228,33 +2236,30 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
   menu_interface* Interface = PushStruct(Arena, menu_interface);
   Interface->LinkedMemory = NewLinkedMemory(Arena, MaxMemSize);
   Interface->BorderSize = 0.007;
-  Interface->HeaderSize = 0.02;
-  Interface->MinSize = 0.2f; 
-  Interface->BorderColor = menu::GetColor(GetColorTable(),"charcoal");
+  Interface->HeaderFontSize = 16;
+  Interface->BodyFontSize = 14;
+  Interface->HeaderSize = ecs::render::PixelToCanonicalHeight(GetRenderSystem(), Interface->HeaderFontSize);
+  Interface->BorderColor = menu::GetColor(GetColorTable(),"medium teal blue");
+  Interface->MinSize = 0.2f;
 
   Interface->MenuColor = menu::GetColor(GetColorTable(),"charcoal");
   Interface->TextColor = menu::GetColor(GetColorTable(),"white smoke");
-  Interface->HeaderFontSize = 16;
-  Interface->BodyFontSize = 14;
 
   ListInitiate(&Interface->MenuSentinel);
   ListInitiate(&Interface->EventSentinel);
 
 
-  r32 PixelFontHeight = ecs::render::GetLineSpacingPixelSpace(GetRenderSystem(), Interface->HeaderFontSize);
-  r32 CanonicalFontHeight = ecs::render::PixelToCanonicalHeight(GetRenderSystem(), PixelFontHeight) * 1.1f;
 
   Interface->MenuBar = NewMenuTree(Interface);
   Interface->MenuBar->Visible = true;
   Interface->MenuBar->Root = NewContainer(Interface, container_type::TabWindow);
   tab_window_node* TabWindowNode = GetTabWindowNode(Interface->MenuBar->Root);
-  TabWindowNode->HeaderSize = CanonicalFontHeight;
+  TabWindowNode->HeaderSize = Interface->HeaderSize;
 
   container_node* RootWindow = Interface->MenuBar->Root;
   RootWindow->Region = Rect2f(0,0,AspectRatio,1);
   { // Main Menu Header
     container_node* HeaderBar = ConnectNodeToBack(RootWindow, NewContainer(Interface));
-    //HeaderBar->Region = Rect2f(0, 1 - CanonicalFontHeight, AspectRatio, CanonicalFontHeight);
 
     color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_COLOR);
 
@@ -2424,7 +2429,7 @@ MENU_EVENT_CALLBACK(TabMouseDown)
   container_node* TabGrid = GetTabGridFromWindow(TabWindow);
   if(GetChildCount(TabGrid) > 1 || TabWindow->Parent->Type == container_type::Split)
   {
-    PushToUpdateQueue(Interface, CallerNode, TabDragUpdate, 0);
+    PushToUpdateQueue(Interface, CallerNode, TabDragUpdate, 0, false);
   }
 }
 
