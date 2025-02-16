@@ -53,3 +53,54 @@ void * PushAttribute(menu_interface* Interface, container_node* Node, container_
   void* Result = (void*)(((u8*)Attr) + sizeof(menu_attribute_header));
   return Result;
 }
+
+
+
+void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData)
+{
+  update_args* Entry = 0;
+  for (u32 i = 0; i < ArrayCount(Interface->UpdateQueue); ++i)
+  {
+    Entry = &Interface->UpdateQueue[i];
+    if(!Entry->InUse)
+    {
+      break;
+    }
+  }
+  Assert(!Entry->InUse);
+
+  Entry->Interface = Interface;
+  Entry->Caller = Caller;
+  Entry->InUse = true;
+  Entry->FreeDataWhenComplete = FreeData;
+  Entry->UpdateFunction = UpdateFunction;
+  Entry->Data = Data;
+}
+
+
+menu_tree* GetMenu(menu_interface* Interface, container_node* Node)
+{
+  menu_tree* Result = 0;
+  container_node* Root = Node;
+  while(Root->Parent)
+  {
+    Root = Root->Parent; 
+  }
+  
+  menu_tree* MenuRoot = Interface->MenuSentinel.Next;
+  while(MenuRoot != &Interface->MenuSentinel)
+  {
+    if(Root == MenuRoot->Root)
+    {
+      Result = MenuRoot;
+      break;
+    }
+    MenuRoot = MenuRoot->Next;
+  }
+  return Result;
+}
+
+rect2f GetActiveMenuRegion(menu_interface* Interface)
+{
+  return Interface->MenuBar->Root->FirstChild->NextSibling->Region;
+}

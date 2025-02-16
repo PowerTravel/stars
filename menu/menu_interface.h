@@ -95,7 +95,7 @@ struct update_args
   update_function** UpdateFunction;
 };
 
-#define MENU_UPDATE_CHILD_REGIONS(name) void name(container_node* Parent)
+#define MENU_UPDATE_CHILD_REGIONS(name) void name(menu_interface* Interface, container_node* Parent)
 typedef MENU_UPDATE_CHILD_REGIONS( menu_get_region );
 
 #define MENU_DRAW(name) void name( menu_interface* Interface, container_node* Node)
@@ -156,7 +156,7 @@ struct border_leaf
   border_type Type;
   r32 Position;
   r32 Thickness;
-  b32 Vertical; // Deprecate in favour of border_type
+  b32 Active;
 };
 
 struct grid_node
@@ -183,7 +183,6 @@ struct plugin_node
   char Title[256];
   container_node* Tab;
   v4 Color;
-  rect2f CachedRegion;
 };
 
 enum class merge_zone
@@ -297,6 +296,9 @@ struct menu_tree
   u32 RemovedHotLeafCount;
   container_node* RemovedHotLeafs[64];
 
+  b32 Maximized;
+  rect2f CachedRegion;
+
   menu_tree* Next;
   menu_tree* Previous;
 
@@ -321,7 +323,6 @@ struct menu_layout {
 
   menu_layout_node* Root;
 };
-
 
 MENU_LOSING_FOCUS(DefaultLosingFocus)
 {
@@ -354,6 +355,11 @@ struct menu_event
   menu_event* Previous;
 };
 
+struct mouse_position_in_window{
+  v2 MousePos;
+  v2 RelativeWindow;
+};
+
 struct menu_interface
 {
   b32 MenuVisible;
@@ -379,10 +385,16 @@ struct menu_interface
 
   v2 MousePos;
   v2 PreviousMousePos;
+  b32 DoubleKlick;
   jwin::binary_signal_state MouseLeftButton;
   jwin::binary_signal_state TAB;
   v2 MouseLeftButtonPush;
   v2 MouseLeftButtonRelese;
+  r32 Time;
+  r32 DeltaTime;
+  r32 MouseLeftButtonPushTime;
+  r32 MouseLeftButtonReleaseTime;
+  r32 DoubleKlickTime; // Max time between klicks to register it as a double klick
 
   r32 BorderSize;
   v4 BorderColor;
@@ -404,48 +416,6 @@ struct menu_interface
 
 menu_tree* BuildMenuTree(menu_interface* Interface, menu_layout* MenuLayout);
 
-inline u8* GetContainerPayload( container_node* Container )
-{
-  u8* Result = (u8*)(Container+1);
-  return Result;
-}
-
-inline root_node* GetRootNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Root);
-  root_node* Result = (root_node*) GetContainerPayload(Container);
-  return Result;
-}
-inline border_leaf* GetBorderNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Border);
-  border_leaf* Result = (border_leaf*) GetContainerPayload(Container);
-  return Result;
-}
-inline grid_node* GetGridNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Grid);
-  grid_node* Result = (grid_node*) GetContainerPayload(Container);
-  return Result;
-}
-inline plugin_node* GetPluginNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Plugin);
-  plugin_node* Result = (plugin_node*) GetContainerPayload(Container);
-  return Result;
-}
-inline tab_window_node* GetTabWindowNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::TabWindow);
-  tab_window_node* Result = (tab_window_node*) GetContainerPayload(Container);
-  return Result;
-}
-inline tab_node* GetTabNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Tab);
-  tab_node* Result = (tab_node*) GetContainerPayload(Container);
-  return Result;
-}
 
 container_node* Next( container_node* Node );
 container_node* Previous( container_node* Node );
@@ -462,3 +432,9 @@ void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, co
 #define RegisterMenuEvent(Interface, EventType, CallerNode, Data, Callback, OnDeleteCallback ) \
     _RegisterMenuEvent(Interface, EventType, CallerNode, (void*) Data,                         \
     DeclareFunction(menu_event_callback, Callback), OnDeleteCallback)
+
+r32 GetAspectRatio(menu_interface* Interface)
+{
+  rect2f WindowRegion = Interface->MenuBar->Root->Region;
+  return WindowRegion.W / WindowRegion.H;
+}

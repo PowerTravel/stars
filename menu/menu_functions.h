@@ -1,3 +1,4 @@
+#include "menu_interface_internal.h"
 #include "menu_interface.h"
 
 MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions)
@@ -16,95 +17,6 @@ menu_functions GetDefaultFunctions()
   Result.UpdateChildRegions = DeclareFunction(menu_get_region, UpdateChildRegions);
   Result.Draw = 0;
   return Result;
-}
-
-MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions)
-{
-  container_node* Child = Parent->FirstChild;
-  u32 BorderIndex = 0;
-  container_node* Body = 0;
-  container_node* Header = 0;
-  container_node* BorderNodes[4] = {};
-  border_leaf* Borders[4] = {};
-  while(Child)
-  {
-    if(Child->Type == container_type::Border)
-    {
-      // Left->Right->Bot->Top;
-      BorderNodes[BorderIndex] = Child;
-      Borders[BorderIndex] = GetBorderNode(Child);
-      BorderIndex++;
-    }else{
-      if(!Body)
-      {
-        Assert(!Body);
-        Body = Child;
-      }
-      
-    }
-    Child = Next(Child);
-  }
-
-  r32 Width  = (Borders[1]->Position + 0.5f*Borders[1]->Thickness) - ( Borders[0]->Position - 0.5f*Borders[0]->Thickness);
-  r32 Height = (Borders[3]->Position + 0.5f*Borders[3]->Thickness) - ( Borders[2]->Position - 0.5f*Borders[2]->Thickness);
-  for (BorderIndex = 0; BorderIndex < ArrayCount(Borders); ++BorderIndex)
-  {
-    switch(BorderIndex)
-    {
-      case 0: // Left
-      {
-        BorderNodes[0]->Region = Rect2f(
-          Borders[0]->Position - 0.5f * Borders[0]->Thickness,
-          Borders[2]->Position - 0.5f * Borders[2]->Thickness,
-          Borders[0]->Thickness,
-          Height);
-      }break;
-      case 1: // Right
-      {
-        BorderNodes[1]->Region = Rect2f(
-          Borders[1]->Position - 0.5f * Borders[1]->Thickness,
-          Borders[2]->Position - 0.5f * Borders[2]->Thickness,
-          Borders[1]->Thickness,
-          Height);
-      }break;
-      case 2: // Bot
-      {
-        BorderNodes[2]->Region = Rect2f(
-          Borders[0]->Position - 0.5f * Borders[0]->Thickness,
-          Borders[2]->Position - 0.5f * Borders[2]->Thickness,
-          Width,
-          Borders[2]->Thickness);
-      }break;
-      case 3: // Top
-      {
-        BorderNodes[3]->Region = Rect2f(
-          Borders[0]->Position - 0.5f * Borders[0]->Thickness,
-          Borders[3]->Position - 0.5f * Borders[3]->Thickness,
-          Width,
-          Borders[3]->Thickness);
-      }break;
-    }
-  }
-
-  Assert(BorderIndex == 4);
-  Assert(Body);
-
-  rect2f InteralRegion = Rect2f(
-    Borders[0]->Position + 0.5f*Borders[0]->Thickness,
-    Borders[2]->Position + 0.5f*Borders[2]->Thickness,
-    Width  - (Borders[0]->Thickness + Borders[1]->Thickness),
-    Height - (Borders[2]->Thickness + Borders[3]->Thickness));
-
-  r32 BodyHeight = InteralRegion.H;
-
-  Body->Region   = Rect2f(InteralRegion.X, InteralRegion.Y, InteralRegion.W, BodyHeight);
-
-  Parent->Region = Rect2f(
-    Borders[0]->Position - 0.5f*Borders[0]->Thickness,
-    Borders[2]->Position - 0.5f*Borders[2]->Thickness,
-    Width,
-    Height);
-  
 }
 
 menu_functions GetRootMenuFunctions()
@@ -141,7 +53,7 @@ MENU_UPDATE_CHILD_REGIONS(UpdateSplitChildRegions)
   Assert(Body1Node && Body2Node && BorderNode);
   border_leaf* Border = GetBorderNode(BorderNode);
 
-  if(Border->Vertical)
+  if(Border->Type == border_type::BOTTOM || Border->Type == border_type::TOP || Border->Type == border_type::SPLIT_VERTICAL)
   {
     BorderNode->Region = Rect2f(
       Parent->Region.X + (Border->Position * Parent->Region.W - 0.5f*Border->Thickness),
