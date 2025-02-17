@@ -205,8 +205,9 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu)
   }
 }
 
-void InitiateWindowDrag(menu_interface* Interface, container_node* Node)
+void InitiateRootWindowDrag(menu_interface* Interface, container_node* Node)
 {
+  Assert(Node->Parent->Type == container_type::TabWindow);
   mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
   *Position = GetPositionInRootWindow(Interface->MousePos, Node);
   PushToUpdateQueue(Interface, Node, WindowDragUpdate, Position, true);

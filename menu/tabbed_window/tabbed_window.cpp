@@ -12,7 +12,6 @@ container_node* CreateTabWindow(menu_interface* Interface)
   color_attribute* Color = (color_attribute*) PushAttribute(Interface, TabWindowHeader, ATTRIBUTE_COLOR);
   Color->Color = menu::GetColor(GetColorTable(),"café noir");
   RegisterMenuEvent(Interface, menu_event_type::MouseDown, TabWindowHeader, 0, TabWindowHeaderMouseDown, 0);
-  PushAttribute(Interface, TabWindowHeader, ATTRIBUTE_MERGE);
 
   container_node* TabItemCollection = ConnectNodeToBack(TabWindowHeader, NewContainer(Interface, container_type::Grid));
   grid_node* Grid = GetGridNode(TabItemCollection);
@@ -79,7 +78,7 @@ MENU_EVENT_CALLBACK(TabWindowHeaderMouseDown)
       {
         if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos))
         {
-          InitiateWindowDrag(Interface, WindowHeader);
+          InitiateRootWindowDrag(Interface, WindowHeader);
         }
       }else{
         Assert(TabWindow->Type == container_type::TabWindow);
@@ -87,9 +86,9 @@ MENU_EVENT_CALLBACK(TabWindowHeaderMouseDown)
         u32 ChildCount = GetChildCount(TabGrid);
         if(ChildCount == 1)
         {
-          InitiateWindowDrag(Interface, WindowHeader);
+          InitiateRootWindowDrag(Interface, WindowHeader);
         }else if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos)){
-          InitiateWindowDrag(Interface, WindowHeader);
+          InitiateRootWindowDrag(Interface, WindowHeader);
         }
       }
   }

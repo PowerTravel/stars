@@ -13,6 +13,7 @@
 enum class container_type
 {
   None,
+  MainHeader,
   Root,
   Border,
   Split,
@@ -25,12 +26,11 @@ enum class container_type
 enum container_attribute
 {
   ATTRIBUTE_NONE = 0x0,
-  ATTRIBUTE_MERGE = 0x1,
-  ATTRIBUTE_COLOR = 0x2,
-  ATTRIBUTE_TEXT = 0x4,
-  ATTRIBUTE_SIZE = 0x8,
-  ATTRIBUTE_MENU_EVENT_HANDLE = 0x10,
-  ATTRIBUTE_TEXTURE = 0x20
+  ATTRIBUTE_COLOR = 0x1,
+  ATTRIBUTE_TEXT = 0x2,
+  ATTRIBUTE_SIZE = 0x4,
+  ATTRIBUTE_MENU_EVENT_HANDLE = 0x8,
+  ATTRIBUTE_TEXTURE = 0x10
 };
 
 
@@ -39,6 +39,7 @@ const c8* ToString(container_type Type)
   switch(Type)
   {
     case container_type::None: return "None";
+    case container_type::MainHeader: return "MainHeader";  
     case container_type::Root: return "Root";
     case container_type::Border: return "Border";
     case container_type::Split: return "Split";
@@ -54,7 +55,6 @@ const c8* ToString(u32 Type)
 {
   switch(Type)
   {
-    case ATTRIBUTE_MERGE: return "Merge";
     case ATTRIBUTE_COLOR: return "Color";
     case ATTRIBUTE_TEXT: return "Text";
     case ATTRIBUTE_SIZE: return "Size";
@@ -168,11 +168,6 @@ struct grid_node
   b32 Stack;
 };
 
-struct tab_window_node
-{
-  r32 HeaderSize;
-};
-
 struct tab_node
 {
   container_node* Payload;
@@ -198,8 +193,9 @@ enum class merge_zone
   NONE         // No mergable window present
 };
 
-struct mergable_attribute
+struct tab_window_node
 {
+  r32 HeaderSize;
   merge_zone HotMergeZone;
   rect2f MergeZone[5];
 };
@@ -281,6 +277,10 @@ typedef MENU_LOSING_FOCUS( menu_losing_focus );
 #define MENU_GAINING_FOCUS(name) void name(struct menu_interface* Interface, struct menu_tree* Menu)
 typedef MENU_GAINING_FOCUS( menu_gaining_focus );
 
+struct draw_queue_entry{
+  container_node* CallerNode;
+  menu_draw** DrawFunction;
+};
 
 struct menu_tree
 {
@@ -299,12 +299,26 @@ struct menu_tree
   b32 Maximized;
   rect2f CachedRegion;
 
+  u32 FinalRenderCount; 
+  draw_queue_entry FinalRenderFunctions[64];
+
   menu_tree* Next;
   menu_tree* Previous;
 
   menu_losing_focus** LosingFocus;
   menu_gaining_focus** GainingFocus;
 };
+
+
+void _PushToFinalDrawQueue(menu_tree* Menu, container_node* Node, menu_draw** Draw)
+{
+  Assert(Menu->FinalRenderCount < ArrayCount(Menu->FinalRenderFunctions));
+  draw_queue_entry* Entry = &Menu->FinalRenderFunctions[Menu->FinalRenderCount++];
+  Entry->DrawFunction = Draw;
+  Entry->CallerNode = Node;
+
+}
+#define PushToFinalDrawQueue(Interface, Caller, FunctionName) _PushToFinalDrawQueue(GetMenu(Interface, Caller), Caller, DeclareFunction(menu_draw, FunctionName))
 
 // Holds the shape of the pluin containers, or rather the TabWindows holding the Plugins
 // Leaf nodes holds the actual plugins
@@ -416,7 +430,7 @@ struct menu_interface
 
 menu_tree* BuildMenuTree(menu_interface* Interface, menu_layout* MenuLayout);
  
-container_node* GetPluginWindow(menu_interface* Interface, container_node* Node);
+container_node* GetTabWindowFromOtherMenu(menu_interface* Interface, container_node* Node);
 
 menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f Region);
 container_node* CreateSplitWindow( menu_interface* Interface, b32 Vertical, r32 BorderPos = 0.5);

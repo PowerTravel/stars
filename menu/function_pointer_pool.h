@@ -9,11 +9,14 @@ MENU_LOSING_FOCUS(DefaultGainingFocus);
 MENU_GAINING_FOCUS(DropDownGainingFocus);
 
 MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions);
+MENU_UPDATE_CHILD_REGIONS(MainHeaderUpdate);
 MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions);
 MENU_UPDATE_CHILD_REGIONS(UpdateSplitChildRegions);
 MENU_UPDATE_CHILD_REGIONS(UpdateGridChildRegions);
 MENU_UPDATE_CHILD_REGIONS(UpdateTabWindowChildRegions);
 
+MENU_DRAW(DrawMergeSlots);
+MENU_DRAW(TabWindowDraw);
 MENU_DRAW(DrawFunctionTimeline);
 MENU_DRAW(DrawStatistics);
 MENU_DRAW(DrawFrameFunctions);
@@ -62,10 +65,13 @@ void _ReinitiatePool(function_pool* Pool)
     NewFunPtr(DefaultGainingFocus)
     NewFunPtr(DropDownGainingFocus)
     NewFunPtr(UpdateChildRegions)
+    NewFunPtr(MainHeaderUpdate)
     NewFunPtr(RootUpdateChildRegions)
     NewFunPtr(UpdateSplitChildRegions)
     NewFunPtr(UpdateGridChildRegions)
     NewFunPtr(UpdateTabWindowChildRegions)
+    NewFunPtr(DrawMergeSlots)
+    NewFunPtr(TabWindowDraw)
     //NewFunPtr(DrawFunctionTimeline)
     //NewFunPtr(DrawStatistics)
     //NewFunPtr(DrawFrameFunctions)

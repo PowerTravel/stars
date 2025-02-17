@@ -457,22 +457,12 @@ void UpdateRegions(menu_interface* Interface, menu_tree* Menu )
   EndTemporaryMemory(TempMem);
 }
 
-void DrawMergeSlots(container_node* Node)
-{
-  mergable_attribute* Merge = (mergable_attribute*) GetAttributePointer(Node, ATTRIBUTE_MERGE);
-  if(Merge->HotMergeZone != merge_zone::NONE)
-  {
-    for (u32 Index = 0; Index < ArrayCount(Merge->MergeZone); ++Index)
-    {
-      rect2f DrawRegion = ecs::render::RectCenterBotLeft(Merge->MergeZone[Index]);
-      ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), DrawRegion, Index == EnumToIdx(Merge->HotMergeZone) ? V4(0,1,0,0.5) : V4(0,1,0,0.3));
-    }
-  }
-}
-
 // Preorder breadth first.
-void DrawMenu( memory_arena* Arena, menu_interface* Interface, u32 NodeCount, container_node* Container )
+void DrawMenu( memory_arena* Arena, menu_interface* Interface, menu_tree* Menu)
 {
+  u32 NodeCount = Menu->NodeCount;
+  container_node* Container = Menu->Root;
+
   u32 StackElementSize = sizeof(container_node*);
   u32 StackByteSize = NodeCount * StackElementSize;
   local_persist r32 t = 0;
@@ -526,10 +516,6 @@ void DrawMenu( memory_arena* Arena, menu_interface* Interface, u32 NodeCount, co
       ecs::render::DrawTexturedOverlayQuadCanonicalSpace(GetRenderSystem(), Parent->Region, Rect2f(0,0,1,1), Texture->Handle);
     }
 
-    if(HasAttribute(Parent,ATTRIBUTE_MERGE))
-    {
-      DrawMergeSlots(Parent);
-    }
     // Update the region of all children and push them to the stack
     container_node* Child = Parent->FirstChild;
     while(Child)
@@ -538,6 +524,13 @@ void DrawMenu( memory_arena* Arena, menu_interface* Interface, u32 NodeCount, co
       Child = Next(Child);
     }
   }
+
+  for (int i = 0; i < Menu->FinalRenderCount; ++i)
+  {
+    draw_queue_entry* Entry = &Menu->FinalRenderFunctions[i];
+    CallFunctionPointer(Entry->DrawFunction, Interface, Entry->CallerNode);
+  }
+  Menu->FinalRenderCount = 0;
 }
 
 
@@ -845,7 +838,7 @@ void PrintHotLeafs(menu_interface* Interface, r32 CanPosX, r32 CanPosY)
 }
 
 
-container_node* GetPluginWindow(menu_interface* Interface, container_node* Node)
+container_node* GetTabWindowFromOtherMenu(menu_interface* Interface, container_node* Node)
 {
   container_node* Result = 0;
   container_node* OwnRoot = GetRoot(Node);
@@ -861,7 +854,7 @@ container_node* GetPluginWindow(menu_interface* Interface, container_node* Node)
         container_node* HotLeafNode = MenuRoot->HotLeafs[LeafIndex];
         while(HotLeafNode)
         {
-          if(HotLeafNode->Type == container_type::Plugin)
+          if(HotLeafNode->Type == container_type::TabWindow)
           {
             Result = HotLeafNode;
             return Result;
@@ -1366,71 +1359,63 @@ internal u32 FillArrayWithTabs(u32 MaxArrSize, container_node* TabArr[], menu_tr
   return TabCount;
 }
 
-mergable_attribute* GetFirstMergeNodeAttribute(container_node* Node )
-{
-  while(!HasAttribute(Node, ATTRIBUTE_MERGE))
-  {
-    Node = Node->Parent;
-  }
-  mergable_attribute* Merge = (mergable_attribute*) GetAttributePointer(Node, ATTRIBUTE_MERGE);
-  return Merge;
-}
-
 void UpdateMergableAttribute( menu_interface* Interface, container_node* Node )
 {
-  container_node* PluginWindow = GetPluginWindow(Interface, Node);
-  mergable_attribute* Merge = GetFirstMergeNodeAttribute(Node);
-
-  Merge->HotMergeZone = merge_zone::NONE;
-  if(PluginWindow)
+  container_node* TabWindow = GetTabWindowFromOtherMenu(Interface, Node);
+  if(!TabWindow)
   {
-    rect2f Rect = PluginWindow->Region;
+    return;
+  }
+  tab_window_node* TabWindowNode = GetTabWindowNode(TabWindow);
+  TabWindowNode->HotMergeZone = merge_zone::NONE;
+  if(TabWindow)
+  {
+    rect2f Rect = TabWindow->Region;
     r32 W = Rect.W;
     r32 H = Rect.H;
     r32 S = Minimum(W,H)/4;
 
-    v2 MP = V2(Rect.X+W/2,Rect.Y+H/2); // Middle Point
-    v2 LS = V2(MP.X-S, MP.Y);          // Left Square
-    v2 RS = V2(MP.X+S, MP.Y);          // Right Square
-    v2 BS = V2(MP.X,   MP.Y-S);        // Bot Square
-    v2 TS = V2(MP.X,   MP.Y+S);        // Top Square
+    v2 CP = CenterPoint(Rect);  // Middle Point
+    v2 LS = V2(CP.X-S, CP.Y);   // Left Square
+    v2 RS = V2(CP.X+S, CP.Y);   // Right Square
+    v2 BS = V2(CP.X,   CP.Y-S); // Bot Square
+    v2 TS = V2(CP.X,   CP.Y+S); // Top Square
 
-    Merge->MergeZone[(u32) merge_zone::CENTER] = Rect2f(MP.X-S/2.f, MP.Y-S/2.f,S/1.1f,S/1.1f);
-    Merge->MergeZone[(u32) merge_zone::LEFT]   = Rect2f(LS.X-S/2.f, LS.Y-S/2.f,S/1.1f,S/1.1f);
-    Merge->MergeZone[(u32) merge_zone::RIGHT]  = Rect2f(RS.X-S/2.f, RS.Y-S/2.f,S/1.1f,S/1.1f);
-    Merge->MergeZone[(u32) merge_zone::TOP]    = Rect2f(BS.X-S/2.f, BS.Y-S/2.f,S/1.1f,S/1.1f);
-    Merge->MergeZone[(u32) merge_zone::BOT]    = Rect2f(TS.X-S/2.f, TS.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::CENTER] = Rect2f(CP.X-S/2.f, CP.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::LEFT]   = Rect2f(LS.X-S/2.f, LS.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::RIGHT]  = Rect2f(RS.X-S/2.f, RS.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::TOP]    = Rect2f(BS.X-S/2.f, BS.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::BOT]    = Rect2f(TS.X-S/2.f, TS.Y-S/2.f,S/1.1f,S/1.1f);
 
-    if(Intersects(Merge->MergeZone[EnumToIdx(merge_zone::CENTER)], Interface->MousePos))
+    if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::CENTER)], Interface->MousePos))
     {
-      Merge->HotMergeZone = merge_zone::CENTER;
-    }else if(Intersects(Merge->MergeZone[EnumToIdx(merge_zone::LEFT)], Interface->MousePos)){
-      Merge->HotMergeZone = merge_zone::LEFT;
-    }else if(Intersects(Merge->MergeZone[EnumToIdx(merge_zone::RIGHT)], Interface->MousePos)){
-      Merge->HotMergeZone = merge_zone::RIGHT;
-    }else if(Intersects(Merge->MergeZone[EnumToIdx(merge_zone::TOP)], Interface->MousePos)){
-      Merge->HotMergeZone = merge_zone::TOP;
-    }else if(Intersects(Merge->MergeZone[EnumToIdx(merge_zone::BOT)], Interface->MousePos)){
-      Merge->HotMergeZone = merge_zone::BOT;
+      TabWindowNode->HotMergeZone = merge_zone::CENTER;
+    }else if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::LEFT)], Interface->MousePos)){
+      TabWindowNode->HotMergeZone = merge_zone::LEFT;
+    }else if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::RIGHT)], Interface->MousePos)){
+      TabWindowNode->HotMergeZone = merge_zone::RIGHT;
+    }else if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::TOP)], Interface->MousePos)){
+      TabWindowNode->HotMergeZone = merge_zone::TOP;
+    }else if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::BOT)], Interface->MousePos)){
+      TabWindowNode->HotMergeZone = merge_zone::BOT;
     }else{
-      Merge->HotMergeZone = merge_zone::HIGHLIGHTED;
+      TabWindowNode->HotMergeZone = merge_zone::HIGHLIGHTED;
     }
   }
 
   if(Interface->MouseLeftButton.Edge &&
     !Interface->MouseLeftButton.Active )
   {
-    merge_zone MergeZone = Merge->HotMergeZone;
-    switch(Merge->HotMergeZone)
+    merge_zone MergeZone = TabWindowNode->HotMergeZone;
+    container_node* TabWindowToAccept = TabWindow;
+    container_node* NodeToInsert = Node;
+    switch(TabWindowNode->HotMergeZone)
     {
       case merge_zone::CENTER:
       {
-        container_node* HomeTabWindow = PluginWindow->Parent;
-        container_node* TabWindow = Node;
+        menu_tree* MenuToRemove = GetMenu(Interface, NodeToInsert);
 
-        menu_tree* MenuToRemove = GetMenu(Interface, TabWindow);
-
-        Assert(HomeTabWindow->Type == container_type::TabWindow);
+        Assert(TabWindowToAccept->Type == container_type::TabWindow);
 
         container_node* TabArr[64] = {};
         u32 TabCount = FillArrayWithTabs(ArrayCount(TabArr), TabArr, MenuToRemove);
@@ -1438,24 +1423,21 @@ void UpdateMergableAttribute( menu_interface* Interface, container_node* Node )
         for(u32 Index = 0; Index < TabCount; ++Index)
         {
           container_node* TabToMove = TabArr[Index];
-          PushTab(HomeTabWindow, TabToMove);
+          PushTab(TabWindowToAccept, TabToMove);
         }
 
         SetTabAsActive(TabArr[TabCount-1]);
         
         FreeMenuTree(Interface, MenuToRemove);
-        Merge->HotMergeZone = merge_zone::NONE;
+        TabWindowNode->HotMergeZone = merge_zone::NONE;
       }break;
       case merge_zone::LEFT:    // Fallthrough 
       case merge_zone::RIGHT:   // Fallthrough
       case merge_zone::TOP:     // Fallthrough
       case merge_zone::BOT:
       {
-        container_node* HomeTabWindow = PluginWindow->Parent;
-        container_node* NodeToInsert = Node;
-
         menu_tree* MenuToRemove = GetMenu(Interface, NodeToInsert);
-        menu_tree* MenuToRemain = GetMenu(Interface, HomeTabWindow);
+        menu_tree* MenuToRemain = GetMenu(Interface, TabWindowToAccept);
 
         while(NodeToInsert && NodeToInsert->Type != container_type::Split)
         {
@@ -1469,34 +1451,34 @@ void UpdateMergableAttribute( menu_interface* Interface, container_node* Node )
           Assert(NodeToInsert->Type == container_type::Split);
         }
         
-        Assert(HomeTabWindow->Type == container_type::TabWindow);
+        Assert(TabWindowToAccept->Type == container_type::TabWindow);
 
         DisconnectNode(NodeToInsert);
 
-        b32 Vertical = (Merge->HotMergeZone == merge_zone::LEFT || Merge->HotMergeZone == merge_zone::RIGHT);
+        b32 Vertical = (TabWindowNode->HotMergeZone == merge_zone::LEFT || TabWindowNode->HotMergeZone == merge_zone::RIGHT);
 
         container_node* SplitNode = CreateSplitWindow(Interface, Vertical);
-        ReplaceNode(HomeTabWindow, SplitNode);
+        ReplaceNode(TabWindowToAccept, SplitNode);
 
-        b32 VisitorIsFirstChild = (Merge->HotMergeZone == merge_zone::LEFT || Merge->HotMergeZone == merge_zone::TOP);
+        b32 VisitorIsFirstChild = (TabWindowNode->HotMergeZone == merge_zone::LEFT || TabWindowNode->HotMergeZone == merge_zone::TOP);
         if(VisitorIsFirstChild)
         {
           ConnectNodeToBack(SplitNode, NodeToInsert);
-          ConnectNodeToBack(SplitNode, HomeTabWindow);
+          ConnectNodeToBack(SplitNode, TabWindowToAccept);
         }else{
-          ConnectNodeToBack(SplitNode, HomeTabWindow);
+          ConnectNodeToBack(SplitNode, TabWindowToAccept);
           ConnectNodeToBack(SplitNode, NodeToInsert);
         }
 
         FreeMenuTree(Interface, MenuToRemove);
-        Merge->HotMergeZone = merge_zone::NONE;
+        TabWindowNode->HotMergeZone = merge_zone::NONE;
       }break;
     }
   }
 
   if(!Interface->MouseLeftButton.Active)
   {
-    Merge->HotMergeZone = merge_zone::NONE;
+    TabWindowNode->HotMergeZone = merge_zone::NONE;
   }
 }
 
@@ -1706,7 +1688,6 @@ b32 TabDrag(menu_interface* Interface, container_node* Tab)
       Continue = false;
     }  
   }
-
   return Continue;
 }
 
@@ -1981,21 +1962,16 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
       MouseEnterCalled = CallMouseEnterFunctions(Interface, Menu);
     }
 
-    if(Menu->Visible)
+    if(Menu->Visible && Menu == Interface->MenuInFocus)
     {
       if(!MouseDownCalled && jwin::Pushed(Interface->MouseLeftButton))
       {
         MouseDownCalled = CallMouseDownFunctions(Interface, Menu);  
       }
 
-      if(!MouseUpCalled && jwin::Released(Interface->MouseLeftButton))
+      if(!MouseUpCalled && jwin::Released(Interface->MouseLeftButton) && Menu == Interface->MenuInFocus)
       {
         MouseUpCalled = CallMouseUpFunctions(Interface, Menu);  
-      }
-
-      if(MouseExitCalled && MouseEnterCalled && MouseUpCalled && MouseDownCalled)
-      {
-        break;
       }
     }
     Menu = Menu->Next;
@@ -2012,7 +1988,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
       {
         TreeSensus(Menu);
         UpdateRegions( Interface, Menu );
-        DrawMenu( GlobalTransientArena, Interface, Menu->NodeCount, Menu->Root);
+        DrawMenu( GlobalTransientArena, Interface, Menu);
         ecs::render::NewRenderLevel(GetRenderSystem());
       }
       Menu = Menu->Previous;
@@ -2057,9 +2033,7 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
 
   Interface->MenuBar = NewMenuTree(Interface);
   Interface->MenuBar->Visible = true;
-  Interface->MenuBar->Root = NewContainer(Interface, container_type::TabWindow);
-  tab_window_node* TabWindowNode = GetTabWindowNode(Interface->MenuBar->Root);
-  TabWindowNode->HeaderSize = Interface->HeaderSize;
+  Interface->MenuBar->Root = NewContainer(Interface, container_type::MainHeader);
 
   container_node* RootWindow = Interface->MenuBar->Root;
   RootWindow->Region = Rect2f(0,0,AspectRatio,1);

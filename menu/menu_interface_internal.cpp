@@ -7,7 +7,8 @@ u32 GetContainerPayloadSize(container_type Type)
   {
     case container_type::None:
     case container_type::Split:
-    case container_type::Root:      return 0;
+    case container_type::Root:
+    case container_type::MainHeader:return 0;
     case container_type::Border:    return sizeof(border_leaf);
     case container_type::Grid:      return sizeof(grid_node);
     case container_type::TabWindow: return sizeof(tab_window_node);
@@ -22,7 +23,6 @@ u32 GetAttributeSize(container_attribute Attribute)
 {
   switch(Attribute)
   {
-    case ATTRIBUTE_MERGE:       return sizeof(mergable_attribute);
     case ATTRIBUTE_COLOR:       return sizeof(color_attribute);
     case ATTRIBUTE_TEXT:        return sizeof(text_attribute);
     case ATTRIBUTE_SIZE:        return sizeof(size_attribute);

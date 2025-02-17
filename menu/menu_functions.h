@@ -11,11 +11,28 @@ MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions)
   }
 }
 
+MENU_UPDATE_CHILD_REGIONS(MainHeaderUpdate)
+{
+  container_node* Header = Parent->FirstChild;
+  Header->Region = Rect2f(0,1-Interface->HeaderSize, GetAspectRatio(Interface), Interface->HeaderSize);
+  container_node* Body = Header->NextSibling;
+  Body->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
+}
+
+
+
 menu_functions GetDefaultFunctions()
 {
   menu_functions Result = {};
   Result.UpdateChildRegions = DeclareFunction(menu_get_region, UpdateChildRegions);
   Result.Draw = 0;
+  return Result;
+}
+
+menu_functions GetMainHeaderFunctions()
+{
+  menu_functions Result = GetDefaultFunctions();
+  Result.UpdateChildRegions = DeclareFunction(menu_get_region, MainHeaderUpdate);
   return Result;
 }
 
@@ -131,10 +148,31 @@ MENU_UPDATE_CHILD_REGIONS(UpdateTabWindowChildRegions)
   }
 }
 
+MENU_DRAW(DrawMergeSlots)
+{
+  tab_window_node* TabWindowNode = GetTabWindowNode(Node);
+  for (u32 Index = 0; Index < ArrayCount(TabWindowNode->MergeZone); ++Index)
+  {
+    rect2f DrawRegion = ecs::render::RectCenterBotLeft(TabWindowNode->MergeZone[Index]);
+    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), DrawRegion, Index == EnumToIdx(TabWindowNode->HotMergeZone) ? V4(0,1,0,0.5) : V4(0,1,0,0.3));
+  }
+  TabWindowNode->HotMergeZone = merge_zone::NONE;
+}
+
+MENU_DRAW(TabWindowDraw)
+{
+  tab_window_node* TabWindowNode = GetTabWindowNode(Node);
+  if(TabWindowNode->HotMergeZone != merge_zone::NONE)
+  {
+    PushToFinalDrawQueue(Interface, Node, DrawMergeSlots);
+  }
+}
+
 menu_functions GetTabWindowFunctions()
 {
   menu_functions Result = GetDefaultFunctions();
   Result.UpdateChildRegions = DeclareFunction(menu_get_region, UpdateTabWindowChildRegions);
+  Result.Draw = DeclareFunction(menu_draw, TabWindowDraw);
   return Result; 
 }
 
@@ -267,14 +305,15 @@ menu_functions GetMenuFunction(container_type Type)
 {
   switch(Type)
   {   
-    case container_type::None:      return GetDefaultFunctions();
-    case container_type::Root:      return GetRootMenuFunctions();
-    case container_type::Border:    return GetDefaultFunctions();
-    case container_type::Split:     return GetSplitFunctions();
-    case container_type::Grid:      return GetGridFunctions();
-    case container_type::TabWindow: return GetTabWindowFunctions();
-    case container_type::Tab:       return GetDefaultFunctions();
-    case container_type::Plugin:    return GetDefaultFunctions();
+    case container_type::None:       return GetDefaultFunctions();
+    case container_type::MainHeader: return GetMainHeaderFunctions();
+    case container_type::Root:       return GetRootMenuFunctions();
+    case container_type::Border:     return GetDefaultFunctions();
+    case container_type::Split:      return GetSplitFunctions();
+    case container_type::Grid:       return GetGridFunctions();
+    case container_type::TabWindow:  return GetTabWindowFunctions();
+    case container_type::Tab:        return GetDefaultFunctions();
+    case container_type::Plugin:     return GetDefaultFunctions();
 
     default: Assert(0);
   }
