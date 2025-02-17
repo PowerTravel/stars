@@ -9,60 +9,11 @@
 
 #include "containers/linked_memory.h"
 #include "platform/jwin_platform_input.h"
-
-enum class container_type
-{
-  None,
-  MainHeader,
-  Root,
-  Border,
-  Split,
-  Grid,
-  Plugin,
-  TabWindow,
-  Tab
-};
-
-enum container_attribute
-{
-  ATTRIBUTE_NONE = 0x0,
-  ATTRIBUTE_COLOR = 0x1,
-  ATTRIBUTE_TEXT = 0x2,
-  ATTRIBUTE_SIZE = 0x4,
-  ATTRIBUTE_MENU_EVENT_HANDLE = 0x8,
-  ATTRIBUTE_TEXTURE = 0x10
-};
+#include "internal/menu_interface_internal.h"
+#include "nodes/grid_window.h"
+#include "nodes/border_node.h"
 
 
-const c8* ToString(container_type Type)
-{
-  switch(Type)
-  {
-    case container_type::None: return "None";
-    case container_type::MainHeader: return "MainHeader";  
-    case container_type::Root: return "Root";
-    case container_type::Border: return "Border";
-    case container_type::Split: return "Split";
-    case container_type::Grid: return "Grid";
-    case container_type::Plugin: return "Plugin";
-    case container_type::TabWindow: return "TabWindow";
-    case container_type::Tab: return "Tab";
-  }
-  return "";
-};
-
-const c8* ToString(u32 Type)
-{
-  switch(Type)
-  {
-    case ATTRIBUTE_COLOR: return "Color";
-    case ATTRIBUTE_TEXT: return "Text";
-    case ATTRIBUTE_SIZE: return "Size";
-    case ATTRIBUTE_MENU_EVENT_HANDLE: return "Event";
-    case ATTRIBUTE_TEXTURE: return "Texture";
-  }
-  return "";
-};
 
 struct container_node;
 struct menu_interface;
@@ -80,92 +31,12 @@ void DisconnectNode(container_node* Node);
 
 container_node* CreateBorderNode(menu_interface* Interface, v4 Color);
 
-struct update_args;
-
-#define MENU_UPDATE_FUNCTION(name) b32 name( menu_interface* Interface, container_node* CallerNode, void* Data )
-typedef MENU_UPDATE_FUNCTION( update_function );
-
-struct update_args
-{
-  menu_interface* Interface;
-  container_node* Caller;
-  void* Data;
-  b32 InUse;
-  b32 FreeDataWhenComplete;
-  update_function** UpdateFunction;
-};
-
-#define MENU_UPDATE_CHILD_REGIONS(name) void name(menu_interface* Interface, container_node* Parent)
-typedef MENU_UPDATE_CHILD_REGIONS( menu_get_region );
-
-#define MENU_DRAW(name) void name( menu_interface* Interface, container_node* Node)
-typedef MENU_DRAW( menu_draw );
-
-b32 HasAttribute(container_node* Node, container_attribute Attri);
-u8* GetAttributePointer(container_node* Node, container_attribute Attri);
-
-struct menu_functions
-{
-  menu_get_region** UpdateChildRegions;
-  menu_draw** Draw;
-};
-
-struct menu_attribute_header
-{
-  container_attribute Type;
-  menu_attribute_header* Next;
-};
-
-struct container_node
-{
-  container_type Type;
-  u32 Attributes;
-  menu_attribute_header* FirstAttribute;
-
-  // Tree Links (Menu Structure)
-  u32 Depth;
-  container_node* Parent;
-  container_node* FirstChild;
-  container_node* NextSibling;
-  container_node* PreviousSibling;
-
-  rect2f Region;
-
-  menu_functions Functions;
-};
-
 u32 GetChildCount(container_node* Node);
 
 struct root_node
 {
   r32 HeaderSize;
   r32 FooterSize;
-};
-
-enum class border_type {
-  LEFT,
-  RIGHT,
-  BOTTOM,
-  TOP,
-  SPLIT_VERTICAL,
-  SPLIT_HORIZONTAL
-};
-
-struct border_leaf
-{
-  border_type Type;
-  r32 Position;
-  r32 Thickness;
-  b32 Active;
-};
-
-struct grid_node
-{
-  u32 Col;
-  u32 Row;
-  r32 TotalMarginX;
-  r32 TotalMarginY;
-  b32 Stack;
 };
 
 struct tab_node
@@ -200,115 +71,18 @@ struct tab_window_node
   rect2f MergeZone[5];
 };
 
-#define MENU_EVENT_CALLBACK(name) void name( menu_interface* Interface, container_node* CallerNode, void* Data)
-typedef MENU_EVENT_CALLBACK( menu_event_callback );
+#define MENU_UPDATE_FUNCTION(name) b32 name( menu_interface* Interface, container_node* CallerNode, void* Data )
+typedef MENU_UPDATE_FUNCTION( update_function );
 
-
-struct color_attribute
+struct update_args
 {
-  v4 Color;
-  v4 RestingColor;
-  v4 HighlightedColor;
+  menu_interface* Interface;
+  container_node* Caller;
+  void* Data;
+  b32 InUse;
+  b32 FreeDataWhenComplete;
+  update_function** UpdateFunction;
 };
-
-struct text_attribute
-{
-  c8 Text[256];
-  u32 FontSize;
-  v4 Color;
-};
-
-
-struct texture_attribute
-{
-  // Handle for a texture
-  u32 Handle;
-};
-
-
-enum class menu_region_alignment
-{
-  CENTER,
-  LEFT,
-  RIGHT,
-  TOP,
-  BOT
-};
-
-struct menu_event_handle_attribtue
-{
-  u32 HandleCount;
-  u32 Handles[16]; // Can atm "only" have 16 events per node
-};
-
-enum class menu_size_type
-{
-  RELATIVE_,
-  ABSOLUTE_,
-};
-
-struct container_size_t
-{
-  menu_size_type Type;
-  r32 Value;
-};
-
-inline container_size_t
-ContainerSizeT(menu_size_type T, r32 Val)
-{
-  container_size_t Result{};
-  Result.Type = T;
-  Result.Value = Val;
-  return Result;
-}
-
-struct size_attribute
-{
-  container_size_t Width;
-  container_size_t Height;
-  container_size_t LeftOffset;
-  container_size_t TopOffset;
-  menu_region_alignment XAlignment;
-  menu_region_alignment YAlignment;
-};
-
-#define MENU_LOSING_FOCUS(name) void name(struct menu_interface* Interface, struct menu_tree* Menu)
-typedef MENU_LOSING_FOCUS( menu_losing_focus );
-#define MENU_GAINING_FOCUS(name) void name(struct menu_interface* Interface, struct menu_tree* Menu)
-typedef MENU_GAINING_FOCUS( menu_gaining_focus );
-
-struct draw_queue_entry{
-  container_node* CallerNode;
-  menu_draw** DrawFunction;
-};
-
-struct menu_tree
-{
-  b32 Visible;
-
-  u32 NodeCount;
-  u32 Depth;
-  container_node* Root;
-
-  u32 HotLeafCount;
-  u32 NewLeafOffset;  
-  container_node* HotLeafs[64];
-  u32 RemovedHotLeafCount;
-  container_node* RemovedHotLeafs[64];
-
-  b32 Maximized;
-  rect2f CachedRegion;
-
-  u32 FinalRenderCount; 
-  draw_queue_entry FinalRenderFunctions[64];
-
-  menu_tree* Next;
-  menu_tree* Previous;
-
-  menu_losing_focus** LosingFocus;
-  menu_gaining_focus** GainingFocus;
-};
-
 
 void _PushToFinalDrawQueue(menu_tree* Menu, container_node* Node, menu_draw** Draw)
 {
@@ -348,26 +122,6 @@ MENU_GAINING_FOCUS(DefaultGainingFocus)
 
 }
 
-enum class menu_event_type
-{
-  MouseUp,
-  MouseDown,
-  MouseEnter,
-  MouseExit,
-};
-
-struct menu_event
-{
-  u32 Index;
-  b32 Active;
-  container_node* CallerNode;
-  menu_event_type EventType;
-  menu_event_callback** Callback;
-  menu_event_callback** OnDelete; // Can be used to do cleanup on Data if the node requires it.
-  void* Data;
-  menu_event* Next;
-  menu_event* Previous;
-};
 
 struct mouse_position_in_window{
   v2 MousePos;
@@ -410,6 +164,8 @@ struct menu_interface
   r32 MouseLeftButtonReleaseTime;
   r32 DoubleKlickTime; // Max time between klicks to register it as a double klick
 
+
+  r32 AspectRatio;
   r32 BorderSize;
   v4 BorderColor;
   r32 HeaderSize;
@@ -447,9 +203,57 @@ void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, co
 
 r32 GetAspectRatio(menu_interface* Interface)
 {
-  rect2f WindowRegion = Interface->MenuBar->Root->Region;
-  return WindowRegion.W / WindowRegion.H;
+  return Interface->AspectRatio;
 }
 
 void UpdateMergableAttribute( menu_interface* Interface, container_node* Node );
 void UpdateFocusWindow(menu_interface* Interface);
+
+
+container_node* GetChildFromIndex(container_node* Parent, u32 ChildIndex);
+u32 GetChildIndex(container_node* Node);
+u32 GetChildCount(container_node* Node);
+inline container_node* Next(container_node* Node);
+inline container_node* Previous(container_node* Node);
+
+rect2f GetActiveMenuRegion(menu_interface* Interface);
+u32 GetAttributeSize(container_attribute Attribute);
+u32 GetContainerPayloadSize(container_type Type);
+void * PushAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType);
+
+menu_tree* GetMenu(menu_interface* Interface, container_node* Node);
+
+void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData);
+#define PushToUpdateQueue(Interface, Caller, FunctionName, Data, FreeData) _PushToUpdateQueue(Interface, Caller, DeclareFunction(update_function, FunctionName), (void*) Data, FreeData)
+
+inline root_node* GetRootNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::Root);
+  root_node* Result = (root_node*) GetContainerPayload(Container);
+  return Result;
+}
+inline border_leaf* GetBorderNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::Border);
+  border_leaf* Result = (border_leaf*) GetContainerPayload(Container);
+  return Result;
+}
+
+inline plugin_node* GetPluginNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::Plugin);
+  plugin_node* Result = (plugin_node*) GetContainerPayload(Container);
+  return Result;
+}
+inline tab_window_node* GetTabWindowNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::TabWindow);
+  tab_window_node* Result = (tab_window_node*) GetContainerPayload(Container);
+  return Result;
+}
+inline tab_node* GetTabNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::Tab);
+  tab_node* Result = (tab_node*) GetContainerPayload(Container);
+  return Result;
+}

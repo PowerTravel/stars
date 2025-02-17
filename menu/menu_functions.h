@@ -1,4 +1,4 @@
-#include "menu_interface_internal.h"
+#pragma once
 #include "menu_interface.h"
 
 MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions)
@@ -9,6 +9,15 @@ MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions)
     Child->Region = Parent->Region;
     Child = Next(Child);
   }
+}
+
+
+MENU_UPDATE_CHILD_REGIONS(MainWindowUpdate)
+{
+  container_node* Header = Parent->FirstChild;
+  Header->Region = Rect2f(0,1-Interface->HeaderSize, GetAspectRatio(Interface), Interface->HeaderSize);
+  container_node* Body = Header->NextSibling;
+  Body->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
 }
 
 MENU_UPDATE_CHILD_REGIONS(MainHeaderUpdate)
@@ -31,6 +40,13 @@ menu_functions GetMainHeaderFunctions()
 {
   menu_functions Result = GetDefaultFunctions();
   Result.UpdateChildRegions = DeclareFunction(menu_get_region, MainHeaderUpdate);
+  return Result;
+}
+
+menu_functions GetMainWindowFunctions()
+{
+  menu_functions Result = GetDefaultFunctions();
+  Result.UpdateChildRegions = DeclareFunction(menu_get_region, MainWindowUpdate);
   return Result;
 }
 
@@ -304,7 +320,7 @@ menu_functions GetMenuFunction(container_type Type)
   switch(Type)
   {   
     case container_type::None:       return GetDefaultFunctions();
-    case container_type::MainHeader: return GetMainHeaderFunctions();
+    case container_type::MainWindow: return GetMainWindowFunctions();
     case container_type::Root:       return GetRootMenuFunctions();
     case container_type::Border:     return GetDefaultFunctions();
     case container_type::Split:      return GetSplitFunctions();

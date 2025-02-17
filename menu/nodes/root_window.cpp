@@ -1,5 +1,6 @@
-#include "menu/tabbed_window/root_window.h"
-#include "menu/menu_interface_internal.h"
+#include "root_window.h"
+#include "border_node.h"
+#include "menu_interface.h"
 
 container_node* GetRoot(container_node* Node)
 {

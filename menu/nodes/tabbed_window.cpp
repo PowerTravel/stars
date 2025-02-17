@@ -1,5 +1,4 @@
 #include "tabbed_window.h"
-#include "menu_interface_internal.h"
 #include "root_window.h"
 
 container_node* CreateTabWindow(menu_interface* Interface)

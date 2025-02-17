@@ -2,10 +2,11 @@
 #include "ecs/systems/system_render.h"
 #include "commons/string.h"
 #include "color_table.h"
+#include "internal/menu_attributes.cpp"
+#include "nodes/main_window.h"
+#include "nodes/root_window.cpp"
+#include "nodes/tabbed_window.cpp"
 #include "menu_functions.h"
-#include "menu_interface_internal.cpp"
-#include "tabbed_window/root_window.cpp"
-#include "tabbed_window/tabbed_window.cpp"
 
 internal void
 PivotNodes(container_node* ShiftLeft, container_node* ShiftRight)
@@ -84,54 +85,6 @@ ReplaceNode(container_node* Out, container_node* In)
   Out->PreviousSibling = 0;
   Out->Parent = 0;
 }
-
-inline internal u32
-GetAttributeSize(u32 Attributes)
-{
-  return GetAttributeSize((container_attribute)Attributes);
-}
-
-inline b32
-HasAttribute(container_node* Node, container_attribute Attri)
-{
-  return Node->Attributes & ((u32) Attri);
-}
-
-internal u32
-GetAttributeBatchSize(container_attribute Attri)
-{
-  u32 Result = 0;
-  u32 Attributes = (u32) Attri;
-  while(Attributes)
-  {
-    bit_scan_result ScanResult = FindLeastSignificantSetBit(Attributes);
-    Assert(ScanResult.Found);
-
-    u32 Attribute = (1 << ScanResult.Index);
-    Result += GetAttributeSize(Attribute);
-    Attributes -= Attribute;
-  }
-
-  return Result;
-}
-
-u8* GetAttributePointer(container_node* Node, container_attribute Attri)
-{
-  Assert(Attri & Node->Attributes);
-  menu_attribute_header * Attribute = Node->FirstAttribute;
-  u8* Result = 0;
-  while(Attribute)
-  {
-    if(Attribute->Type == Attri)
-    {
-      Result = ( (u8*) Attribute  ) + sizeof(menu_attribute_header);
-      break;
-    }
-    Attribute = Attribute->Next;
-  }
-  return Result;
-}
-
 
 container_node* NewContainer(menu_interface* Interface, container_type Type)
 {
@@ -2041,6 +1994,7 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
   Interface->BorderColor = menu::GetColor(GetColorTable(),"medium teal blue");
   Interface->MinSize = 0.2f;
   Interface->DoubleKlickTime = 0.5f;
+  Interface->AspectRatio = AspectRatio;
 
   Interface->MenuColor = menu::GetColor(GetColorTable(),"charcoal");
   Interface->TextColor = menu::GetColor(GetColorTable(),"white smoke");
@@ -2048,8 +2002,9 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
   ListInitiate(&Interface->MenuSentinel);
   ListInitiate(&Interface->EventSentinel);
 
+  Interface->MenuBar = CreateMainWindow(Interface);
 
-
+#if 0
   Interface->MenuBar = NewMenuTree(Interface);
   Interface->MenuBar->Visible = true;
   Interface->MenuBar->Root = NewContainer(Interface, container_type::MainHeader);
@@ -2077,7 +2032,7 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
   { // Main Menu Body
     container_node* Body = ConnectNodeToBack(RootWindow, NewContainer(Interface));
   }
-
+#endif
   return Interface;
 }
 
@@ -2154,7 +2109,7 @@ menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name)
   ecs::render::system* RenderSystem = GetRenderSystem();
   ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(RenderSystem);
   r32 PixelFontHeight = ecs::render::GetLineSpacingPixelSpace(RenderSystem, Interface->HeaderFontSize);
-  r32 CanonicalFontHeight = ecs::render::PixelToCanonicalHeight(RenderSystem, PixelFontHeight) * 1.1f;
+  r32 CanonicalFontHeight = Interface->HeaderSize;
   v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(RenderSystem, Interface->HeaderFontSize, (utf8_byte*) Name);
 
   container_node* MainSettingBar =  Interface->MenuBar->Root->FirstChild;
@@ -2418,3 +2373,71 @@ void ToggleWindow(menu_interface* Interface, char* WindowName)
   }
 }
 
+
+u32 GetContainerPayloadSize(container_type Type)
+{
+  switch(Type)
+  {
+    case container_type::None:
+    case container_type::Split:
+    case container_type::Root:
+    case container_type::MainWindow:return 0;
+    case container_type::Border:    return sizeof(border_leaf);
+    case container_type::Grid:      return sizeof(grid_node);
+    case container_type::TabWindow: return sizeof(tab_window_node);
+    case container_type::Tab:       return sizeof(tab_node);
+    case container_type::Plugin:    return sizeof(plugin_node);
+    default: INVALID_CODE_PATH;
+  }
+  return 0;
+}
+
+
+void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData)
+{
+  update_args* Entry = 0;
+  for (u32 i = 0; i < ArrayCount(Interface->UpdateQueue); ++i)
+  {
+    Entry = &Interface->UpdateQueue[i];
+    if(!Entry->InUse)
+    {
+      break;
+    }
+  }
+  Assert(!Entry->InUse);
+
+  Entry->Interface = Interface;
+  Entry->Caller = Caller;
+  Entry->InUse = true;
+  Entry->FreeDataWhenComplete = FreeData;
+  Entry->UpdateFunction = UpdateFunction;
+  Entry->Data = Data;
+}
+
+
+menu_tree* GetMenu(menu_interface* Interface, container_node* Node)
+{
+  menu_tree* Result = 0;
+  container_node* Root = Node;
+  while(Root->Parent)
+  {
+    Root = Root->Parent; 
+  }
+  
+  menu_tree* MenuRoot = Interface->MenuSentinel.Next;
+  while(MenuRoot != &Interface->MenuSentinel)
+  {
+    if(Root == MenuRoot->Root)
+    {
+      Result = MenuRoot;
+      break;
+    }
+    MenuRoot = MenuRoot->Next;
+  }
+  return Result;
+}
+
+rect2f GetActiveMenuRegion(menu_interface* Interface)
+{
+  return Interface->MenuBar->Root->FirstChild->NextSibling->Region;
+}
