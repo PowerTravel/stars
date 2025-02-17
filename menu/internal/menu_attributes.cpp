@@ -103,8 +103,6 @@ void ClearMenuEvents(menu_interface* Interface, container_node* Node)
   }
 }
 
-
-
 void DeleteAllAttributes(menu_interface* Interface, container_node* Node)
 {
   // TODO: Free attribute data here too?
@@ -134,3 +132,181 @@ void DeleteAttribute(menu_interface* Interface, container_node* Node, container_
   Node->Attributes =Node->Attributes - (u32)AttributeType;
 }
 
+
+rect2f GetSizedParentRegion(size_attribute* SizeAttr, rect2f BaseRegion)
+{
+  rect2f Result = {};
+  if(SizeAttr->Width.Type == menu_size_type::RELATIVE_)
+  {
+    Result.W = SizeAttr->Width.Value * BaseRegion.W;
+  }else if(SizeAttr->Width.Type == menu_size_type::ABSOLUTE_){
+    Result.W = SizeAttr->Width.Value;  
+  }
+
+  if(SizeAttr->Height.Type == menu_size_type::RELATIVE_)
+  {
+    Result.H = SizeAttr->Height.Value * BaseRegion.H;
+  }else if(SizeAttr->Height.Type == menu_size_type::ABSOLUTE_){
+    Result.H = SizeAttr->Height.Value;
+  }
+  
+  switch(SizeAttr->XAlignment)
+  {
+    case menu_region_alignment::LEFT:
+    {
+      Result.X = BaseRegion.X;
+    }break;
+    case menu_region_alignment::RIGHT:
+    {
+      Result.X = BaseRegion.X + BaseRegion.W - Result.W;
+    }break;
+    case menu_region_alignment::CENTER:
+    {
+      Result.X = BaseRegion.X + (BaseRegion.W - Result.W)*0.5f;
+    }break;
+  }
+  switch(SizeAttr->YAlignment)
+  {
+    case menu_region_alignment::TOP:
+    {
+      //Result.Y = BaseRegion.Y + BaseRegion.H - Result.Y;
+      Result.Y = BaseRegion.Y;
+    }break;
+    case menu_region_alignment::BOT:
+    {
+      Result.Y = BaseRegion.Y + BaseRegion.H - Result.Y;
+    }break;
+    case menu_region_alignment::CENTER:
+    {
+      Result.Y = BaseRegion.Y + (BaseRegion.H - Result.H)*0.5f;
+    }break;
+  }
+
+  if(SizeAttr->LeftOffset.Type == menu_size_type::RELATIVE_)
+  {
+    Result.X += SizeAttr->LeftOffset.Value * BaseRegion.W;
+  }else if(SizeAttr->LeftOffset.Type == menu_size_type::ABSOLUTE_){
+    Result.X += SizeAttr->LeftOffset.Value;
+  }
+
+  if(SizeAttr->TopOffset.Type == menu_size_type::RELATIVE_)
+  {
+    Result.Y -= SizeAttr->TopOffset.Value * BaseRegion.H;
+  }else if(SizeAttr->TopOffset.Type == menu_size_type::ABSOLUTE_){
+    Result.Y -= SizeAttr->TopOffset.Value;
+  }
+  
+  return Result;
+}
+
+b32 CallMouseExitFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes)
+{
+  b32 FunctionCalled = false;
+  for (u32 i = 0; i < NodeCount; ++i)
+  {
+    container_node* Node = Nodes[i];
+    while(Node)
+    {
+      if(HasAttribute(Node,ATTRIBUTE_MENU_EVENT_HANDLE))
+      {
+        menu_event_handle_attribtue* Attr = (menu_event_handle_attribtue*) GetAttributePointer(Node, ATTRIBUTE_MENU_EVENT_HANDLE);
+        for(u32 Idx = 0; Idx < Attr->HandleCount; ++Idx)
+        {
+          u32 Handle = Attr->Handles[Idx];
+          menu_event* Event =   GetMenuEvent(Interface, Handle);
+          if(Event->EventType == menu_event_type::MouseExit)
+          {
+            FunctionCalled = true;
+            CallFunctionPointer(Event->Callback, Interface, Node, Event->Data);
+          }
+        }
+      }
+      Node = Node->Parent;
+    }
+  }
+  return FunctionCalled;
+}
+
+b32 CallMouseEnterFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes)
+{
+  b32 FunctionCalled = false;
+  for (u32 i = 0; i < NodeCount; ++i)
+  {
+    container_node* Node = Nodes[i];
+    while(Node)
+    {
+      if(HasAttribute(Node,ATTRIBUTE_MENU_EVENT_HANDLE))
+      {
+        menu_event_handle_attribtue* Attr = (menu_event_handle_attribtue*) GetAttributePointer(Node, ATTRIBUTE_MENU_EVENT_HANDLE);
+        for(u32 Idx = 0; Idx < Attr->HandleCount; ++Idx)
+        {
+          u32 Handle = Attr->Handles[Idx];
+          menu_event* Event = GetMenuEvent(Interface, Handle);
+          if(Event->EventType == menu_event_type::MouseEnter)
+          {
+            FunctionCalled = true;
+            CallFunctionPointer(Event->Callback, Interface, Node, Event->Data);
+          }
+        }
+      }
+      Node = Node->Parent;
+    }
+  }
+  return FunctionCalled;
+}
+
+b32 CallMouseDownFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes)
+{
+  b32 FunctionCalled = false;
+  for (u32 i = 0; i < NodeCount; ++i)
+  {
+    container_node* Node = Nodes[i];
+    while(Node)
+    {
+      if(HasAttribute(Node, ATTRIBUTE_MENU_EVENT_HANDLE))
+      {
+        menu_event_handle_attribtue* Attr = (menu_event_handle_attribtue*) GetAttributePointer(Node, ATTRIBUTE_MENU_EVENT_HANDLE);
+        for(u32 Idx = 0; Idx < Attr->HandleCount; ++Idx)
+        {
+          u32 Handle = Attr->Handles[Idx];
+          menu_event* Event = GetMenuEvent(Interface, Handle);
+          if(Event->EventType == menu_event_type::MouseDown)
+          {
+            FunctionCalled = true;
+            CallFunctionPointer(Event->Callback, Interface, Node, Event->Data);
+          }
+        }
+      }
+      Node = Node->Parent;
+    }
+  }
+  return FunctionCalled;
+}
+
+b32 CallMouseUpFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes)
+{
+  b32 FunctionCalled = false;
+  for (u32 i = 0; i < NodeCount; ++i)
+  {
+    container_node* Node = Nodes[i];
+    while(Node)
+    {
+      if(HasAttribute(Node,ATTRIBUTE_MENU_EVENT_HANDLE))
+      {
+        menu_event_handle_attribtue* Attr = (menu_event_handle_attribtue*) GetAttributePointer(Node, ATTRIBUTE_MENU_EVENT_HANDLE);
+        for(u32 Idx = 0; Idx < Attr->HandleCount; ++Idx)
+        {
+          u32 Handle = Attr->Handles[Idx];
+          menu_event* Event = GetMenuEvent(Interface, Handle);
+          if(Event->EventType == menu_event_type::MouseUp)
+          {
+            FunctionCalled = true;
+            CallFunctionPointer(Event->Callback, Interface, Node, Event->Data);
+          }
+        }
+      }
+      Node = Node->Parent;
+    }
+  }
+  return FunctionCalled;
+}

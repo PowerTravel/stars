@@ -149,4 +149,8 @@ u32 GetAttributeSize(container_attribute Attribute)
   return 0; 
 }
 
-
+rect2f GetSizedParentRegion(size_attribute* SizeAttr, rect2f BaseRegion);
+b32 CallMouseExitFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);
+b32 CallMouseEnterFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);
+b32 CallMouseDownFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);
+b32 CallMouseUpFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);

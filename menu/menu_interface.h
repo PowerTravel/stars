@@ -2,7 +2,6 @@
 
 // TODO: + Sätt x-knapp (stänga) till tabs
 //       + Sätt Check-mark i dropdown menyn som visar vilka fönster som är öppna
-//       + Highlighta den aktiva tabben
 //       + Möjlighet att spara/ladda fönster-layout (behöver serialiseras på något vis)
 //       + Extrahera interface till en egen mapp där olika "logiska"-element får sin egen fil. En fil för radio-button, en för scroll window etc etc
 //       + ListWidget behöver en scrollfunktion
@@ -10,10 +9,6 @@
 #include "containers/linked_memory.h"
 #include "platform/jwin_platform_input.h"
 #include "internal/menu_interface_internal.h"
-#include "nodes/grid_window.h"
-#include "nodes/border_node.h"
-
-
 
 struct container_node;
 struct menu_interface;
@@ -21,56 +16,6 @@ struct menu_tree;
 
 menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 AspectRatio);
 void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interface* Interface);
-container_node* NewContainer(menu_interface* Interface, container_type Type = container_type::None);
-void DeleteContainer(menu_interface* Interface, container_node* Node);
-menu_tree* NewMenuTree(menu_interface* Interface);
-void FreeMenuTree(menu_interface* Interface,  menu_tree* MenuToFree);
-container_node* ConnectNodeToFront(container_node* Parent, container_node* NewNode);
-container_node* ConnectNodeToBack(container_node* Parent, container_node* NewNode);
-void DisconnectNode(container_node* Node);
-
-container_node* CreateBorderNode(menu_interface* Interface, v4 Color);
-
-u32 GetChildCount(container_node* Node);
-
-struct root_node
-{
-  r32 HeaderSize;
-  r32 FooterSize;
-};
-
-struct tab_node
-{
-  container_node* Payload;
-};
-
-struct plugin_node
-{
-  char Title[256];
-  container_node* Tab;
-  v4 Color;
-};
-
-enum class merge_zone
-{
-  // (0 through 4 indexes into merge_slot_attribute::MergeZone)
-  // (The rest do not)
-  CENTER,      // Tab (idx 0)
-  LEFT,        // Left Split (idx 1)
-  RIGHT,       // Left Split (idx 2)
-  TOP,         // Left Split (idx 3)
-  BOT,         // Left Split (idx 4)
-  HIGHLIGHTED, // We are mousing over a mergable window and want to draw it
-  NONE         // No mergable window present
-};
-
-struct tab_window_node
-{
-  r32 HeaderSize;
-  merge_zone HotMergeZone;
-  rect2f MergeZone[5];
-};
-
 
 void _PushToFinalDrawQueue(menu_tree* Menu, container_node* Node, menu_draw** Draw)
 {
@@ -78,8 +23,8 @@ void _PushToFinalDrawQueue(menu_tree* Menu, container_node* Node, menu_draw** Dr
   draw_queue_entry* Entry = &Menu->FinalRenderFunctions[Menu->FinalRenderCount++];
   Entry->DrawFunction = Draw;
   Entry->CallerNode = Node;
-
 }
+
 #define PushToFinalDrawQueue(Interface, Caller, FunctionName) _PushToFinalDrawQueue(GetMenu(Interface, Caller), Caller, DeclareFunction(menu_draw, FunctionName))
 
 // Holds the shape of the pluin containers, or rather the TabWindows holding the Plugins
@@ -98,22 +43,6 @@ struct menu_layout_node {
 struct menu_layout {
 
   menu_layout_node* Root;
-};
-
-MENU_LOSING_FOCUS(DefaultLosingFocus)
-{
-
-}
-
-MENU_GAINING_FOCUS(DefaultGainingFocus)
-{
-
-}
-
-
-struct mouse_position_in_window{
-  v2 MousePos;
-  v2 RelativeWindow;
 };
 
 struct menu_interface
@@ -171,17 +100,13 @@ struct menu_interface
 
   update_args UpdateQueue[64];
 };
-
-menu_tree* BuildMenuTree(menu_interface* Interface, menu_layout* MenuLayout);
  
 container_node* GetTabWindowFromOtherMenu(menu_interface* Interface, container_node* Node);
 
-menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f Region);
-container_node* CreateSplitWindow( menu_interface* Interface, b32 Vertical, r32 BorderPos = 0.5);
 container_node* CreatePlugin(menu_interface* Interface, menu_tree* WindowsDropDownMenu, c8* HeaderName, v4 HeaderColor, container_node* BodyNode);
 menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name);
 void ToggleWindow(menu_interface* Interface, char* WindowName);
-
+void SetFocusWindow(menu_interface* Interface, menu_tree* Menu);
 b32 IsPluginSelected(menu_interface* Interface, container_node* Container);
 
 void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, container_node* CallerNode, void* Data, menu_event_callback** Callback,  menu_event_callback** OnDelete);
@@ -214,29 +139,3 @@ menu_tree* GetMenu(menu_interface* Interface, container_node* Node);
 void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData);
 #define PushToUpdateQueue(Interface, Caller, FunctionName, Data, FreeData) _PushToUpdateQueue(Interface, Caller, DeclareFunction(update_function, FunctionName), (void*) Data, FreeData)
 
-inline root_node* GetRootNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Root);
-  root_node* Result = (root_node*) GetContainerPayload(Container);
-  return Result;
-}
-
-
-inline plugin_node* GetPluginNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Plugin);
-  plugin_node* Result = (plugin_node*) GetContainerPayload(Container);
-  return Result;
-}
-inline tab_window_node* GetTabWindowNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::TabWindow);
-  tab_window_node* Result = (tab_window_node*) GetContainerPayload(Container);
-  return Result;
-}
-inline tab_node* GetTabNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Tab);
-  tab_node* Result = (tab_node*) GetContainerPayload(Container);
-  return Result;
-}

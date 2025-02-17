@@ -65,3 +65,7 @@ void DeleteMenuSubTree(menu_interface* Interface, container_node* Root)
   }
   DeleteContainer(Interface, Root);
 }
+
+menu_tree* NewMenuTree(menu_interface* Interface);
+void TreeSensus( menu_tree* Menu );
+void FreeMenuTree(menu_interface* Interface, menu_tree* MenuToFree);

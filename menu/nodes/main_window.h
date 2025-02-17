@@ -13,5 +13,10 @@ inline main_window_node* GetMainWindowNode(container_node* Container)
   return Result;
 }
 
+struct mouse_position_in_window{
+  v2 MousePos;
+  v2 RelativeWindow;
+};
+
 menu_tree* CreateMainWindow(menu_interface* Interface);
 menu_functions GetMainWindowFunctions();

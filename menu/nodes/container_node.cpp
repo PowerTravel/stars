@@ -231,3 +231,24 @@ void DeleteContainer( menu_interface* Interface, container_node* Node)
   DeleteAllAttributes(Interface, Node);
   FreeMemory(&Interface->LinkedMemory, (void*) Node);
 }
+
+
+void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_args* UpdateArgs)
+{
+  for (u32 i = 0; i < UpdateCount; ++i)
+  {
+    update_args* Entry = &UpdateArgs[i];
+    if(Entry->InUse)
+    {
+      b32 Continue = CallFunctionPointer(Entry->UpdateFunction, Interface, Entry->Caller, Entry->Data);
+      if(!Continue)
+      {
+        if(Entry->FreeDataWhenComplete && Entry->Data)
+        {
+          FreeMemory(&Interface->LinkedMemory, Entry->Data);
+        }
+        *Entry = {};
+      }
+    }
+  }
+}

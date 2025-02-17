@@ -31,6 +31,8 @@ struct update_args
   update_function** UpdateFunction;
 };
 
+void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_args* UpdateArgs);
+
 enum class container_type
 {
   None,
@@ -134,7 +136,7 @@ container_node* GetChildFromIndex(container_node* Parent, u32 ChildIndex)
   return Result; 
 }
 
-container_node* NewContainer(menu_interface* Interface, container_type Type);
+container_node* NewContainer(menu_interface* Interface, container_type Type = container_type::None);
 void DeleteContainer( menu_interface* Interface, container_node* Node);
 menu_functions GetDefaultFunctions();
 

@@ -277,3 +277,103 @@ b32 TabDrag(menu_interface* Interface, container_node* Tab)
   }
   return Continue;
 }
+
+
+MENU_UPDATE_FUNCTION(TabDragUpdate)
+{
+  b32 Continue = TabDrag(Interface, CallerNode);
+  return Interface->MouseLeftButton.Active && Continue;
+}
+
+MENU_EVENT_CALLBACK(TabMouseDown)
+{
+  container_node* Tab = CallerNode;
+
+  // Initiate Tab Drag
+  container_node* TabWindow = GetTabWindowFromTab(Tab);
+  container_node* TabGrid = GetTabGridFromWindow(TabWindow);
+  if(GetChildCount(TabGrid) > 1 || TabWindow->Parent->Type == container_type::Split)
+  {
+    PushToUpdateQueue(Interface, CallerNode, TabDragUpdate, 0, false);
+  }
+}
+
+MENU_EVENT_CALLBACK(TabMouseUp)
+{
+  
+}
+
+MENU_EVENT_CALLBACK(TabMouseEnter)
+{
+  tab_node* TabNode = GetTabNode(CallerNode);
+  if(!IsPluginSelected(Interface, TabNode->Payload))
+  {
+    color_attribute* TabColor =(color_attribute*) GetAttributePointer(CallerNode,ATTRIBUTE_COLOR);
+    TabColor->Color = TabColor->HighlightedColor;
+  }
+}
+
+MENU_EVENT_CALLBACK(TabMouseExit)
+{
+  tab_node* TabNode = GetTabNode(CallerNode);
+  if(!IsPluginSelected(Interface, TabNode->Payload))
+  {
+    color_attribute* TabColor =(color_attribute*) GetAttributePointer(CallerNode,ATTRIBUTE_COLOR);
+    TabColor->Color = TabColor->RestingColor;
+  }
+}
+
+container_node* CreateTab(menu_interface* Interface, container_node* Plugin)
+{
+  plugin_node* PluginNode = GetPluginNode(Plugin);
+
+  container_node* Tab = NewContainer(Interface, container_type::Tab);  
+
+  color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, Tab, ATTRIBUTE_COLOR);
+  ColorAttr->Color = PluginNode->Color;
+  ColorAttr->RestingColor = PluginNode->Color;
+  ColorAttr->HighlightedColor = PluginNode->Color * 1.5;
+
+  GetTabNode(Tab)->Payload = Plugin;
+  PluginNode->Tab = Tab;
+
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Tab, 0, TabMouseDown, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseUp, Tab, 0, TabMouseUp, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseEnter, Tab, 0, TabMouseEnter, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseExit,  Tab, 0, TabMouseExit, 0);
+  
+  text_attribute* MenuText = (text_attribute*) PushAttribute(Interface, Tab, ATTRIBUTE_TEXT);
+  jstr::CopyStringsUnchecked(PluginNode->Title, MenuText->Text);
+  MenuText->FontSize = Interface->BodyFontSize;
+  MenuText->Color = Interface->TextColor;
+
+  v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), Interface->HeaderFontSize, (utf8_byte*) PluginNode->Title);
+  size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, Tab, ATTRIBUTE_SIZE);
+  SizeAttr->Width = ContainerSizeT(menu_size_type::ABSOLUTE_, TextSize.X * 1.05);
+  SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, 1);
+  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+  SizeAttr->XAlignment = menu_region_alignment::LEFT;
+  SizeAttr->YAlignment = menu_region_alignment::CENTER;
+
+  return Tab;
+}
+
+plugin_node* GetPluginNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::Plugin);
+  plugin_node* Result = (plugin_node*) GetContainerPayload(Container);
+  return Result;
+}
+tab_window_node* GetTabWindowNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::TabWindow);
+  tab_window_node* Result = (tab_window_node*) GetContainerPayload(Container);
+  return Result;
+}
+tab_node* GetTabNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::Tab);
+  tab_node* Result = (tab_node*) GetContainerPayload(Container);
+  return Result;
+}

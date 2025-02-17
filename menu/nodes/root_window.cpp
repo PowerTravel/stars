@@ -24,6 +24,13 @@ container_node* GetBodyFromRoot(container_node* RootWindow)
   return Result;
 }
 
+root_node* GetRootNode(container_node* Container)
+{
+  Assert(Container->Type == container_type::Root);
+  root_node* Result = (root_node*) GetContainerPayload(Container);
+  return Result;
+}
+
 mouse_position_in_window GetPositionInRootWindow(v2 Pos, container_node* Node)
 {
   container_node* RootBodyNode = GetBodyFromRoot(GetRoot(Node));
@@ -305,3 +312,4 @@ menu_functions GetRootMenuFunctions()
   Result.UpdateChildRegions = DeclareFunction(menu_get_region, RootUpdateChildRegions);
   return Result;
 }
+ 
