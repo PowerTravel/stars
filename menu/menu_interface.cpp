@@ -3,158 +3,18 @@
 #include "commons/string.h"
 #include "color_table.h"
 #include "internal/menu_attributes.cpp"
+#include "nodes/container_node.cpp"
+#include "nodes/grid_window.cpp"
+#include "nodes/border_node.cpp"
 #include "nodes/main_window.h"
 #include "nodes/root_window.cpp"
 #include "nodes/tabbed_window.cpp"
+#include "nodes/main_window.cpp"
+#include "nodes/split_window.cpp"
 #include "menu_functions.h"
 
-internal void
-PivotNodes(container_node* ShiftLeft, container_node* ShiftRight)
-{
-  Assert(ShiftLeft->PreviousSibling == ShiftRight);
-  Assert(ShiftRight->NextSibling == ShiftLeft);
-  
-  ShiftRight->NextSibling = ShiftLeft->NextSibling;
-  if(ShiftRight->NextSibling)
-  {
-    ShiftRight->NextSibling->PreviousSibling = ShiftRight;
-  }
-
-  ShiftLeft->PreviousSibling = ShiftRight->PreviousSibling;
-  if(ShiftLeft->PreviousSibling)
-  {
-    ShiftLeft->PreviousSibling->NextSibling = ShiftLeft;
-  }else{
-    Assert(ShiftRight->Parent->FirstChild == ShiftRight);
-    ShiftRight->Parent->FirstChild = ShiftLeft;
-  }
-
-  ShiftLeft->NextSibling = ShiftRight;
-  ShiftRight->PreviousSibling = ShiftLeft;
-
-  Assert(ShiftRight->PreviousSibling == ShiftLeft);
-  Assert(ShiftLeft->NextSibling == ShiftRight);
-  
-}
-
-internal void
-ShiftLeft(container_node* ShiftLeft)
-{
-  if(!ShiftLeft->PreviousSibling)
-  {
-    return;
-  }
-  PivotNodes(ShiftLeft, ShiftLeft->PreviousSibling);
-}
-
-internal void
-ShiftRight(container_node* ShiftRight)
-{
-  if(!ShiftRight->NextSibling)
-  {
-    return;
-  }
-  PivotNodes(ShiftRight->NextSibling, ShiftRight); 
-}
-
-internal void
-ReplaceNode(container_node* Out, container_node* In)
-{  
-  if(In == Out) return;
-
-  In->Parent = Out->Parent;
-  if(In->Parent->FirstChild == Out)
-  {
-    In->Parent->FirstChild = In;
-  }
-
-  In->NextSibling = Out->NextSibling;
-  if(In->NextSibling)
-  {
-    In->NextSibling->PreviousSibling = In;  
-  }
-
-  In->PreviousSibling = Out->PreviousSibling;
-  if(In->PreviousSibling)
-  {
-    
-    In->PreviousSibling->NextSibling = In;
-  }
-
-  Out->NextSibling = 0;
-  Out->PreviousSibling = 0;
-  Out->Parent = 0;
-}
-
-container_node* NewContainer(menu_interface* Interface, container_type Type)
-{
-  u32 BaseNodeSize    = sizeof(container_node) + sizeof(memory_link);
-  u32 NodePayloadSize = GetContainerPayloadSize(Type);
-  midx ContainerSize = (BaseNodeSize + NodePayloadSize);
- 
-  container_node* Result = (container_node*) Allocate(&Interface->LinkedMemory, ContainerSize);
-  Result->Type = Type;
-  Result->Functions = GetMenuFunction(Type);
-
-  return Result;
-}
-
-internal void
-DeleteAllAttributes(menu_interface* Interface, container_node* Node)
-{
-  // TODO: Free attribute data here too?
-  while(Node->FirstAttribute)
-  {
-    menu_attribute_header* Attribute = Node->FirstAttribute;
-    Node->FirstAttribute = Node->FirstAttribute->Next;
-    FreeMemory(&Interface->LinkedMemory, (void*) Attribute);
-  }
-  Node->Attributes = ATTRIBUTE_NONE;
-}
-
-internal void
-DeleteAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType)
-{
-  Assert(Node->Attributes & (u32)AttributeType);
-
-  menu_attribute_header** AttributePtr = &Node->FirstAttribute;
-  while((*AttributePtr)->Type != AttributeType)
-  {
-    AttributePtr = &(*AttributePtr)->Next;
-  }  
-
-  menu_attribute_header* AttributeToRemove = *AttributePtr;
-  *AttributePtr = AttributeToRemove->Next;
-
-  FreeMemory(&Interface->LinkedMemory, (void*) AttributeToRemove);
-  Node->Attributes =Node->Attributes - (u32)AttributeType;
-}
-
-
-internal void CancelAllUpdateFunctions(menu_interface* Interface, container_node* Node )
-{
-  for(u32 i = 0; i < ArrayCount(Interface->UpdateQueue); ++i)
-  {
-    update_args* Entry = &Interface->UpdateQueue[i];
-    if(Entry->InUse && Entry->Caller == Node)
-    {
-      if(Entry->FreeDataWhenComplete && Entry->Data)
-      {
-        FreeMemory(&Interface->LinkedMemory, Entry->Data);
-      }
-      *Entry = {};
-    }
-  }
-}
 
 void ClearMenuEvents( menu_interface* Interface, container_node* Node);
-void DeleteContainer( menu_interface* Interface, container_node* Node)
-{
-  CancelAllUpdateFunctions(Interface, Node );
-  ClearMenuEvents(Interface, Node);
-  DeleteAllAttributes(Interface, Node);
-  FreeMemory(&Interface->LinkedMemory, (void*) Node);
-}
 
 menu_tree* NewMenuTree(menu_interface* Interface)
 {
@@ -165,35 +25,6 @@ menu_tree* NewMenuTree(menu_interface* Interface)
   return Result;
 }
 
-
-internal void DeleteMenuSubTree(menu_interface* Interface, container_node* Root)
-{
-  DisconnectNode(Root);
-  // Free the nodes;
-  // 1: Go to the bottom
-  // 2: Step up Once
-  // 3: Delete FirstChild
-  // 4: Set NextSibling as FirstChild
-  // 5: Repeat from 1
-  container_node* Node = Root->FirstChild;
-  while(Node)
-  {
-
-    while(Node->FirstChild)
-    {
-      Node = Node->FirstChild;
-    }
-
-    Node = Node->Parent;
-    if(Node)
-    {
-      container_node* NodeToDelete = Node->FirstChild;
-      Node->FirstChild = Next(NodeToDelete);
-      DeleteContainer(Interface, NodeToDelete);
-    }
-  }
-  DeleteContainer(Interface, Root);
-}
 
 inline internal menu_tree* GetNextSpawningWindow(menu_interface* Interface)
 { 
@@ -533,66 +364,6 @@ u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, 
   return IntersectingLeafCount;
 }
 
-container_node* ConnectNodeToFront(container_node* Parent, container_node* NewNode)
-{
-  NewNode->Parent = Parent;
-
-  if(!Parent->FirstChild){
-    Parent->FirstChild = NewNode;
-  }else{
-    NewNode->NextSibling = Parent->FirstChild;
-    NewNode->NextSibling->PreviousSibling = NewNode;
-    Parent->FirstChild = NewNode;
-    Assert(NewNode != NewNode->NextSibling);
-    Assert(NewNode->PreviousSibling == 0);
-  }
-
-  return NewNode;
-}
-
-container_node* ConnectNodeToBack(container_node* Parent, container_node* NewNode)
-{
-  NewNode->Parent = Parent;
-
-  if(!Parent->FirstChild){
-    Parent->FirstChild = NewNode;
-  }else{
-    container_node* Child = Parent->FirstChild;
-    while(Next(Child))
-    {
-      Child = Next(Child);
-    }  
-    Child->NextSibling = NewNode;
-    NewNode->PreviousSibling = Child;
-  }
-
-  return NewNode;
-}
-
-void DisconnectNode(container_node* Node)
-{
-  container_node* Parent = Node->Parent;
-  if(Parent)
-  {
-    Assert(Parent->FirstChild);
-    if(Node->PreviousSibling)
-    {
-      Node->PreviousSibling->NextSibling = Node->NextSibling;  
-    }
-    if(Node->NextSibling)
-    {
-      Node->NextSibling->PreviousSibling = Node->PreviousSibling;  
-    }
-    if(Parent->FirstChild == Node)
-    {
-      Parent->FirstChild = Node->NextSibling;
-    }  
-  }
-  Node->Parent = 0;
-  Node->NextSibling = 0;
-  Node->PreviousSibling = 0;
-}
-
 
 b32 IsFocusWindow(menu_interface* Interface, menu_tree* Menu)
 {
@@ -928,15 +699,6 @@ rect2f GetVerticalListRegion(rect2f HeaderRect, u32 TabIndex, u32 TabCount)
 }
 #endif
 
-b32 SplitWindowSignal(menu_interface* Interface, container_node* HeaderNode)
-{
-  rect2f HeaderSplitRegion = Shrink(HeaderNode->Region, -2*HeaderNode->Region.H);
-  if(!Intersects(HeaderSplitRegion, Interface->MousePos))
-  {
-    return true;
-  }
-  return false;
-}
 
 void RegisterEventWithNode(menu_interface* Interface, container_node* Node, u32 Handle)
 {
@@ -984,13 +746,6 @@ u32 GetEmptyMenuEventHandle(menu_interface* Interface, container_node* CallerNod
   return Handle;
 }
 
-menu_event* GetMenuEvent(menu_interface* Interface, u32 Handle)
-{
-  Assert(Handle < ArrayCount(Interface->MenuEventCallbacks));
-  menu_event* Event = &Interface->MenuEventCallbacks[Handle];
-  return Event;
-}
-
 void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, container_node* CallerNode, void* Data, menu_event_callback** Callback,  menu_event_callback** OnDelete)
 {
 
@@ -1005,54 +760,6 @@ void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, co
   Event->OnDelete = OnDelete;
   Event->Data = Data;
   RegisterEventWithNode(Interface, CallerNode, Index);
-}
-
-void UpdateBorderPosition(container_node* BorderNode, v2 NewPosition, rect2f MinimumWindowSize, rect2f MaximumWindowSize)
-{
-  border_leaf* Border = GetBorderNode(BorderNode);
-  switch(Border->Type)
-  {
-    // A Root border work with canonical positions
-    case border_type::LEFT: {
-      Border->Position = Clamp(
-        NewPosition.X,
-        MaximumWindowSize.X + Border->Thickness * 0.5f,
-        MinimumWindowSize.X + MinimumWindowSize.W - Border->Thickness * 0.5f);
-    }break;
-    case border_type::RIGHT:{
-      Border->Position = Clamp(
-        NewPosition.X,
-        MinimumWindowSize.X + Border->Thickness * 0.5f,
-        MaximumWindowSize.X + MaximumWindowSize.W - Border->Thickness * 0.5f);
-    }break;
-    case border_type::TOP:{
-      Border->Position = Clamp(
-        NewPosition.Y,
-        MinimumWindowSize.Y + Border->Thickness * 0.5f,
-        MaximumWindowSize.Y + MaximumWindowSize.H - Border->Thickness * 0.5f);
-    }break;
-    case border_type::BOTTOM:{
-      Border->Position = Clamp(
-        NewPosition.Y,
-        MaximumWindowSize.Y + Border->Thickness * 0.5f,
-        MinimumWindowSize.Y + MinimumWindowSize.H - Border->Thickness * 0.5f);
-    }break;
-    // A SPLIT border don't work with canonical positions, they work with percentage of parent region.
-    // That means if a border position is at 10% it means 10% of parent window is for left split region and 90% is for right split region
-    case border_type::SPLIT_VERTICAL:{
-      Border->Position = Clamp(
-        NewPosition.X,
-        MinimumWindowSize.X,
-        MinimumWindowSize.W);
-      Platform.DEBUGPrint("%1.2f\n", Border->Position);
-    }break;
-    case border_type::SPLIT_HORIZONTAL:{
-      Border->Position = Clamp(
-        NewPosition.Y,
-        MinimumWindowSize.Y,
-        MinimumWindowSize.H);
-    }break;
-  }
 }
 
 MENU_UPDATE_FUNCTION(SplitWindowBorderUpdate)
@@ -1086,43 +793,7 @@ MENU_EVENT_CALLBACK(InitiateSplitWindowBorderDrag)
 
 
 
-rect2f GetMinimumRootWindowSize(root_border_collection* BorderCollection, r32 MinimumRegionWidth, r32 MinimumRegionHeight)
-{
-  rect2f Result = {};
-  Result.X = GetBorderNode(BorderCollection->Left)->Position  + MinimumRegionWidth*0.5;
-  Result.W = GetBorderNode(BorderCollection->Right)->Position - MinimumRegionWidth*0.5 - Result.X;
-  Result.Y = GetBorderNode(BorderCollection->Bot)->Position   + MinimumRegionHeight*0.5;
-  Result.H = GetBorderNode(BorderCollection->Top)->Position   - MinimumRegionHeight*0.5 - Result.Y;
-  return Result;
-}
 
-MENU_UPDATE_FUNCTION(RootBorderDragUpdate)
-{
-  Assert(CallerNode->Parent->Type == container_type::Root);
-
-  r32 AspectRatio = GetAspectRatio(Interface);
-  rect2f MaximumWindowSize = Rect2f(0,0,AspectRatio, 1 - Interface->HeaderSize);
-  root_border_collection BorderCollection = GetRoorBorders(CallerNode->Parent);
-  rect2f MinimumWindowSize = GetMinimumRootWindowSize(&BorderCollection, Interface->MinSize, Interface->MinSize);
-  UpdateBorderPosition(CallerNode, Interface->MousePos, MinimumWindowSize, MaximumWindowSize);
-  return Interface->MouseLeftButton.Active;
-}
-
-MENU_EVENT_CALLBACK(InitiateBorderDrag)
-{
-  PushToUpdateQueue(Interface, CallerNode, RootBorderDragUpdate, 0, false);
-}
-
-container_node* CreateBorderNode(menu_interface* Interface, v4 Color)
-{
-  container_node* Result = NewContainer(Interface, container_type::Border);
- 
-  color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, Result, ATTRIBUTE_COLOR);
-  ColorAttr->Color = Color;
-
-  Assert(Result->Type == container_type::Border);
-  return Result;
-}
 
 b32 IsPointerInArray(u32 ArrayCount, container_node** NodeArray, container_node* NodeToCheck, u32* Position)
 {
@@ -1224,55 +895,7 @@ internal void UpdateHotLeafs(menu_interface* Interface, menu_tree* Menu)
   CopyArray( RemovedCount, Removed, Menu->RemovedHotLeafs);
   Menu->RemovedHotLeafCount = RemovedCount;
 }
-
-inline internal container_node* GetTabWindowFromTab(container_node* Tab)
-{
-  Assert(Tab->Type == container_type::Tab);
-  container_node* TabHeader = Tab->Parent;
-  Assert(TabHeader->Type == container_type::Grid);
-  container_node* TabRegion = TabHeader->Parent;
-  Assert(TabRegion->Type == container_type::None);
-  container_node* TabWindow = TabRegion->Parent;
-
-  Assert(TabWindow->Type == container_type::TabWindow);
-  return TabWindow;
-}
-
-internal container_node* PushTab(container_node* TabbedWindow,  container_node* Tab)
-{
-  container_node* TabContainer = GetTabGridFromWindow(TabbedWindow);
-  ConnectNodeToFront(TabContainer, Tab);
-  return Tab;
-}
-
-internal void SetTabAsActive(container_node* Tab)
-{
-  tab_node* TabNode = GetTabNode(Tab);
-  container_node* TabWindow = GetTabWindowFromTab(Tab);
-  container_node* TabBody = TabWindow->FirstChild->NextSibling;
-  if(!TabBody)
-  {
-    ConnectNodeToBack(TabWindow, TabNode->Payload);
-  }else{
-    ReplaceNode(TabBody, TabNode->Payload);  
-  }
-}
-
-
-internal container_node* PopTab(container_node* Tab)
-{
-  tab_node* TabNode = GetTabNode(Tab);
-  DisconnectNode(TabNode->Payload);
-  if(Next(Tab))
-  {
-    SetTabAsActive(Next(Tab));  
-  }else if(Previous(Tab)){
-    SetTabAsActive(Previous(Tab));
-  }
-
-  DisconnectNode(Tab);
-  return Tab;
-}
+ 
 
 
 internal u32 FillArrayWithTabs(u32 MaxArrSize, container_node* TabArr[], menu_tree* Menu)
@@ -1451,32 +1074,7 @@ void UpdateMergableAttribute( menu_interface* Interface, container_node* Node )
 }
 
 
-void DeregisterEvent(menu_interface* Interface, u32 Handle)
-{
-  menu_event* Event = GetMenuEvent(Interface, Handle);
-  Interface->MenuEventCallbackCount--;
-  ListRemove(Event);
-  if(Event->OnDelete)
-  {
-    CallFunctionPointer(Event->OnDelete, Interface, Event->CallerNode, Event->Data);
-  }
-  *Event = {};
-}
 
-void ClearMenuEvents(menu_interface* Interface, container_node* Node)
-{
-  if(HasAttribute(Node, ATTRIBUTE_MENU_EVENT_HANDLE))
-  {
-    menu_event_handle_attribtue* EventHandles = (menu_event_handle_attribtue*) GetAttributePointer(Node, ATTRIBUTE_MENU_EVENT_HANDLE);
-    for(u32 Idx = 0; Idx < EventHandles->HandleCount; ++Idx)
-    {
-      u32 Handle = EventHandles->Handles[Idx];
-      DeregisterEvent(Interface, Handle);
-      EventHandles->Handles[Idx] = 0;
-    }
-    EventHandles->HandleCount = 0;  
-  }
-}
 
 menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f MaxRegion)
 {
@@ -1522,51 +1120,6 @@ menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* Bas
   return Root;
 }
 
-void ReduceSplitWindowTree(menu_interface* Interface, container_node* WindowToRemove)
-{
-  container_node* SplitNodeToSwapOut = WindowToRemove->Parent;
-  container_node* WindowToRemain = WindowToRemove->NextSibling;
-  if(!WindowToRemain)
-  {
-    WindowToRemain = WindowToRemove->Parent->FirstChild->NextSibling;
-    Assert(WindowToRemain);
-    Assert(WindowToRemain->NextSibling == WindowToRemove);
-  }
-
-  DisconnectNode(WindowToRemove);
-  DeleteMenuSubTree(Interface, WindowToRemove);
-
-  DisconnectNode(WindowToRemain);
-
-  ReplaceNode(SplitNodeToSwapOut, WindowToRemain);
-  DeleteMenuSubTree(Interface, SplitNodeToSwapOut);
-}
-
-void ReduceWindowTree(menu_interface* Interface, container_node* WindowToRemove)
-{
-  // Just to let us know if we need to handle another case
-  Assert(WindowToRemove->Type == container_type::TabWindow);
-
-  // Make sure the tab window is empty
-  Assert(GetChildCount(GetTabGridFromWindow(WindowToRemove)) == 0);
-
-  container_node* ParentContainer = WindowToRemove->Parent;
-  switch(ParentContainer->Type)
-  {
-    case container_type::Split:
-    {
-      ReduceSplitWindowTree(Interface, WindowToRemove);
-    }break;
-    case container_type::Root:
-    {
-      FreeMenuTree(Interface, GetMenu(Interface,ParentContainer));
-    }break;
-    default:
-    {
-      INVALID_CODE_PATH;
-    } break;
-  }
-}
 
 container_node* GetWindowDragNode(container_node* TabWindow)
 {
@@ -1574,90 +1127,6 @@ container_node* GetWindowDragNode(container_node* TabWindow)
   return TabWindow->FirstChild->FirstChild->NextSibling;
 }
 
-
-void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, rect2f TabbedWindowRegion)
-{
-  rect2f NewRegion = Move(TabbedWindowRegion, V2(-Interface->BorderSize, Interface->BorderSize)*0.5); 
-  
-  container_node* NewTabWindow = CreateTabWindow(Interface);
-  CreateNewRootContainer(Interface, NewTabWindow, NewRegion);
-
-  PopTab(Tab);
-  PushTab(NewTabWindow, Tab);
-
-  ConnectNodeToBack(NewTabWindow, GetTabNode(Tab)->Payload);
-
-  // Trigger the window-drag instead of this tab-drag
-  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
-  *Position = GetPositionInRootWindow(Interface->MousePos, NewTabWindow);
-  PushToUpdateQueue(Interface, Tab, WindowDragUpdate, Position, true);
-}
-
-b32 TabDrag(menu_interface* Interface, container_node* Tab)
-{
-  Assert(Tab->Type == container_type::Tab);
-
-  container_node* TabWindow = GetTabWindowFromTab(Tab);
-  container_node* TabHeader = GetTabGridFromWindow(TabWindow);
-
-
-  b32 Continue = Interface->MouseLeftButton.Active; // Tells us if we should continue to call the update function;
-
-  SetTabAsActive(Tab);
-
-  u32 Count = GetChildCount(TabHeader);
-  if(Count > 1)
-  {
-    r32 dX = Interface->MousePos.X - Interface->PreviousMousePos.X;
-    u32 Index = GetChildIndex(Tab);
-    if(dX < 0 && Index > 0)
-    {
-      container_node* PreviousTab = Previous(Tab);
-      Assert(PreviousTab);
-      if(Interface->MousePos.X < (PreviousTab->Region.X + PreviousTab->Region.W/2.f))
-      {
-        // Note: A bit of a hacky way to handle an issue. When the user pushes the mouse down, we store that mouse location in the Interface.
-        // If a person shifts the tab that mouse down position no longer holds the distance within the tab where the button was pushed.
-        // This means if a user Shifts a tab then splits it into a new window, the calculation below for NewRegion is wrong because 
-        // Mouse Left Button Push will no longer hold the information about where in the tab the user klicked.
-        // Therefore we update the "MouseLeftButtonPush" here to keep that information. It's hacky because it's no longer hold the actual mouseDownPosition.
-        // This is not an issue as long as we don't make use of the original mouseLeftButtonPush location somewehre else before the user klicks again.
-        // Should not be an issue since a tab-trag ends with a mouse-up event. Next mouse klick should not need to know where the previous klick was,
-        // but if any weird behaviour occurs later related to MouseLeftButtonPush, know that this is a possible cause of the issue.
-        Interface->MouseLeftButtonPush.X -= PreviousTab->Region.W;
-        ShiftLeft(Tab);
-      }
-    }else if(dX > 0 && Index < Count-1){
-      container_node* NextTab = Next(Tab);
-      Assert(NextTab);
-      if(Interface->MousePos.X > (NextTab->Region.X + NextTab->Region.W/2.f))
-      {
-        // Note: See above
-        Interface->MouseLeftButtonPush.X += NextTab->Region.W;
-        ShiftRight(Tab);
-      }
-    }else if(SplitWindowSignal(Interface, Tab->Parent))
-    {
-      // Note: See above
-      v2 MouseDiffFromClick = Interface->MousePos - Interface->MouseLeftButtonPush - (LowerLeftPoint(Tab->Parent->Region) - LowerLeftPoint(Tab->Region));
-      rect2f NewRegion = Move(TabWindow->Region, MouseDiffFromClick);
-      SplitTabToNewWindow(Interface, Tab, NewRegion);
-      Continue = false;
-    }
-  }else if(TabWindow->Parent->Type == container_type::Split)
-  {
-    if(SplitWindowSignal(Interface, Tab->Parent))
-    {
-      // Note: See above
-      v2 MouseDiffFromClick = Interface->MousePos - Interface->MouseLeftButtonPush - (LowerLeftPoint(Tab->Parent->Region) - LowerLeftPoint(Tab->Region));
-      rect2f NewRegion = Move(TabWindow->Region, MouseDiffFromClick);
-      SplitTabToNewWindow(Interface, Tab, NewRegion);
-      ReduceWindowTree(Interface, TabWindow);
-      Continue = false;
-    }  
-  }
-  return Continue;
-}
 
 internal void GetInput(jwin::device_input* DeviceInput, menu_interface* Interface)
 {
@@ -2373,24 +1842,6 @@ void ToggleWindow(menu_interface* Interface, char* WindowName)
   }
 }
 
-
-u32 GetContainerPayloadSize(container_type Type)
-{
-  switch(Type)
-  {
-    case container_type::None:
-    case container_type::Split:
-    case container_type::Root:
-    case container_type::MainWindow:return 0;
-    case container_type::Border:    return sizeof(border_leaf);
-    case container_type::Grid:      return sizeof(grid_node);
-    case container_type::TabWindow: return sizeof(tab_window_node);
-    case container_type::Tab:       return sizeof(tab_node);
-    case container_type::Plugin:    return sizeof(plugin_node);
-    default: INVALID_CODE_PATH;
-  }
-  return 0;
-}
 
 
 void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData)

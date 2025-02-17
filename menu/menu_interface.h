@@ -71,18 +71,6 @@ struct tab_window_node
   rect2f MergeZone[5];
 };
 
-#define MENU_UPDATE_FUNCTION(name) b32 name( menu_interface* Interface, container_node* CallerNode, void* Data )
-typedef MENU_UPDATE_FUNCTION( update_function );
-
-struct update_args
-{
-  menu_interface* Interface;
-  container_node* Caller;
-  void* Data;
-  b32 InUse;
-  b32 FreeDataWhenComplete;
-  update_function** UpdateFunction;
-};
 
 void _PushToFinalDrawQueue(menu_tree* Menu, container_node* Node, menu_draw** Draw)
 {
@@ -232,12 +220,7 @@ inline root_node* GetRootNode(container_node* Container)
   root_node* Result = (root_node*) GetContainerPayload(Container);
   return Result;
 }
-inline border_leaf* GetBorderNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Border);
-  border_leaf* Result = (border_leaf*) GetContainerPayload(Container);
-  return Result;
-}
+
 
 inline plugin_node* GetPluginNode(container_node* Container)
 {

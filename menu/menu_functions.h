@@ -28,34 +28,6 @@ MENU_UPDATE_CHILD_REGIONS(MainHeaderUpdate)
   Body->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
 }
 
-menu_functions GetDefaultFunctions()
-{
-  menu_functions Result = {};
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region, UpdateChildRegions);
-  Result.Draw = 0;
-  return Result;
-}
-
-menu_functions GetMainHeaderFunctions()
-{
-  menu_functions Result = GetDefaultFunctions();
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region, MainHeaderUpdate);
-  return Result;
-}
-
-menu_functions GetMainWindowFunctions()
-{
-  menu_functions Result = GetDefaultFunctions();
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region, MainWindowUpdate);
-  return Result;
-}
-
-menu_functions GetRootMenuFunctions()
-{
-  menu_functions Result = GetDefaultFunctions();
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region, RootUpdateChildRegions);
-  return Result;
-}
 
 
 MENU_UPDATE_CHILD_REGIONS(UpdateSplitChildRegions)
@@ -120,12 +92,7 @@ MENU_UPDATE_CHILD_REGIONS(UpdateSplitChildRegions)
   }
 }
 
-menu_functions GetSplitFunctions()
-{
-  menu_functions Result = GetDefaultFunctions();
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region,UpdateSplitChildRegions);
-  return Result;
-}
+
 
 MENU_UPDATE_CHILD_REGIONS(UpdateTabWindowChildRegions)
 {
@@ -182,13 +149,6 @@ MENU_DRAW(TabWindowDraw)
   }
 }
 
-menu_functions GetTabWindowFunctions()
-{
-  menu_functions Result = GetDefaultFunctions();
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region, UpdateTabWindowChildRegions);
-  Result.Draw = DeclareFunction(menu_draw, TabWindowDraw);
-  return Result; 
-}
 
 MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
 {
@@ -308,28 +268,3 @@ MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
   }
 }
 
-menu_functions GetGridFunctions()
-{
-  menu_functions Result = GetDefaultFunctions();
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region,UpdateGridChildRegions);
-  return Result;
-}
-
-menu_functions GetMenuFunction(container_type Type)
-{
-  switch(Type)
-  {   
-    case container_type::None:       return GetDefaultFunctions();
-    case container_type::MainWindow: return GetMainWindowFunctions();
-    case container_type::Root:       return GetRootMenuFunctions();
-    case container_type::Border:     return GetDefaultFunctions();
-    case container_type::Split:      return GetSplitFunctions();
-    case container_type::Grid:       return GetGridFunctions();
-    case container_type::TabWindow:  return GetTabWindowFunctions();
-    case container_type::Tab:        return GetDefaultFunctions();
-    case container_type::Plugin:     return GetDefaultFunctions();
-
-    default: Assert(0);
-  }
-  return {};
-}

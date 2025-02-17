@@ -1,7 +1,7 @@
 #pragma once
 
 #include "jwin/commons/types.h"
-#include "internal/container_node.h"
+#include "container_node.h"
 
 struct grid_node
 {
@@ -12,9 +12,5 @@ struct grid_node
   b32 Stack;
 };
 
-inline grid_node* GetGridNode(container_node* Container)
-{
-  Assert(Container->Type == container_type::Grid);
-  grid_node* Result = (grid_node*) GetContainerPayload(Container);
-  return Result;
-}
+inline grid_node* GetGridNode(container_node* Container);
+menu_functions GetGridFunctions();

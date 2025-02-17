@@ -1,5 +1,7 @@
 #pragma once
 
+#include "container_node.h"
+
 enum class border_type {
   LEFT,
   RIGHT,
@@ -17,3 +19,8 @@ struct border_leaf
   b32 Active;
 };
 
+inline border_leaf* GetBorderNode(container_node* Container);
+container_node* CreateBorderNode(menu_interface* Interface, v4 Color);
+
+void SetRootWindowRegion(menu_tree* MenuTree, rect2f Region);
+void UpdateBorderPosition(container_node* BorderNode, v2 NewPosition, rect2f MinimumWindowSize, rect2f MaximumWindowSize);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "jwin/commons/types.h"
+
 struct menu_interface;
 struct container_node;
 struct menu_attribute_header;
@@ -14,6 +16,19 @@ struct menu_functions
 {
   menu_get_region** UpdateChildRegions;
   menu_draw** Draw;
+};
+
+#define MENU_UPDATE_FUNCTION(name) b32 name( menu_interface* Interface, container_node* CallerNode, void* Data )
+typedef MENU_UPDATE_FUNCTION( update_function );
+
+struct update_args
+{
+  menu_interface* Interface;
+  container_node* Caller;
+  void* Data;
+  b32 InUse;
+  b32 FreeDataWhenComplete;
+  update_function** UpdateFunction;
 };
 
 enum class container_type
@@ -64,12 +79,13 @@ struct container_node
   menu_functions Functions;
 };
 
+u32 GetContainerPayloadSize(container_type Type);
+
 inline u8* GetContainerPayload( container_node* Container )
 {
   u8* Result = (u8*)(Container+1);
   return Result;
 }
-
 
 inline container_node* Previous(container_node* Node)
 {
@@ -117,3 +133,15 @@ container_node* GetChildFromIndex(container_node* Parent, u32 ChildIndex)
   }
   return Result; 
 }
+
+container_node* NewContainer(menu_interface* Interface, container_type Type);
+void DeleteContainer( menu_interface* Interface, container_node* Node);
+menu_functions GetDefaultFunctions();
+
+void PivotNodes(container_node* ShiftLeft, container_node* ShiftRight);
+void ShiftLeft(container_node* ShiftLeft);
+void ShiftRight(container_node* ShiftRight);
+void ReplaceNode(container_node* Out, container_node* In);
+void DisconnectNode(container_node* Node);
+container_node* ConnectNodeToBack(container_node* Parent, container_node* NewNode);
+container_node* ConnectNodeToFront(container_node* Parent, container_node* NewNode);

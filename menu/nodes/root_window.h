@@ -1,5 +1,6 @@
 #pragma once
 
+struct container_node;
 
 union root_border_collection {
   struct {
@@ -22,3 +23,7 @@ void InitiateRootWindowDrag(menu_interface* Interface, container_node* Node);
 void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_node* TabHeader);
 
 MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions);
+MENU_UPDATE_FUNCTION(RootBorderDragUpdate);
+MENU_EVENT_CALLBACK(InitiateBorderDrag);
+
+menu_functions GetRootMenuFunctions();

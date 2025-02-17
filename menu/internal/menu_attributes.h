@@ -130,6 +130,10 @@ struct menu_attribute_header
 inline b32 HasAttribute(container_node* Node, container_attribute Attri);
 u8* GetAttributePointer(container_node* Node, container_attribute Attri);
 void * PushAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType);
+void ClearMenuEvents(menu_interface* Interface, container_node* Node);
+menu_event* GetMenuEvent(menu_interface* Interface, u32 Handle);
+void DeleteAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType);
+void DeleteAllAttributes(menu_interface* Interface, container_node* Node);
 
 u32 GetAttributeSize(container_attribute Attribute)
 {

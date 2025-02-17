@@ -270,3 +270,38 @@ MENU_UPDATE_FUNCTION(WindowDragUpdate)
 
   return Interface->MouseLeftButton.Active;
 }
+
+
+internal rect2f GetMinimumRootWindowSize(root_border_collection* BorderCollection, r32 MinimumRegionWidth, r32 MinimumRegionHeight)
+{
+  rect2f Result = {};
+  Result.X = GetBorderNode(BorderCollection->Left)->Position  + MinimumRegionWidth*0.5;
+  Result.W = GetBorderNode(BorderCollection->Right)->Position - MinimumRegionWidth*0.5 - Result.X;
+  Result.Y = GetBorderNode(BorderCollection->Bot)->Position   + MinimumRegionHeight*0.5;
+  Result.H = GetBorderNode(BorderCollection->Top)->Position   - MinimumRegionHeight*0.5 - Result.Y;
+  return Result;
+}
+
+MENU_UPDATE_FUNCTION(RootBorderDragUpdate)
+{
+  Assert(CallerNode->Parent->Type == container_type::Root);
+
+  r32 AspectRatio = GetAspectRatio(Interface);
+  rect2f MaximumWindowSize = Rect2f(0,0,AspectRatio, 1 - Interface->HeaderSize);
+  root_border_collection BorderCollection = GetRoorBorders(CallerNode->Parent);
+  rect2f MinimumWindowSize = GetMinimumRootWindowSize(&BorderCollection, Interface->MinSize, Interface->MinSize);
+  UpdateBorderPosition(CallerNode, Interface->MousePos, MinimumWindowSize, MaximumWindowSize);
+  return Interface->MouseLeftButton.Active;
+}
+
+MENU_EVENT_CALLBACK(InitiateBorderDrag)
+{
+  PushToUpdateQueue(Interface, CallerNode, RootBorderDragUpdate, 0, false);
+}
+
+menu_functions GetRootMenuFunctions()
+{
+  menu_functions Result = GetDefaultFunctions();
+  Result.UpdateChildRegions = DeclareFunction(menu_get_region, RootUpdateChildRegions);
+  return Result;
+}
