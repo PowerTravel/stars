@@ -452,3 +452,4 @@ r32 GetAspectRatio(menu_interface* Interface)
 }
 
 void UpdateMergableAttribute( menu_interface* Interface, container_node* Node );
+void UpdateFocusWindow(menu_interface* Interface);

@@ -17,8 +17,8 @@ inline container_node* GetRoot(container_node* Node);
 inline container_node* GetBodyFromRoot(container_node* RootWindow);
 
 mouse_position_in_window GetPositionInRootWindow(menu_interface* Interface, container_node* Node);
-void InitiateWindowDrag(menu_interface* Interface, container_node* Node);
+void InitiateRootWindowDrag(menu_interface* Interface, container_node* Node);
 
-void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu);
+void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_node* TabHeader);
 
 MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions);

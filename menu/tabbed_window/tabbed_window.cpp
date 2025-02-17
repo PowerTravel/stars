@@ -62,12 +62,12 @@ container_node* GetTabWindow(container_node* Node)
 
 MENU_EVENT_CALLBACK(TabWindowHeaderMouseDown)
 {
+  container_node* WindowHeader = CallerNode;
   if(Interface->DoubleKlick)
   {
     menu_tree* MenuTree = GetMenu(Interface, CallerNode);
-    ToggleMaximizeWindow(Interface, MenuTree);
+    ToggleMaximizeWindow(Interface, MenuTree,WindowHeader);
   }else{
-      container_node* WindowHeader = CallerNode;
       Assert(WindowHeader->Type == container_type::None);
       container_node* TabWindow = WindowHeader->Parent;
 

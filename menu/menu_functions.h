@@ -19,8 +19,6 @@ MENU_UPDATE_CHILD_REGIONS(MainHeaderUpdate)
   Body->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
 }
 
-
-
 menu_functions GetDefaultFunctions()
 {
   menu_functions Result = {};

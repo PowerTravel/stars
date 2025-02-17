@@ -155,26 +155,54 @@ void SetBorderData(container_node* Border, r32 Thickness, r32 Position, border_t
   BorderLeaf->Active      = true;
 }
 
-void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu)
+menu_tree* GetAlreadyMaximizedMenuTree(menu_interface* Interface)
+{
+  menu_tree* Menu = Interface->MenuSentinel.Next;
+  while(Menu != &Interface->MenuSentinel)
+  {
+    if(Menu->Maximized)
+    {
+      return Menu;
+    }
+    Menu = Menu->Next;
+  }
+  return 0;
+}
+
+void InitiateRootWindowDrag(menu_interface* Interface, container_node* Node)
+{
+  Assert(Node->Parent->Type == container_type::TabWindow);
+  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
+  *Position = GetPositionInRootWindow(Interface->MousePos, Node);
+  PushToUpdateQueue(Interface, Node, WindowDragUpdate, Position, true);
+}
+
+void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_node* TabHeader)
 {
   container_node* RootNode = Menu->Root;
   if(!Menu->Maximized)
   {
+    menu_tree* MaximizedMenu = GetAlreadyMaximizedMenuTree(Interface);
+    if(!MaximizedMenu)
+    {
 
-    root_border_collection Borders = GetRoorBorders(RootNode);
-    container_node* Body = GetBodyFromRoot(RootNode);
+      root_border_collection Borders = GetRoorBorders(RootNode);
+      container_node* Body = GetBodyFromRoot(RootNode);
 
-    Body->PreviousSibling = 0;
-    RootNode->FirstChild = Body;
-    
-    DeleteContainer(Interface, Borders.Left);
-    DeleteContainer(Interface, Borders.Right);
-    DeleteContainer(Interface, Borders.Top);
-    DeleteContainer(Interface, Borders.Bot);
+      Body->PreviousSibling = 0;
+      RootNode->FirstChild = Body;
+      
+      DeleteContainer(Interface, Borders.Left);
+      DeleteContainer(Interface, Borders.Right);
+      DeleteContainer(Interface, Borders.Top);
+      DeleteContainer(Interface, Borders.Bot);
 
-    Menu->CachedRegion = RootNode->FirstChild->Region;
-    Menu->Root->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
-    Menu->Maximized = true;
+      Menu->CachedRegion = RootNode->FirstChild->Region;
+      Menu->Root->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
+      Menu->Maximized = true;
+    }else{
+        InitiateRootWindowDrag(Interface, TabHeader);
+    }
   }else{
 
     rect2f Region = Menu->CachedRegion;
@@ -203,14 +231,7 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu)
     ConnectNodeToFront(RootNode, Border1);
     Menu->Maximized = false;
   }
-}
-
-void InitiateRootWindowDrag(menu_interface* Interface, container_node* Node)
-{
-  Assert(Node->Parent->Type == container_type::TabWindow);
-  mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
-  *Position = GetPositionInRootWindow(Interface->MousePos, Node);
-  PushToUpdateQueue(Interface, Node, WindowDragUpdate, Position, true);
+  UpdateFocusWindow(Interface);
 }
 
 MENU_UPDATE_FUNCTION(WindowDragUpdate)

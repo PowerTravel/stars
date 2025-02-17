@@ -666,7 +666,18 @@ void SetFocusWindow(menu_interface* Interface, menu_tree* Menu)
     if(Menu == Interface->MenuBar)
     {
       ListRemove( Menu );
-      ListInsertBefore(&Interface->MenuSentinel, Menu); 
+      ListInsertBefore(&Interface->MenuSentinel, Menu);
+    }
+    else if(Menu->Maximized)
+    {
+      if(Interface->MenuSentinel.Previous == Interface->MenuBar)
+      {
+        ListRemove(Menu);
+        ListInsertBefore(Interface->MenuSentinel.Previous, Menu);
+      }else{
+        ListRemove(Menu);
+        ListInsertBefore(&Interface->MenuSentinel, Menu);
+      }
     }else{
       if(Menu != Interface->MenuSentinel.Next)
       {
@@ -717,7 +728,7 @@ void FormatNodeString(container_node* Node, u32 BufferSize, c8 StringBuffer[])
   }
 }
 
-r32 PrintTree(u32 Count, container_node** HotLeafs, r32 YStart, r32 PixelSize, r32 HeightStep, r32 WidthStep, menu_tree* FocusWindow  )
+r32 PrintTree(menu_interface* Interface, u32 Count, container_node** HotLeafs, r32 YStart, r32 PixelSize, r32 HeightStep, r32 WidthStep, menu_tree* FocusWindow  )
 {
   container_node* Node = HotLeafs[0];
   r32 XOff = 0;
@@ -761,6 +772,11 @@ r32 PrintTree(u32 Count, container_node** HotLeafs, r32 YStart, r32 PixelSize, r
       if(FocusWindow && Sibling == FocusWindow->Root)
       {
         Color = V4(0,1,0,1);
+      }
+
+      if(Interface->SelectedPlugin == Sibling)
+      {
+        Color = V4(1,0,1,1);
       }
 
       u32 Attributes = Sibling->Attributes;
@@ -823,7 +839,6 @@ void PrintHotLeafs(menu_interface* Interface, r32 CanPosX, r32 CanPosY)
   r32 WidthStep  = 0.02;
   r32 YOff = 1 - 2*HeightStep;
   YOff = 0.5f;
-
   menu_tree* Menu = Interface->MenuSentinel.Next;
   menu_tree* FocusWindow = Interface->MenuInFocus;
   while(Menu != &Interface->MenuSentinel)
@@ -831,7 +846,7 @@ void PrintHotLeafs(menu_interface* Interface, r32 CanPosX, r32 CanPosY)
     UpdateHotLeafs(Interface, Menu);
     if(Menu->Visible && Menu->HotLeafCount > 0)
     {
-      YOff -= PrintTree(Menu->HotLeafCount, Menu->HotLeafs, YOff, TargetPixelSize, HeightStep, WidthStep, FocusWindow);
+      YOff -= PrintTree(Interface, Menu->HotLeafCount, Menu->HotLeafs, YOff, TargetPixelSize, HeightStep, WidthStep, FocusWindow);
     }
     Menu = Menu->Next;
   }
@@ -1836,11 +1851,11 @@ internal b32 CallMouseUpFunctions(menu_interface* Interface, menu_tree* Menu)
   return FunctionCalled;
 }
 
-internal void UpdateFocusWindow(menu_interface* Interface)
+void UpdateFocusWindow(menu_interface* Interface)
 {
   if(Interface->MouseLeftButton.Edge)
   {
-    if(Interface->MouseLeftButton.Active )
+    if(Interface->MouseLeftButton.Active)
     {
       menu_tree* MenuFocusWindow = 0;
       menu_tree* Menu = Interface->MenuSentinel.Next;
@@ -1888,29 +1903,33 @@ void UpdateSelectedPlugin(menu_interface* Interface)
   }
   menu_tree* TopMostWindow = Interface->MenuSentinel.Next;
   container_node* SelectedPlugin = 0;
-  if(TopMostWindow != &Interface->MenuSentinel && TopMostWindow->Visible)
+
+  while(TopMostWindow != &Interface->MenuSentinel)
   {
-    container_node* HotLeaf = 0;
-    if(TopMostWindow->HotLeafCount > 0)
+    if( TopMostWindow->Visible)
     {
-      HotLeaf = TopMostWindow->HotLeafs[0];
-    }
-
-    // Get the closest plugin
-    while(HotLeaf)
-    {
-      if(HotLeaf->Type == container_type::Plugin)
+      container_node* HotLeaf = 0;
+      if(TopMostWindow->HotLeafCount > 0)
       {
-        break;
+        HotLeaf = TopMostWindow->HotLeafs[0];
       }
-      HotLeaf = HotLeaf->Parent;
-    }
 
-    if(HotLeaf)
-    {
-      Assert(HotLeaf->Type == container_type::Plugin);
-      SelectedPlugin = HotLeaf;
+      // Get the closest plugin
+      while(HotLeaf)
+      {
+        if(HotLeaf->Type == container_type::Plugin)
+        {
+          Interface->SelectedPlugin = HotLeaf;
+          return;
+        }else if(HotLeaf->Type == container_type::TabWindow)
+        {
+          Interface->SelectedPlugin = 0;
+          return;
+        }
+        HotLeaf = HotLeaf->Parent;
+      }
     }
+    TopMostWindow = TopMostWindow->Next;
   }
 
   Interface->SelectedPlugin = SelectedPlugin;
@@ -2306,10 +2325,6 @@ MENU_EVENT_CALLBACK(HeaderMenuMouseExit)
   MenuColor->Color = MenuColor->RestingColor;
 }
 
-MENU_EVENT_CALLBACK(HeaderMenuMouseUp)
-{ 
-  //DisplayOrRemovePluginTab(Interface, (container_node*) Data);
-}
 
 MENU_EVENT_CALLBACK(DropDownMouseEnter)
 {

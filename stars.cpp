@@ -980,7 +980,12 @@ world InitiateWorld(application_render_commands* RenderCommands)
 
 MENU_DRAW(RenderScene)
 {
-  ecs::render::SetDrawWindowCanCord(GetRenderSystem(), Node->Region);
+  ecs::render::window_size_pixel* Window = &GetRenderSystem()->WindowSize;
+  r32 PixelSize = 1/Window->WindowWidth;
+  rect2f Region = Node->Region;
+  Region.X += PixelSize;
+  Region.Y += PixelSize;
+  ecs::render::SetDrawWindowCanCord(GetRenderSystem(), Region);
   ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
 }
 
@@ -1403,7 +1408,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   
   v3 WUp, WRight, WForward;
   GetCameraDirections(Camera, &WUp, &WRight, &WForward);
-  if(!GlobalState->World.MenuInterface->MenuVisible || IsPluginSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin))
+  if(!GlobalState->World.MenuInterface->MenuVisible || (IsPluginSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin) && IsFocusWindow(GlobalState->World.MenuInterface, GetMenu(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin))))
   {
     if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
     {
