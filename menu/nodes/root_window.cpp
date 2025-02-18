@@ -153,16 +153,6 @@ MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions)
   }
 }
 
-void SetBorderData(container_node* Border, r32 Thickness, r32 Position, border_type Type)
-{
-  Assert(Border->Type == container_type::Border);
-  border_leaf* BorderLeaf = GetBorderNode(Border);
-  BorderLeaf->Type        = Type;
-  BorderLeaf->Position    = Position;
-  BorderLeaf->Thickness   = Thickness;
-  BorderLeaf->Active      = true;
-}
-
 menu_tree* GetAlreadyMaximizedMenuTree(menu_interface* Interface)
 {
   menu_tree* Menu = Interface->MenuSentinel.Next;
@@ -209,7 +199,7 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_
       Menu->Root->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
       Menu->Maximized = true;
     }else{
-        InitiateRootWindowDrag(Interface, TabHeader);
+      InitiateRootWindowDrag(Interface, TabHeader);
     }
   }else{
 
@@ -241,43 +231,6 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_
   }
   UpdateFocusWindow(Interface);
 }
-
-MENU_UPDATE_FUNCTION(WindowDragUpdate)
-{
-  mouse_position_in_window* PosInWindow = (mouse_position_in_window*) Data;
-  menu_tree* Menu = GetMenu(Interface, CallerNode);
-  if(Menu->Maximized)
-  {
-    return false;
-  }
-
-  container_node* RootContainer = Menu->Root;
-  root_border_collection Borders = GetRoorBorders(RootContainer);
-
-  border_leaf* LeftBorder  = GetBorderNode(Borders.Left);
-  border_leaf* RightBorder = GetBorderNode(Borders.Right);
-  border_leaf* BotBorder   = GetBorderNode(Borders.Bot);
-  border_leaf* TopBorder   = GetBorderNode(Borders.Top);
-  
-  r32 Width  = RightBorder->Position - LeftBorder->Position;
-  r32 Height = TopBorder->Position   - BotBorder->Position;
-
-  r32 AspectRatio = GetAspectRatio(Interface);
-  v2 MousePos = V2(
-    Clamp(Interface->MousePos.X, 0, AspectRatio),
-    Clamp(Interface->MousePos.Y, 0, 1-Interface->HeaderSize - (Height - PosInWindow->RelativeWindow.Y)));
-  v2 BotLeftWindowPos = MousePos - PosInWindow->RelativeWindow;
-
-  LeftBorder->Position  = BotLeftWindowPos.X - LeftBorder->Thickness * 0.5;
-  RightBorder->Position = BotLeftWindowPos.X + Width - RightBorder->Thickness * 0.5;
-  BotBorder->Position   = BotLeftWindowPos.Y - LeftBorder->Thickness * 0.5;
-  TopBorder->Position   = BotLeftWindowPos.Y + Height - TopBorder->Thickness * 0.5;
-  
-  UpdateMergableAttribute(Interface, CallerNode);
-
-  return Interface->MouseLeftButton.Active;
-}
-
 
 internal rect2f GetMinimumRootWindowSize(root_border_collection* BorderCollection, r32 MinimumRegionWidth, r32 MinimumRegionHeight)
 {
@@ -312,4 +265,34 @@ menu_functions GetRootMenuFunctions()
   Result.UpdateChildRegions = DeclareFunction(menu_get_region, RootUpdateChildRegions);
   return Result;
 }
- 
+
+container_node* CreateRootContainer(menu_interface* Interface, container_node* BodyContainer, rect2f RootRegion)
+{ 
+  container_node* Root = NewContainer(Interface, container_type::Root);
+
+  r32 Thickness = Interface->BorderSize;
+
+  container_node* Border1 = CreateBorderNode(Interface, Interface->BorderColor);
+  ConnectNodeToBack(Root, Border1);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border1, 0, InitiateBorderDrag, 0);
+  SetBorderData(Border1, Thickness, RootRegion.X, border_type::LEFT);
+
+  container_node* Border2 = CreateBorderNode(Interface, Interface->BorderColor);
+  ConnectNodeToBack(Root, Border2);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border2, 0, InitiateBorderDrag, 0);
+  SetBorderData(Border2, Thickness, RootRegion.X + RootRegion.W, border_type::RIGHT);
+
+  container_node* Border3 = CreateBorderNode(Interface, Interface->BorderColor);
+  ConnectNodeToBack(Root, Border3);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border3, 0, InitiateBorderDrag, 0);
+  SetBorderData(Border3, Thickness, RootRegion.Y,  border_type::BOTTOM);
+  
+  container_node* Border4 = CreateBorderNode(Interface, Interface->BorderColor);
+  ConnectNodeToBack(Root, Border4);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border4, 0, InitiateBorderDrag, 0);
+  SetBorderData(Border4, Thickness, RootRegion.Y + RootRegion.H,  border_type::TOP);
+
+  ConnectNodeToBack(Root, BodyContainer);
+
+  return Root;
+}

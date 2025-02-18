@@ -77,6 +77,7 @@ struct container_node
   container_node* PreviousSibling;
 
   rect2f Region;
+  b32 Active;
 
   menu_functions Functions;
 };
@@ -147,3 +148,5 @@ void ReplaceNode(container_node* Out, container_node* In);
 void DisconnectNode(container_node* Node);
 container_node* ConnectNodeToBack(container_node* Parent, container_node* NewNode);
 container_node* ConnectNodeToFront(container_node* Parent, container_node* NewNode);
+u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, u32 MaxCount, container_node** Result);
+void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer);

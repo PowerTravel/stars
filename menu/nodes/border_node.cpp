@@ -75,3 +75,13 @@ void SetRootWindowRegion(menu_tree* MenuTree, rect2f Region)
   GetBorderNode(Borders.Top)->Position = Region.Y + Region.H;
 }
 
+
+void SetBorderData(container_node* Border, r32 Thickness, r32 Position, border_type Type)
+{
+  Assert(Border->Type == container_type::Border);
+  border_leaf* BorderLeaf = GetBorderNode(Border);
+  BorderLeaf->Type        = Type;
+  BorderLeaf->Position    = Position;
+  BorderLeaf->Thickness   = Thickness;
+  BorderLeaf->Active      = true;
+}

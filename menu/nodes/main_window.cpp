@@ -1,24 +1,24 @@
 #include "main_window.h"
 #include "menu_interface.h"
 
-menu_functions GetMainWindowFunctions()
-{
-  menu_functions Result = GetDefaultFunctions();
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region, MainWindowUpdate);
-  return Result;
-}
-
 menu_tree* CreateMainWindow(menu_interface* Interface){
 
   menu_tree* MainWindow = NewMenuTree(Interface);
   MainWindow->Visible = true;
   MainWindow->Maximized = true;
   MainWindow->Root = NewContainer(Interface, container_type::MainWindow);
+  MainWindow->Root->Region = Rect2f(0,0,GetAspectRatio(Interface),1);
 
-  main_window_node* MainWindowNode = GetMainWindowNode(MainWindow->Root);
-  MainWindowNode->HeaderSize = Interface->HeaderSize;
   {
     container_node* HeaderBar = ConnectNodeToBack(MainWindow->Root, NewContainer(Interface));
+
+    size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_SIZE);
+    SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, 1);
+    SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, Interface->HeaderSize);
+    SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+    SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+    SizeAttr->XAlignment = menu_region_alignment::LEFT;
+    SizeAttr->YAlignment = menu_region_alignment::TOP;
 
     color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_COLOR);
 
@@ -37,6 +37,13 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
 
   { // Main Menu Body
     container_node* Body = ConnectNodeToBack(MainWindow->Root, NewContainer(Interface));
+    size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, Body, ATTRIBUTE_SIZE);
+    SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, 1);
+    SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, 1-Interface->HeaderSize);
+    SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+    SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+    SizeAttr->XAlignment = menu_region_alignment::LEFT;
+    SizeAttr->YAlignment = menu_region_alignment::BOT;
   }
 
   return MainWindow;
@@ -150,4 +157,117 @@ MENU_EVENT_CALLBACK(HeaderMenuMouseExit)
 {
   color_attribute* MenuColor = (color_attribute*) GetAttributePointer(CallerNode, ATTRIBUTE_COLOR);
   MenuColor->Color = MenuColor->RestingColor;
+}
+
+menu_tree* CreateNewDropDownMenuItem(menu_interface* Interface, const c8* Name)
+{
+  ecs::render::system* RenderSystem = GetRenderSystem();
+  ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(RenderSystem);
+  r32 PixelFontHeight = ecs::render::GetLineSpacingPixelSpace(RenderSystem, Interface->HeaderFontSize);
+  r32 CanonicalFontHeight = Interface->HeaderSize;
+  v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(RenderSystem, Interface->HeaderFontSize, (utf8_byte*) Name);
+
+  container_node* MainSettingBar =  Interface->MenuBar->Root->FirstChild;
+  container_node* DropDownContainer = MainSettingBar->FirstChild;
+  Assert(DropDownContainer->Type == container_type::Grid);
+
+  container_node* NewMenu = ConnectNodeToBack(DropDownContainer, NewContainer(Interface));
+
+  color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_COLOR);
+  ColorAttr->Color = Interface->MenuColor;
+  ColorAttr->RestingColor = ColorAttr->Color;
+  ColorAttr->HighlightedColor = ColorAttr->Color*1.5;
+
+  size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_SIZE);
+  SizeAttr->Width = ContainerSizeT(menu_size_type::ABSOLUTE_, TextSize.X * 1.2f);
+  SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, CanonicalFontHeight);
+  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+  SizeAttr->XAlignment = menu_region_alignment::CENTER;
+  SizeAttr->YAlignment = menu_region_alignment::CENTER;
+
+  text_attribute* Text = (text_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_TEXT);
+  jstr::CopyStringsUnchecked(Name, Text->Text);
+  Text->FontSize = Interface->HeaderFontSize;
+  Text->Color = Interface->TextColor;
+
+  menu_tree* ViewMenuRoot = NewMenuTree(Interface);
+  ViewMenuRoot->Root = NewContainer(Interface);
+  ViewMenuRoot->Root->Region = {};
+  ViewMenuRoot->LosingFocus = DeclareFunction(menu_losing_focus, DropDownLosingFocus);
+  ViewMenuRoot->GainingFocus = DeclareFunction(menu_losing_focus, DropDownGainingFocus);
+
+  container_node* ViewMenuItems = ConnectNodeToBack(ViewMenuRoot->Root, NewContainer(Interface, container_type::Grid));
+  grid_node* Grid = GetGridNode(ViewMenuItems);
+  Grid->Col = 1;
+  Grid->Row = 0;
+  Grid->TotalMarginX = 0.0;
+  Grid->TotalMarginY = 0.0;
+
+  color_attribute* ViewMenuColor = (color_attribute*) PushAttribute(Interface, ViewMenuRoot->Root, ATTRIBUTE_COLOR);
+  ViewMenuColor->Color = Interface->MenuColor;
+  ViewMenuColor->HighlightedColor = Interface->MenuColor;
+  ViewMenuColor->RestingColor = Interface->MenuColor;
+
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown,  NewMenu, (void*) ViewMenuRoot, DropDownMenuButton, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseEnter, NewMenu, (void*) ViewMenuRoot, HeaderMenuMouseEnter, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseExit,  NewMenu, (void*) ViewMenuRoot, HeaderMenuMouseExit, 0);
+
+  return ViewMenuRoot;
+}
+
+MENU_EVENT_CALLBACK(DropDownMouseEnter)
+{
+  color_attribute* MenuColor = (color_attribute*) GetAttributePointer(CallerNode, ATTRIBUTE_COLOR);
+  MenuColor->Color = MenuColor->HighlightedColor;
+}
+
+MENU_EVENT_CALLBACK(DropDownMouseExit)
+{
+  color_attribute* MenuColor = (color_attribute*) GetAttributePointer(CallerNode, ATTRIBUTE_COLOR);
+  MenuColor->Color = MenuColor->RestingColor;
+}
+
+MENU_LOSING_FOCUS(DropDownLosingFocus)
+{
+  Menu->Visible = false;
+}
+
+MENU_GAINING_FOCUS(DropDownGainingFocus)
+{
+  Menu->Visible = true;
+
+}
+
+void AddPlugintoMainMenu(menu_interface* Interface, menu_tree* DropDownMenu, container_node* Plugin)
+{
+  container_node* DropDownGrid = DropDownMenu->Root->FirstChild;
+  Assert(DropDownGrid->Type == container_type::Grid);
+  Assert(Plugin->Type == container_type::Plugin);
+
+  container_node* MenuItem = ConnectNodeToBack(DropDownGrid, NewContainer(Interface));
+  text_attribute* MenuText = (text_attribute*) PushAttribute(Interface, MenuItem, ATTRIBUTE_TEXT);
+  jstr::CopyStringsUnchecked(GetPluginNode(Plugin)->Title, MenuText->Text);
+  MenuText->FontSize = Interface->BodyFontSize;
+  MenuText->Color = Interface->TextColor;
+
+  color_attribute* DropDownColor = (color_attribute*) PushAttribute(Interface, MenuItem, ATTRIBUTE_COLOR);
+  DropDownColor->Color = Interface->MenuColor;
+  DropDownColor->HighlightedColor = Interface->MenuColor * 1.5;
+  DropDownColor->RestingColor = Interface->MenuColor;
+
+  v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), Interface->BodyFontSize, (utf8_byte*)GetPluginNode(Plugin)->Title );
+  DropDownMenu->Root->Region.H += TextSize.Y*2;
+  DropDownMenu->Root->Region.W = DropDownMenu->Root->Region.W >= TextSize.X*1.2 ? DropDownMenu->Root->Region.W : TextSize.X*1.2;
+
+  container_node* Tab = CreateTab(Interface, Plugin);
+
+  Interface->PermanentWindows[Interface->PermanentWindowCount++] = Tab;
+
+  RegisterMenuEvent(Interface, menu_event_type::MouseUp,    MenuItem, Tab, DropDownMouseUp, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseEnter, MenuItem, Tab, DropDownMouseEnter, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseExit,  MenuItem, Tab, DropDownMouseExit, 0);
+
+  Assert(Interface->MainMenuTabCount < ArrayCount(Interface->MainMenuTabs));
+  Interface->MainMenuTabs[Interface->MainMenuTabCount++] = DropDownMenu;
 }

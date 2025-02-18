@@ -16,7 +16,6 @@ struct menu_tree;
 
 menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 AspectRatio);
 void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interface* Interface);
-
 void _PushToFinalDrawQueue(menu_tree* Menu, container_node* Node, menu_draw** Draw)
 {
   Assert(Menu->FinalRenderCount < ArrayCount(Menu->FinalRenderFunctions));

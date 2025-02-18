@@ -11,15 +11,6 @@ MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions)
   }
 }
 
-
-MENU_UPDATE_CHILD_REGIONS(MainWindowUpdate)
-{
-  container_node* Header = Parent->FirstChild;
-  Header->Region = Rect2f(0,1-Interface->HeaderSize, GetAspectRatio(Interface), Interface->HeaderSize);
-  container_node* Body = Header->NextSibling;
-  Body->Region = Rect2f(0,0,GetAspectRatio(Interface), 1-Interface->HeaderSize);
-}
-
 MENU_UPDATE_CHILD_REGIONS(MainHeaderUpdate)
 {
   container_node* Header = Parent->FirstChild;

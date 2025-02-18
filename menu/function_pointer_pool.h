@@ -8,8 +8,6 @@ MENU_LOSING_FOCUS(DropDownLosingFocus);
 MENU_LOSING_FOCUS(DefaultGainingFocus);
 MENU_GAINING_FOCUS(DropDownGainingFocus);
 
-MENU_UPDATE_CHILD_REGIONS(MainWindowUpdate);
-
 MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions);
 MENU_UPDATE_CHILD_REGIONS(MainHeaderUpdate);
 MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions);
@@ -61,7 +59,6 @@ void _ReinitiatePool(function_pool* Pool)
   for (u32 Index = 0; Index < PoolSize; ++Index)
   {
     function_ptr* Function = &Pool->Functions[Index];
-    NewFunPtr(MainWindowUpdate)
     NewFunPtr(DefaultLosingFocus)
     NewFunPtr(DropDownLosingFocus)
     NewFunPtr(DefaultGainingFocus)

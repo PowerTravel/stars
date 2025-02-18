@@ -20,6 +20,7 @@ struct border_leaf
 };
 
 inline border_leaf* GetBorderNode(container_node* Container);
+void SetBorderData(container_node* Border, r32 Thickness, r32 Position, border_type Type);
 container_node* CreateBorderNode(menu_interface* Interface, v4 Color);
 
 void SetRootWindowRegion(menu_tree* MenuTree, rect2f Region);

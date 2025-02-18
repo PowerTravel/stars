@@ -169,12 +169,11 @@ rect2f GetSizedParentRegion(size_attribute* SizeAttr, rect2f BaseRegion)
   {
     case menu_region_alignment::TOP:
     {
-      //Result.Y = BaseRegion.Y + BaseRegion.H - Result.Y;
-      Result.Y = BaseRegion.Y;
+      Result.Y = BaseRegion.Y + BaseRegion.H - Result.H;
     }break;
     case menu_region_alignment::BOT:
     {
-      Result.Y = BaseRegion.Y + BaseRegion.H - Result.Y;
+      Result.Y = BaseRegion.Y;
     }break;
     case menu_region_alignment::CENTER:
     {

@@ -1089,20 +1089,20 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
     
     GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
-    #if 0
     menu_interface* Interface = GlobalState->World.MenuInterface;
-    menu_tree* WindowsDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Windows");
-    menu_tree* TestDropDownMenu = RegisterMenu(GlobalState->World.MenuInterface, "Test");
+    menu_tree* WindowsDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Windows");
+    menu_tree* TestDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Test");
     {
       // Create Scene Window
       container_node* SceneContainer =  NewContainer(Interface);
       
       SceneContainer->Functions.Draw = DeclareFunction(menu_draw, RenderScene);
 
-      container_node* ScenePlugin = CreatePlugin(Interface, WindowsDropDownMenu, "Scene", Interface->MenuColor, SceneContainer);
+      container_node* ScenePlugin = CreatePlugin(Interface, WindowsDropDownMenu, "Scene", SceneContainer);
 
       GlobalState->World.ScenePlugin = ScenePlugin;
     }
+    #if 1
     {
       container_node* SettingsPlugin = 0;
       // Create Option Window
@@ -1116,7 +1116,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
       BackgroundColor->Color = V4(0.2,0,0,1);
 
-      SettingsPlugin = CreatePlugin(Interface,WindowsDropDownMenu, "Settings",  Interface->MenuColor, EntityContainer);
+      SettingsPlugin = CreatePlugin(Interface,WindowsDropDownMenu, "Settings", EntityContainer);
       
     }
     {
@@ -1132,7 +1132,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
       BackgroundColor->Color = V4(0,0.3,0,1);
 
-      SettingsPlugin = CreatePlugin(Interface, TestDropDownMenu, "Test2", Interface->MenuColor, EntityContainer);
+      SettingsPlugin = CreatePlugin(Interface, TestDropDownMenu, "Test2", EntityContainer);
     }
     
     #endif
@@ -1409,7 +1409,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   
   v3 WUp, WRight, WForward;
   GetCameraDirections(Camera, &WUp, &WRight, &WForward);
-//  if(!GlobalState->World.MenuInterface->MenuVisible || (IsPluginSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin) && IsFocusWindow(GlobalState->World.MenuInterface, GetMenu(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin))))
+  if(!GlobalState->World.MenuInterface->MenuVisible || (IsPluginSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin) && IsFocusWindow(GlobalState->World.MenuInterface, GetMenu(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin))))
   {
     if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
     {

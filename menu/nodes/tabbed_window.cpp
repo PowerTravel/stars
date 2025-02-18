@@ -212,7 +212,7 @@ internal void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab
 }
 
 
-b32 TabDrag(menu_interface* Interface, container_node* Tab)
+internal b32 TabDrag(menu_interface* Interface, container_node* Tab)
 {
   Assert(Tab->Type == container_type::Tab);
 
@@ -330,9 +330,9 @@ container_node* CreateTab(menu_interface* Interface, container_node* Plugin)
   container_node* Tab = NewContainer(Interface, container_type::Tab);  
 
   color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, Tab, ATTRIBUTE_COLOR);
-  ColorAttr->Color = PluginNode->Color;
-  ColorAttr->RestingColor = PluginNode->Color;
-  ColorAttr->HighlightedColor = PluginNode->Color * 1.5;
+  ColorAttr->Color = Interface->MenuColor;
+  ColorAttr->RestingColor = Interface->MenuColor;
+  ColorAttr->HighlightedColor = Interface->MenuColor * 1.5;
 
   GetTabNode(Tab)->Payload = Plugin;
   PluginNode->Tab = Tab;
@@ -365,15 +365,243 @@ plugin_node* GetPluginNode(container_node* Container)
   plugin_node* Result = (plugin_node*) GetContainerPayload(Container);
   return Result;
 }
+
 tab_window_node* GetTabWindowNode(container_node* Container)
 {
   Assert(Container->Type == container_type::TabWindow);
   tab_window_node* Result = (tab_window_node*) GetContainerPayload(Container);
   return Result;
 }
+
 tab_node* GetTabNode(container_node* Container)
 {
   Assert(Container->Type == container_type::Tab);
   tab_node* Result = (tab_node*) GetContainerPayload(Container);
   return Result;
+}
+
+
+internal u32 FillArrayWithTabs(u32 MaxArrSize, container_node* TabArr[], menu_tree* Menu)
+{
+  container_node* StartNode = GetBodyFromRoot(Menu->Root);
+  SCOPED_TRANSIENT_ARENA;
+  u32 StackCount = 0;
+  u32 TabCount = 0;
+
+  container_node** ContainerStack = PushArray(GlobalTransientArena, MaxArrSize, container_node*);
+
+  // Push StartNode
+  ContainerStack[StackCount++] = StartNode;
+
+  while(StackCount>0)
+  {
+    // Pop new parent from Stack
+    container_node* Parent = ContainerStack[--StackCount];
+    ContainerStack[StackCount] = 0;
+
+    // Update the region of all children and push them to the stack
+    if(Parent->Type == container_type::Split)
+    {
+      ContainerStack[StackCount++] = Next(Parent->FirstChild);
+      ContainerStack[StackCount++] = Next(Next(Parent->FirstChild));
+    }else if(Parent->Type == container_type::TabWindow)
+    {
+      ContainerStack[StackCount++] = GetTabGridFromWindow(Parent);
+    }else if(Parent->Type == container_type::Grid)
+    {
+      container_node* Tab = Parent->FirstChild;
+      Assert(Tab->Type == container_type::Tab);
+      while(Tab)
+      {
+        container_node* TabToMove = Tab;
+        Tab = Next(Tab);
+        
+        tab_node* TabNode = GetTabNode(TabToMove);
+        if(TabNode->Payload->Type == container_type::Plugin)
+        {
+          PopTab(TabToMove);
+          TabArr[TabCount++] = TabToMove;
+        }else{
+          ContainerStack[StackCount++] = TabNode->Payload;
+        }
+      }
+      Assert(TabCount < MaxArrSize);
+    }else{
+      INVALID_CODE_PATH;
+    }
+  }
+  return TabCount;
+}
+
+internal void UpdateMergableAttribute( menu_interface* Interface, container_node* Node )
+{
+  container_node* TabWindow = GetTabWindowFromOtherMenu(Interface, Node);
+  if(!TabWindow)
+  {
+    return;
+  }
+  tab_window_node* TabWindowNode = GetTabWindowNode(TabWindow);
+  TabWindowNode->HotMergeZone = merge_zone::NONE;
+  if(TabWindow)
+  {
+    rect2f Rect = TabWindow->Region;
+    r32 W = Rect.W;
+    r32 H = Rect.H;
+    r32 S = Minimum(W,H)/4;
+
+    v2 CP = CenterPoint(Rect);  // Middle Point
+    v2 LS = V2(CP.X-S, CP.Y);   // Left Square
+    v2 RS = V2(CP.X+S, CP.Y);   // Right Square
+    v2 BS = V2(CP.X,   CP.Y-S); // Bot Square
+    v2 TS = V2(CP.X,   CP.Y+S); // Top Square
+
+    TabWindowNode->MergeZone[(u32) merge_zone::CENTER] = Rect2f(CP.X-S/2.f, CP.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::LEFT]   = Rect2f(LS.X-S/2.f, LS.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::RIGHT]  = Rect2f(RS.X-S/2.f, RS.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::TOP]    = Rect2f(BS.X-S/2.f, BS.Y-S/2.f,S/1.1f,S/1.1f);
+    TabWindowNode->MergeZone[(u32) merge_zone::BOT]    = Rect2f(TS.X-S/2.f, TS.Y-S/2.f,S/1.1f,S/1.1f);
+
+    if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::CENTER)], Interface->MousePos))
+    {
+      TabWindowNode->HotMergeZone = merge_zone::CENTER;
+    }else if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::LEFT)], Interface->MousePos)){
+      TabWindowNode->HotMergeZone = merge_zone::LEFT;
+    }else if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::RIGHT)], Interface->MousePos)){
+      TabWindowNode->HotMergeZone = merge_zone::RIGHT;
+    }else if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::TOP)], Interface->MousePos)){
+      TabWindowNode->HotMergeZone = merge_zone::TOP;
+    }else if(Intersects(TabWindowNode->MergeZone[EnumToIdx(merge_zone::BOT)], Interface->MousePos)){
+      TabWindowNode->HotMergeZone = merge_zone::BOT;
+    }else{
+      TabWindowNode->HotMergeZone = merge_zone::HIGHLIGHTED;
+    }
+  }
+
+  if(Interface->MouseLeftButton.Edge &&
+    !Interface->MouseLeftButton.Active )
+  {
+    merge_zone MergeZone = TabWindowNode->HotMergeZone;
+    container_node* TabWindowToAccept = TabWindow;
+    container_node* NodeToInsert = Node;
+    switch(TabWindowNode->HotMergeZone)
+    {
+      case merge_zone::CENTER:
+      {
+        menu_tree* MenuToRemove = GetMenu(Interface, NodeToInsert);
+
+        Assert(TabWindowToAccept->Type == container_type::TabWindow);
+
+        container_node* TabArr[64] = {};
+        u32 TabCount = FillArrayWithTabs(ArrayCount(TabArr), TabArr, MenuToRemove);
+
+        for(u32 Index = 0; Index < TabCount; ++Index)
+        {
+          container_node* TabToMove = TabArr[Index];
+          PushTab(TabWindowToAccept, TabToMove);
+        }
+
+        SetTabAsActive(TabArr[TabCount-1]);
+        
+        FreeMenuTree(Interface, MenuToRemove);
+        TabWindowNode->HotMergeZone = merge_zone::NONE;
+      }break;
+      case merge_zone::LEFT:    // Fallthrough 
+      case merge_zone::RIGHT:   // Fallthrough
+      case merge_zone::TOP:     // Fallthrough
+      case merge_zone::BOT:
+      {
+        menu_tree* MenuToRemove = GetMenu(Interface, NodeToInsert);
+        menu_tree* MenuToRemain = GetMenu(Interface, TabWindowToAccept);
+
+        while(NodeToInsert && NodeToInsert->Type != container_type::Split)
+        {
+          NodeToInsert = NodeToInsert->Parent;
+        }
+        if(!NodeToInsert)
+        {
+          NodeToInsert = GetBodyFromRoot(MenuToRemove->Root);
+          Assert(NodeToInsert->Type == container_type::TabWindow);
+        }else{
+          Assert(NodeToInsert->Type == container_type::Split);
+        }
+        
+        Assert(TabWindowToAccept->Type == container_type::TabWindow);
+
+        DisconnectNode(NodeToInsert);
+
+        b32 Vertical = (TabWindowNode->HotMergeZone == merge_zone::LEFT || TabWindowNode->HotMergeZone == merge_zone::RIGHT);
+
+        container_node* SplitNode = CreateSplitWindow(Interface, Vertical, 0.5);
+        ReplaceNode(TabWindowToAccept, SplitNode);
+
+        b32 VisitorIsFirstChild = (TabWindowNode->HotMergeZone == merge_zone::LEFT || TabWindowNode->HotMergeZone == merge_zone::TOP);
+        if(VisitorIsFirstChild)
+        {
+          ConnectNodeToBack(SplitNode, NodeToInsert);
+          ConnectNodeToBack(SplitNode, TabWindowToAccept);
+        }else{
+          ConnectNodeToBack(SplitNode, TabWindowToAccept);
+          ConnectNodeToBack(SplitNode, NodeToInsert);
+        }
+
+        FreeMenuTree(Interface, MenuToRemove);
+        TabWindowNode->HotMergeZone = merge_zone::NONE;
+      }break;
+    }
+  }
+
+  if(!Interface->MouseLeftButton.Active)
+  {
+    TabWindowNode->HotMergeZone = merge_zone::NONE;
+  }
+}
+
+
+MENU_UPDATE_FUNCTION(WindowDragUpdate)
+{
+  mouse_position_in_window* PosInWindow = (mouse_position_in_window*) Data;
+  menu_tree* Menu = GetMenu(Interface, CallerNode);
+  if(Menu->Maximized)
+  {
+    return false;
+  }
+
+  container_node* RootContainer = Menu->Root;
+  root_border_collection Borders = GetRoorBorders(RootContainer);
+
+  border_leaf* LeftBorder  = GetBorderNode(Borders.Left);
+  border_leaf* RightBorder = GetBorderNode(Borders.Right);
+  border_leaf* BotBorder   = GetBorderNode(Borders.Bot);
+  border_leaf* TopBorder   = GetBorderNode(Borders.Top);
+  
+  r32 Width  = RightBorder->Position - LeftBorder->Position;
+  r32 Height = TopBorder->Position   - BotBorder->Position;
+
+  r32 AspectRatio = GetAspectRatio(Interface);
+  v2 MousePos = V2(
+    Clamp(Interface->MousePos.X, 0, AspectRatio),
+    Clamp(Interface->MousePos.Y, 0, 1-Interface->HeaderSize - (Height - PosInWindow->RelativeWindow.Y)));
+  v2 BotLeftWindowPos = MousePos - PosInWindow->RelativeWindow;
+
+  LeftBorder->Position  = BotLeftWindowPos.X - LeftBorder->Thickness * 0.5;
+  RightBorder->Position = BotLeftWindowPos.X + Width - RightBorder->Thickness * 0.5;
+  BotBorder->Position   = BotLeftWindowPos.Y - LeftBorder->Thickness * 0.5;
+  TopBorder->Position   = BotLeftWindowPos.Y + Height - TopBorder->Thickness * 0.5;
+  
+  UpdateMergableAttribute(Interface, CallerNode);
+
+  return Interface->MouseLeftButton.Active;
+}
+
+container_node* CreatePlugin(menu_interface* Interface, menu_tree* WindowsDropDownMenu, c8* HeaderName, container_node* BodyNode)
+{
+  container_node* Plugin = NewContainer(Interface, container_type::Plugin);
+  plugin_node* PluginNode = GetPluginNode(Plugin);
+  jstr::CopyStringsUnchecked(HeaderName, PluginNode->Title);
+
+  ConnectNodeToBack(Plugin, BodyNode);
+
+  AddPlugintoMainMenu(Interface, WindowsDropDownMenu, Plugin);
+
+  return Plugin;
 }

@@ -14,12 +14,12 @@ u32 GetContainerPayloadSize(container_type Type)
     case container_type::None:
     case container_type::Split:
     case container_type::Root:
-    case container_type::MainWindow:return 0;
-    case container_type::Border:    return sizeof(border_leaf);
-    case container_type::Grid:      return sizeof(grid_node);
-    case container_type::TabWindow: return sizeof(tab_window_node);
-    case container_type::Tab:       return sizeof(tab_node);
-    case container_type::Plugin:    return sizeof(plugin_node);
+    case container_type::MainWindow: return 0;
+    case container_type::Border:     return sizeof(border_leaf);
+    case container_type::Grid:       return sizeof(grid_node);
+    case container_type::TabWindow:  return sizeof(tab_window_node);
+    case container_type::Tab:        return sizeof(tab_node);
+    case container_type::Plugin:     return sizeof(plugin_node);
     default: INVALID_CODE_PATH;
   }
   return 0;
@@ -45,7 +45,7 @@ menu_functions GetMenuFunction(container_type Type)
   switch(Type)
   {   
     case container_type::None:       return GetDefaultFunctions();
-    case container_type::MainWindow: return GetMainWindowFunctions();
+    case container_type::MainWindow: return GetDefaultFunctions();
     case container_type::Root:       return GetRootMenuFunctions();
     case container_type::Border:     return GetDefaultFunctions();
     case container_type::Split:      return GetSplitFunctions();
@@ -69,6 +69,7 @@ container_node* NewContainer(menu_interface* Interface, container_type Type)
   container_node* Result = (container_node*) Allocate(&Interface->LinkedMemory, ContainerSize);
   Result->Type = Type;
   Result->Functions = GetMenuFunction(Type);
+  Result->Active = true;
 
   return Result;
 }
@@ -248,6 +249,92 @@ void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_args
           FreeMemory(&Interface->LinkedMemory, Entry->Data);
         }
         *Entry = {};
+      }
+    }
+  }
+}
+
+
+u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, u32 MaxCount, container_node** Result)
+{
+  u32 StackElementSize = sizeof(container_node*);
+  u32 StackByteSize = NodeCount * StackElementSize;
+
+  u32 StackCount = 0;
+  temporary_memory TempMem = BeginTemporaryMemory(GlobalTransientArena);
+  container_node** ContainerStack = PushArray(GlobalTransientArena, NodeCount, container_node*);
+
+  u32 IntersectingLeafCount = 0;
+
+  // Push Root
+  ContainerStack[StackCount++] = Container;
+
+  while(StackCount>0)
+  {
+    // Pop new parent from Stack
+    container_node* Parent = ContainerStack[--StackCount];
+    ContainerStack[StackCount] = 0;
+
+    // Check if mouse is inside the child region and push those to the stack.
+    if(Intersects(Parent->Region, MousePos))
+    {
+      u32 IntersectingChildren = 0;
+      container_node* Child = Parent->FirstChild;
+      while(Child)
+      {
+        if(Intersects(Child->Region, MousePos))
+        {
+          ContainerStack[StackCount++] = Child;
+          IntersectingChildren++;
+        }
+        Child = Next(Child);
+      }  
+
+      if(IntersectingChildren==0)
+      {
+        Assert(IntersectingLeafCount < MaxCount);
+        Result[IntersectingLeafCount++] = Parent;
+      }
+    }
+  }
+  EndTemporaryMemory(TempMem);
+  return IntersectingLeafCount;
+}
+
+void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer)
+{
+  Assert(!RootContainer->Parent);
+  SCOPED_TRANSIENT_ARENA;
+
+  u32 StackElementSize = sizeof(container_node*);
+  u32 StackByteSize = ContainerCount * StackElementSize;
+
+  u32 StackCount = 0;
+  container_node** ContainerStack = PushArray(GlobalTransientArena, ContainerCount, container_node*);
+
+  // Push Root
+  ContainerStack[StackCount++] = RootContainer;
+
+  while(StackCount>0)
+  {
+    // Pop new parent from Stack
+    container_node* Parent = ContainerStack[--StackCount];
+    ContainerStack[StackCount] = 0;
+    if(Parent->Active)
+    {
+      if(HasAttribute(Parent, ATTRIBUTE_SIZE))
+      {
+        size_attribute* SizeAttr = (size_attribute*) GetAttributePointer(Parent, ATTRIBUTE_SIZE);
+        Parent->Region = GetSizedParentRegion(SizeAttr, Parent->Region);
+      }
+
+      // Update the region of all children and push them to the stack
+      CallFunctionPointer(Parent->Functions.UpdateChildRegions, Interface, Parent);
+      container_node* Child = Parent->FirstChild;
+      while(Child)
+      {
+        ContainerStack[StackCount++] = Child;
+        Child = Next(Child);
       }
     }
   }

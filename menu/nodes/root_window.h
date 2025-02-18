@@ -8,7 +8,6 @@ struct root_node
   r32 FooterSize;
 };
 
-
 union root_border_collection {
   struct {
     container_node* Left;
@@ -18,6 +17,9 @@ union root_border_collection {
   };
   container_node* E[4];
 };
+
+container_node* CreateRootContainer(menu_interface* Interface, container_node* BodyContainer, rect2f RootRegion);
+menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f MaxRegion);
 
 root_border_collection GetRoorBorders(container_node* RootContainer);
 void SetBorderData(container_node* Border, r32 Thickness, r32 Position, border_type Type);
@@ -35,4 +37,3 @@ MENU_UPDATE_FUNCTION(RootBorderDragUpdate);
 MENU_EVENT_CALLBACK(InitiateBorderDrag);
 
 menu_functions GetRootMenuFunctions();
-menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* BaseWindow, rect2f MaxRegion);
