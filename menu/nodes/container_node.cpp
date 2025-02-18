@@ -69,7 +69,6 @@ container_node* NewContainer(menu_interface* Interface, container_type Type)
   container_node* Result = (container_node*) Allocate(&Interface->LinkedMemory, ContainerSize);
   Result->Type = Type;
   Result->Functions = GetMenuFunction(Type);
-  Result->Active = true;
 
   return Result;
 }
@@ -320,22 +319,19 @@ void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount,
     // Pop new parent from Stack
     container_node* Parent = ContainerStack[--StackCount];
     ContainerStack[StackCount] = 0;
-    if(Parent->Active)
+    if(HasAttribute(Parent, ATTRIBUTE_SIZE))
     {
-      if(HasAttribute(Parent, ATTRIBUTE_SIZE))
-      {
-        size_attribute* SizeAttr = (size_attribute*) GetAttributePointer(Parent, ATTRIBUTE_SIZE);
-        Parent->Region = GetSizedParentRegion(SizeAttr, Parent->Region);
-      }
+      size_attribute* SizeAttr = (size_attribute*) GetAttributePointer(Parent, ATTRIBUTE_SIZE);
+      Parent->Region = GetSizedParentRegion(SizeAttr, Parent->Region);
+    }
 
-      // Update the region of all children and push them to the stack
-      CallFunctionPointer(Parent->Functions.UpdateChildRegions, Interface, Parent);
-      container_node* Child = Parent->FirstChild;
-      while(Child)
-      {
-        ContainerStack[StackCount++] = Child;
-        Child = Next(Child);
-      }
+    // Update the region of all children and push them to the stack
+    CallFunctionPointer(Parent->Functions.UpdateChildRegions, Interface, Parent);
+    container_node* Child = Parent->FirstChild;
+    while(Child)
+    {
+      ContainerStack[StackCount++] = Child;
+      Child = Next(Child);
     }
   }
 }

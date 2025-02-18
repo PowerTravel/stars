@@ -5,7 +5,6 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
 
   menu_tree* MainWindow = NewMenuTree(Interface);
   MainWindow->Visible = true;
-  MainWindow->Maximized = true;
   MainWindow->Root = NewContainer(Interface, container_type::MainWindow);
   MainWindow->Root->Region = Rect2f(0,0,GetAspectRatio(Interface),1);
 

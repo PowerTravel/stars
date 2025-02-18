@@ -6,6 +6,8 @@ struct root_node
 {
   r32 HeaderSize;
   r32 FooterSize;
+  b32 Maximized;
+  rect2f CachedRegion;
 };
 
 union root_border_collection {

@@ -42,48 +42,44 @@ void DrawMenu(memory_arena* Arena, menu_interface* Interface, menu_tree* Menu)
     container_node* Parent = ContainerStack[--StackCount];
     ContainerStack[StackCount] = 0;
 
-    if(Parent->Active)
+    if(HasAttribute(Parent, ATTRIBUTE_COLOR))
     {
-
-
-      if(HasAttribute(Parent, ATTRIBUTE_COLOR))
-      {
-        color_attribute* Color = (color_attribute*) GetAttributePointer(Parent, ATTRIBUTE_COLOR);
-        rect2f DrawRegion = ecs::render::RectCenterBotLeft(Parent->Region);
-        ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), DrawRegion, Color->Color);
-      }
-
-      if(Parent->Functions.Draw)
-      {
-        CallFunctionPointer(Parent->Functions.Draw, Interface, Parent);  
-      }
-
-      if(HasAttribute(Parent, ATTRIBUTE_TEXT))
-      {
-        text_attribute* Text = (text_attribute*) GetAttributePointer(Parent, ATTRIBUTE_TEXT);
-        v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), Text->FontSize, (utf8_byte*) Text->Text);
-        ecs::render::system* RenderSystem = GetRenderSystem();
-        ecs::render::window_size_pixel Window = GetWindowSize(RenderSystem);
-
-        r32 X0 = (Parent->Region.X + Parent->Region.W/2.f) - TextSize.X/2.f;
-        r32 Y0 = (Parent->Region.Y + Parent->Region.H/2.f) - TextSize.Y/3.f;
-        ecs::render::DrawTextCanonicalSpace(RenderSystem, V2(X0, Y0), Text->FontSize,  (utf8_byte*)Text->Text, Text->Color);
-      }
-
-      if(HasAttribute(Parent, ATTRIBUTE_TEXTURE))
-      {
-        texture_attribute* Texture = (texture_attribute*) GetAttributePointer(Parent, ATTRIBUTE_TEXTURE);
-        ecs::render::DrawTexturedOverlayQuadCanonicalSpace(GetRenderSystem(), Parent->Region, Rect2f(0,0,1,1), Texture->Handle);
-      }
-
-      // Update the region of all children and push them to the stack
-      container_node* Child = Parent->FirstChild;
-      while(Child)
-      {
-        ContainerStack[StackCount++] = Child;
-        Child = Next(Child);
-      }
+      color_attribute* Color = (color_attribute*) GetAttributePointer(Parent, ATTRIBUTE_COLOR);
+      rect2f DrawRegion = ecs::render::RectCenterBotLeft(Parent->Region);
+      ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), DrawRegion, Color->Color);
     }
+
+    if(Parent->Functions.Draw)
+    {
+      CallFunctionPointer(Parent->Functions.Draw, Interface, Parent);  
+    }
+
+    if(HasAttribute(Parent, ATTRIBUTE_TEXT))
+    {
+      text_attribute* Text = (text_attribute*) GetAttributePointer(Parent, ATTRIBUTE_TEXT);
+      v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), Text->FontSize, (utf8_byte*) Text->Text);
+      ecs::render::system* RenderSystem = GetRenderSystem();
+      ecs::render::window_size_pixel Window = GetWindowSize(RenderSystem);
+
+      r32 X0 = (Parent->Region.X + Parent->Region.W/2.f) - TextSize.X/2.f;
+      r32 Y0 = (Parent->Region.Y + Parent->Region.H/2.f) - TextSize.Y/3.f;
+      ecs::render::DrawTextCanonicalSpace(RenderSystem, V2(X0, Y0), Text->FontSize,  (utf8_byte*)Text->Text, Text->Color);
+    }
+
+    if(HasAttribute(Parent, ATTRIBUTE_TEXTURE))
+    {
+      texture_attribute* Texture = (texture_attribute*) GetAttributePointer(Parent, ATTRIBUTE_TEXTURE);
+      ecs::render::DrawTexturedOverlayQuadCanonicalSpace(GetRenderSystem(), Parent->Region, Rect2f(0,0,1,1), Texture->Handle);
+    }
+
+    // Update the region of all children and push them to the stack
+    container_node* Child = Parent->FirstChild;
+    while(Child)
+    {
+      ContainerStack[StackCount++] = Child;
+      Child = Next(Child);
+    }
+
   }
 
   for (int i = 0; i < Menu->FinalRenderCount; ++i)
@@ -123,7 +119,7 @@ void SetFocusWindow(menu_interface* Interface, menu_tree* Menu)
       ListRemove( Menu );
       ListInsertBefore(&Interface->MenuSentinel, Menu);
     }
-    else if(Menu->Maximized)
+    else if(Menu->Root->Type == container_type::Root && GetRootNode(Menu->Root)->Maximized)
     {
       if(Interface->MenuSentinel.Previous == Interface->MenuBar)
       {
@@ -848,7 +844,7 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
   ListInitiate(&Interface->EventSentinel);
 
   Interface->MenuBar = CreateMainWindow(Interface);
-  
+
   return Interface;
 }
 

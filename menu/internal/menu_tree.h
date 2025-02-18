@@ -24,9 +24,6 @@ struct menu_tree
   u32 RemovedHotLeafCount;
   container_node* RemovedHotLeafs[64];
 
-  b32 Maximized;
-  rect2f CachedRegion;
-
   u32 FinalRenderCount; 
   draw_queue_entry FinalRenderFunctions[64];
 

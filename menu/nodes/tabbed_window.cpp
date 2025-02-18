@@ -560,13 +560,12 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
 MENU_UPDATE_FUNCTION(WindowDragUpdate)
 {
   mouse_position_in_window* PosInWindow = (mouse_position_in_window*) Data;
-  menu_tree* Menu = GetMenu(Interface, CallerNode);
-  if(Menu->Maximized)
+  container_node* RootContainer = GetRoot(CallerNode);
+  if(GetRootNode(RootContainer)->Maximized)
   {
     return false;
   }
 
-  container_node* RootContainer = Menu->Root;
   root_border_collection Borders = GetRoorBorders(RootContainer);
 
   border_leaf* LeftBorder  = GetBorderNode(Borders.Left);

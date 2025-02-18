@@ -77,7 +77,6 @@ struct container_node
   container_node* PreviousSibling;
 
   rect2f Region;
-  b32 Active;
 
   menu_functions Functions;
 };
