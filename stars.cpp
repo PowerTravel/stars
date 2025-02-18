@@ -988,6 +988,65 @@ MENU_DRAW(RenderScene)
   ecs::render::SetDrawWindowCanCord(GetRenderSystem(), Region);
   ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
 }
+//TODO: Super hacky, do better
+//      Maybe make it so that the update function _only_ gets called when the container_node it's attached to has focus
+b32 IsSceneSelected()
+{
+  b32 Result = (IsPluginSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin) && 
+                IsFocusWindow(GlobalState->World.MenuInterface, GetMenu(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin)));
+  return Result;
+}
+
+void MouseInput(camera* Camera, jwin::device_input* Input)
+{
+  v3 WUp, WRight, WForward;
+  v3 Up = V3(0,1,0);
+  GetCameraDirections(Camera, &WUp, &WRight, &WForward);
+  if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
+  {
+    if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
+    {
+      if(Input->Mouse.dX != 0)
+      {
+        //RotateAround(Camera, -5*Input->Mouse.dX, Up);
+        RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
+        //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
+      }
+      if(Input->Mouse.dY != 0)
+      {
+        RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );      
+        v3 CamPos = GetCameraPosition(Camera);
+      }
+    }else{
+      if(Input->Mouse.dX != 0)
+      {
+        RotateAround(Camera, -5*Input->Mouse.dX, WUp);
+        char Buf[32] = {};
+        jstr::ToString( WRight.E, 2, ArrayCount(Buf), Buf );
+        Platform.DEBUGPrint("Right   : %s\n", Buf);
+      }
+      if(Input->Mouse.dY != 0)
+      {
+        RotateAround(Camera, -5*Input->Mouse.dY, -WRight);
+        char Buf[32] = {};
+        jstr::ToString( Up.E, 2, ArrayCount(Buf), Buf );
+        Platform.DEBUGPrint("Up: %s\n", Buf);
+      }
+    }
+  }
+}
+
+
+MENU_UPDATE_FUNCTION(SceneTakeInput)// b32 name( menu_interface* Interface, container_node* CallerNode, void* Data )
+{
+  if(IsSceneSelected())
+  {
+    camera* Camera = &GlobalState->Camera;
+    jwin::device_input* Input = (jwin::device_input*) Data;
+    MouseInput(Camera, Input);
+  }
+  return true;
+}
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
@@ -1042,8 +1101,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->FadedRayTexture = Push32BitColorTexture(RenderGroup, FadedRayTexture);
     GlobalState->EarthTexture = Push32BitColorTexture(RenderGroup, EarthTexture);
     
-
-
     texture_params DefaultColor = DefaultColorTextureParams();
     texture_params DefaultDepth = DefaultDepthTextureParams();
     texture_params RevealTexParam = DefaultColorTextureParams();
@@ -1101,9 +1158,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       container_node* ScenePlugin = CreatePlugin(Interface, WindowsDropDownMenu, "Scene", SceneContainer);
       ToggleWindow(Interface, "Scene");
       Maximize(Interface, GetRoot(ScenePlugin));
+      PushToUpdateQueue(Interface, SceneContainer, SceneTakeInput, (void*) Input, false);
       GlobalState->World.ScenePlugin = ScenePlugin;
     }
-    #if 1
     {
       container_node* SettingsPlugin = 0;
       // Create Option Window
@@ -1136,7 +1193,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       SettingsPlugin = CreatePlugin(Interface, TestDropDownMenu, "Test2", EntityContainer);
     }
     
-    #endif
     { // Create some entities
       { // Checker Floor
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
@@ -1408,42 +1464,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     TranslateCamera(Camera, V3(0,-CamSpeed,0));
   }
   
-  v3 WUp, WRight, WForward;
-  GetCameraDirections(Camera, &WUp, &WRight, &WForward);
-  if(!GlobalState->World.MenuInterface->MenuVisible || (IsPluginSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin) && IsFocusWindow(GlobalState->World.MenuInterface, GetMenu(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin))))
+  if(!GlobalState->World.MenuInterface->MenuVisible)
   {
-    if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
-    {
-      if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
-      {
-        if(Input->Mouse.dX != 0)
-        {
-          //RotateAround(Camera, -5*Input->Mouse.dX, Up);
-          RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
-          //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
-        }
-        if(Input->Mouse.dY != 0)
-        {
-          RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );      
-          v3 CamPos = GetCameraPosition(Camera);
-        }
-      }else{
-        if(Input->Mouse.dX != 0)
-        {
-          RotateAround(Camera, -5*Input->Mouse.dX, WUp);
-          char Buf[32] = {};
-          jstr::ToString( WRight.E, 2, ArrayCount(Buf), Buf );
-          Platform.DEBUGPrint("Right   : %s\n", Buf);
-        }
-        if(Input->Mouse.dY != 0)
-        {
-          RotateAround(Camera, -5*Input->Mouse.dY, -WRight);
-          char Buf[32] = {};
-          jstr::ToString( Up.E, 2, ArrayCount(Buf), Buf );
-          Platform.DEBUGPrint("Up: %s\n", Buf);
-        }
-      }
-    }
+    MouseInput(Camera, Input);
   }
 
   render_group* RenderGroup = RenderCommands->RenderGroup;

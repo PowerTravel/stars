@@ -122,16 +122,7 @@ void UpdateMergableAttribute( menu_interface* Interface, container_node* Node );
 void UpdateFocusWindow(menu_interface* Interface);
 
 
-container_node* GetChildFromIndex(container_node* Parent, u32 ChildIndex);
-u32 GetChildIndex(container_node* Node);
-u32 GetChildCount(container_node* Node);
-inline container_node* Next(container_node* Node);
-inline container_node* Previous(container_node* Node);
 
-rect2f GetActiveMenuRegion(menu_interface* Interface);
-u32 GetAttributeSize(container_attribute Attribute);
-u32 GetContainerPayloadSize(container_type Type);
-void * PushAttribute(menu_interface* Interface, container_node* Node, container_attribute AttributeType);
 
 menu_tree* GetMenu(menu_interface* Interface, container_node* Node);
 

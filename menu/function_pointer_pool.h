@@ -21,6 +21,7 @@ MENU_DRAW(DrawFunctionTimeline);
 MENU_DRAW(DrawStatistics);
 MENU_DRAW(DrawFrameFunctions);
 MENU_DRAW(RenderScene);
+MENU_UPDATE_FUNCTION(SceneTakeInput);
 
 MENU_EVENT_CALLBACK(DebugToggleButton);
 MENU_EVENT_CALLBACK(DebugRecompileButton);
@@ -75,6 +76,7 @@ void _ReinitiatePool(function_pool* Pool)
     //NewFunPtr(DrawStatistics)
     //NewFunPtr(DrawFrameFunctions)
     NewFunPtr(RenderScene)
+    NewFunPtr(SceneTakeInput)
     //NewFunPtr(DebugToggleButton)
     //NewFunPtr(DebugRecompileButton)
     NewFunPtr(TabMouseDown)
