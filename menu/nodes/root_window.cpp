@@ -244,7 +244,7 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_
       InitiateRootWindowDrag(Interface, TabHeader);
     }
   }else{
-    Minimize(Interface, Root)
+    Minimize(Interface, Root);
   }
 }
 

@@ -48,7 +48,6 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
   return MainWindow;
 }
 
-
 void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
 {
   Assert(Tab->Type == container_type::Tab);

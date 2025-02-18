@@ -1099,7 +1099,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       SceneContainer->Functions.Draw = DeclareFunction(menu_draw, RenderScene);
 
       container_node* ScenePlugin = CreatePlugin(Interface, WindowsDropDownMenu, "Scene", SceneContainer);
-
+      ToggleWindow(Interface, "Scene");
+      Maximize(Interface, GetRoot(ScenePlugin));
       GlobalState->World.ScenePlugin = ScenePlugin;
     }
     #if 1

@@ -28,6 +28,8 @@ void SetBorderData(container_node* Border, r32 Thickness, r32 Position, border_t
 inline container_node* GetRoot(container_node* Node);
 inline container_node* GetBodyFromRoot(container_node* RootWindow);
 inline root_node* GetRootNode(container_node* Container);
+void Minimize(menu_interface* Interface, container_node* Root);
+void Maximize(menu_interface* Interface, container_node* Root);
 
 mouse_position_in_window GetPositionInRootWindow(menu_interface* Interface, container_node* Node);
 void InitiateRootWindowDrag(menu_interface* Interface, container_node* Node);
