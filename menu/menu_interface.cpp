@@ -848,9 +848,6 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
   return Interface;
 }
 
-
-
-
 void ToggleWindow(menu_interface* Interface, char* WindowName)
 {
   for(u32 PluginIndex = 0; PluginIndex < Interface->PermanentWindowCount; PluginIndex++)
@@ -864,8 +861,6 @@ void ToggleWindow(menu_interface* Interface, char* WindowName)
     }
   }
 }
-
-
 
 void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData)
 {

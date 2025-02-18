@@ -179,6 +179,57 @@ void InitiateRootWindowDrag(menu_interface* Interface, container_node* Node)
   PushToUpdateQueue(Interface, Node, WindowDragUpdate, Position, true);
 }
 
+void Maximize(menu_interface* Interface, container_node* Root)
+{
+  root_node* RootNode = GetRootNode(Root);
+  root_border_collection Borders = GetRoorBorders(Root);
+  container_node* Body = GetBodyFromRoot(Root);
+
+  Body->PreviousSibling = 0;
+  Root->FirstChild = Body;
+  
+  DeleteContainer(Interface, Borders.Left);
+  DeleteContainer(Interface, Borders.Right);
+  DeleteContainer(Interface, Borders.Top);
+  DeleteContainer(Interface, Borders.Bot);
+
+  RootNode->CachedRegion = Root->Region;
+  Root->Region = Rect2f(0, 0, GetAspectRatio(Interface), 1-Interface->HeaderSize);
+  RootNode->Maximized = true;
+  UpdateFocusWindow(Interface);
+}
+
+void Minimize(menu_interface* Interface, container_node* Root)
+{
+  root_node* RootNode = GetRootNode(Root);
+  rect2f Region = RootNode->CachedRegion;
+  r32 Thickness = Interface->BorderSize;
+  
+  container_node* Border1 = CreateBorderNode(Interface, Interface->BorderColor);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border1, 0, InitiateBorderDrag, 0);
+  SetBorderData(Border1, Thickness, Region.X, border_type::LEFT);
+
+  container_node* Border2 = CreateBorderNode(Interface, Interface->BorderColor);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border2, 0, InitiateBorderDrag, 0);
+  SetBorderData(Border2, Thickness, Region.X + Region.W, border_type::RIGHT);
+
+  container_node* Border3 = CreateBorderNode(Interface, Interface->BorderColor);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border3, 0, InitiateBorderDrag, 0);
+  SetBorderData(Border3, Thickness, Region.Y,  border_type::BOTTOM);
+  
+  container_node* Border4 = CreateBorderNode(Interface, Interface->BorderColor);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border4, 0, InitiateBorderDrag, 0);
+  SetBorderData(Border4, Thickness, Region.Y + Region.H, border_type::TOP);
+  
+  
+  ConnectNodeToFront(Root, Border4);
+  ConnectNodeToFront(Root, Border3);
+  ConnectNodeToFront(Root, Border2);
+  ConnectNodeToFront(Root, Border1);
+  RootNode->Maximized = false;
+  UpdateFocusWindow(Interface);
+}
+
 void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_node* TabHeader)
 {
   container_node* Root = Menu->Root;
@@ -188,52 +239,13 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_
     menu_tree* MaximizedMenu = GetAlreadyMaximizedMenuTree(Interface);
     if(!MaximizedMenu)
     {
-      root_border_collection Borders = GetRoorBorders(Root);
-      container_node* Body = GetBodyFromRoot(Root);
-
-      Body->PreviousSibling = 0;
-      Root->FirstChild = Body;
-      
-      DeleteContainer(Interface, Borders.Left);
-      DeleteContainer(Interface, Borders.Right);
-      DeleteContainer(Interface, Borders.Top);
-      DeleteContainer(Interface, Borders.Bot);
-
-      RootNode->CachedRegion = Root->Region;
-      Root->Region = Rect2f(0, 0, GetAspectRatio(Interface), 1-Interface->HeaderSize);
-      RootNode->Maximized = true;
+      Maximize(Interface, Root);
     }else{
       InitiateRootWindowDrag(Interface, TabHeader);
     }
   }else{
-
-    rect2f Region = RootNode->CachedRegion;
-    r32 Thickness = Interface->BorderSize;
-    
-    container_node* Border1 = CreateBorderNode(Interface, Interface->BorderColor);
-    RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border1, 0, InitiateBorderDrag, 0);
-    SetBorderData(Border1, Thickness, Region.X, border_type::LEFT);
-
-    container_node* Border2 = CreateBorderNode(Interface, Interface->BorderColor);
-    RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border2, 0, InitiateBorderDrag, 0);
-    SetBorderData(Border2, Thickness, Region.X + Region.W, border_type::RIGHT);
-
-    container_node* Border3 = CreateBorderNode(Interface, Interface->BorderColor);
-    RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border3, 0, InitiateBorderDrag, 0);
-    SetBorderData(Border3, Thickness, Region.Y,  border_type::BOTTOM);
-    
-    container_node* Border4 = CreateBorderNode(Interface, Interface->BorderColor);
-    RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border4, 0, InitiateBorderDrag, 0);
-    SetBorderData(Border4, Thickness, Region.Y + Region.H, border_type::TOP);
-    
-    
-    ConnectNodeToFront(Root, Border4);
-    ConnectNodeToFront(Root, Border3);
-    ConnectNodeToFront(Root, Border2);
-    ConnectNodeToFront(Root, Border1);
-    RootNode->Maximized = false;
+    Minimize(Interface, Root)
   }
-  UpdateFocusWindow(Interface);
 }
 
 internal rect2f GetMinimumRootWindowSize(root_border_collection* BorderCollection, r32 MinimumRegionWidth, r32 MinimumRegionHeight)
