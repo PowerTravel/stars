@@ -138,7 +138,6 @@ void ReplaceNode(container_node* Out, container_node* In)
   In->PreviousSibling = Out->PreviousSibling;
   if(In->PreviousSibling)
   {
-    
     In->PreviousSibling->NextSibling = In;
   }
 
@@ -223,7 +222,6 @@ internal void CancelAllUpdateFunctions(menu_interface* Interface, container_node
   }
 }
 
-
 void DeleteContainer( menu_interface* Interface, container_node* Node)
 {
   CancelAllUpdateFunctions(Interface, Node );
@@ -232,6 +230,35 @@ void DeleteContainer( menu_interface* Interface, container_node* Node)
   FreeMemory(&Interface->LinkedMemory, (void*) Node);
 }
 
+
+void DeleteMenuSubTree(menu_interface* Interface, container_node* Root)
+{
+  DisconnectNode(Root);
+  // Free the nodes;
+  // 1: Go to the bottom
+  // 2: Step up Once
+  // 3: Delete FirstChild
+  // 4: Set NextSibling as FirstChild
+  // 5: Repeat from 1
+  container_node* Node = Root->FirstChild;
+  while(Node)
+  {
+
+    while(Node->FirstChild)
+    {
+      Node = Node->FirstChild;
+    }
+
+    Node = Node->Parent;
+    if(Node)
+    {
+      container_node* NodeToDelete = Node->FirstChild;
+      Node->FirstChild = Next(NodeToDelete);
+      DeleteContainer(Interface, NodeToDelete);
+    }
+  }
+  DeleteContainer(Interface, Root);
+}
 
 void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_args* UpdateArgs)
 {

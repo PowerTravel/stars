@@ -138,6 +138,7 @@ container_node* GetChildFromIndex(container_node* Parent, u32 ChildIndex)
 
 container_node* NewContainer(menu_interface* Interface, container_type Type = container_type::None);
 void DeleteContainer( menu_interface* Interface, container_node* Node);
+void DeleteMenuSubTree(menu_interface* Interface, container_node* Root);
 menu_functions GetDefaultFunctions();
 
 void PivotNodes(container_node* ShiftLeft, container_node* ShiftRight);

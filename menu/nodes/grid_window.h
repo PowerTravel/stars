@@ -14,3 +14,6 @@ struct grid_node
 
 inline grid_node* GetGridNode(container_node* Container);
 menu_functions GetGridFunctions();
+
+
+MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions );

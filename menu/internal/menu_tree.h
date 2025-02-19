@@ -34,34 +34,6 @@ struct menu_tree
   menu_gaining_focus** GainingFocus;
 };
 
-void DeleteMenuSubTree(menu_interface* Interface, container_node* Root)
-{
-  DisconnectNode(Root);
-  // Free the nodes;
-  // 1: Go to the bottom
-  // 2: Step up Once
-  // 3: Delete FirstChild
-  // 4: Set NextSibling as FirstChild
-  // 5: Repeat from 1
-  container_node* Node = Root->FirstChild;
-  while(Node)
-  {
-
-    while(Node->FirstChild)
-    {
-      Node = Node->FirstChild;
-    }
-
-    Node = Node->Parent;
-    if(Node)
-    {
-      container_node* NodeToDelete = Node->FirstChild;
-      Node->FirstChild = Next(NodeToDelete);
-      DeleteContainer(Interface, NodeToDelete);
-    }
-  }
-  DeleteContainer(Interface, Root);
-}
 
 menu_tree* NewMenuTree(menu_interface* Interface);
 void TreeSensus( menu_tree* Menu );
