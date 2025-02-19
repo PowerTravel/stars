@@ -107,7 +107,6 @@ MENU_EVENT_CALLBACK(DropDownMouseUp)
 {
   menu_tree* Menu = GetMenu(Interface, CallerNode);
   Assert(Menu->Visible);
-  //Menu->Visible = false;
   DisplayOrRemovePluginTab(Interface, (container_node*) Data);
 }
 

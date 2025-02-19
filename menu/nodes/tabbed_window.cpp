@@ -29,9 +29,9 @@ container_node* CreateTabWindow(menu_interface* Interface)
 }
 
 
-container_node* GetTabGridFromWindow(container_node* TabbedWindow)
+internal container_node* GetTabGridFromWindow(container_node* TabbedWindow)
 {
-  Assert(TabbedWindow->Type == container_type::TabWindow); // Could also be split window
+  Assert(TabbedWindow->Type == container_type::TabWindow);
   container_node* TabRegion = TabbedWindow->FirstChild;
   Assert(TabRegion->Type == container_type::None);
   container_node* TabHeader = TabRegion->FirstChild;
@@ -39,24 +39,19 @@ container_node* GetTabGridFromWindow(container_node* TabbedWindow)
   return TabHeader;
 }
 
-
 internal void ReduceSplitWindowTree(menu_interface* Interface, container_node* WindowToRemove)
 {
+  Assert(WindowToRemove->Parent->Type == container_type::Split);
   container_node* SplitNodeToSwapOut = WindowToRemove->Parent;
-  container_node* WindowToRemain = WindowToRemove->NextSibling;
-  if(!WindowToRemain)
-  {
-    WindowToRemain = WindowToRemove->Parent->FirstChild->NextSibling;
-    Assert(WindowToRemain);
-    Assert(WindowToRemain->NextSibling == WindowToRemove);
-  }
 
-  DisconnectNode(WindowToRemove);
-  DeleteMenuSubTree(Interface, WindowToRemove);
+  split_windows SplitWindows = GetSplitWindows(SplitNodeToSwapOut);
+
+  container_node* WindowToRemain = WindowToRemove == SplitWindows.FirstWindow ? SplitWindows.SecondWindow : SplitWindows.FirstWindow;
 
   DisconnectNode(WindowToRemain);
 
   ReplaceNode(SplitNodeToSwapOut, WindowToRemain);
+
   DeleteMenuSubTree(Interface, SplitNodeToSwapOut);
 }
 
@@ -85,8 +80,6 @@ void ReduceWindowTree(menu_interface* Interface, container_node* WindowToRemove)
     } break;
   }
 }
-
-
 
 MENU_EVENT_CALLBACK(TabWindowHeaderMouseDown)
 {

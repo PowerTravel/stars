@@ -3,6 +3,16 @@
 struct container_node;
 struct menu_interface;
 
+// Tab Window looks like
+// TabWindow
+//   None
+//     Grid
+//       Tab (1) -> Plugin (1)
+//       Tab (2) -> Plugin (2)
+//       ...
+//   Plugin
+
+
 struct tab_node
 {
   container_node* Payload;
@@ -44,5 +54,4 @@ container_node* CreatePlugin(menu_interface* Interface, menu_tree* WindowsDropDo
 inline plugin_node* GetPluginNode(container_node* Container);
 inline tab_window_node* GetTabWindowNode(container_node* Container);
 inline tab_node* GetTabNode(container_node* Container);
-inline internal container_node* GetTabGridFromWindow(container_node* TabbedWindow);
 menu_functions GetTabWindowFunctions();
