@@ -42,6 +42,7 @@ struct tab_window_node
   r32 HeaderSize;
   merge_zone HotMergeZone;
   rect2f MergeZone[5];
+  rect2f CachedRegion;
 };
 
 
@@ -55,3 +56,13 @@ inline plugin_node* GetPluginNode(container_node* Container);
 inline tab_window_node* GetTabWindowNode(container_node* Container);
 inline tab_node* GetTabNode(container_node* Container);
 menu_functions GetTabWindowFunctions();
+container_node* GetPluginFromTab(container_node* Tab);
+void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, rect2f TabbedWindowRegion);
+
+// Takes a Tab and return the TabWindow it's connected to
+inline container_node* GetTabWindowFromTab(container_node* Tab);
+// Removes the tab from the tab window it's attached to
+container_node* RemoveTabFromTabWindow(container_node* Tab);
+
+// Takes a tab window and returns the body
+inline container_node* GetTabBodyFromTabWindow(container_node* TabWindow);

@@ -182,6 +182,11 @@ void InitiateRootWindowDrag(menu_interface* Interface, container_node* Node)
 void Maximize(menu_interface* Interface, container_node* Root)
 {
   root_node* RootNode = GetRootNode(Root);
+  if(RootNode->Maximized)
+  {
+    return;
+  }
+
   root_border_collection Borders = GetRoorBorders(Root);
   container_node* Body = GetBodyFromRoot(Root);
 
@@ -199,9 +204,42 @@ void Maximize(menu_interface* Interface, container_node* Root)
   UpdateFocusWindow(Interface);
 }
 
-void Minimize(menu_interface* Interface, container_node* Root)
+container_node* GetClosestTabWindow(container_node* Node)
 {
+  container_node* NodeToIterate = Node;
+  while(NodeToIterate)
+  {
+    if(NodeToIterate->Type == container_type::TabWindow)
+    {
+      return NodeToIterate;
+    }
+    NodeToIterate = NodeToIterate->Parent;
+  }
+
+  return 0;
+}
+
+void Minimize(menu_interface* Interface, container_node* Node)
+{
+  container_node* Root = GetRoot(Node);
+
   root_node* RootNode = GetRootNode(Root);
+  if(!RootNode->Maximized)
+  {
+    return;
+  }
+
+  container_node* TabWindow = GetClosestTabWindow(Node);
+  if(TabWindow)
+  {
+    // TODO: Take whats in the TabWindow and put in a new menu tree
+    //rect2f NewRegion = GetTabWindowNode(TabWindow)->CachedRegion;
+    //NewRegion = Rect2f(0.25,0.25,0.25,0.25);
+    //SplitTabToNewWindow(Interface, TabWindow->FirstChild->FirstChild, NewRegion);
+    //return;
+  }
+
+
   rect2f Region = RootNode->CachedRegion;
   r32 Thickness = Interface->BorderSize;
   
@@ -244,7 +282,7 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_
       InitiateRootWindowDrag(Interface, TabHeader);
     }
   }else{
-    Minimize(Interface, Root);
+    Minimize(Interface, TabHeader);
   }
 }
 

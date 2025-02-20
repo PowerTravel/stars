@@ -48,6 +48,8 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
   return MainWindow;
 }
 
+
+
 void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
 {
   Assert(Tab->Type == container_type::Tab);
@@ -58,10 +60,17 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
 
     container_node* TabWindow = GetTabWindowFromTab(Tab);
 
-    PopTab(Tab);
-    if(GetChildCount(TabHeader) == 0)
+    container_node* TabToHightlight = Next(Tab);
+    if(!TabToHightlight)
     {
-      ReduceWindowTree(Interface, TabWindow);
+      TabToHightlight = Previous(Tab);
+    }
+
+    RemoveTabFromTabWindow(Interface, Tab);
+
+    if(TabToHightlight)
+    {
+      SetSelectedPluginTab(Interface, TabToHightlight);
     }
 
   }else{
@@ -71,6 +80,7 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
     {
       TabWindow = CreateTabWindow(Interface);
       Interface->SpawningWindow = CreateNewRootContainer(Interface, TabWindow, Rect2f( 0.25, 0.25, 0.7, 0.5));
+      Maximize(Interface, Interface->SpawningWindow->Root);
 
     }else{
       TabWindow = GetBodyFromRoot(Interface->SpawningWindow->Root);
@@ -89,12 +99,10 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
 
     container_node* Body = Next(TabWindow->FirstChild);
     tab_node* TabNode = GetTabNode(Tab);
+    SetSelectedPluginTab(Interface, Tab);
     if(Body)
     {
       ReplaceNode(Body, TabNode->Payload);
-      container_node* Plugin = TabNode->Payload;
-      Assert(Plugin->Type == container_type::Plugin);
-      plugin_node* PluginNode = GetPluginNode(Plugin);
     }else{
       ConnectNodeToBack(TabWindow, TabNode->Payload);
     }
@@ -107,6 +115,7 @@ MENU_EVENT_CALLBACK(DropDownMouseUp)
 {
   menu_tree* Menu = GetMenu(Interface, CallerNode);
   Assert(Menu->Visible);
+
   DisplayOrRemovePluginTab(Interface, (container_node*) Data);
 }
 

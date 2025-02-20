@@ -125,7 +125,7 @@ menu_functions GetTabWindowFunctions()
 
 
 
-inline internal container_node* GetTabWindowFromTab(container_node* Tab)
+container_node* GetTabWindowFromTab(container_node* Tab)
 {
   Assert(Tab->Type == container_type::Tab);
   container_node* TabHeader = Tab->Parent;
@@ -138,20 +138,31 @@ inline internal container_node* GetTabWindowFromTab(container_node* Tab)
   return TabWindow;
 }
 
-
-internal void SetTabAsActive(container_node* Tab)
+container_node* GetActivePluginFromTabWindow(container_node* TabWindow)
 {
-  tab_node* TabNode = GetTabNode(Tab);
-  container_node* TabWindow = GetTabWindowFromTab(Tab);
-  container_node* TabBody = TabWindow->FirstChild->NextSibling;
-  if(!TabBody)
-  {
-    ConnectNodeToBack(TabWindow, TabNode->Payload);
-  }else{
-    ReplaceNode(TabBody, TabNode->Payload);  
-  }
+  Assert(TabWindow->Type == container_type::TabWindow);
+  container_node* Result = TabWindow->FirstChild->NextSibling;
+  Assert(Result->Type == container_type::Plugin);
+  return Result;
 }
 
+internal b32 IsTabActive(container_node* Tab)
+{
+  Assert(Tab->Type == container_type::Tab);
+  tab_node* TabNode = GetTabNode(Tab);
+  b32 Result = TabNode->Payload->Parent != NULL;
+  return Result;
+}
+
+internal void SetTabAsActiveTabInTabWindow(container_node* Tab){
+  tab_node* TabNode = GetTabNode(Tab);
+  if(!IsTabActive(Tab))
+  {
+    container_node* TabWindow = GetTabWindowFromTab(Tab);
+    container_node* ActivePlugin = GetActivePluginFromTabWindow(TabWindow);
+    ReplaceNode(ActivePlugin, TabNode->Payload);
+  }
+}
 
 internal b32 SplitWindowSignal(menu_interface* Interface, container_node* HeaderNode)
 {
@@ -166,34 +177,38 @@ internal b32 SplitWindowSignal(menu_interface* Interface, container_node* Header
 internal container_node* PushTab(container_node* TabbedWindow,  container_node* Tab)
 {
   container_node* TabContainer = GetTabGridFromWindow(TabbedWindow);
-  ConnectNodeToFront(TabContainer, Tab);
+  ConnectNodeToBack(TabContainer, Tab);
   return Tab;
 }
 
 
-internal container_node* PopTab(container_node* Tab)
+void RemoveTabFromTabWindow(menu_interface* Interface, container_node* Tab)
 {
-  tab_node* TabNode = GetTabNode(Tab);
-  DisconnectNode(TabNode->Payload);
   if(Next(Tab))
   {
-    SetTabAsActive(Next(Tab));  
+    SetTabAsActiveTabInTabWindow(Next(Tab));  
+    DisconnectNode(Tab);
   }else if(Previous(Tab)){
-    SetTabAsActive(Previous(Tab));
+    SetTabAsActiveTabInTabWindow(Previous(Tab));
+    DisconnectNode(Tab);
+  }else{
+    container_node* TabWindow = GetTabWindowFromTab(Tab);
+    DisconnectNode(Tab);
+    container_node* Plugin = GetPluginFromTab(Tab);
+    DisconnectNode(Plugin);
+    ReduceWindowTree(Interface, TabWindow);
+    SetSelectedPluginTab(Interface, 0);
   }
-
-  DisconnectNode(Tab);
-  return Tab;
 }
 
-internal void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, rect2f TabbedWindowRegion)
+void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, rect2f TabbedWindowRegion)
 {
   rect2f NewRegion = Move(TabbedWindowRegion, V2(-Interface->BorderSize, Interface->BorderSize)*0.5); 
   
   container_node* NewTabWindow = CreateTabWindow(Interface);
   CreateNewRootContainer(Interface, NewTabWindow, NewRegion);
 
-  PopTab(Tab);
+  RemoveTabFromTabWindow(Interface, Tab);
   PushTab(NewTabWindow, Tab);
 
   ConnectNodeToBack(NewTabWindow, GetTabNode(Tab)->Payload);
@@ -214,8 +229,6 @@ internal b32 TabDrag(menu_interface* Interface, container_node* Tab)
 
 
   b32 Continue = Interface->MouseLeftButton.Active; // Tells us if we should continue to call the update function;
-
-  SetTabAsActive(Tab);
 
   u32 Count = GetChildCount(TabHeader);
   if(Count > 1)
@@ -264,7 +277,6 @@ internal b32 TabDrag(menu_interface* Interface, container_node* Tab)
       v2 MouseDiffFromClick = Interface->MousePos - Interface->MouseLeftButtonPush - (LowerLeftPoint(Tab->Parent->Region) - LowerLeftPoint(Tab->Region));
       rect2f NewRegion = Move(TabWindow->Region, MouseDiffFromClick);
       SplitTabToNewWindow(Interface, Tab, NewRegion);
-      ReduceWindowTree(Interface, TabWindow);
       Continue = false;
     }  
   }
@@ -281,7 +293,7 @@ MENU_UPDATE_FUNCTION(TabDragUpdate)
 MENU_EVENT_CALLBACK(TabMouseDown)
 {
   container_node* Tab = CallerNode;
-
+  SetTabAsActiveTabInTabWindow(Tab);
   // Initiate Tab Drag
   container_node* TabWindow = GetTabWindowFromTab(Tab);
   container_node* TabGrid = GetTabGridFromWindow(TabWindow);
@@ -373,8 +385,7 @@ tab_node* GetTabNode(container_node* Container)
   return Result;
 }
 
-
-internal u32 FillArrayWithTabs(u32 MaxArrSize, container_node* TabArr[], menu_tree* Menu)
+internal u32 FillArrayWithTabs(menu_interface* Interface, u32 MaxArrSize, container_node* TabArr[], menu_tree* Menu)
 {
   container_node* StartNode = GetBodyFromRoot(Menu->Root);
   SCOPED_TRANSIENT_ARENA;
@@ -395,8 +406,9 @@ internal u32 FillArrayWithTabs(u32 MaxArrSize, container_node* TabArr[], menu_tr
     // Update the region of all children and push them to the stack
     if(Parent->Type == container_type::Split)
     {
-      ContainerStack[StackCount++] = Next(Parent->FirstChild);
-      ContainerStack[StackCount++] = Next(Next(Parent->FirstChild));
+      split_windows SplitWindows = GetSplitWindows(Parent);
+      ContainerStack[StackCount++] = SplitWindows.FirstWindow;
+      ContainerStack[StackCount++] = SplitWindows.SecondWindow;
     }else if(Parent->Type == container_type::TabWindow)
     {
       ContainerStack[StackCount++] = GetTabGridFromWindow(Parent);
@@ -412,7 +424,7 @@ internal u32 FillArrayWithTabs(u32 MaxArrSize, container_node* TabArr[], menu_tr
         tab_node* TabNode = GetTabNode(TabToMove);
         if(TabNode->Payload->Type == container_type::Plugin)
         {
-          PopTab(TabToMove);
+          RemoveTabFromTabWindow(Interface, TabToMove);
           TabArr[TabCount++] = TabToMove;
         }else{
           ContainerStack[StackCount++] = TabNode->Payload;
@@ -485,7 +497,7 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
         Assert(TabWindowToAccept->Type == container_type::TabWindow);
 
         container_node* TabArr[64] = {};
-        u32 TabCount = FillArrayWithTabs(ArrayCount(TabArr), TabArr, MenuToRemove);
+        u32 TabCount = FillArrayWithTabs(Interface, ArrayCount(TabArr), TabArr, MenuToRemove);
 
         for(u32 Index = 0; Index < TabCount; ++Index)
         {
@@ -493,9 +505,8 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
           PushTab(TabWindowToAccept, TabToMove);
         }
 
-        SetTabAsActive(TabArr[TabCount-1]);
-        
-        FreeMenuTree(Interface, MenuToRemove);
+        SetTabAsActiveTabInTabWindow(TabArr[TabCount-1]);
+
         TabWindowNode->HotMergeZone = merge_zone::NONE;
       }break;
       case merge_zone::LEFT:    // Fallthrough 
@@ -549,6 +560,11 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
   }
 }
 
+container_node* GetPluginFromTab(container_node* Tab) {
+  Assert(Tab->Type == container_type::Tab);
+  container_node* Result = GetTabNode(Tab)->Payload;
+  return Result;
+}
 
 MENU_UPDATE_FUNCTION(WindowDragUpdate)
 {

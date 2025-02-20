@@ -698,6 +698,25 @@ void UpdateFocusWindow(menu_interface* Interface)
   }
 }
 
+void SetSelectedPlugin(menu_interface* Interface, container_node * Plugin)
+{
+  if (Plugin) {
+    Assert(Plugin->Type == container_type::Plugin);
+  }
+  Interface->SelectedPlugin = Plugin;
+}
+
+void SetSelectedPluginTab(menu_interface* Interface, container_node * PluginTab)
+{
+  container_node* PluginToFocus = 0;
+  if (PluginTab) {
+    Assert(PluginTab->Type == container_type::Tab);
+    PluginToFocus = GetPluginFromTab(PluginTab);
+
+  }
+  SetSelectedPlugin(Interface, PluginToFocus);
+}
+
 void UpdateSelectedPlugin(menu_interface* Interface)
 {
   b32 MouseWasClicked = Interface->MouseLeftButton.Edge && Interface->MouseLeftButton.Active;
@@ -736,7 +755,7 @@ void UpdateSelectedPlugin(menu_interface* Interface)
     TopMostWindow = TopMostWindow->Next;
   }
 
-  Interface->SelectedPlugin = SelectedPlugin;
+  SetSelectedPlugin(Interface, SelectedPlugin);
 }
 
 void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interface* Interface)
@@ -904,9 +923,4 @@ menu_tree* GetMenu(menu_interface* Interface, container_node* Node)
     MenuRoot = MenuRoot->Next;
   }
   return Result;
-}
-
-rect2f GetActiveMenuRegion(menu_interface* Interface)
-{
-  return Interface->MenuBar->Root->FirstChild->NextSibling->Region;
 }
