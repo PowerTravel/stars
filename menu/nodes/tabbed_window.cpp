@@ -342,8 +342,8 @@ container_node* CreateTab(menu_interface* Interface, container_node* Plugin)
   GetTabNode(Tab)->Payload = Plugin;
   PluginNode->Tab = Tab;
 
-  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Tab, 0, TabMouseDown, 0);
-  RegisterMenuEvent(Interface, menu_event_type::MouseUp, Tab, 0, TabMouseUp, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown,  Tab, 0, TabMouseDown, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseUp,    Tab, 0, TabMouseUp, 0);
   RegisterMenuEvent(Interface, menu_event_type::MouseEnter, Tab, 0, TabMouseEnter, 0);
   RegisterMenuEvent(Interface, menu_event_type::MouseExit,  Tab, 0, TabMouseExit, 0);
   
@@ -385,13 +385,13 @@ tab_node* GetTabNode(container_node* Container)
   return Result;
 }
 
-internal u32 FillArrayWithTabs(menu_interface* Interface, u32 MaxArrSize, container_node* TabArr[], menu_tree* Menu)
+internal u32 ExtractAllTabsFromMenu(menu_interface* Interface, u32 MaxArrSize, container_node* TabArr[], menu_tree* Menu)
 {
   container_node* StartNode = GetBodyFromRoot(Menu->Root);
-  SCOPED_TRANSIENT_ARENA;
   u32 StackCount = 0;
   u32 TabCount = 0;
 
+  SCOPED_TRANSIENT_ARENA;
   container_node** ContainerStack = PushArray(GlobalTransientArena, MaxArrSize, container_node*);
 
   // Push StartNode
@@ -497,7 +497,7 @@ internal void UpdateMergableAttribute( menu_interface* Interface, container_node
         Assert(TabWindowToAccept->Type == container_type::TabWindow);
 
         container_node* TabArr[64] = {};
-        u32 TabCount = FillArrayWithTabs(Interface, ArrayCount(TabArr), TabArr, MenuToRemove);
+        u32 TabCount = ExtractAllTabsFromMenu(Interface, ArrayCount(TabArr), TabArr, MenuToRemove);
 
         for(u32 Index = 0; Index < TabCount; ++Index)
         {

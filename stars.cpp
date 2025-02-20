@@ -1145,7 +1145,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
     
-    GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
+    GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, &Input->Keyboard, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
     menu_interface* Interface = GlobalState->World.MenuInterface;
     menu_tree* WindowsDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Windows");
     menu_tree* TestDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Test");
@@ -1173,6 +1173,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 //
       color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
       BackgroundColor->Color = V4(0.2,0,0,1);
+
+      ConnectNodeToBack(EntityContainer,CreateTextInputNode(Interface));
 
       SettingsPlugin = CreatePlugin(Interface,WindowsDropDownMenu, "Settings", EntityContainer);
       

@@ -12,16 +12,18 @@ typedef MENU_UPDATE_CHILD_REGIONS( menu_get_region );
 #define MENU_DRAW(name) void name( menu_interface* Interface, container_node* Node)
 typedef MENU_DRAW( menu_draw );
 
-struct menu_functions
-{
-  menu_get_region** UpdateChildRegions;
-  menu_draw** Draw;
-};
-
 #define MENU_UPDATE_FUNCTION(name) b32 name( menu_interface* Interface, container_node* CallerNode, void* Data )
 typedef MENU_UPDATE_FUNCTION( update_function );
 
-struct update_args
+
+// TODO: Add gaining / losing focus to containers and remove it from menu_tree
+#define NODE_LOSING_FOCUS(name) void name(struct menu_interface* Interface, struct container_node* CallerNode)
+typedef NODE_LOSING_FOCUS( node_losing_focus );
+
+#define NODE_GAINING_FOCUS(name) void name(struct menu_interface* Interface, struct container_node* CallerNode)
+typedef NODE_GAINING_FOCUS( node_gaining_focus );
+
+struct update_function_arguments
 {
   menu_interface* Interface;
   container_node* Caller;
@@ -31,7 +33,14 @@ struct update_args
   update_function** UpdateFunction;
 };
 
-void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_args* UpdateArgs);
+struct menu_functions
+{
+  menu_get_region** UpdateChildRegions;
+  menu_draw** Draw;
+  node_gaining_focus** GainingFocus;
+  node_losing_focus** LosingFocus;
+};
+void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_function* UpdateFunction);
 
 enum class container_type
 {
@@ -43,7 +52,8 @@ enum class container_type
   Grid,
   Plugin,
   TabWindow,
-  Tab
+  Tab,
+  TextInput
 };
 
 const c8* ToString(container_type Type)
@@ -59,6 +69,7 @@ const c8* ToString(container_type Type)
     case container_type::Plugin: return "Plugin";
     case container_type::TabWindow: return "TabWindow";
     case container_type::Tab: return "Tab";
+    case container_type::TextInput: return "TextInput";
   }
   return "";
 };
@@ -78,6 +89,7 @@ struct container_node
 
   rect2f Region;
 
+  b32* UpdateFunctionRunning;
   menu_functions Functions;
 };
 

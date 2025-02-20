@@ -5,7 +5,7 @@
 MENU_LOSING_FOCUS(DefaultLosingFocus);
 MENU_LOSING_FOCUS(DropDownLosingFocus);
 
-MENU_LOSING_FOCUS(DefaultGainingFocus);
+MENU_GAINING_FOCUS(DefaultGainingFocus);
 MENU_GAINING_FOCUS(DropDownGainingFocus);
 
 MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions);

@@ -5,7 +5,7 @@
 #include "root_window.h"
 #include "tabbed_window.h"
 #include "split_window.h"
-
+#include "text_input_window.h"
 
 u32 GetContainerPayloadSize(container_type Type)
 {
@@ -20,6 +20,7 @@ u32 GetContainerPayloadSize(container_type Type)
     case container_type::TabWindow:  return sizeof(tab_window_node);
     case container_type::Tab:        return sizeof(tab_node);
     case container_type::Plugin:     return sizeof(plugin_node);
+    case container_type::TextInput:  return sizeof(text_input_node);
     default: INVALID_CODE_PATH;
   }
   return 0;
@@ -53,6 +54,7 @@ menu_functions GetMenuFunction(container_type Type)
     case container_type::TabWindow:  return GetTabWindowFunctions();
     case container_type::Tab:        return GetDefaultFunctions();
     case container_type::Plugin:     return GetDefaultFunctions();
+    case container_type::TextInput:  return GetTextInputfunctions();
 
     default: Assert(0);
   }
@@ -206,18 +208,24 @@ void DisconnectNode(container_node* Node)
   Node->PreviousSibling = 0;
 }
 
+internal void FreeUpdateFunction(menu_interface* Interface, update_function_arguments* Args)
+{
+  if(Args->FreeDataWhenComplete && Args->Data)
+  {
+    FreeMemory(&Interface->LinkedMemory, Args->Data);
+  }
+  Args->Caller->UpdateFunctionRunning = 0;
+  *Args = {};
+}
+
 internal void CancelAllUpdateFunctions(menu_interface* Interface, container_node* Node )
 {
   for(u32 i = 0; i < ArrayCount(Interface->UpdateQueue); ++i)
   {
-    update_args* Entry = &Interface->UpdateQueue[i];
+    update_function_arguments* Entry = &Interface->UpdateQueue[i];
     if(Entry->InUse && Entry->Caller == Node)
     {
-      if(Entry->FreeDataWhenComplete && Entry->Data)
-      {
-        FreeMemory(&Interface->LinkedMemory, Entry->Data);
-      }
-      *Entry = {};
+      FreeUpdateFunction(Interface, Entry);
     }
   }
 }
@@ -260,21 +268,21 @@ void DeleteMenuSubTree(menu_interface* Interface, container_node* Root)
   DeleteContainer(Interface, Root);
 }
 
-void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_args* UpdateArgs)
+void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_function_arguments* UpdateArgs)
 {
   for (u32 i = 0; i < UpdateCount; ++i)
   {
-    update_args* Entry = &UpdateArgs[i];
-    if(Entry->InUse)
+    update_function_arguments* Entry = &UpdateArgs[i];
+    if(Entry->Caller)
     {
-      b32 Continue = CallFunctionPointer(Entry->UpdateFunction, Interface, Entry->Caller, Entry->Data);
-      if(!Continue)
+      b32 Continue = Entry->InUse;
+      if(Continue)
       {
-        if(Entry->FreeDataWhenComplete && Entry->Data)
-        {
-          FreeMemory(&Interface->LinkedMemory, Entry->Data);
-        }
-        *Entry = {};
+        Continue = CallFunctionPointer(Entry->UpdateFunction, Interface, Entry->Caller, Entry->Data);
+      }
+
+      if(!Continue) {
+        FreeUpdateFunction(Interface, Entry);
       }
     }
   }

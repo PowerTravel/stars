@@ -1,5 +1,5 @@
 #include "ecs/systems/system_render.h"
-//#include "math/vector_math.h"
+
 namespace ecs::render {
 
 void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas, r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])

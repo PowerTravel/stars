@@ -11,6 +11,7 @@
 #include "nodes/tabbed_window.cpp"
 #include "nodes/main_window.cpp"
 #include "nodes/split_window.cpp"
+#include "nodes/text_input_window.cpp"
 #include "menu_functions.h"
 
 // Preorder breadth first.
@@ -809,7 +810,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
     {
       if(!MouseDownCalled && jwin::Pushed(Interface->MouseLeftButton))
       {
-        MouseUpCalled = CallMouseDownFunctions(Interface, Menu->HotLeafCount, Menu->HotLeafs); 
+        MouseUpCalled = CallMouseDownFunctions(Interface, Menu->HotLeafCount, Menu->HotLeafs);
       }
 
       if(!MouseUpCalled && jwin::Released(Interface->MouseLeftButton) && Menu == Interface->MenuInFocus)
@@ -843,7 +844,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
   #endif
 }
 
-menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 AspectRatio)
+menu_interface* CreateMenuInterface(memory_arena* Arena, jwin::keyboard_input* Keyboard, midx MaxMemSize, r32 AspectRatio)
 {
   menu_interface* Interface = PushStruct(Arena, menu_interface);
   Interface->LinkedMemory = NewLinkedMemory(Arena, MaxMemSize);
@@ -855,6 +856,7 @@ menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 As
   Interface->MinSize = 0.2f;
   Interface->DoubleKlickTime = 0.5f;
   Interface->AspectRatio = AspectRatio;
+  Interface->Keyboard = Keyboard;
 
   Interface->MenuColor = menu::GetColor(GetColorTable(),"charcoal");
   Interface->TextColor = menu::GetColor(GetColorTable(),"white smoke");
@@ -883,7 +885,7 @@ void ToggleWindow(menu_interface* Interface, char* WindowName)
 
 void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData)
 {
-  update_args* Entry = 0;
+  update_function_arguments* Entry = 0;
   for (u32 i = 0; i < ArrayCount(Interface->UpdateQueue); ++i)
   {
     Entry = &Interface->UpdateQueue[i];
@@ -900,6 +902,7 @@ void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, updat
   Entry->FreeDataWhenComplete = FreeData;
   Entry->UpdateFunction = UpdateFunction;
   Entry->Data = Data;
+  Caller->UpdateFunctionRunning = &Entry->InUse;
 }
 
 

@@ -14,7 +14,7 @@ struct container_node;
 struct menu_interface;
 struct menu_tree;
 
-menu_interface* CreateMenuInterface(memory_arena* Arena, midx MaxMemSize, r32 AspectRatio);
+menu_interface* CreateMenuInterface(memory_arena* Arena, jwin::keyboard_input* Keyboard, midx MaxMemSize, r32 AspectRatio);
 void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interface* Interface);
 void _PushToFinalDrawQueue(menu_tree* Menu, container_node* Node, menu_draw** Draw)
 {
@@ -80,6 +80,7 @@ struct menu_interface
   r32 MouseLeftButtonReleaseTime;
   r32 DoubleKlickTime; // Max time between klicks to register it as a double klick
 
+  jwin::keyboard_input* Keyboard;
 
   r32 AspectRatio;
   r32 BorderSize;
@@ -97,7 +98,7 @@ struct menu_interface
   u32 MenuEventCallbackCount;
   menu_event MenuEventCallbacks[64];
 
-  update_args UpdateQueue[64];
+  update_function_arguments UpdateQueue[64];
 };
  
 container_node* GetTabWindowFromOtherMenu(menu_interface* Interface, container_node* Node);
