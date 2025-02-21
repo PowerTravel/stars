@@ -9,6 +9,7 @@ struct color_attribute
   v4 HighlightedColor;
 };
 
+
 struct text_attribute
 {
   c8 Text[256];
@@ -154,3 +155,10 @@ b32 CallMouseExitFunctions(menu_interface* Interface, u32 NodeCount, container_n
 b32 CallMouseEnterFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);
 b32 CallMouseDownFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);
 b32 CallMouseUpFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);
+
+
+
+
+void SetColor(menu_interface* Interface, container_node* Node, v4 RestingColor, v4 HighlightedColor);
+void SetColor(menu_interface* Interface, container_node* Node, v4 Color);
+void SetColor(menu_interface* Interface, container_node* Node, c8* ColorName);

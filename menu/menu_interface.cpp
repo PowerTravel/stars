@@ -2,6 +2,7 @@
 #include "ecs/systems/system_render.h"
 #include "commons/string.h"
 #include "color_table.h"
+#include "utility.cpp"
 #include "internal/menu_attributes.cpp"
 #include "internal/menu_tree.cpp"
 #include "nodes/container_node.cpp"
@@ -59,12 +60,8 @@ void DrawMenu(memory_arena* Arena, menu_interface* Interface, menu_tree* Menu)
     {
       text_attribute* Text = (text_attribute*) GetAttributePointer(Parent, ATTRIBUTE_TEXT);
       v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), Text->FontSize, (utf8_byte*) Text->Text);
-      ecs::render::system* RenderSystem = GetRenderSystem();
-      ecs::render::window_size_pixel Window = GetWindowSize(RenderSystem);
-
-      r32 X0 = (Parent->Region.X + Parent->Region.W/2.f) - TextSize.X/2.f;
-      r32 Y0 = (Parent->Region.Y + Parent->Region.H/2.f) - TextSize.Y/3.f;
-      ecs::render::DrawTextCanonicalSpace(RenderSystem, V2(X0, Y0), Text->FontSize,  (utf8_byte*)Text->Text, Text->Color);
+      r32 XOff = (Parent->Region.W - TextSize.X)*0.5;
+      DrawTextInRect(Parent->Region, XOff, Text->FontSize, (utf8_byte*)Text->Text);
     }
 
     if(HasAttribute(Parent, ATTRIBUTE_TEXTURE))
@@ -359,7 +356,16 @@ b32 IsPluginSelected(menu_interface* Interface, container_node* Container)
   {
     return false;
   }
-  b32 ContainerIsTheSelectedPlugin = Interface->SelectedPlugin == Container;
+  container_node* Node = Interface->SelectedPlugin;
+  while(Node)
+  {
+    if(Node == Container)
+    {
+      break;
+    }
+    Node = Node->Parent;
+  }
+  b32 ContainerIsTheSelectedPlugin = Node != 0;
   return ContainerIsTheSelectedPlugin;
 }
 
@@ -702,7 +708,21 @@ void UpdateFocusWindow(menu_interface* Interface)
 void SetSelectedPlugin(menu_interface* Interface, container_node * Plugin)
 {
   if (Plugin) {
-    Assert(Plugin->Type == container_type::Plugin);
+   // Assert(Plugin->Type == container_type::Plugin);
+  }
+  if(Plugin && Interface->SelectedPlugin != Plugin)
+  {
+    if(Plugin->Functions.GainingFocus)
+    {
+      CallFunctionPointer(Plugin->Functions.GainingFocus, Interface, Plugin);
+    }
+  }
+  if(Interface->SelectedPlugin && Interface->SelectedPlugin != Plugin)
+  {
+    if(Interface->SelectedPlugin->Functions.LosingFocus)
+    {
+      CallFunctionPointer(Interface->SelectedPlugin->Functions.LosingFocus, Interface, Interface->SelectedPlugin);
+    }
   }
   Interface->SelectedPlugin = Plugin;
 }
@@ -711,8 +731,8 @@ void SetSelectedPluginTab(menu_interface* Interface, container_node * PluginTab)
 {
   container_node* PluginToFocus = 0;
   if (PluginTab) {
-    Assert(PluginTab->Type == container_type::Tab);
-    PluginToFocus = GetPluginFromTab(PluginTab);
+    //Assert(PluginTab->Type == container_type::Tab);
+    //PluginToFocus = GetPluginFromTab(PluginTab);
 
   }
   SetSelectedPlugin(Interface, PluginToFocus);
@@ -730,8 +750,9 @@ void UpdateSelectedPlugin(menu_interface* Interface)
 
   while(TopMostWindow != &Interface->MenuSentinel)
   {
-    if( TopMostWindow->Visible)
+    if(TopMostWindow->Visible)
     {
+      /*
       container_node* HotLeaf = 0;
       if(TopMostWindow->HotLeafCount > 0)
       {
@@ -751,6 +772,12 @@ void UpdateSelectedPlugin(menu_interface* Interface)
           return;
         }
         HotLeaf = HotLeaf->Parent;
+      }
+      */
+      if(TopMostWindow->HotLeafCount > 0)
+      {
+        SelectedPlugin = TopMostWindow->HotLeafs[TopMostWindow->HotLeafCount-1];
+        break;
       }
     }
     TopMostWindow = TopMostWindow->Next;
@@ -839,7 +866,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
     }
   }
   
-  #if 1
+  #if 0
   PrintHotLeafs(Interface, 1-0.05, 1);
   #endif
 }

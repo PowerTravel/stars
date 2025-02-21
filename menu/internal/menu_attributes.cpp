@@ -309,3 +309,26 @@ b32 CallMouseUpFunctions(menu_interface* Interface, u32 NodeCount, container_nod
   }
   return FunctionCalled;
 }
+
+
+
+void SetColor(menu_interface* Interface, container_node* Node, v4 RestingColor, v4 HighlightedColor)
+{
+  if(!HasAttribute(Node, ATTRIBUTE_COLOR)){
+    color_attribute* Color = (color_attribute*) PushAttribute( Interface, Node, ATTRIBUTE_COLOR);
+    Color->Color = RestingColor;
+    Color->HighlightedColor = HighlightedColor;
+    Color->RestingColor = RestingColor;
+  }
+}
+
+void SetColor(menu_interface* Interface, container_node* Node, v4 Color)
+{
+  SetColor(Interface, Node, Color, Color);
+}
+
+void SetColor(menu_interface* Interface, container_node* Node, c8* ColorName)
+{
+  v4 Color = GetColor(GetColorTable(), ColorName);
+  SetColor(Interface, Node, Color);
+}

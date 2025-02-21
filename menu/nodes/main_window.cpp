@@ -242,7 +242,6 @@ MENU_LOSING_FOCUS(DropDownLosingFocus)
 MENU_GAINING_FOCUS(DropDownGainingFocus)
 {
   Menu->Visible = true;
-
 }
 
 void AddPlugintoMainMenu(menu_interface* Interface, menu_tree* DropDownMenu, container_node* Plugin)

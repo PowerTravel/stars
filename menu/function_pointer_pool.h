@@ -5,6 +5,14 @@
 MENU_LOSING_FOCUS(DefaultLosingFocus);
 MENU_LOSING_FOCUS(DropDownLosingFocus);
 
+
+MENU_UPDATE_FUNCTION(TextInputUpdateFunction);
+MENU_EVENT_CALLBACK(TextInputMouseDown);
+MENU_EVENT_CALLBACK(TextInputGainingFocus);
+MENU_EVENT_CALLBACK(TextInputLosingFocus);
+MENU_DRAW(TextMenuDraw);
+
+
 MENU_GAINING_FOCUS(DefaultGainingFocus);
 MENU_GAINING_FOCUS(DropDownGainingFocus);
 
@@ -62,6 +70,11 @@ void _ReinitiatePool(function_pool* Pool)
     function_ptr* Function = &Pool->Functions[Index];
     NewFunPtr(DefaultLosingFocus)
     NewFunPtr(DropDownLosingFocus)
+    NewFunPtr(TextInputUpdateFunction)
+    NewFunPtr(TextInputMouseDown)
+    NewFunPtr(TextInputGainingFocus)
+    NewFunPtr(TextInputLosingFocus)
+    NewFunPtr(TextMenuDraw)
     NewFunPtr(DefaultGainingFocus)
     NewFunPtr(DropDownGainingFocus)
     NewFunPtr(UpdateChildRegions)

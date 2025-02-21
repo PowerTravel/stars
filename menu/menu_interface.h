@@ -9,6 +9,7 @@
 #include "containers/linked_memory.h"
 #include "platform/jwin_platform_input.h"
 #include "internal/menu_interface_internal.h"
+#include "utility.h"
 
 struct container_node;
 struct menu_interface;

@@ -8,6 +8,8 @@ struct container_node;
 struct text_input_node {
   utf8_byte TextMemory[MENU_INPUT_NODE_TEXT_LENGTH];
   utf8_string_buffer Buffer;
+  r32 Time;
+  r32 TextPixelSize;
 };
 
 container_node* CreateTextInputNode(menu_interface* Interface);

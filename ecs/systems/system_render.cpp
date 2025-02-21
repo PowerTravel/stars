@@ -86,9 +86,18 @@ r32 GetLineSpacingCanonicalSpace(system* System, r32 PixelSize)
   return Result;
 }
 
-internal inline r32 GetScaleFromPixelSize(system* System, r32 PixelSize)
+r32 GetScaleFromPixelSize(system* System, r32 PixelSize)
 {
   r32 Result = jfont::GetScaleFromPixelSize(&System->Font.Font, PixelSize);
+  return Result;
+}
+
+r32 GetCanonicalFontDescenOffset(system* System, r32 PixelSize)
+{
+  r32 FontDescent = -System->Font.Font.Descent;
+  r32 DecentCan = PixelToCanonicalHeight(GetRenderSystem(), FontDescent);
+  r32 Scale = ecs::render::GetScaleFromPixelSize(GetRenderSystem(), PixelSize);
+  r32 Result = Scale*DecentCan;
   return Result;
 }
 
@@ -168,6 +177,7 @@ void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte co
 
   data::render_level* RenderLevel = GetTopRenderLevel(System);
   chunk_list* TextBuffer = GetOverlayText(System, RenderLevel);
+
   for (int i = 0; i < UnicodeLen; ++i)
   {
     jfont::print_coordinates* tc = TextPrintCoordinates+i;

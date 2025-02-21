@@ -292,10 +292,10 @@ void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_func
 u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, u32 MaxCount, container_node** Result)
 {
   u32 StackElementSize = sizeof(container_node*);
+  SCOPED_TRANSIENT_ARENA;
   u32 StackByteSize = NodeCount * StackElementSize;
 
   u32 StackCount = 0;
-  temporary_memory TempMem = BeginTemporaryMemory(GlobalTransientArena);
   container_node** ContainerStack = PushArray(GlobalTransientArena, NodeCount, container_node*);
 
   u32 IntersectingLeafCount = 0;
@@ -331,7 +331,6 @@ u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, 
       }
     }
   }
-  EndTemporaryMemory(TempMem);
   return IntersectingLeafCount;
 }
 

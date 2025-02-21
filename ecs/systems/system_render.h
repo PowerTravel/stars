@@ -118,6 +118,11 @@ namespace render {
   void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color);
   void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color);
 
+  // When drawing with DrawTextPixelSpace or DrawTextCanonicalSpace, the position is the line someone would draw on in a note-book.
+  // That is letters like 'g' dips under the line. If someone wants to draw text in a rect one maybe don't want the g to go outside the rect
+  // Therefore this 'FontDescenOffset' is the offset needed such that the text origin is the lowest dip of the text.
+  inline r32 GetCanonicalFontDescenOffset(system* System, r32 PixelSize);
+
   void SetDrawWindow(system* System, rect2f DrawRegion){
     System->UnitDrawRegion = DrawRegion;
   }
