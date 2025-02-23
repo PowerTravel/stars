@@ -68,11 +68,6 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
 
     RemoveTabFromTabWindow(Interface, Tab);
 
-    if(TabToHightlight)
-    {
-      SetSelectedNode(Interface, TabToHightlight);
-    }
-
   }else{
 
     container_node* TabWindow = 0;
@@ -99,7 +94,6 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
 
     container_node* Body = Next(TabWindow->FirstChild);
     tab_node* TabNode = GetTabNode(Tab);
-    SetSelectedNode(Interface, Tab);
     if(Body)
     {
       ReplaceNode(Body, TabNode->Payload);

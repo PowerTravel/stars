@@ -122,7 +122,6 @@ r32 GetAspectRatio(menu_interface* Interface)
 
 void UpdateMergableAttribute( menu_interface* Interface, container_node* Node );
 void UpdateFocusWindow(menu_interface* Interface);
-void SetSelectedNode(menu_interface* Interface, container_node * Node);
 menu_tree* GetMenu(menu_interface* Interface, container_node* Node);
 
 void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData);

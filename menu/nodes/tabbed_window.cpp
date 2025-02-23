@@ -197,7 +197,6 @@ void RemoveTabFromTabWindow(menu_interface* Interface, container_node* Tab)
     container_node* Plugin = GetPluginFromTab(Tab);
     DisconnectNode(Plugin);
     ReduceWindowTree(Interface, TabWindow);
-    SetSelectedNode(Interface, 0);
   }
 }
 

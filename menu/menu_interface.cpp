@@ -705,7 +705,7 @@ void UpdateFocusWindow(menu_interface* Interface)
   }
 }
 
-void SetSelectedNode(menu_interface* Interface, container_node * Node)
+internal void SetSelectedNode(menu_interface* Interface, container_node * Node)
 {
   if(Node && Interface->SelectedNode != Node)
   {
