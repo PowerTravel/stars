@@ -992,7 +992,7 @@ MENU_DRAW(RenderScene)
 //      Maybe make it so that the update function _only_ gets called when the container_node it's attached to has focus
 b32 IsSceneSelected()
 {
-  b32 Result = (IsPluginSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin) && 
+  b32 Result = (IsNodeSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin) && 
                 IsFocusWindow(GlobalState->World.MenuInterface, GetMenu(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin)));
   return Result;
 }

@@ -114,7 +114,7 @@ void SetFocusWindow(menu_interface* Interface, menu_tree* Menu)
     // The MenuBar is always the background window.
     if(Menu == Interface->MenuBar)
     {
-      ListRemove( Menu );
+      ListRemove(Menu);
       ListInsertBefore(&Interface->MenuSentinel, Menu);
     }
     else if(Menu->Root->Type == container_type::Root && GetRootNode(Menu->Root)->Maximized)
@@ -223,7 +223,7 @@ r32 PrintTree(menu_interface* Interface, u32 Count, container_node** HotLeafs, r
         Color = V4(0,1,0,1);
       }
 
-      if(Interface->SelectedPlugin == Sibling)
+      if(Interface->SelectedNode == Sibling)
       {
         Color = V4(1,0,1,1);
       }
@@ -345,18 +345,18 @@ b32 IsHotLeef(menu_tree* Menu, container_node* Container)
   return false;
 }
 
-b32 IsPluginSelected(menu_interface* Interface, container_node* Container)
+b32 IsNodeSelected(menu_interface* Interface, container_node* Container)
 {
   Assert(Container->Type == container_type::Plugin);
   if(!Interface->MenuVisible)
   {
     return false;
   }
-  if(!Interface->SelectedPlugin)
+  if(!Interface->SelectedNode)
   {
     return false;
   }
-  container_node* Node = Interface->SelectedPlugin;
+  container_node* Node = Interface->SelectedNode;
   while(Node)
   {
     if(Node == Container)
@@ -365,8 +365,8 @@ b32 IsPluginSelected(menu_interface* Interface, container_node* Container)
     }
     Node = Node->Parent;
   }
-  b32 ContainerIsTheSelectedPlugin = Node != 0;
-  return ContainerIsTheSelectedPlugin;
+  b32 ContainerIsTheSelectedNode = Node != 0;
+  return ContainerIsTheSelectedNode;
 }
 
 
@@ -705,40 +705,26 @@ void UpdateFocusWindow(menu_interface* Interface)
   }
 }
 
-void SetSelectedPlugin(menu_interface* Interface, container_node * Plugin)
+void SetSelectedNode(menu_interface* Interface, container_node * Node)
 {
-  if (Plugin) {
-   // Assert(Plugin->Type == container_type::Plugin);
-  }
-  if(Plugin && Interface->SelectedPlugin != Plugin)
+  if(Node && Interface->SelectedNode != Node)
   {
-    if(Plugin->Functions.GainingFocus)
+    if(Node->Functions.GainingFocus)
     {
-      CallFunctionPointer(Plugin->Functions.GainingFocus, Interface, Plugin);
+      CallFunctionPointer(Node->Functions.GainingFocus, Interface, Node);
     }
   }
-  if(Interface->SelectedPlugin && Interface->SelectedPlugin != Plugin)
+  if(Interface->SelectedNode && Interface->SelectedNode != Node)
   {
-    if(Interface->SelectedPlugin->Functions.LosingFocus)
+    if(Interface->SelectedNode->Functions.LosingFocus)
     {
-      CallFunctionPointer(Interface->SelectedPlugin->Functions.LosingFocus, Interface, Interface->SelectedPlugin);
+      CallFunctionPointer(Interface->SelectedNode->Functions.LosingFocus, Interface, Interface->SelectedNode);
     }
   }
-  Interface->SelectedPlugin = Plugin;
+  Interface->SelectedNode = Node;
 }
 
-void SetSelectedPluginTab(menu_interface* Interface, container_node * PluginTab)
-{
-  container_node* PluginToFocus = 0;
-  if (PluginTab) {
-    //Assert(PluginTab->Type == container_type::Tab);
-    //PluginToFocus = GetPluginFromTab(PluginTab);
-
-  }
-  SetSelectedPlugin(Interface, PluginToFocus);
-}
-
-void UpdateSelectedPlugin(menu_interface* Interface)
+void UpdateSelectedNode(menu_interface* Interface)
 {
   b32 MouseWasClicked = Interface->MouseLeftButton.Edge && Interface->MouseLeftButton.Active;
   if(!MouseWasClicked)
@@ -746,44 +732,22 @@ void UpdateSelectedPlugin(menu_interface* Interface)
     return;
   }
   menu_tree* TopMostWindow = Interface->MenuSentinel.Next;
-  container_node* SelectedPlugin = 0;
+  container_node* SelectedNode = 0;
 
   while(TopMostWindow != &Interface->MenuSentinel)
   {
     if(TopMostWindow->Visible)
     {
-      /*
-      container_node* HotLeaf = 0;
       if(TopMostWindow->HotLeafCount > 0)
       {
-        HotLeaf = TopMostWindow->HotLeafs[0];
-      }
-
-      // Get the closest plugin
-      while(HotLeaf)
-      {
-        if(HotLeaf->Type == container_type::Plugin)
-        {
-          Interface->SelectedPlugin = HotLeaf;
-          return;
-        }else if(HotLeaf->Type == container_type::TabWindow)
-        {
-          Interface->SelectedPlugin = 0;
-          return;
-        }
-        HotLeaf = HotLeaf->Parent;
-      }
-      */
-      if(TopMostWindow->HotLeafCount > 0)
-      {
-        SelectedPlugin = TopMostWindow->HotLeafs[TopMostWindow->HotLeafCount-1];
+        SelectedNode = TopMostWindow->HotLeafs[TopMostWindow->HotLeafCount-1];
         break;
       }
     }
     TopMostWindow = TopMostWindow->Next;
   }
 
-  SetSelectedPlugin(Interface, SelectedPlugin);
+  SetSelectedNode(Interface, SelectedNode);
 }
 
 void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interface* Interface)
@@ -809,7 +773,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
   // * Calls Gaining/Loosing Focus Functions
   UpdateFocusWindow(Interface);
   
-  UpdateSelectedPlugin(Interface);
+  UpdateSelectedNode(Interface);
 
   // Calls Mouse Exit on the top most window
   Menu = Interface->MenuSentinel.Next;
@@ -866,7 +830,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
     }
   }
   
-  #if 0
+  #if 1
   PrintHotLeafs(Interface, 1-0.05, 1);
   #endif
 }
@@ -916,7 +880,7 @@ void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, updat
   for (u32 i = 0; i < ArrayCount(Interface->UpdateQueue); ++i)
   {
     Entry = &Interface->UpdateQueue[i];
-    if(!Entry->InUse)
+    if(!Entry->Caller)
     {
       break;
     }

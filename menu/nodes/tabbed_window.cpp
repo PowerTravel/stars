@@ -197,7 +197,7 @@ void RemoveTabFromTabWindow(menu_interface* Interface, container_node* Tab)
     container_node* Plugin = GetPluginFromTab(Tab);
     DisconnectNode(Plugin);
     ReduceWindowTree(Interface, TabWindow);
-    SetSelectedPluginTab(Interface, 0);
+    SetSelectedNode(Interface, 0);
   }
 }
 
@@ -311,7 +311,7 @@ MENU_EVENT_CALLBACK(TabMouseUp)
 MENU_EVENT_CALLBACK(TabMouseEnter)
 {
   tab_node* TabNode = GetTabNode(CallerNode);
-  if(!IsPluginSelected(Interface, TabNode->Payload))
+  if(!IsNodeSelected(Interface, TabNode->Payload))
   {
     color_attribute* TabColor =(color_attribute*) GetAttributePointer(CallerNode,ATTRIBUTE_COLOR);
     TabColor->Color = TabColor->HighlightedColor;
@@ -321,7 +321,7 @@ MENU_EVENT_CALLBACK(TabMouseEnter)
 MENU_EVENT_CALLBACK(TabMouseExit)
 {
   tab_node* TabNode = GetTabNode(CallerNode);
-  if(!IsPluginSelected(Interface, TabNode->Payload))
+  if(!IsNodeSelected(Interface, TabNode->Payload))
   {
     color_attribute* TabColor =(color_attribute*) GetAttributePointer(CallerNode,ATTRIBUTE_COLOR);
     TabColor->Color = TabColor->RestingColor;

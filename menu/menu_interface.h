@@ -56,7 +56,7 @@ struct menu_interface
   menu_tree* MenuInFocus;
 
   // Selected Plugin is the pluginwindow which was last clicked;
-  container_node* SelectedPlugin;
+  container_node* SelectedNode;
 
   menu_tree* SpawningWindow; // This SpawningWinow is a root window that all new windows gets attached to.
   menu_tree* MenuBar;
@@ -108,7 +108,7 @@ container_node* CreatePlugin(menu_interface* Interface, menu_tree* WindowsDropDo
 menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name);
 void ToggleWindow(menu_interface* Interface, char* WindowName);
 void SetFocusWindow(menu_interface* Interface, menu_tree* Menu);
-b32 IsPluginSelected(menu_interface* Interface, container_node* Container);
+b32 IsNodeSelected(menu_interface* Interface, container_node* Container);
 
 void _RegisterMenuEvent(menu_interface* Interface, menu_event_type EventType, container_node* CallerNode, void* Data, menu_event_callback** Callback,  menu_event_callback** OnDelete);
 #define RegisterMenuEvent(Interface, EventType, CallerNode, Data, Callback, OnDeleteCallback ) \
@@ -122,10 +122,7 @@ r32 GetAspectRatio(menu_interface* Interface)
 
 void UpdateMergableAttribute( menu_interface* Interface, container_node* Node );
 void UpdateFocusWindow(menu_interface* Interface);
-
-
-void SetSelectedPluginTab(menu_interface* Interface, container_node * PluginTab);
-
+void SetSelectedNode(menu_interface* Interface, container_node * Node);
 menu_tree* GetMenu(menu_interface* Interface, container_node* Node);
 
 void _PushToUpdateQueue(menu_interface* Interface, container_node* Caller, update_function** UpdateFunction, void* Data, b32 FreeData);

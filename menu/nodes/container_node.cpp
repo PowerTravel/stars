@@ -281,7 +281,8 @@ void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_func
         Continue = CallFunctionPointer(Entry->UpdateFunction, Interface, Entry->Caller, Entry->Data);
       }
 
-      if(!Continue) {
+      // A UpdateFunction may have called FreeUpdateFunction, so we need to check again here.
+      if(!Continue && Entry->Caller) {
         FreeUpdateFunction(Interface, Entry);
       }
     }

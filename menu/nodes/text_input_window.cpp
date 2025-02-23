@@ -90,8 +90,8 @@ container_node* CreateTextInputNode(menu_interface* Interface) {
   size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, TextInputContainer, ATTRIBUTE_SIZE);
   SizeAttr->Width = ContainerSizeT(menu_size_type::ABSOLUTE_, TextSize.X);
   SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, LineSpacing*1.1f);
-  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
+  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.01);
+  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.01);
   SizeAttr->XAlignment = menu_region_alignment::LEFT;
   SizeAttr->YAlignment = menu_region_alignment::CENTER;
 
