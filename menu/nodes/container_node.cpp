@@ -26,18 +26,21 @@ u32 GetContainerPayloadSize(container_type Type)
   return 0;
 }
 
+MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions)
+{
+  container_node* Child = Parent->FirstChild;
+  while(Child)
+  {
+    Child->Region = Parent->Region;
+    Child = Next(Child);
+  }
+}
+
 menu_functions GetDefaultFunctions()
 {
   menu_functions Result = {};
   Result.UpdateChildRegions = DeclareFunction(menu_get_region, UpdateChildRegions);
   Result.Draw = 0;
-  return Result;
-}
-
-menu_functions GetMainHeaderFunctions()
-{
-  menu_functions Result = GetDefaultFunctions();
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region, MainHeaderUpdate);
   return Result;
 }
 

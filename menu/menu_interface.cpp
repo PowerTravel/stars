@@ -13,7 +13,6 @@
 #include "nodes/main_window.cpp"
 #include "nodes/split_window.cpp"
 #include "nodes/text_input_window.cpp"
-#include "menu_functions.h"
 
 // Preorder breadth first.
 void DrawMenu(memory_arena* Arena, menu_interface* Interface, menu_tree* Menu)
