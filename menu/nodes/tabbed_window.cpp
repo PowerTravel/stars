@@ -600,15 +600,15 @@ MENU_UPDATE_FUNCTION(WindowDragUpdate)
   return Interface->MouseLeftButton.Active;
 }
 
-container_node* CreatePlugin(menu_interface* Interface, menu_tree* WindowsDropDownMenu, c8* HeaderName, container_node* BodyNode)
+container_node* CreatePlugin(menu_interface* Interface, c8* HeaderName)
 {
   container_node* Plugin = NewContainer(Interface, container_type::Plugin);
   plugin_node* PluginNode = GetPluginNode(Plugin);
   jstr::CopyStringsUnchecked(HeaderName, PluginNode->Title);
 
-  ConnectNodeToBack(Plugin, BodyNode);
-
-  AddPlugintoMainMenu(Interface, WindowsDropDownMenu, Plugin);
+  container_node* Tab = CreateTab(Interface, Plugin);
+  Assert(Interface->PermanentWindowCount < ArrayCount(Interface->PermanentWindows));
+  Interface->PermanentWindows[Interface->PermanentWindowCount++] = Tab;
 
   return Plugin;
 }
@@ -667,4 +667,46 @@ MENU_UPDATE_CHILD_REGIONS(UpdateTabWindowChildRegions)
     ++Index;
     Child = Next(Child);
   }
+}
+
+
+container_node* GetTabWindowFromPlugin(container_node* Plugin){
+  Assert(Plugin->Type == container_type::Plugin);
+  container_node* Tab = GetPluginNode(Plugin)->Tab;
+  container_node* Result = GetTabWindowFromTab(Tab);
+  return Result;
+}
+
+container_node* SetDefaultPlugin(menu_interface* Interface, container_node* Plugin)
+{
+  Assert(Plugin->Type == container_type::Plugin);
+  DisplayPluginInNewWindow(Interface, Plugin, Rect2f(0.25,0.25,0.5,0.5));
+  Maximize(Interface, GetRoot(Plugin));
+  container_node* Result = GetTabWindowFromPlugin(Plugin);
+  Assert(Result->Type == container_type::TabWindow);
+  return Result;
+}
+
+container_node* ConnectViaSplitWindow(menu_interface* Interface, container_node* TabWindow, container_node* Plugin, r32 PercentageOfScreen, b32 Vertical, b32 LeftOrTop)
+{
+  Assert(TabWindow->Type == container_type::TabWindow);
+  plugin_node* PluginNode = GetPluginNode(Plugin);
+
+  container_node* NewTabWindow = CreateTabWindow(Interface);
+  PushTab(NewTabWindow, PluginNode->Tab);
+  ConnectNodeToBack(NewTabWindow, Plugin);
+
+  container_node* SplitNode = CreateSplitWindow(Interface, Vertical, PercentageOfScreen);
+  ReplaceNode(TabWindow, SplitNode);
+
+  if(LeftOrTop)
+  {
+    ConnectNodeToBack(SplitNode, NewTabWindow);
+    ConnectNodeToBack(SplitNode, TabWindow);
+  }else{
+    ConnectNodeToBack(SplitNode, TabWindow);
+    ConnectNodeToBack(SplitNode, NewTabWindow);
+  }
+
+  return NewTabWindow;
 }

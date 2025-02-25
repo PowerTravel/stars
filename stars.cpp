@@ -1147,54 +1147,71 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     
     GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, &Input->Keyboard, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
     menu_interface* Interface = GlobalState->World.MenuInterface;
-    menu_tree* WindowsDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Windows");
-    menu_tree* TestDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Test");
+    container_node* DefaultWindow = 0;
     {
-      // Create Scene Window
-      container_node* SceneContainer =  NewContainer(Interface);
-      
-      SceneContainer->Functions.Draw = DeclareFunction(menu_draw, RenderScene);
+      menu_tree* WindowsDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Windows");
+      {
+        // Create Scene Window
+        container_node* ScenePlugin = CreatePlugin(Interface, "Scene");
+        AddPlugintoMainMenu(Interface, WindowsDropDownMenu, ScenePlugin);
 
-      container_node* ScenePlugin = CreatePlugin(Interface, WindowsDropDownMenu, "Scene", SceneContainer);
-      ToggleWindow(Interface, "Scene");
-      Maximize(Interface, GetRoot(ScenePlugin));
-      PushToUpdateQueue(Interface, SceneContainer, SceneTakeInput, (void*) Input, false);
-      GlobalState->World.ScenePlugin = ScenePlugin;
+        container_node* SceneContainer =  NewContainer(Interface);
+        SceneContainer->Functions.Draw = DeclareFunction(menu_draw, RenderScene);
+        PushToUpdateQueue(Interface, SceneContainer, SceneTakeInput, (void*) Input, false);
+        ConnectNodeToBack(ScenePlugin, SceneContainer);
+        GlobalState->World.ScenePlugin = ScenePlugin;
+
+        DefaultWindow = SetDefaultPlugin(Interface, ScenePlugin);
+      }
+      {
+
+        container_node* EntityContainer =  NewContainer(Interface, container_type::Grid);
+        grid_node* Grid = GetGridNode(EntityContainer);
+        Grid->Col = 1;
+        Grid->Row = 0;
+        Grid->TotalMarginX = 0.0;
+        Grid->TotalMarginY = 0.0;
+        Grid->Stack = true;
+
+        color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
+        BackgroundColor->Color = V4(0.2,0,0,1);
+
+        size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, EntityContainer, ATTRIBUTE_SIZE);
+        SizeAttr->Width = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.1);
+        SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, 1);
+        SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.01);
+        SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.01);
+        SizeAttr->XAlignment = menu_region_alignment::LEFT;
+        SizeAttr->YAlignment = menu_region_alignment::CENTER;
+
+        ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
+        ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
+        ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
+
+        container_node* SettingsPlugin = CreatePlugin(Interface, "Entities");
+        AddPlugintoMainMenu(Interface, WindowsDropDownMenu, SettingsPlugin);
+
+        ConnectNodeToBack(SettingsPlugin, EntityContainer);
+        container_node* EntityWindow = ConnectViaSplitWindow(Interface, DefaultWindow, SettingsPlugin, 0.1, false, true);
+      }
     }
     {
-      container_node* SettingsPlugin = 0;
-      // Create Option Window
-      container_node* EntityContainer =  NewContainer(Interface, container_type::Grid);
-      grid_node* Grid = GetGridNode(EntityContainer);
-      Grid->Col = 1;
-      Grid->Row = 0;
-      Grid->TotalMarginX = 0.0;
-      Grid->TotalMarginY = 0.0;
-//
-      color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
-      BackgroundColor->Color = V4(0.2,0,0,1);
+      menu_tree* TestDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Test");
+      {
+        // Create Option Window
+        container_node* EntityContainer =  NewContainer(Interface, container_type::None);
+        color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
+        BackgroundColor->Color = V4(0,0.3,0,1);
 
-      ConnectNodeToBack(EntityContainer,CreateTextInputNode(Interface));
-
-      SettingsPlugin = CreatePlugin(Interface,WindowsDropDownMenu, "Settings", EntityContainer);
-      
-    }
-    {
-      container_node* SettingsPlugin = 0;
-      // Create Option Window
-      container_node* EntityContainer =  NewContainer(Interface, container_type::Grid);
-      grid_node* Grid = GetGridNode(EntityContainer);
-      Grid->Col = 1;
-      Grid->Row = 0;
-      Grid->TotalMarginX = 0.0;
-      Grid->TotalMarginY = 0.0;
-
-      color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
-      BackgroundColor->Color = V4(0,0.3,0,1);
-
-      SettingsPlugin = CreatePlugin(Interface, TestDropDownMenu, "Test2", EntityContainer);
+        container_node* TestPlugin = CreatePlugin(Interface, "Test2");
+        AddPlugintoMainMenu(Interface, TestDropDownMenu, TestPlugin);
+        
+        ConnectNodeToBack(TestPlugin, EntityContainer);
+      }
     }
     
+
+
     { // Create some entities
       { // Checker Floor
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);

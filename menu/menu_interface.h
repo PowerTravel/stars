@@ -30,10 +30,9 @@ void _PushToFinalDrawQueue(menu_tree* Menu, container_node* Node, menu_draw** Dr
 // Holds the shape of the pluin containers, or rather the TabWindows holding the Plugins
 // Leaf nodes holds the actual plugins
 struct menu_layout_node {
-
-  c8* Name[64];
+  container_node* Plugin;
   b32 Vertical;
-  r32 ChildBorderPosition; 
+  r32 ChildBorderPositionPercentage; 
 
   menu_layout_node* Parent;
   menu_layout_node* FirstChild;
@@ -41,9 +40,14 @@ struct menu_layout_node {
 };
 
 struct menu_layout {
-
   menu_layout_node* Root;
 };
+
+menu_layout CreateMenuLayout()
+{
+  menu_layout Result = {};
+  return Result;
+}
 
 struct menu_interface
 {
@@ -104,7 +108,6 @@ struct menu_interface
  
 container_node* GetTabWindowFromOtherMenu(menu_interface* Interface, container_node* Node);
 
-container_node* CreatePlugin(menu_interface* Interface, menu_tree* WindowsDropDownMenu, c8* HeaderName, v4 HeaderColor, container_node* BodyNode);
 menu_tree* RegisterMenu(menu_interface* Interface, const c8* Name);
 void ToggleWindow(menu_interface* Interface, char* WindowName);
 void SetFocusWindow(menu_interface* Interface, menu_tree* Menu);

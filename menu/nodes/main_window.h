@@ -12,3 +12,5 @@ menu_tree* CreateNewDropDownMenuItem(menu_interface* Interface, const c8* Name);
 void AddPlugintoMainMenu(menu_interface* Interface, menu_tree* DropDownMenu, container_node* Plugin);
 menu_tree* CreateMainWindow(menu_interface* Interface);
 menu_functions GetMainWindowFunctions();
+void DisplayOrRemovePlugin(menu_interface* Interface, container_node* Plugin, menu_tree* TreeToDisplayIn);
+void DisplayPluginInNewWindow(menu_interface* Interface, container_node* Plugin, rect2f Region);

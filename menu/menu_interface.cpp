@@ -100,7 +100,8 @@ b32 IsFocusWindow(menu_interface* Interface, menu_tree* Menu)
 // If Menu is 0 and Focused Window Ptr is not 0, call its LoosingFocus function and set Focused Window Ptr to 0
 void SetFocusWindow(menu_interface* Interface, menu_tree* Menu)
 {
-  Assert(Menu != &Interface->MenuSentinel);
+  if(!Menu) return;
+  if(Menu == &Interface->MenuSentinel) return;
 
   if(Interface->MenuInFocus && Menu != Interface->MenuInFocus)
   {
@@ -868,7 +869,7 @@ void ToggleWindow(menu_interface* Interface, char* WindowName)
 
     if(jstr::ExactlyEquals(WindowName, GetPluginNode(Plugin)->Title))
     {
-      DisplayOrRemovePluginTab(Interface,PluginTab);  
+      DisplayOrRemovePlugin(Interface, Plugin, 0);  
     }
   }
 }

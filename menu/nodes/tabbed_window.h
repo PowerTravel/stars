@@ -49,7 +49,7 @@ struct tab_window_node
 // A tabbed window is the window that holds plugins. A tabbed window can hold 1 to many plugins in tabs
 container_node* CreateTabWindow(menu_interface* Interface);
 container_node* CreateTab(menu_interface* Interface, container_node* Plugin);
-container_node* CreatePlugin(menu_interface* Interface, menu_tree* WindowsDropDownMenu, c8* HeaderName, container_node* BodyNode);
+container_node* CreatePlugin(menu_interface* Interface, c8* HeaderName);
 
 
 inline plugin_node* GetPluginNode(container_node* Container);
@@ -61,8 +61,15 @@ void SplitTabToNewWindow(menu_interface* Interface, container_node* Tab, rect2f 
 
 // Takes a Tab and return the TabWindow it's connected to
 inline container_node* GetTabWindowFromTab(container_node* Tab);
-// Removes the tab from the tab window it's attached to
-container_node* RemoveTabFromTabWindow(container_node* Tab);
-
 // Takes a tab window and returns the body
 inline container_node* GetTabBodyFromTabWindow(container_node* TabWindow);
+// Takes a Plugin window and returns the attached TabWindow. Note the Plugin does not need to be the selected tab.
+inline container_node* GetTabWindowFromPlugin(container_node* Plugin);
+// Removes the tab from the tab window it's attached to.
+//  If it's the final tab in the tab_window it will delete the tab window and any split window.
+//  If it's the final tabWindow in the menu tree, the menu tree will also get deleted.
+container_node* RemoveTabFromTabWindow(container_node* Tab);
+
+// Default plugin is the Maximized window
+container_node* SetDefaultPlugin(menu_interface* Interface, container_node* Plugin);
+container_node* ConnectViaSplitWindow(menu_interface* Interface, container_node* TabWindow, container_node* Plugin, r32 PercentageOfScreen, b32 Vertical, b32 LeftOrTop);

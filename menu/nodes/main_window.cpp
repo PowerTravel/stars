@@ -48,37 +48,41 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
   return MainWindow;
 }
 
-
-
-void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
+void DisplayPluginInNewWindow(menu_interface* Interface, container_node* Plugin, rect2f Region)
 {
+  Assert(!Plugin->Parent);
+
+  container_node* Tab = GetPluginNode(Plugin)->Tab;
   Assert(Tab->Type == container_type::Tab);
-  container_node* TabHeader = Tab->Parent;
-  if(TabHeader)
+  Assert(!Tab->Parent);
+
+  container_node* TabWindow = CreateTabWindow(Interface);
+  menu_tree* NewWindow = CreateNewRootContainer(Interface, TabWindow, Region);
+
+  PushTab(TabWindow, Tab);
+  ConnectNodeToBack(TabWindow, Plugin);
+
+  SetFocusWindow(Interface, NewWindow);
+}
+
+void DisplayOrRemovePlugin(menu_interface* Interface, container_node* Plugin, menu_tree* TreeToDisplayIn)
+{
+  container_node* Tab = GetPluginNode(Plugin)->Tab;
+  Assert(Tab->Type == container_type::Tab);
+
+  if(Tab->Parent)
   {
-    Assert(TabHeader->Type == container_type::Grid);
-
-    container_node* TabWindow = GetTabWindowFromTab(Tab);
-
-    container_node* TabToHightlight = Next(Tab);
-    if(!TabToHightlight)
-    {
-      TabToHightlight = Previous(Tab);
-    }
-
     RemoveTabFromTabWindow(Interface, Tab);
-
+    SetFocusWindow(Interface, Interface->MenuSentinel.Next);
   }else{
 
-    container_node* TabWindow = 0;
-    if(!Interface->SpawningWindow)
+    if(!TreeToDisplayIn)
     {
-      TabWindow = CreateTabWindow(Interface);
-      Interface->SpawningWindow = CreateNewRootContainer(Interface, TabWindow, Rect2f( 0.25, 0.25, 0.7, 0.5));
-      Maximize(Interface, Interface->SpawningWindow->Root);
-
+      DisplayPluginInNewWindow(Interface, Plugin, Rect2f( 0.25, 0.25, 0.7, 0.5));
+      //Maximize(Interface, Interface->SpawningWindow->Root);
     }else{
-      TabWindow = GetBodyFromRoot(Interface->SpawningWindow->Root);
+
+      container_node* TabWindow = GetBodyFromRoot(TreeToDisplayIn->Root);
       while(TabWindow->Type != container_type::TabWindow)
       {
         if(TabWindow->Type ==  container_type::Split)
@@ -88,21 +92,15 @@ void DisplayOrRemovePluginTab(menu_interface* Interface, container_node* Tab)
           INVALID_CODE_PATH;
         }
       }
-    }
 
-    PushTab(TabWindow, Tab);
+      PushTab(TabWindow, Tab);
 
-    container_node* Body = Next(TabWindow->FirstChild);
-    tab_node* TabNode = GetTabNode(Tab);
-    if(Body)
-    {
+      container_node* Body = Next(TabWindow->FirstChild);
+      tab_node* TabNode = GetTabNode(Tab);
       ReplaceNode(Body, TabNode->Payload);
-    }else{
-      ConnectNodeToBack(TabWindow, TabNode->Payload);
+      SetFocusWindow(Interface, Interface->SpawningWindow);
     }
   }
-
-  SetFocusWindow(Interface, Interface->SpawningWindow);
 }
 
 MENU_EVENT_CALLBACK(DropDownMouseUp)
@@ -110,7 +108,9 @@ MENU_EVENT_CALLBACK(DropDownMouseUp)
   menu_tree* Menu = GetMenu(Interface, CallerNode);
   Assert(Menu->Visible);
 
-  DisplayOrRemovePluginTab(Interface, (container_node*) Data);
+  container_node* Tab = (container_node*) Data;
+  tab_node* TabNode = GetTabNode(Tab);
+  DisplayOrRemovePlugin(Interface, TabNode->Payload, 0);
 }
 
 
@@ -259,13 +259,11 @@ void AddPlugintoMainMenu(menu_interface* Interface, menu_tree* DropDownMenu, con
   DropDownMenu->Root->Region.H += TextSize.Y*2;
   DropDownMenu->Root->Region.W = DropDownMenu->Root->Region.W >= TextSize.X*1.2 ? DropDownMenu->Root->Region.W : TextSize.X*1.2;
 
-  container_node* Tab = CreateTab(Interface, Plugin);
 
-  Interface->PermanentWindows[Interface->PermanentWindowCount++] = Tab;
-
-  RegisterMenuEvent(Interface, menu_event_type::MouseUp,    MenuItem, Tab, DropDownMouseUp, 0);
-  RegisterMenuEvent(Interface, menu_event_type::MouseEnter, MenuItem, Tab, DropDownMouseEnter, 0);
-  RegisterMenuEvent(Interface, menu_event_type::MouseExit,  MenuItem, Tab, DropDownMouseExit, 0);
+  plugin_node* PluginNode = GetPluginNode(Plugin);
+  RegisterMenuEvent(Interface, menu_event_type::MouseUp,    MenuItem, PluginNode->Tab, DropDownMouseUp, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseEnter, MenuItem, PluginNode->Tab, DropDownMouseEnter, 0);
+  RegisterMenuEvent(Interface, menu_event_type::MouseExit,  MenuItem, PluginNode->Tab, DropDownMouseExit, 0);
 
   Assert(Interface->MainMenuTabCount < ArrayCount(Interface->MainMenuTabs));
   Interface->MainMenuTabs[Interface->MainMenuTabCount++] = DropDownMenu;
