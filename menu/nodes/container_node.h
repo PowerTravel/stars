@@ -76,6 +76,7 @@ const c8* ToString(container_type Type)
 
 struct container_node
 {
+  u32 DebugID;
   container_type Type;
   u32 Attributes;
   menu_attribute_header* FirstAttribute;

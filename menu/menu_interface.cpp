@@ -150,7 +150,7 @@ void FormatNodeString(container_node* Node, u32 BufferSize, c8 StringBuffer[])
   u32 Attributes = Node->Attributes;
   
   Platform.DEBUGFormatString(StringBuffer, BufferSize, BufferSize-1,
-  "%s", ToString(Node->Type));
+  "%d %s", Node->DebugID, ToString(Node->Type));
   b32 First = true;
   while(Attributes)
   {
@@ -838,6 +838,7 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
 menu_interface* CreateMenuInterface(memory_arena* Arena, jwin::keyboard_input* Keyboard, midx MaxMemSize, r32 AspectRatio)
 {
   menu_interface* Interface = PushStruct(Arena, menu_interface);
+  Interface->DebugIDCounter = 0;
   Interface->LinkedMemory = NewLinkedMemory(Arena, MaxMemSize);
   Interface->BorderSize = 0.007;
   Interface->HeaderFontSize = 16;

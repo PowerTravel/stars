@@ -70,11 +70,12 @@ container_node* NewContainer(menu_interface* Interface, container_type Type)
   u32 BaseNodeSize    = sizeof(container_node) + sizeof(memory_link);
   u32 NodePayloadSize = GetContainerPayloadSize(Type);
   midx ContainerSize = (BaseNodeSize + NodePayloadSize);
- 
+
   container_node* Result = (container_node*) Allocate(&Interface->LinkedMemory, ContainerSize);
   Result->Type = Type;
   Result->Functions = GetMenuFunction(Type);
-
+  Result->DebugID = Interface->DebugIDCounter++;
+  Platform.DEBUGPrint("Creating %s Node %d\n",ToString(Result->Type), Result->DebugID);
   return Result;
 }
 
@@ -235,6 +236,7 @@ internal void CancelAllUpdateFunctions(menu_interface* Interface, container_node
 
 void DeleteContainer( menu_interface* Interface, container_node* Node)
 {
+  Platform.DEBUGPrint("Deleting %s Node %d\n", ToString(Node->Type), Node->DebugID);
   CancelAllUpdateFunctions(Interface, Node );
   ClearMenuEvents(Interface, Node);
   DeleteAllAttributes(Interface, Node);

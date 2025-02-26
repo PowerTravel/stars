@@ -51,6 +51,7 @@ menu_layout CreateMenuLayout()
 
 struct menu_interface
 {
+  u32 DebugIDCounter;
   b32 MenuVisible;
 
   u32 PermanentWindowCount = 0;
