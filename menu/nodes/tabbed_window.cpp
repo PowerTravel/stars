@@ -687,7 +687,7 @@ container_node* SetDefaultPlugin(menu_interface* Interface, container_node* Plug
   return Result;
 }
 
-container_node* ConnectViaSplitWindow(menu_interface* Interface, container_node* TabWindow, container_node* Plugin, r32 PercentageOfScreen, b32 Vertical, b32 LeftOrTop)
+container_node* ConnectViaSplitWindow(menu_interface* Interface, container_node* TabWindow, container_node* Plugin, r32 PercentageOfScreen, b32 Vertical, b32 LeftOrBot)
 {
   Assert(TabWindow->Type == container_type::TabWindow);
   plugin_node* PluginNode = GetPluginNode(Plugin);
@@ -696,10 +696,10 @@ container_node* ConnectViaSplitWindow(menu_interface* Interface, container_node*
   PushTab(NewTabWindow, PluginNode->Tab);
   ConnectNodeToBack(NewTabWindow, Plugin);
 
-  container_node* SplitNode = CreateSplitWindow(Interface, Vertical, PercentageOfScreen);
+  container_node* SplitNode = CreateSplitWindow(Interface, Vertical, LeftOrBot ? PercentageOfScreen :  1-PercentageOfScreen );
   ReplaceNode(TabWindow, SplitNode);
 
-  if(LeftOrTop)
+  if(LeftOrBot)
   {
     ConnectNodeToBack(SplitNode, NewTabWindow);
     ConnectNodeToBack(SplitNode, TabWindow);

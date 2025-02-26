@@ -9,7 +9,13 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
   MainWindow->Root->Region = Rect2f(0,0,GetAspectRatio(Interface),1);
 
   {
-    container_node* HeaderBar = ConnectNodeToBack(MainWindow->Root, NewContainer(Interface));
+    container_node* HeaderBar = ConnectNodeToBack(MainWindow->Root, NewContainer(Interface, container_type::Grid));
+    grid_node* Grid = GetGridNode(HeaderBar);
+    Grid->Col = 0;
+    Grid->Row = 1;
+    Grid->TotalMarginX = 0.0;
+    Grid->TotalMarginY = 0.0;
+    Grid->Stack = true;
 
     size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_SIZE);
     SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, 1);
@@ -24,14 +30,6 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
     ColorAttr->Color = Interface->MenuColor;
     ColorAttr->HighlightedColor = ColorAttr->Color;
     ColorAttr->RestingColor = ColorAttr->Color;
-
-    container_node* DropDownContainer = ConnectNodeToBack(HeaderBar, NewContainer(Interface, container_type::Grid));
-    grid_node* Grid = GetGridNode(DropDownContainer);
-    Grid->Col = 0;
-    Grid->Row = 1;
-    Grid->TotalMarginX = 0.0;
-    Grid->TotalMarginY = 0.0;
-    Grid->Stack = true;
   }
 
   { // Main Menu Body
@@ -167,8 +165,7 @@ menu_tree* CreateNewDropDownMenuItem(menu_interface* Interface, const c8* Name)
   r32 CanonicalFontHeight = Interface->HeaderSize;
   v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(RenderSystem, Interface->HeaderFontSize, (utf8_byte*) Name);
 
-  container_node* MainSettingBar =  Interface->MenuBar->Root->FirstChild;
-  container_node* DropDownContainer = MainSettingBar->FirstChild;
+  container_node* DropDownContainer = Interface->MenuBar->Root->FirstChild;
   Assert(DropDownContainer->Type == container_type::Grid);
 
   container_node* NewMenu = ConnectNodeToBack(DropDownContainer, NewContainer(Interface));

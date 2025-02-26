@@ -1177,10 +1177,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         BackgroundColor->Color = V4(0.2,0,0,1);
 
         size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, EntityContainer, ATTRIBUTE_SIZE);
-        SizeAttr->Width = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.1);
+        SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, 1);
         SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, 1);
-        SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.01);
-        SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.01);
+        SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
+        SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
         SizeAttr->XAlignment = menu_region_alignment::LEFT;
         SizeAttr->YAlignment = menu_region_alignment::CENTER;
 
@@ -1192,7 +1192,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         AddPlugintoMainMenu(Interface, WindowsDropDownMenu, SettingsPlugin);
 
         ConnectNodeToBack(SettingsPlugin, EntityContainer);
-        container_node* EntityWindow = ConnectViaSplitWindow(Interface, DefaultWindow, SettingsPlugin, 0.1, false, true);
+        container_node* EntityWindow = ConnectViaSplitWindow(Interface, DefaultWindow, SettingsPlugin, 0.3, true, false);
       }
     }
     {

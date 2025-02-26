@@ -72,4 +72,4 @@ container_node* RemoveTabFromTabWindow(container_node* Tab);
 
 // Default plugin is the Maximized window
 container_node* SetDefaultPlugin(menu_interface* Interface, container_node* Plugin);
-container_node* ConnectViaSplitWindow(menu_interface* Interface, container_node* TabWindow, container_node* Plugin, r32 PercentageOfScreen, b32 Vertical, b32 LeftOrTop);
+container_node* ConnectViaSplitWindow(menu_interface* Interface, container_node* TabWindow, container_node* Plugin, r32 PercentageOfScreen, b32 Vertical, b32 LeftOrBot);

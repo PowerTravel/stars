@@ -97,10 +97,6 @@ MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
         break;
       }
     }
-    r32 HeightOfColumn = (ParentRegion.Y + ParentRegion.H) - Y0;
-    ParentRegion.W = MaxWidth;
-    ParentRegion.H = HeightOfColumn;
-    Parent->Region = ParentRegion;
   }else{
 
     r32 xMargin = (GridNode->TotalMarginX / Col) * ParentRegion.W;
