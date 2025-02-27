@@ -119,14 +119,8 @@ void SetFocusWindow(menu_interface* Interface, menu_tree* Menu)
     }
     else if(Menu->Root->Type == container_type::Root && GetRootNode(Menu->Root)->Maximized)
     {
-      if(Interface->MenuSentinel.Previous == Interface->MenuBar)
-      {
-        ListRemove(Menu);
-        ListInsertBefore(Interface->MenuSentinel.Previous, Menu);
-      }else{
-        ListRemove(Menu);
-        ListInsertBefore(&Interface->MenuSentinel, Menu);
-      }
+      ListRemove(Menu);
+      ListInsertBefore(Interface->MenuBar, Menu);
     }else{
       if(Menu != Interface->MenuSentinel.Next)
       {
