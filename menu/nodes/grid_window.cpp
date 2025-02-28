@@ -14,6 +14,178 @@ menu_functions GetGridFunctions()
   return Result;
 }
 
+internal void SetChildWidthsAndHeights(u32 NumCols, r32* ResultColWidths, r32 CellWidth, u32 NumRows, r32* ResultRowHeights, r32 CellHeight, container_node* FirstChild)
+{
+  container_node* Child = FirstChild;
+  for (u32 j = 0; j < NumCols; ++j)
+  {
+    for (u32 i = 0; i < NumRows; ++i)
+    {
+      v2 ChildSize = {};
+      if(HasAttribute(Child, ATTRIBUTE_SIZE))
+      {
+        size_attribute* Size = (size_attribute*) GetAttributePointer(Child, ATTRIBUTE_SIZE);
+        if(Size->Width.Type == menu_size_type::ABSOLUTE_)
+        {
+          ChildSize.X = Size->Width.Value;
+        }else{
+          ChildSize.X = Size->Width.Value * CellWidth;
+        }
+        if(Size->Height.Type == menu_size_type::ABSOLUTE_)
+        {
+          ChildSize.Y = Size->Height.Value;
+        }else{
+          ChildSize.Y = Size->Height.Value * CellHeight;
+        }
+      }else{
+        ChildSize.X = CellWidth;
+        ChildSize.Y = CellHeight;
+      }
+
+      if(ResultRowHeights[i] < ChildSize.Y)
+      {
+        ResultRowHeights[i] = ChildSize.Y;
+      }
+      if(ResultColWidths[j] < ChildSize.X)
+      { 
+        ResultColWidths[j] = ChildSize.X;
+      }
+
+      Child->Region.W = ChildSize.X;
+      Child->Region.H = ChildSize.Y;
+      Child = Next(Child);
+      if(!Child)
+      {
+        break;
+      }
+    }
+    if(!Child)
+    {
+      break;
+    }
+  }
+}
+
+internal r32 GetCumulativeVector(u32 Count, r32* NumVec, r32* ResultVec)
+{
+  r32 Result = NumVec[0];
+  ResultVec[0] = Result;
+  for (int i = 1; i < Count; ++i)
+  {
+    Result += NumVec[i];
+    ResultVec[i] = Result;
+  }
+  return Result;
+}
+
+internal void SetChildXAndYRelativePosition(u32 NumCols, r32* CellWidths, r32 TotalWidth, u32 NumRows, r32* CellHeights, r32 TotalHeight, container_node* FirstChild)
+{
+  container_node* Child = FirstChild;
+  r32 X = 0;
+  for (u32 j = 0; j < NumCols; ++j)
+  {
+    r32 CellWidth = CellWidths[j];
+    r32 Y = TotalHeight;
+    for (u32 i = 0; i < NumRows; ++i)
+    {
+      r32 CellHeight = CellHeights[i];
+      Y -= CellHeight;
+      // Align child within the allocated grid slot
+      if(HasAttribute(Child, ATTRIBUTE_SIZE))
+      {
+        size_attribute* Size = (size_attribute*) GetAttributePointer(Child, ATTRIBUTE_SIZE);
+        switch(Size->XAlignment)
+        {
+          case menu_region_alignment::LEFT: {
+            // Do Nothing
+          }break;
+          case menu_region_alignment::RIGHT: {
+            X +=  CellWidth - Child->Region.W;
+          }break;
+          default: {
+            X += (CellWidth - Child->Region.W) * 0.5f;
+          }break; // CENTER
+        }
+
+        switch(Size->YAlignment)
+        {
+          case menu_region_alignment::TOP: {
+            // Do Nothing
+          }break;
+          case menu_region_alignment::BOT: {
+            Y -= (CellHeight-Child->Region.H);
+          }break;
+          default: {
+            Y -= (CellHeight-Child->Region.H) * 0.5f;
+          }break; // CENTER
+        }
+      }
+
+      Child->Region.Y = Y;
+      Child->Region.X = X;
+      Child = Next(Child);
+      if(!Child)
+      {
+        break;
+      }
+    }
+    X += CellWidth;
+    if(!Child)
+    {
+      break;
+    }
+  }
+}
+
+internal void SetChildXAndYAbsolutePosition(u32 ColCount, u32 RowCount, r32 TotalWidth, r32 TotalHeight, grid_node* GridNode, rect2f ParentRegion, container_node* FirstChild)
+{
+  r32 XOffset = 0;
+  r32 YOffset = 0;
+  switch(GridNode->StackXAlignment)
+  {
+    case menu_region_alignment::LEFT: {
+      XOffset = ParentRegion.X;
+    }break;
+    case menu_region_alignment::RIGHT: {
+      XOffset = ParentRegion.X + ParentRegion.W - TotalWidth;
+    }break;
+    default: {
+      XOffset = ParentRegion.X + (ParentRegion.W - TotalWidth) * 0.5f;
+    }break; // CENTER
+  }
+
+  switch(GridNode->StackYAlignment)
+  {
+    case menu_region_alignment::TOP: {
+      YOffset = ParentRegion.H - TotalHeight;
+    }break;
+    case menu_region_alignment::BOT: {
+      YOffset = ParentRegion.Y;
+    }break;
+    default: {
+      YOffset = ParentRegion.Y + (ParentRegion.H-TotalHeight) * 0.5f;
+    }break; // CENTER
+  }
+
+  container_node* Child = FirstChild;
+  for (u32 j = 0; j < ColCount; ++j)
+  {
+    for (u32 i = 0; i < RowCount; ++i)
+    {
+      Child->Region.X += XOffset; 
+      Child->Region.Y += YOffset; 
+      Child = Next(Child);
+      if(!Child)
+      {
+        break;
+      }
+    }
+    if(!Child)
+    {
+      break;
+    }
+  }
+}
 
 MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
 {
@@ -24,28 +196,44 @@ MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
   rect2f ParentRegion = Parent->Region; 
 
   grid_node* GridNode = GetGridNode(Parent);
-  r32 Row = (r32)GridNode->Row;
-  r32 Col = (r32)GridNode->Col;
+  r32 RowCount = (r32)GridNode->Row;
+  r32 ColCount = (r32)GridNode->Col;
 
   Assert(GridNode->Row || GridNode->Col);
   
-  if(Row == 0)
+  if(RowCount == 0)
   {
-    Assert(Col != 0);
-    Row = Ciel(Count / Col);
-  }else if(Col == 0){
-    Assert(Row != 0);
-    Col = Ciel(Count / Row);
+    Assert(ColCount != 0);
+    RowCount = Ciel(Count / ColCount);
+  }else if(ColCount == 0){
+    Assert(RowCount != 0);
+    ColCount = Ciel(Count / RowCount);
   }else{
-    Assert((Row * Col) >= Count);
+    Assert((RowCount * ColCount) >= Count);
   }
 
-  r32* RowHeights = PushArray(GlobalTransientArena, Row, r32);
+  r32* CellHeights = PushArray(GlobalTransientArena, RowCount, r32);
+  r32* CellWidths  = PushArray(GlobalTransientArena, ColCount, r32);
 
-  r32 CellWidth = ParentRegion.W/Col;
-  r32 CellHeight = ParentRegion.H/Row;
+  r32 EqualCellWidth = ParentRegion.W/ColCount;
+  r32 EqualCellHeight = ParentRegion.H/RowCount;
 
-  container_node* Child = Parent->FirstChild;
+  // Set node widths and calculate max height / width for each row / col
+  SetChildWidthsAndHeights(ColCount, CellWidths, EqualCellWidth, RowCount, CellHeights, EqualCellHeight, Parent->FirstChild);
+
+  r32* CumulativeHeight = PushArray(GlobalTransientArena, RowCount, r32);
+  r32 TotalHeight = GetCumulativeVector(RowCount, CellHeights, CumulativeHeight);
+
+  r32* CumulativeWidth = PushArray(GlobalTransientArena, RowCount, r32);
+  r32 TotalWidth = GetCumulativeVector(ColCount, CellWidths, CumulativeWidth);
+
+  SetChildXAndYRelativePosition(ColCount, CellWidths, TotalWidth, RowCount, CellHeights, TotalHeight, Parent->FirstChild);
+
+  SetChildXAndYAbsolutePosition(ColCount, RowCount, TotalWidth, TotalHeight, GridNode, Parent->Region, Parent->FirstChild);
+
+  
+
+#if 0
   if(GridNode->Stack)
   {
     r32 X = ParentRegion.X;
@@ -190,7 +378,6 @@ MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
       }
     }
 
-
   }else{
 
     r32 xMargin = (GridNode->TotalMarginX / Col) * ParentRegion.W;
@@ -215,4 +402,5 @@ MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
       }
     }
   }
+#endif
 }

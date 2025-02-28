@@ -1329,23 +1329,23 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
   SetDEBUGSquareNode(GlobalState->DebugContainerNodes[0],
-                     menu_size_type::RELATIVE_, 0.5, 
-                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_size_type::ABSOLUTE_, 0.2, 
+                     menu_size_type::ABSOLUTE_, 0.1, 
                      menu_region_alignment::LEFT,
                      menu_region_alignment::TOP);
   SetDEBUGSquareNode(GlobalState->DebugContainerNodes[1],
-                     menu_size_type::RELATIVE_, 0.5, 
-                     menu_size_type::RELATIVE_, 0.5, 
-                     menu_region_alignment::LEFT,
+                     menu_size_type::ABSOLUTE_, 0.1, 
+                     menu_size_type::ABSOLUTE_, 0.2, 
+                     menu_region_alignment::RIGHT,
                      menu_region_alignment::TOP);
   SetDEBUGSquareNode(GlobalState->DebugContainerNodes[2],
-                     menu_size_type::RELATIVE_, 0.5, 
-                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_size_type::ABSOLUTE_, 0.1, 
+                     menu_size_type::ABSOLUTE_, 0.1, 
                      menu_region_alignment::LEFT,
                      menu_region_alignment::TOP);
   SetDEBUGSquareNode(GlobalState->DebugContainerNodes[3],
-                     menu_size_type::RELATIVE_, 0.5, 
-                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_size_type::ABSOLUTE_, 0.2, 
+                     menu_size_type::ABSOLUTE_, 0.1, 
                      menu_region_alignment::LEFT,
                      menu_region_alignment::TOP);
   grid_node * GridNode = GetGridNode(GlobalState->DebugContainerNodes[4]);
