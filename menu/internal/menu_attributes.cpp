@@ -132,7 +132,6 @@ void DeleteAttribute(menu_interface* Interface, container_node* Node, container_
   Node->Attributes =Node->Attributes - (u32)AttributeType;
 }
 
-
 rect2f GetSizedParentRegion(size_attribute* SizeAttr, rect2f BaseRegion)
 {
   rect2f Result = {};

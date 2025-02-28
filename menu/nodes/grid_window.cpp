@@ -17,6 +17,7 @@ menu_functions GetGridFunctions()
 
 MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
 {
+  SCOPED_TRANSIENT_ARENA;
   r32 Count = (r32) GetChildCount(Parent);
   if(!Count) return;
 
@@ -39,71 +40,162 @@ MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
     Assert((Row * Col) >= Count);
   }
 
+  r32* RowHeights = PushArray(GlobalTransientArena, Row, r32);
+
+  r32 CellWidth = ParentRegion.W/Col;
+  r32 CellHeight = ParentRegion.H/Row;
+
   container_node* Child = Parent->FirstChild;
-  r32 MaxHeightForRow = 0;
   if(GridNode->Stack)
   {
-    r32 xMargin = (GridNode->TotalMarginX / Col) * ParentRegion.W;
-    r32 yMargin = (GridNode->TotalMarginY / Row) * ParentRegion.H;
-
-    r32 Y0 = ParentRegion.Y + ParentRegion.H;
-    r32 MaxWidth = 0;
-    r32 MaxHeight = 0;
-    for (r32 i = 0; i < Row; ++i)
+    r32 X = ParentRegion.X;
+    r32 MaxCellWidthForColumn = 0;
+    r32 TotalGridWidth = 0;
+    r32 MaxCellHeightForRow = 0;
+    r32 TotalGridHeight = 0;
+    for (u32 j = 0; j < Col; ++j)
     {
-      r32 X0 = ParentRegion.X;
-      for (r32 j = 0; j < Col; ++j)
+      r32 Y = ParentRegion.Y + ParentRegion.H;
+      for (u32 i = 0; i < Row; ++i)
       {
-        r32 CellWidth = ParentRegion.W/Col;
-        r32 CellHeight = ParentRegion.H/Row;
-        size_attribute* Size = (size_attribute*) GetAttributePointer(Child, ATTRIBUTE_SIZE);
-        if(Size->Width.Type == menu_size_type::ABSOLUTE_)
+        rect2f CellRegion = {};
+        if(HasAttribute(Child, ATTRIBUTE_SIZE))
         {
-          CellWidth = Size->Width.Value;
-        }else if(Size->Height.Type == menu_size_type::ABSOLUTE_)
-        {
-          CellHeight = Size->Height.Value;
+          size_attribute* Size = (size_attribute*) GetAttributePointer(Child, ATTRIBUTE_SIZE);
+          if(Size->Width.Type == menu_size_type::ABSOLUTE_)
+          {
+            CellRegion.W = Size->Width.Value;
+            CellRegion.X = X;
+          }else{
+            CellRegion.W = Size->Width.Value * CellWidth;
+            CellRegion.X = X;
+          }
+          if(Size->Height.Type == menu_size_type::ABSOLUTE_)
+          {
+            CellRegion.H = Size->Height.Value;
+            CellRegion.Y = Y - CellRegion.H;
+          }else{
+            CellRegion.H = Size->Height.Value * CellHeight;
+            CellRegion.Y = Y - CellRegion.H;
+          }
+        }else{
+          CellRegion = Rect2f(
+            X, 
+            Y,
+            CellWidth,
+            CellHeight);
         }
 
-        Child->Region = Rect2f(X0, Y0-CellHeight, CellWidth, CellHeight);
-        Child->Region.X += xMargin/2.f;
-        Child->Region.W -= xMargin;
-        Child->Region.Y += yMargin/2.f;
-        Child->Region.H -= yMargin;
-
-        X0 += CellWidth;
-
-        if(MaxHeightForRow < CellHeight)
+        if(MaxCellWidthForColumn < CellRegion.W)
         {
-          MaxHeightForRow = CellHeight;
+          MaxCellWidthForColumn = CellRegion.W;
+        }
+        if(RowHeights[i] < CellRegion.H)
+        {
+          RowHeights[i] = CellRegion.H;
         }
 
+        Child->Region = CellRegion;
         Child = Next(Child);
+
+        Y -= CellRegion.H;
         if(!Child)
         {
           break;
         }
       }
 
-      Y0 -= MaxHeightForRow;
-      MaxHeightForRow = 0;
-      r32 WidhtOfRow = X0 - ParentRegion.X;
-      if(MaxWidth < WidhtOfRow)
+      X += MaxCellWidthForColumn;
+      TotalGridWidth  += MaxCellWidthForColumn;
+      MaxCellWidthForColumn = 0;
+      if(!Child)
       {
-        MaxWidth = WidhtOfRow;
+        break;
+      }
+    }
+
+
+    r32* RowYPositions = PushArray(GlobalTransientArena, Row, r32);
+    r32 YP = ParentRegion.Y+ParentRegion.H;
+    RowYPositions[0] = YP - RowHeights[0];
+    TotalGridHeight = RowHeights[0];
+    for (u32 i = 1; i < Row; ++i)
+    {
+      TotalGridHeight += RowHeights[i];
+      RowYPositions[i] = RowYPositions[i-1] - RowHeights[i];
+    }
+
+    container_node* Child = Parent->FirstChild;
+    for (u32 j = 0; j < Col; ++j)
+    {
+      for (u32 i = 0; i < Row; ++i)
+      {
+        Child->Region.Y = RowYPositions[i]; 
+        Child = Next(Child);
+        if(!Child)
+        {
+          break;
+        }
       }
       if(!Child)
       {
         break;
       }
     }
+
+    r32 XOffset = 0;
+    r32 YOffset = 0;
+    switch(GridNode->StackXAlignment)
+    {
+      case menu_region_alignment::LEFT: {
+        XOffset = 0;
+      }break;
+      case menu_region_alignment::RIGHT: {
+        XOffset = ParentRegion.W - TotalGridWidth;
+      }break;
+      default: {
+        XOffset = (ParentRegion.W - TotalGridWidth) * 0.5f;
+      }break; // CENTER
+    }
+
+    switch(GridNode->StackYAlignment)
+    {
+      case menu_region_alignment::TOP: {
+        YOffset = 0;
+      }break;
+      case menu_region_alignment::BOT: {
+        YOffset = (ParentRegion.H-TotalGridHeight);
+      }break;
+      default: {
+        YOffset = (ParentRegion.H-TotalGridHeight) * 0.5f;
+      }break; // CENTER
+    }
+
+    Child = Parent->FirstChild;
+    for (u32 j = 0; j < Col; ++j)
+    {
+      for (u32 i = 0; i < Row; ++i)
+      {
+        Child->Region.X += XOffset; 
+        Child->Region.Y -= YOffset; 
+        Child = Next(Child);
+        if(!Child)
+        {
+          break;
+        }
+      }
+      if(!Child)
+      {
+        break;
+      }
+    }
+
+
   }else{
 
     r32 xMargin = (GridNode->TotalMarginX / Col) * ParentRegion.W;
     r32 yMargin = (GridNode->TotalMarginY / Row) * ParentRegion.H;
 
-    r32 CellWidth  = ParentRegion.W / Col;
-    r32 CellHeight = ParentRegion.H / Row;
     r32 X0 = ParentRegion.X;
     r32 Y0 = ParentRegion.Y + ParentRegion.H - CellHeight;
     for (r32 i = 0; i < Row; ++i)
@@ -111,10 +203,6 @@ MENU_UPDATE_CHILD_REGIONS( UpdateGridChildRegions )
       for (r32 j = 0; j < Col; ++j)
       {
         Child->Region = Rect2f(X0 + j * CellWidth, Y0 - i* CellHeight, CellWidth, CellHeight);
-        Child->Region.X += xMargin/2.f;
-        Child->Region.W -= xMargin;
-        Child->Region.Y += yMargin/2.f;
-        Child->Region.H -= yMargin;
         Child = Next(Child);
         if(!Child)
         {

@@ -15,6 +15,8 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
     Grid->Row = 1;
     Grid->TotalMarginX = 0.0;
     Grid->TotalMarginY = 0.0;
+    Grid->StackXAlignment = menu_region_alignment::LEFT;
+    Grid->StackYAlignment = menu_region_alignment::TOP;
     Grid->Stack = true;
 
     size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_SIZE);
@@ -198,6 +200,8 @@ menu_tree* CreateNewDropDownMenuItem(menu_interface* Interface, const c8* Name)
   grid_node* Grid = GetGridNode(ViewMenuItems);
   Grid->Col = 1;
   Grid->Row = 0;
+  Grid->StackXAlignment = menu_region_alignment::LEFT;
+  Grid->StackYAlignment = menu_region_alignment::TOP;
   Grid->TotalMarginX = 0.0;
   Grid->TotalMarginY = 0.0;
 

@@ -10,6 +10,9 @@ struct grid_node
   r32 TotalMarginX;
   r32 TotalMarginY;
   b32 Stack;
+  menu_region_alignment StackXAlignment;
+  menu_region_alignment StackYAlignment;
+
 };
 
 inline grid_node* GetGridNode(container_node* Container);

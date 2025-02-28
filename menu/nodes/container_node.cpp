@@ -345,9 +345,6 @@ void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount,
   Assert(!RootContainer->Parent);
   SCOPED_TRANSIENT_ARENA;
 
-  u32 StackElementSize = sizeof(container_node*);
-  u32 StackByteSize = ContainerCount * StackElementSize;
-
   u32 StackCount = 0;
   container_node** ContainerStack = PushArray(GlobalTransientArena, ContainerCount, container_node*);
 

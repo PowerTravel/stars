@@ -1048,6 +1048,39 @@ MENU_UPDATE_FUNCTION(SceneTakeInput)// b32 name( menu_interface* Interface, cont
   return true;
 }
 
+container_node* GetDEBUGSquareNode(menu_region_alignment XAlignment, r32 XSize, menu_region_alignment YAlignment, r32 YSize, umm ColorIndex)
+{
+  container_node* ColorNode = NewContainer(GetMenuInterface(), container_type::None);
+  
+  size_attribute* SizeAttr = (size_attribute*) PushAttribute(GetMenuInterface(), ColorNode, ATTRIBUTE_SIZE);
+  SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, XSize);
+  SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, YSize);
+  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
+  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
+  SizeAttr->XAlignment = XAlignment;
+  SizeAttr->YAlignment = YAlignment;
+
+  SetColor(GetMenuInterface(), ColorNode, menu::GetColor(GetColorTable(), ColorIndex));
+
+  return ColorNode;
+}
+
+void SetDEBUGSquareNode(container_node* Node,
+                        menu_size_type XSizeType, r32 XSize, 
+                        menu_size_type YSizeType, r32 YSize, 
+                        menu_region_alignment XAlignment,
+                        menu_region_alignment YAlignment)
+{
+ 
+  size_attribute* SizeAttr = (size_attribute*) GetAttributePointer(Node, ATTRIBUTE_SIZE);
+  SizeAttr->Width = ContainerSizeT(XSizeType, XSize);
+  SizeAttr->Height = ContainerSizeT(YSizeType, YSize);
+  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
+  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
+  SizeAttr->XAlignment = XAlignment;
+  SizeAttr->YAlignment = YAlignment;
+}
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1167,11 +1200,13 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
         container_node* EntityContainer =  NewContainer(Interface, container_type::Grid);
         grid_node* Grid = GetGridNode(EntityContainer);
-        Grid->Col = 1;
-        Grid->Row = 0;
+        Grid->Col = 2;
+        Grid->Row = 2;
         Grid->TotalMarginX = 0.0;
         Grid->TotalMarginY = 0.0;
         Grid->Stack = true;
+        Grid->StackXAlignment = menu_region_alignment::LEFT;
+        Grid->StackYAlignment = menu_region_alignment::TOP;
 
         color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
         BackgroundColor->Color = V4(0.2,0,0,1);
@@ -1184,9 +1219,22 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         SizeAttr->XAlignment = menu_region_alignment::LEFT;
         SizeAttr->YAlignment = menu_region_alignment::CENTER;
 
-        ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
-        ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
-        ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
+        //ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
+        //ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
+        //ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
+
+
+        GlobalState->DebugContainerNodeCount = 5;
+        GlobalState->DebugContainerNodes[0] = GetDEBUGSquareNode(menu_region_alignment::CENTER, 1, menu_region_alignment::CENTER, 1, 10);
+        GlobalState->DebugContainerNodes[1] = GetDEBUGSquareNode(menu_region_alignment::CENTER, 1, menu_region_alignment::CENTER, 1, 15);
+        GlobalState->DebugContainerNodes[2] = GetDEBUGSquareNode(menu_region_alignment::CENTER, 1, menu_region_alignment::CENTER, 1, 20);
+        GlobalState->DebugContainerNodes[3] = GetDEBUGSquareNode(menu_region_alignment::CENTER, 1, menu_region_alignment::CENTER, 1, 25);
+        GlobalState->DebugContainerNodes[4] = EntityContainer;
+
+        ConnectNodeToBack(EntityContainer, GlobalState->DebugContainerNodes[0]);
+        ConnectNodeToBack(EntityContainer, GlobalState->DebugContainerNodes[1]);
+        ConnectNodeToBack(EntityContainer, GlobalState->DebugContainerNodes[2]);
+        ConnectNodeToBack(EntityContainer, GlobalState->DebugContainerNodes[3]);
 
         container_node* SettingsPlugin = CreatePlugin(Interface, "Entities");
         AddPlugintoMainMenu(Interface, WindowsDropDownMenu, SettingsPlugin);
@@ -1278,6 +1326,31 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
   GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
+
+
+  SetDEBUGSquareNode(GlobalState->DebugContainerNodes[0],
+                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_region_alignment::LEFT,
+                     menu_region_alignment::TOP);
+  SetDEBUGSquareNode(GlobalState->DebugContainerNodes[1],
+                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_region_alignment::LEFT,
+                     menu_region_alignment::TOP);
+  SetDEBUGSquareNode(GlobalState->DebugContainerNodes[2],
+                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_region_alignment::LEFT,
+                     menu_region_alignment::TOP);
+  SetDEBUGSquareNode(GlobalState->DebugContainerNodes[3],
+                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_size_type::RELATIVE_, 0.5, 
+                     menu_region_alignment::LEFT,
+                     menu_region_alignment::TOP);
+  grid_node * GridNode = GetGridNode(GlobalState->DebugContainerNodes[4]);
+  GridNode->StackXAlignment = menu_region_alignment::CENTER;
+  GridNode->StackYAlignment = menu_region_alignment::CENTER;
 
 
   camera* Camera = &GlobalState->Camera;

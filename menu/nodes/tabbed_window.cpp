@@ -15,6 +15,8 @@ container_node* CreateTabWindow(menu_interface* Interface)
   container_node* TabItemCollection = ConnectNodeToBack(TabWindowHeader, NewContainer(Interface, container_type::Grid));
   grid_node* Grid = GetGridNode(TabItemCollection);
   Grid->Row = 1;
+  Grid->StackXAlignment = menu_region_alignment::LEFT;
+  Grid->StackYAlignment = menu_region_alignment::TOP;
   Grid->Stack = true;
 
   size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, TabItemCollection, ATTRIBUTE_SIZE);

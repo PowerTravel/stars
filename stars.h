@@ -88,6 +88,9 @@ struct application_state
   function_pool* FunctionPool;
   menu::color_table ColorTable;
   world World;
+
+  u32 DebugContainerNodeCount;
+  container_node* DebugContainerNodes[16];
 };
 
 debug_application_render_commands* GlobalDebugRenderCommands = 0;

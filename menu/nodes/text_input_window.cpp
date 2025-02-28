@@ -82,7 +82,7 @@ container_node* CreateTextInputNode(menu_interface* Interface) {
   container_node* TextInputContainer = NewContainer(Interface, container_type::TextInput);
   text_input_node* TextInputNode = GetTextInputNode(TextInputContainer);
   TextInputNode->Buffer = Utf8StringBuffer(sizeof(TextInputNode->TextMemory), TextInputNode->TextMemory);
-  TextInputNode->TextPixelSize = 14;
+  TextInputNode->TextPixelSize = Interface->BodyFontSize;
   r32 LineSpacing = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), TextInputNode->TextPixelSize);
   v2 TextSize = GetTextSizeCanonicalSpace(GetRenderSystem(), TextInputNode->TextPixelSize, (utf8_byte*) "Sample Text For Input length");
 
