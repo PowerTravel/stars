@@ -24,8 +24,9 @@ container_node* CreateTabWindow(menu_interface* Interface)
   SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, 1);
   SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
   SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-  SizeAttr->XAlignment = menu_region_alignment::LEFT;
-  SizeAttr->YAlignment = menu_region_alignment::CENTER;
+  alignment_attribute* AlignmentAttr = (alignment_attribute*) PushAttribute(Interface, TabItemCollection, ATTRIBUTE_ALIGNMENT);
+  AlignmentAttr->XAlignment = menu_region_alignment::LEFT;
+  AlignmentAttr->YAlignment = menu_region_alignment::CENTER;
   
   return TabWindow;
 }
@@ -83,6 +84,7 @@ void ReduceWindowTree(menu_interface* Interface, container_node* WindowToRemove)
   }
 }
 
+
 MENU_EVENT_CALLBACK(TabWindowHeaderMouseDown)
 {
   container_node* WindowHeader = CallerNode;
@@ -91,29 +93,32 @@ MENU_EVENT_CALLBACK(TabWindowHeaderMouseDown)
     menu_tree* MenuTree = GetMenu(Interface, CallerNode);
     ToggleMaximizeWindow(Interface, MenuTree,WindowHeader);
   }else{
-      Assert(WindowHeader->Type == container_type::None);
-      container_node* TabWindow = WindowHeader->Parent;
+    Assert(WindowHeader->Type == container_type::None);
+    container_node* TabWindow = WindowHeader->Parent;
+    mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
+    *Position = GetPositionInRootWindow(Interface->MousePos, WindowHeader);
 
-      mouse_position_in_window* Position = (mouse_position_in_window*) Allocate(&Interface->LinkedMemory, sizeof(mouse_position_in_window));
-      *Position = GetPositionInRootWindow(Interface->MousePos, WindowHeader);
-
-      if(TabWindow->Parent->Type == container_type::Split)
+    if(TabWindow->Parent->Type == container_type::Split)
+    {
+      container_node* TabGrid = GetTabGridFromWindow(TabWindow);
+      
+      if(GetIndexOfIntersectingChild(TabGrid, Interface->MousePos) < 0)
       {
-        if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos))
-        {
-          InitiateRootWindowDrag(Interface, WindowHeader);
-        }
-      }else{
-        Assert(TabWindow->Type == container_type::TabWindow);
-        container_node* TabGrid = GetTabGridFromWindow(TabWindow);
-        u32 ChildCount = GetChildCount(TabGrid);
-        if(ChildCount == 1)
-        {
-          InitiateRootWindowDrag(Interface, WindowHeader);
-        }else if(!Intersects(WindowHeader->FirstChild->Region, Interface->MousePos)){
-          InitiateRootWindowDrag(Interface, WindowHeader);
-        }
+        InitiateRootWindowDrag(Interface, WindowHeader);
       }
+    }else{
+      Assert(TabWindow->Type == container_type::TabWindow);
+      container_node* TabGrid = GetTabGridFromWindow(TabWindow);
+      u32 ChildCount = GetChildCount(TabGrid);
+      if(ChildCount == 1)
+      {
+        Platform.DEBUGPrint("InitiateRootWindowDrag 1\n");
+        InitiateRootWindowDrag(Interface, WindowHeader);
+      }else if(GetIndexOfIntersectingChild(TabGrid, Interface->MousePos) < 0){
+        Platform.DEBUGPrint("InitiateRootWindowDrag 2\n");
+        InitiateRootWindowDrag(Interface, WindowHeader);
+      }
+    }
   }
 }
 
@@ -359,8 +364,9 @@ container_node* CreateTab(menu_interface* Interface, container_node* Plugin)
   SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, 1);
   SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
   SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-  SizeAttr->XAlignment = menu_region_alignment::LEFT;
-  SizeAttr->YAlignment = menu_region_alignment::CENTER;
+  alignment_attribute* AlignmentAttr = (alignment_attribute*) PushAttribute(Interface, Tab, ATTRIBUTE_ALIGNMENT);
+  AlignmentAttr->XAlignment = menu_region_alignment::LEFT;
+  AlignmentAttr->YAlignment = menu_region_alignment::CENTER;
 
   return Tab;
 }

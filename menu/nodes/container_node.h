@@ -163,3 +163,4 @@ container_node* ConnectNodeToBack(container_node* Parent, container_node* NewNod
 container_node* ConnectNodeToFront(container_node* Parent, container_node* NewNode);
 u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, u32 MaxCount, container_node** Result);
 void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer);
+s32 GetIndexOfIntersectingChild(container_node* Node, v2 MousePos);

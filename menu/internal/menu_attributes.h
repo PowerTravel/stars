@@ -59,6 +59,10 @@ struct size_attribute
   container_size_t Height;
   container_size_t LeftOffset;
   container_size_t TopOffset;
+};
+
+struct alignment_attribute
+{
   menu_region_alignment XAlignment;
   menu_region_alignment YAlignment;
 };
@@ -100,12 +104,13 @@ struct menu_event
 
 enum container_attribute
 {
-  ATTRIBUTE_NONE = 0x0,
-  ATTRIBUTE_COLOR = 0x1,
-  ATTRIBUTE_TEXT = 0x2,
-  ATTRIBUTE_SIZE = 0x4,
-  ATTRIBUTE_MENU_EVENT_HANDLE = 0x8,
-  ATTRIBUTE_TEXTURE = 0x10
+  ATTRIBUTE_NONE              = 1<<0,
+  ATTRIBUTE_COLOR             = 1<<1,
+  ATTRIBUTE_TEXT              = 1<<2,
+  ATTRIBUTE_SIZE              = 1<<3,
+  ATTRIBUTE_ALIGNMENT         = 1<<4,
+  ATTRIBUTE_MENU_EVENT_HANDLE = 1<<5,
+  ATTRIBUTE_TEXTURE           = 1<<6
 };
 
 const c8* ToString(u32 Type)
@@ -115,6 +120,7 @@ const c8* ToString(u32 Type)
     case ATTRIBUTE_COLOR: return "Color";
     case ATTRIBUTE_TEXT: return "Text";
     case ATTRIBUTE_SIZE: return "Size";
+    case ATTRIBUTE_ALIGNMENT: return "Alignment";
     case ATTRIBUTE_MENU_EVENT_HANDLE: return "Event";
     case ATTRIBUTE_TEXTURE: return "Texture";
   }
@@ -140,17 +146,20 @@ u32 GetAttributeSize(container_attribute Attribute)
 {
   switch(Attribute)
   {
-    case ATTRIBUTE_COLOR:       return sizeof(color_attribute);
-    case ATTRIBUTE_TEXT:        return sizeof(text_attribute);
-    case ATTRIBUTE_SIZE:        return sizeof(size_attribute);
+    case ATTRIBUTE_NONE:              return 0;
+    case ATTRIBUTE_COLOR:             return sizeof(color_attribute);
+    case ATTRIBUTE_TEXT:              return sizeof(text_attribute);
+    case ATTRIBUTE_SIZE:              return sizeof(size_attribute);
+    case ATTRIBUTE_ALIGNMENT:         return sizeof(alignment_attribute);
     case ATTRIBUTE_MENU_EVENT_HANDLE: return sizeof(menu_event_handle_attribtue);
-    case ATTRIBUTE_TEXTURE:     return sizeof(texture_attribute);
+    case ATTRIBUTE_TEXTURE:           return sizeof(texture_attribute);
     default: INVALID_CODE_PATH;
   }
   return 0; 
 }
 
-rect2f GetSizedParentRegion(size_attribute* SizeAttr, rect2f BaseRegion);
+v2 GetSize(size_attribute* SizeAttr, v2 CellWidth);
+v2 GetAlignedPosition(alignment_attribute* AllignAttr, rect2f RegionToAlign, rect2f BaseRegion);
 b32 CallMouseExitFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);
 b32 CallMouseEnterFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);
 b32 CallMouseDownFunctions(menu_interface* Interface, u32 NodeCount, container_node** Nodes);

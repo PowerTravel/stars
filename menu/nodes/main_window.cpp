@@ -24,8 +24,9 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
     SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, Interface->HeaderSize);
     SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
     SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-    SizeAttr->XAlignment = menu_region_alignment::LEFT;
-    SizeAttr->YAlignment = menu_region_alignment::TOP;
+    alignment_attribute* AlignmentAttr = (alignment_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_ALIGNMENT);
+    AlignmentAttr->XAlignment = menu_region_alignment::LEFT;
+    AlignmentAttr->YAlignment = menu_region_alignment::CENTER;
 
     color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_COLOR);
 
@@ -41,8 +42,9 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
     SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, 1-Interface->HeaderSize);
     SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
     SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-    SizeAttr->XAlignment = menu_region_alignment::LEFT;
-    SizeAttr->YAlignment = menu_region_alignment::BOT;
+    alignment_attribute* AlignmentAttr = (alignment_attribute*) PushAttribute(Interface, Body, ATTRIBUTE_ALIGNMENT);
+    AlignmentAttr->XAlignment = menu_region_alignment::LEFT;
+    AlignmentAttr->YAlignment = menu_region_alignment::CENTER;
   }
 
   return MainWindow;
@@ -182,8 +184,9 @@ menu_tree* CreateNewDropDownMenuItem(menu_interface* Interface, const c8* Name)
   SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, CanonicalFontHeight);
   SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
   SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-  SizeAttr->XAlignment = menu_region_alignment::CENTER;
-  SizeAttr->YAlignment = menu_region_alignment::CENTER;
+  alignment_attribute* AlignmentAttr = (alignment_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_ALIGNMENT);
+  AlignmentAttr->XAlignment = menu_region_alignment::CENTER;
+  AlignmentAttr->YAlignment = menu_region_alignment::CENTER;
 
   text_attribute* Text = (text_attribute*) PushAttribute(Interface, NewMenu, ATTRIBUTE_TEXT);
   jstr::CopyStringsUnchecked(Name, Text->Text);

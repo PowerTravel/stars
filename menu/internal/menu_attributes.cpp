@@ -132,24 +132,10 @@ void DeleteAttribute(menu_interface* Interface, container_node* Node, container_
   Node->Attributes =Node->Attributes - (u32)AttributeType;
 }
 
-rect2f GetSizedParentRegion(size_attribute* SizeAttr, rect2f BaseRegion)
+v2 GetAlignedPosition(alignment_attribute* AllignAttr, rect2f RegionToAlign, rect2f BaseRegion)
 {
-  rect2f Result = {};
-  if(SizeAttr->Width.Type == menu_size_type::RELATIVE_)
-  {
-    Result.W = SizeAttr->Width.Value * BaseRegion.W;
-  }else if(SizeAttr->Width.Type == menu_size_type::ABSOLUTE_){
-    Result.W = SizeAttr->Width.Value;  
-  }
-
-  if(SizeAttr->Height.Type == menu_size_type::RELATIVE_)
-  {
-    Result.H = SizeAttr->Height.Value * BaseRegion.H;
-  }else if(SizeAttr->Height.Type == menu_size_type::ABSOLUTE_){
-    Result.H = SizeAttr->Height.Value;
-  }
-  
-  switch(SizeAttr->XAlignment)
+  v2 Result = {};
+  switch(AllignAttr->XAlignment)
   {
     case menu_region_alignment::LEFT:
     {
@@ -157,43 +143,62 @@ rect2f GetSizedParentRegion(size_attribute* SizeAttr, rect2f BaseRegion)
     }break;
     case menu_region_alignment::RIGHT:
     {
-      Result.X = BaseRegion.X + BaseRegion.W - Result.W;
+      Result.X = BaseRegion.X + BaseRegion.W - RegionToAlign.W;
     }break;
-    case menu_region_alignment::CENTER:
+    default: // menu_region_alignment::CENTER
     {
-      Result.X = BaseRegion.X + (BaseRegion.W - Result.W)*0.5f;
+      Result.X = BaseRegion.X + (BaseRegion.W - RegionToAlign.W)*0.5f;
     }break;
   }
-  switch(SizeAttr->YAlignment)
+  switch(AllignAttr->YAlignment)
   {
     case menu_region_alignment::TOP:
     {
-      Result.Y = BaseRegion.Y + BaseRegion.H - Result.H;
+      Result.Y = BaseRegion.Y + BaseRegion.H - RegionToAlign.H;
     }break;
     case menu_region_alignment::BOT:
     {
       Result.Y = BaseRegion.Y;
     }break;
-    case menu_region_alignment::CENTER:
+    default: // menu_region_alignment::CENTER
     {
-      Result.Y = BaseRegion.Y + (BaseRegion.H - Result.H)*0.5f;
+      Result.Y = BaseRegion.Y + (BaseRegion.H - RegionToAlign.H)*0.5f;
     }break;
   }
+  return Result;
+}
 
+v2 GetSize(size_attribute* SizeAttr, v2 CellWidth)
+{
+  v2 Result = {};
+  if(SizeAttr->Width.Type == menu_size_type::RELATIVE_)
+  {
+    Result.X = SizeAttr->Width.Value * CellWidth.X;
+  }else if(SizeAttr->Width.Type == menu_size_type::ABSOLUTE_){
+    Result.X = SizeAttr->Width.Value;  
+  }
+
+  if(SizeAttr->Height.Type == menu_size_type::RELATIVE_)
+  {
+    Result.Y = SizeAttr->Height.Value * CellWidth.Y;
+  }else if(SizeAttr->Height.Type == menu_size_type::ABSOLUTE_){
+    Result.Y = SizeAttr->Height.Value;
+  }
+#if 0
   if(SizeAttr->LeftOffset.Type == menu_size_type::RELATIVE_)
   {
-    Result.X += SizeAttr->LeftOffset.Value * BaseRegion.W;
+    Result.X += SizeAttr->LeftOffset.Value * CellWidth.X;
   }else if(SizeAttr->LeftOffset.Type == menu_size_type::ABSOLUTE_){
     Result.X += SizeAttr->LeftOffset.Value;
   }
 
   if(SizeAttr->TopOffset.Type == menu_size_type::RELATIVE_)
   {
-    Result.Y -= SizeAttr->TopOffset.Value * BaseRegion.H;
+    Result.Y -= SizeAttr->TopOffset.Value * CellWidth.Y;
   }else if(SizeAttr->TopOffset.Type == menu_size_type::ABSOLUTE_){
     Result.Y -= SizeAttr->TopOffset.Value;
   }
-  
+#endif
   return Result;
 }
 

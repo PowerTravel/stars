@@ -340,6 +340,23 @@ u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, 
   return IntersectingLeafCount;
 }
 
+
+s32 GetIndexOfIntersectingChild(container_node* Node, v2 MousePos)
+{
+  container_node* Child = Node->FirstChild;
+  u32 Index = 0;
+  while(Child)
+  {
+    if(Intersects(Child->Region, MousePos))
+    {
+      return Index;
+    }
+    Index++;
+    Child = Child->NextSibling;
+  }
+  return -1;
+}
+
 void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer)
 {
   Assert(!RootContainer->Parent);
@@ -356,11 +373,6 @@ void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount,
     // Pop new parent from Stack
     container_node* Parent = ContainerStack[--StackCount];
     ContainerStack[StackCount] = 0;
-    if(HasAttribute(Parent, ATTRIBUTE_SIZE))
-    {
-      size_attribute* SizeAttr = (size_attribute*) GetAttributePointer(Parent, ATTRIBUTE_SIZE);
-      Parent->Region = GetSizedParentRegion(SizeAttr, Parent->Region);
-    }
 
     // Update the region of all children and push them to the stack
     CallFunctionPointer(Parent->Functions.UpdateChildRegions, Interface, Parent);

@@ -92,8 +92,9 @@ container_node* CreateTextInputNode(menu_interface* Interface) {
   SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, LineSpacing*1.1f);
   SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.01);
   SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.01);
-  SizeAttr->XAlignment = menu_region_alignment::LEFT;
-  SizeAttr->YAlignment = menu_region_alignment::CENTER;
+  alignment_attribute* AlignmentAttr = (alignment_attribute*) PushAttribute(Interface, TextInputContainer, ATTRIBUTE_ALIGNMENT);
+  AlignmentAttr->XAlignment = menu_region_alignment::LEFT;
+  AlignmentAttr->YAlignment = menu_region_alignment::CENTER;
 
   SetColor(Interface, TextInputContainer, menu::GetColor(GetColorTable(), "charcoal")*1.1);
 
