@@ -16,6 +16,7 @@ MENU_DRAW(TextMenuDraw);
 MENU_GAINING_FOCUS(DefaultGainingFocus);
 MENU_GAINING_FOCUS(DropDownGainingFocus);
 
+MENU_UPDATE_CHILD_REGIONS(MainWindowUpdateChildRegions);
 MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions);
 MENU_UPDATE_CHILD_REGIONS(RootUpdateChildRegions);
 MENU_UPDATE_CHILD_REGIONS(UpdateSplitChildRegions);
@@ -76,6 +77,7 @@ void _ReinitiatePool(function_pool* Pool)
     NewFunPtr(TextMenuDraw)
     NewFunPtr(DefaultGainingFocus)
     NewFunPtr(DropDownGainingFocus)
+    NewFunPtr(MainWindowUpdateChildRegions)
     NewFunPtr(UpdateChildRegions)
     NewFunPtr(RootUpdateChildRegions)
     NewFunPtr(UpdateSplitChildRegions)

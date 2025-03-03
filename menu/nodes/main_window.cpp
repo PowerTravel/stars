@@ -19,15 +19,6 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
     Grid->StackYAlignment = menu_region_alignment::TOP;
     Grid->Stack = true;
 
-    size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_SIZE);
-    SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, 1);
-    SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, Interface->HeaderSize);
-    SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-    SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-    alignment_attribute* AlignmentAttr = (alignment_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_ALIGNMENT);
-    AlignmentAttr->XAlignment = menu_region_alignment::LEFT;
-    AlignmentAttr->YAlignment = menu_region_alignment::CENTER;
-
     color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, HeaderBar, ATTRIBUTE_COLOR);
 
     ColorAttr->Color = Interface->MenuColor;
@@ -37,14 +28,6 @@ menu_tree* CreateMainWindow(menu_interface* Interface){
 
   { // Main Menu Body
     container_node* Body = ConnectNodeToBack(MainWindow->Root, NewContainer(Interface));
-    size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, Body, ATTRIBUTE_SIZE);
-    SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, 1);
-    SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, 1-Interface->HeaderSize);
-    SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-    SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0);
-    alignment_attribute* AlignmentAttr = (alignment_attribute*) PushAttribute(Interface, Body, ATTRIBUTE_ALIGNMENT);
-    AlignmentAttr->XAlignment = menu_region_alignment::LEFT;
-    AlignmentAttr->YAlignment = menu_region_alignment::CENTER;
   }
 
   return MainWindow;
@@ -271,4 +254,22 @@ void AddPlugintoMainMenu(menu_interface* Interface, menu_tree* DropDownMenu, con
 
   Assert(Interface->MainMenuTabCount < ArrayCount(Interface->MainMenuTabs));
   Interface->MainMenuTabs[Interface->MainMenuTabCount++] = DropDownMenu;
+}
+
+MENU_UPDATE_CHILD_REGIONS(MainWindowUpdateChildRegions)
+{
+  Assert(GetChildCount(Parent) == 2);
+  Assert(Parent->Type == container_type::MainWindow);
+
+  container_node* Child = Parent->FirstChild;
+  Child->Region = Rect2f(0, 1 - Interface->HeaderSize, GetAspectRatio(Interface),  Interface->HeaderSize);
+
+  Child = Child->NextSibling;
+  Child->Region = Rect2f(0, 0, GetAspectRatio(Interface),  1 - Interface->HeaderSize);
+}
+
+menu_functions GetMainWindowFunctions(){
+  menu_functions Result = GetDefaultFunctions();
+  Result.UpdateChildRegions = DeclareFunction(menu_get_region, MainWindowUpdateChildRegions);
+  return Result;
 }
