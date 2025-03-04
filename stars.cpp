@@ -997,40 +997,222 @@ b32 IsSceneSelected()
   return Result;
 }
 
-void MouseInput(camera* Camera, jwin::device_input* Input)
+void SceneInput(camera* Camera, jwin::device_input* Input)
 {
-  v3 WUp, WRight, WForward;
-  v3 Up = V3(0,1,0);
-  GetCameraDirections(Camera, &WUp, &WRight, &WForward);
-  if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
-  {
-    if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
+  { // Keyboard
+    local_persist v3 LightPosition = V3(0,3,0);
+    local_persist r32 near = 0.001;
+
+    if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
     {
-      if(Input->Mouse.dX != 0)
+      if(Pushed(Input->Keyboard.Key_UP))
       {
-        //RotateAround(Camera, -5*Input->Mouse.dX, Up);
-        RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
-        //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
+        m4 V = Camera->V;
+        r32 AngleOfView = Camera->AngleOfView;
+        r32 AspectRatio = Camera->AspectRatio;
+
+        InitiateCamera(Camera, AngleOfView+1, AspectRatio, near);
+        Camera->V = V;
+        Platform.DEBUGPrint("AngleOfView: %f\n", AspectRatio*Camera->AngleOfView);
+      }else if(Pushed(Input->Keyboard.Key_DOWN))
+      {
+        m4 V = Camera->V;
+        r32 AngleOfView = Camera->AngleOfView;
+        r32 AspectRatio = Camera->AspectRatio;
+
+        InitiateCamera(Camera, AngleOfView-1, AspectRatio, near);
+        Camera->V = V;
+
+        Platform.DEBUGPrint("AngleOfView: %f\n", AspectRatio*Camera->AngleOfView);
       }
-      if(Input->Mouse.dY != 0)
+    }else{
+      if(Pushed(Input->Keyboard.Key_UP))
       {
-        RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );      
+        m4 V = Camera->V;
+        r32 AngleOfView = Camera->AngleOfView;
+        r32 AspectRatio = Camera->AspectRatio;
+        near = near*1.1;
+        InitiateCamera(Camera, AngleOfView, AspectRatio, near);
+        Camera->V = V;
+        Platform.DEBUGPrint("Near: %f\n", near);
+      }else if(Pushed(Input->Keyboard.Key_DOWN))
+      {
+        m4 V = Camera->V;
+        r32 AngleOfView = Camera->AngleOfView;
+        r32 AspectRatio = Camera->AspectRatio;
+        near = near * 0.9;
+        InitiateCamera(Camera, AngleOfView, AspectRatio, near);
+        Camera->V = V;
+
+        Platform.DEBUGPrint("Near: %f\n", near);
+      }
+    }
+
+    r32 Len = 0;
+    v3 Pos = V3(Len,0,0);
+    v3 At = V3(0,0,0);
+    v3 Up = V3(0,1,0);
+    b32 UpdateCamera = false;
+    if(!(jwin::Active(Input->Keyboard.Key_LALT) || jwin::Active(Input->Keyboard.Key_RALT)))
+    {
+      if(jwin::Pushed(Input->Keyboard.Key_X))
+      {
+        UpdateCamera = true;
+        Pos = V3(Len,0,0);
+        At = V3(Len+1,0,0);
+        if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT))) 
+        {
+          Pos = -Pos;
+          At = At = V3(Len-1,0,0);
+        }
+      }
+      else if(jwin::Pushed(Input->Keyboard.Key_Y))
+      {
+        UpdateCamera = true;
+        Pos = V3(0,Len,0);
+        At = V3(0,Len + 1,0);
+        Up = V3(1,0,0);
+        if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+        {
+          Pos = -Pos;
+          At = V3(0,Len - 1,0);
+        }
+      }
+      else if(jwin::Pushed(Input->Keyboard.Key_Z))
+      {
+        UpdateCamera = true;
+        Pos = V3(0,0,Len);
+        At = V3(0,0,Len + 1);
+        if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+        {
+          Pos = -Pos;
+          At = V3(0,0,Len - 1);
+        }  
+      }
+      else if(jwin::Pushed(Input->Keyboard.Key_Q))
+      {
+        UpdateCamera = true;
+        Pos = V3(0,0,4);
+        if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+        {
+          Pos = -Pos;
+          At = V3(0,0,0);
+        }
+      }
+
+      if(UpdateCamera)
+      {
+        LookAt(Camera, Pos, At, Up);
+        v3 Up, Right, Forward;
+        GetCameraDirections(Camera, &Up, &Right, &Forward);
         v3 CamPos = GetCameraPosition(Camera);
       }
     }else{
-      if(Input->Mouse.dX != 0)
+      if(jwin::Pushed(Input->Keyboard.Key_X))
       {
-        RotateAround(Camera, -5*Input->Mouse.dX, WUp);
-        char Buf[32] = {};
-        jstr::ToString( WRight.E, 2, ArrayCount(Buf), Buf );
-        Platform.DEBUGPrint("Right   : %s\n", Buf);
+        Pos = V3(Len,0,0);
+        if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+        {
+          LightPosition = Pos;
+        }else{
+          LightPosition = -Pos;
+        }
+        Platform.DEBUGPrint("LightPos: %f %f %f\n", LightPosition.X, LightPosition.Y, LightPosition.Z);
+      }else if(jwin::Pushed(Input->Keyboard.Key_Y)){
+        Pos = V3(0,Len,0);
+        if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+        {
+          LightPosition = Pos;
+        }else{
+          LightPosition = -Pos;
+        }
+        Platform.DEBUGPrint("LightPos: %f %f %f\n", LightPosition.X, LightPosition.Y, LightPosition.Z);
+      }else if(jwin::Pushed(Input->Keyboard.Key_Z)){
+        Pos = V3(0,0,Len);
+        if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+        {
+          LightPosition = Pos;
+        }else{
+          LightPosition = -Pos;
+        }
+        Platform.DEBUGPrint("LightPos: %f %f %f\n", LightPosition.X, LightPosition.Y, LightPosition.Z);
+      }else if(jwin::Pushed(Input->Keyboard.Key_Q)){
+        Pos = V3(0,Len,Len);
+        if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
+        {
+          LightPosition = Pos;
+        }else{
+          LightPosition = -Pos;
+        }
+        Platform.DEBUGPrint("LightPos: %f %f %f\n", LightPosition.X, LightPosition.Y, LightPosition.Z);
       }
-      if(Input->Mouse.dY != 0)
+    }
+    
+    r32 CamSpeed = 0.05;
+    if(jwin::Active(Input->Keyboard.Key_C))
+    {
+      SetCameraPosition(Camera, V3(0,0,0));
+    }
+    if(jwin::Active(Input->Keyboard.Key_W))
+    {
+      TranslateCamera(Camera, V3(0,0,-CamSpeed));
+    }
+    if(jwin::Active(Input->Keyboard.Key_S))
+    {
+      TranslateCamera(Camera, V3(0,0,CamSpeed));
+    }
+    if(jwin::Active(Input->Keyboard.Key_A))
+    {
+      TranslateCamera(Camera, V3(-CamSpeed,0,0));
+    }
+    if(jwin::Active(Input->Keyboard.Key_D))
+    {
+      TranslateCamera(Camera, V3(CamSpeed,0,0));
+    }
+    if(jwin::Active(Input->Keyboard.Key_R))
+    {
+      TranslateCamera(Camera, V3(0,CamSpeed,0));
+    }
+    if(jwin::Active(Input->Keyboard.Key_F))
+    {
+      TranslateCamera(Camera, V3(0,-CamSpeed,0));
+    }
+  }
+
+  { 
+    v3 WUp, WRight, WForward;
+    v3 Up = V3(0,1,0);
+    GetCameraDirections(Camera, &WUp, &WRight, &WForward);
+    if(!Input->Mouse.ShowMouse || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]) || jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
+    {
+      if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
       {
-        RotateAround(Camera, -5*Input->Mouse.dY, -WRight);
-        char Buf[32] = {};
-        jstr::ToString( Up.E, 2, ArrayCount(Buf), Buf );
-        Platform.DEBUGPrint("Up: %s\n", Buf);
+        if(Input->Mouse.dX != 0)
+        {
+          //RotateAround(Camera, -5*Input->Mouse.dX, Up);
+          RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
+          //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
+        }
+        if(Input->Mouse.dY != 0)
+        {
+          RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );      
+          v3 CamPos = GetCameraPosition(Camera);
+        }
+      }else{
+        if(Input->Mouse.dX != 0)
+        {
+          RotateAround(Camera, -5*Input->Mouse.dX, WUp);
+          char Buf[32] = {};
+          jstr::ToString( WRight.E, 2, ArrayCount(Buf), Buf );
+          Platform.DEBUGPrint("Right   : %s\n", Buf);
+        }
+        if(Input->Mouse.dY != 0)
+        {
+          RotateAround(Camera, -5*Input->Mouse.dY, -WRight);
+          char Buf[32] = {};
+          jstr::ToString( Up.E, 2, ArrayCount(Buf), Buf );
+          Platform.DEBUGPrint("Up: %s\n", Buf);
+        }
       }
     }
   }
@@ -1043,7 +1225,7 @@ MENU_UPDATE_FUNCTION(SceneTakeInput)// b32 name( menu_interface* Interface, cont
   {
     camera* Camera = &GlobalState->Camera;
     jwin::device_input* Input = (jwin::device_input*) Data;
-    MouseInput(Camera, Input);
+    SceneInput(Camera, Input);
   }
   return true;
 }
@@ -1089,7 +1271,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GlobalState = JwinBeginFrameMemory(application_state);
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
-  local_persist v3 LightPosition = V3(0,3,0);
+  
   if(!GlobalState->Initialized)
   {
     GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
@@ -1355,212 +1537,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GridNode->StackYAlignment = menu_region_alignment::CENTER;
 
 
-  camera* Camera = &GlobalState->Camera;
-  local_persist r32 near = 0.001;
-  local_persist u32 ChosenSkyboxPlane = skybox_side::SIDE_COUNT;
-  local_persist u32 ChosenSkyboxLineIndex = 0;
-  local_persist u32 ChosenTriangleLineIndex = 0;
-  local_persist b32 ToggleDebugPoints = true;
-  
-  if(Pushed(Input->Keyboard.Key_N))
-  {
-    ChosenSkyboxPlane = (ChosenSkyboxPlane+1)%(skybox_side::SIDE_COUNT+1);
-    Platform.DEBUGPrint("Skybox Side: %d = %s\n",ChosenSkyboxPlane, SkyboxSideToText(ChosenSkyboxPlane));
-  }
-  if(Pushed(Input->Keyboard.Key_M))
-  {
-    ChosenSkyboxLineIndex = (ChosenSkyboxLineIndex+1)%4;
-    Platform.DEBUGPrint("Skybox Line: %d\n",ChosenSkyboxLineIndex);
-  }
-  if(Pushed(Input->Keyboard.Key_O))
-  {
-    ChosenTriangleLineIndex = (ChosenTriangleLineIndex+1)%3;
-    Platform.DEBUGPrint("Triangle Line: %d\n", ChosenTriangleLineIndex);
-  }
-  if(Pushed(Input->Keyboard.Key_P))
-  {
-    ToggleDebugPoints= !ToggleDebugPoints;
-    Platform.DEBUGPrint("Draw Debug Points: %d\n",ToggleDebugPoints);
-  }
-
-  if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
-  {
-    if(Pushed(Input->Keyboard.Key_UP))
-    {
-      m4 V = Camera->V;
-      r32 AngleOfView = Camera->AngleOfView;
-      r32 AspectRatio = Camera->AspectRatio;
-
-      InitiateCamera(Camera, AngleOfView+1, AspectRatio, near);
-      Camera->V = V;
-      Platform.DEBUGPrint("AngleOfView: %f\n", AspectRatio*Camera->AngleOfView);
-    }else if(Pushed(Input->Keyboard.Key_DOWN))
-    {
-      m4 V = Camera->V;
-      r32 AngleOfView = Camera->AngleOfView;
-      r32 AspectRatio = Camera->AspectRatio;
-
-      InitiateCamera(Camera, AngleOfView-1, AspectRatio, near);
-      Camera->V = V;
-
-      Platform.DEBUGPrint("AngleOfView: %f\n", AspectRatio*Camera->AngleOfView);
-    }
-  }else{
-    if(Pushed(Input->Keyboard.Key_UP))
-    {
-      m4 V = Camera->V;
-      r32 AngleOfView = Camera->AngleOfView;
-      r32 AspectRatio = Camera->AspectRatio;
-      near = near*1.1;
-      InitiateCamera(Camera, AngleOfView, AspectRatio, near);
-      Camera->V = V;
-      Platform.DEBUGPrint("Near: %f\n", near);
-    }else if(Pushed(Input->Keyboard.Key_DOWN))
-    {
-      m4 V = Camera->V;
-      r32 AngleOfView = Camera->AngleOfView;
-      r32 AspectRatio = Camera->AspectRatio;
-      near = near * 0.9;
-      InitiateCamera(Camera, AngleOfView, AspectRatio, near);
-      Camera->V = V;
-
-      Platform.DEBUGPrint("Near: %f\n", near);
-    }
-  }
-
-  r32 Len = 0;
-  v3 Pos = V3(Len,0,0);
-  v3 At = V3(0,0,0);
-  v3 Up = V3(0,1,0);
-  b32 UpdateCamera = false;
-  if(!(jwin::Active(Input->Keyboard.Key_LALT) || jwin::Active(Input->Keyboard.Key_RALT)))
-  {
-    if(jwin::Pushed(Input->Keyboard.Key_X))
-    {
-      UpdateCamera = true;
-      Pos = V3(Len,0,0);
-      At = V3(Len+1,0,0);
-      if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT))) 
-      {
-        Pos = -Pos;
-        At = At = V3(Len-1,0,0);
-      }
-    }
-    else if(jwin::Pushed(Input->Keyboard.Key_Y))
-    {
-      UpdateCamera = true;
-      Pos = V3(0,Len,0);
-      At = V3(0,Len + 1,0);
-      Up = V3(1,0,0);
-      if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
-      {
-        Pos = -Pos;
-        At = V3(0,Len - 1,0);
-      }
-    }
-    else if(jwin::Pushed(Input->Keyboard.Key_Z))
-    {
-      UpdateCamera = true;
-      Pos = V3(0,0,Len);
-      At = V3(0,0,Len + 1);
-      if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
-      {
-        Pos = -Pos;
-        At = V3(0,0,Len - 1);
-      }  
-    }
-    else if(jwin::Pushed(Input->Keyboard.Key_Q))
-    {
-      UpdateCamera = true;
-      Pos = V3(0,0,4);
-      if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
-      {
-        Pos = -Pos;
-        At = V3(0,0,0);
-      }
-    }
-
-    if(UpdateCamera)
-    {
-      LookAt(Camera, Pos, At, Up);
-      v3 Up, Right, Forward;
-      GetCameraDirections(Camera, &Up, &Right, &Forward);
-      v3 CamPos = GetCameraPosition(Camera);
-    }
-  }else{
-    if(jwin::Pushed(Input->Keyboard.Key_X))
-    {
-      Pos = V3(Len,0,0);
-      if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
-      {
-        LightPosition = Pos;
-      }else{
-        LightPosition = -Pos;
-      }
-      Platform.DEBUGPrint("LightPos: %f %f %f\n", LightPosition.X, LightPosition.Y, LightPosition.Z);
-    }else if(jwin::Pushed(Input->Keyboard.Key_Y)){
-      Pos = V3(0,Len,0);
-      if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
-      {
-        LightPosition = Pos;
-      }else{
-        LightPosition = -Pos;
-      }
-      Platform.DEBUGPrint("LightPos: %f %f %f\n", LightPosition.X, LightPosition.Y, LightPosition.Z);
-    }else if(jwin::Pushed(Input->Keyboard.Key_Z)){
-      Pos = V3(0,0,Len);
-      if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
-      {
-        LightPosition = Pos;
-      }else{
-        LightPosition = -Pos;
-      }
-      Platform.DEBUGPrint("LightPos: %f %f %f\n", LightPosition.X, LightPosition.Y, LightPosition.Z);
-    }else if(jwin::Pushed(Input->Keyboard.Key_Q)){
-      Pos = V3(0,Len,Len);
-      if(!(jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
-      {
-        LightPosition = Pos;
-      }else{
-        LightPosition = -Pos;
-      }
-      Platform.DEBUGPrint("LightPos: %f %f %f\n", LightPosition.X, LightPosition.Y, LightPosition.Z);
-    }
-  }
-  
-  r32 CamSpeed = 0.05;
-  if(jwin::Active(Input->Keyboard.Key_C))
-  {
-    SetCameraPosition(Camera, V3(0,0,0));
-  }
-  if(jwin::Active(Input->Keyboard.Key_W))
-  {
-    TranslateCamera(Camera, V3(0,0,-CamSpeed));
-  }
-  if(jwin::Active(Input->Keyboard.Key_S))
-  {
-    TranslateCamera(Camera, V3(0,0,CamSpeed));
-  }
-  if(jwin::Active(Input->Keyboard.Key_A))
-  {
-    TranslateCamera(Camera, V3(-CamSpeed,0,0));
-  }
-  if(jwin::Active(Input->Keyboard.Key_D))
-  {
-    TranslateCamera(Camera, V3(CamSpeed,0,0));
-  }
-  if(jwin::Active(Input->Keyboard.Key_R))
-  {
-    TranslateCamera(Camera, V3(0,CamSpeed,0));
-  }
-  if(jwin::Active(Input->Keyboard.Key_F))
-  {
-    TranslateCamera(Camera, V3(0,-CamSpeed,0));
-  }
   
   if(!GlobalState->World.MenuInterface->MenuVisible)
   {
-    MouseInput(Camera, Input);
+    SceneInput(&GlobalState->Camera, Input);
   }
 
   render_group* RenderGroup = RenderCommands->RenderGroup;
@@ -1597,11 +1577,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   }
 
-
   ecs::position::UpdatePositions(GetEntityManager());
-
   
-  UpdateViewMatrix(Camera);
+  UpdateViewMatrix(&GlobalState->Camera);
 
   UpdateAndRenderMenuInterface(Input, GetMenuInterface());
 
@@ -1611,5 +1589,5 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
   }
   
-  ecs::render::Draw(GetEntityManager(), GetRenderSystem(), Camera->P, Camera->V);  
+  ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
 } 
