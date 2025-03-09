@@ -1298,6 +1298,9 @@ void RemoveEntity(ecs::entity_id Entity)
 
 void AddOrRemoveMenuEntityItems()
 {
+  if(!GlobalState->EntitiesPlugin)
+    return;
+
   entity_buffer* EntityBuffer = &GlobalState->NewOrRemovedEntityBuffer;
   ecs::entity_manager* EntityManager = GlobalState->World.EntityManager;
 
@@ -1516,8 +1519,19 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
     
+
     GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, &Input->Keyboard, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
     menu_interface* Interface = GlobalState->World.MenuInterface;
+
+    #if 1
+      menu_tree* DropDownContainer1 = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Windows");
+      menu_tree* DropDownContainer2 = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Settings");
+
+      AddPlugintoMainMenu(Interface, DropDownContainer1,  CreatePlugin(Interface, "Scene"));
+      //AddPlugintoMainMenu(Interface, DropDownContainer1,  CreatePlugin(Interface, "SceneSceneScene"));
+      //AddPlugintoMainMenu(Interface, DropDownContainer2,  CreatePlugin(Interface, "KAJAJJAJAJA"));
+      //AddPlugintoMainMenu(Interface, DropDownContainer2,  CreatePlugin(Interface, "Scen"));
+    #else
     container_node* DefaultWindow = 0;
     {
       menu_tree* WindowsDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Windows");
@@ -1581,6 +1595,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ConnectNodeToBack(TestPlugin, EntityContainer);
       }
     }
+
+    #endif
+
     GlobalState->NewOrRemovedEntityBuffer = CreateEntityBuffer(GlobalPersistentArena);
     { // Create some entities
       { // Checker Floor

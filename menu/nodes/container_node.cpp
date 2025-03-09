@@ -26,7 +26,7 @@ u32 GetContainerPayloadSize(container_type Type)
   return 0;
 }
 
-MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions)
+void DefaultUpdateChildRegions(menu_interface* Interface, container_node* Parent)
 {
   container_node* Child = Parent->FirstChild;
   while(Child)
@@ -39,8 +39,6 @@ MENU_UPDATE_CHILD_REGIONS(UpdateChildRegions)
 menu_functions GetDefaultFunctions()
 {
   menu_functions Result = {};
-  Result.UpdateChildRegions = DeclareFunction(menu_get_region, UpdateChildRegions);
-  Result.Draw = 0;
   return Result;
 }
 
@@ -75,6 +73,7 @@ container_node* NewContainer(menu_interface* Interface, container_type Type)
   Result->Type = Type;
   Result->Functions = GetMenuFunction(Type);
   Result->DebugID = Interface->DebugIDCounter++;
+  Result->Active = true;
   Platform.DEBUGPrint("Creating %s Node %d\n",ToString(Result->Type), Result->DebugID);
   return Result;
 }
@@ -294,12 +293,24 @@ void CallUpdateFunctions(menu_interface* Interface, u32 UpdateCount, update_func
   }
 }
 
+b32 IntersectsChildren(v2 MousePos, container_node* Parent)
+{
+  u32 IntersectingChildren = 0;
+  container_node* Child = Parent->FirstChild;
+  while(Child)
+  {
+    if(Intersects(Child->Region, MousePos))
+    {
+      IntersectingChildren++;
+    }
+    Child = Next(Child);
+  }
+  return IntersectingChildren!=0;
+}
 
 u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, u32 MaxCount, container_node** Result)
 {
-  u32 StackElementSize = sizeof(container_node*);
   SCOPED_TRANSIENT_ARENA;
-  u32 StackByteSize = NodeCount * StackElementSize;
 
   u32 StackCount = 0;
   container_node** ContainerStack = PushArray(GlobalTransientArena, NodeCount, container_node*);
@@ -314,27 +325,19 @@ u32 GetIntersectingNodes(u32 NodeCount, container_node* Container, v2 MousePos, 
     // Pop new parent from Stack
     container_node* Parent = ContainerStack[--StackCount];
     ContainerStack[StackCount] = 0;
-
-    // Check if mouse is inside the child region and push those to the stack.
     if(Intersects(Parent->Region, MousePos))
     {
-      u32 IntersectingChildren = 0;
-      container_node* Child = Parent->FirstChild;
-      while(Child)
+      if(!IntersectsChildren(MousePos, Parent))
       {
-        if(Intersects(Child->Region, MousePos))
-        {
-          ContainerStack[StackCount++] = Child;
-          IntersectingChildren++;
-        }
-        Child = Next(Child);
-      }  
-
-      if(IntersectingChildren==0)
-      {
-        Assert(IntersectingLeafCount < MaxCount);
         Result[IntersectingLeafCount++] = Parent;
       }
+    }
+
+    container_node* Child = Parent->FirstChild;
+    while(Child)
+    {
+      ContainerStack[StackCount++] = Child;
+      Child = Next(Child);
     }
   }
   return IntersectingLeafCount;
@@ -357,6 +360,243 @@ s32 GetIndexOfIntersectingChild(container_node* Node, v2 MousePos)
   return -1;
 }
 
+/*
+              A
+         /         \
+        B           C
+    /   |   \     /   \
+    D   E    F    G    H
+        |             / \
+        I            J   K
+
+  [A, B, D, E, I, F, C, G, H]
+
+  Start. Add Root A, Set Size of A to 0;
+  [A(0)]
+  Look At A, A is not visited, Mark A Visited, Add Children C then B, Set size of B and C to 0
+  [A(v), C(0), B(0)]
+  Look At B, B is not visited, Mark B Visited, Add Children F then E then D, Set their size to 0
+  [A(v), C(0), B(v), F(0), E(0), D(0)]
+  Look At D, D is not visited, Mark D Visited, D is leaf, Remove D, Add size and relative position to self update parent B Size.
+  [A(v), C(0), B(v,D), F(0), E(0)]
+  Look at E, Add Children I and set their size to 0
+  [A(v), C(0), B(D), F(0), E(0), I(0)]
+  Look At I, I is leaf, Remove I, Add size and relative position to self update parent E Size.
+  [A(v), C(0), B(D), F(0), E(I)]
+  Look at E, E has size, Remove E, Add relative position to self update parent B Size.
+  [A(v), C(0), B(D,E), F(0)]
+  Look At F, F is leaf, Remove F, Add size and relative position to self update parent B Size. 
+  [A(v), C(0), B(D,E,F)]
+  Look at B, B has size, Remove B, Add relative position to self update parent A Size.
+  [A(v), C(0)]
+  ...
+*/
+
+struct container_stack_entry
+{
+  container_node* Node;
+  b32 Visited;
+};
+
+struct container_stack
+{
+  container_stack_entry* Entries;
+  u32 MaxCount;
+  u32 Head;
+};
+
+container_stack NewContainerStack(memory_arena* Arena, u32 MaxCount)
+{
+  container_stack Result = {};
+  Result.Entries = PushArray(GlobalTransientArena, MaxCount, container_stack_entry);
+  Result.MaxCount = MaxCount;
+  Result.Head = 0;
+  return Result;
+}
+
+void Push(container_stack& Stack, container_node* Node)
+{
+  Assert(Stack.Head < Stack.MaxCount);
+  Stack.Entries[Stack.Head++].Node = Node;
+}
+
+container_stack_entry Pop(container_stack& Stack)
+{
+  Assert(Stack.Head > 0);
+  container_stack_entry Result = Stack.Entries[Stack.Head-1];
+  Stack.Entries[Stack.Head-1] = {};
+  Stack.Head--;
+  return Result;
+}
+
+container_stack_entry* Peak(container_stack& Stack)
+{
+  Assert(Stack.Head > 0);
+  return &Stack.Entries[Stack.Head-1];
+}
+
+b32 IsEmpty(container_stack& Stack)
+{
+  return Stack.Head == 0;
+}
+
+b32 IsLeaf(container_node* Node)
+{
+  return Node->FirstChild == 0;
+}
+
+void ArrangeChildPositions(container_node* Node)
+{
+  if(!Node->FirstChild)
+    return;
+
+  rect2f NodeRegion = GetFirstChild(Node)->Region;
+  if(Node->StackHorizontal)
+  {
+    container_node* Child = GetFirstChild(Node);
+    while(Child)
+    {
+      //Assert(Child->Region.W > 0);
+      //Assert(Child->Region.H > 0);
+      //Assert(Child->Region.X == 0);
+      //Assert(Child->Region.Y == 0);
+
+      if(GetFirstChild(Node) == Child)
+      {
+        NodeRegion = Child->Region;
+      }else{
+        Child->Region.X = NodeRegion.W;
+        Child->Region.Y = 0;
+        NodeRegion.W += Child->Region.W;
+        if(NodeRegion.H < Child->Region.H)
+        {
+          NodeRegion.H = Child->Region.H;
+        }
+      }
+      Child = Next(Child);
+    }
+  }else{
+    container_node* LastChild = GetLastChild(Node);
+    container_node* Child = LastChild;
+    while(Child)
+    {
+      //Assert(Child->Region.W > 0);
+      //Assert(Child->Region.H > 0);
+      //Assert(Child->Region.X == 0);
+      //Assert(Child->Region.Y == 0);
+
+      if(LastChild == Child)
+      {
+        NodeRegion = Child->Region;
+      }else{
+        Child->Region.X = 0;
+        Child->Region.Y = NodeRegion.H;
+        NodeRegion.H += Child->Region.H;
+        if(NodeRegion.W < Child->Region.W)
+        {
+          NodeRegion.W = Child->Region.W;
+        }
+      }
+      Child = Previous(Child);
+    }
+  }
+
+  if(HasAttribute(Node, ATTRIBUTE_ABS_SIZE))
+  {
+    // Handle size of parent given that NodeRegion may not fit inside
+    // For now just set to Size
+    absolute_size_attribute* Size = (absolute_size_attribute*) GetAttributePointer(Node, ATTRIBUTE_ABS_SIZE);
+    Node->Region.W = Size->Width;
+    Node->Region.H = Size->Height;
+  }else{
+    Node->Region = NodeRegion;
+  }
+}
+
+void AlignChildRegions(container_node* Node)
+{
+  if(!Node->FirstChild) return;
+
+  container_node* Child = GetFirstChild(Node);
+  while(Child)
+  {
+    v2 Alignment = V2(Node->Region.X,Node->Region.Y);
+    if(HasAttribute(Child, ATTRIBUTE_ALIGNMENT))
+    {
+      alignment_attribute* AlignmentAttr = (alignment_attribute*) GetAttributePointer(Child, ATTRIBUTE_ALIGNMENT);
+      Alignment = GetAlignedPosition(AlignmentAttr, Child->Region, Node->Region);
+    }
+    Child->Region.X += Alignment.X;
+    Child->Region.Y += Alignment.Y;
+    Child = Next(Child);
+  }
+}
+
+void UpdateRegionsOfContainerTree2(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer)
+{
+  Assert(!RootContainer->Parent);
+  SCOPED_TRANSIENT_ARENA;
+  container_stack ContainerStack = NewContainerStack(GlobalTransientArena, ContainerCount);
+
+  // Push Root
+  RootContainer->Region = {};
+  Push(ContainerStack, RootContainer);
+
+  while(!IsEmpty(ContainerStack))
+  {
+    // Look at Top of stack
+    container_stack_entry* Entry = Peak(ContainerStack);
+    container_node* Node = Entry->Node;
+    if(!Entry->Visited)
+    {
+      Entry->Visited = true;
+      if(!IsLeaf(Node)) {
+        // Add children in reverse order
+        container_node* Child = GetFirstChild(Node);
+        while(Child)
+        {
+          Child->Region = {};
+          Push(ContainerStack, Child);
+          Child = Next(Child);
+        }
+      }else{
+        if(HasAttribute(Node, ATTRIBUTE_ABS_SIZE))
+        {
+          absolute_size_attribute* Size = (absolute_size_attribute*) GetAttributePointer(Node, ATTRIBUTE_ABS_SIZE);
+          Node->Region.W = Size->Width;
+          Node->Region.H = Size->Height;
+        }
+      }
+    }else{
+      ArrangeChildPositions(Node);
+      Pop(ContainerStack);
+    }
+  }
+
+  Push(ContainerStack, RootContainer);
+  while(!IsEmpty(ContainerStack))
+  {
+    // Pop new parent from Stack
+    container_stack_entry Entry = Pop(ContainerStack);
+    container_node* Node = Entry.Node;
+    if(HasAttribute(Node, ATTRIBUTE_POSITION))
+    {
+      position_attribute* Position = (position_attribute*) GetAttributePointer(Node,ATTRIBUTE_POSITION);
+      Node->Region.X = Position->X;
+      Node->Region.Y = Position->Y;
+    }
+    // Align children
+    AlignChildRegions(Node);
+    container_node* Child = GetFirstChild(Node);
+    while(Child)
+    {
+      Push(ContainerStack, Child);
+      Child = Next(Child);
+    }
+  }
+
+}
+
 void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer)
 {
   Assert(!RootContainer->Parent);
@@ -367,7 +607,6 @@ void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount,
 
   // Push Root
   ContainerStack[StackCount++] = RootContainer;
-
   while(StackCount>0)
   {
     // Pop new parent from Stack
@@ -375,7 +614,12 @@ void UpdateRegionsOfContainerTree(menu_interface* Interface, u32 ContainerCount,
     ContainerStack[StackCount] = 0;
 
     // Update the region of all children and push them to the stack
-    CallFunctionPointer(Parent->Functions.UpdateChildRegions, Interface, Parent);
+    if(Parent->Functions.UpdateChildRegions)
+    {
+      CallFunctionPointer(Parent->Functions.UpdateChildRegions, Interface, Parent);
+    }else{
+      DefaultUpdateChildRegions(Interface, Parent);
+    }
     container_node* Child = Parent->FirstChild;
     while(Child)
     {

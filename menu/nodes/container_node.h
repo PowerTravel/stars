@@ -9,6 +9,9 @@ struct menu_attribute_header;
 #define MENU_UPDATE_CHILD_REGIONS(name) void name(menu_interface* Interface, container_node* Parent)
 typedef MENU_UPDATE_CHILD_REGIONS( menu_get_region );
 
+#define MENU_GET_CHILD_REGIONS(name) v2 name(menu_interface* Interface, container_node* Node)
+typedef MENU_GET_CHILD_REGIONS( menu_get_child_regions );
+
 #define MENU_DRAW(name) void name( menu_interface* Interface, container_node* Node)
 typedef MENU_DRAW( menu_draw );
 
@@ -36,6 +39,7 @@ struct update_function_arguments
 struct menu_functions
 {
   menu_get_region** UpdateChildRegions;
+  menu_get_child_regions** GetChildRegions;
   menu_draw** Draw;
   node_gaining_focus** GainingFocus;
   node_losing_focus** LosingFocus;
@@ -89,6 +93,8 @@ struct container_node
   container_node* PreviousSibling;
 
   rect2f Region;
+  b32 StackHorizontal;
+  b32 Active;
 
   b32* UpdateFunctionRunning;
   menu_functions Functions;
@@ -148,6 +154,27 @@ container_node* GetChildFromIndex(container_node* Parent, u32 ChildIndex)
   }
   return Result; 
 }
+
+container_node* GetFirstChild(container_node* Node)
+{
+  return Node->FirstChild;
+}
+
+container_node* GetLastChild(container_node* Node)
+{
+  container_node* Child = GetFirstChild(Node);
+  if(Child)
+  {
+    while(Next(Child))
+    {
+      Child = Next(Child);
+    }
+  }
+
+  return Child;
+}
+
+
 
 container_node* NewContainer(menu_interface* Interface, container_type Type = container_type::None);
 void DeleteContainer( menu_interface* Interface, container_node* Node);

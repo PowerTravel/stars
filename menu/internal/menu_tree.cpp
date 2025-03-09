@@ -6,6 +6,11 @@ menu_tree* NewMenuTree(menu_interface* Interface)
   Result->LosingFocus = DeclareFunction(menu_losing_focus, DefaultLosingFocus);
   Result->GainingFocus = DeclareFunction(menu_gaining_focus, DefaultGainingFocus);
   ListInsertBefore(&Interface->MenuSentinel, Result);
+  Result->Root = NewContainer(Interface, container_type::None);
+  position_attribute* Position = (position_attribute*) PushAttribute(Interface, Result->Root, ATTRIBUTE_POSITION);
+  Position->X = 0;
+  Position->Y = 1 - Interface->HeaderSize;
+      
   return Result;
 }
 

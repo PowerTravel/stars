@@ -286,7 +286,7 @@ void PrintHotLeafs(menu_interface* Interface, r32 CanPosX, r32 CanPosY)
   menu_tree* FocusWindow = Interface->MenuInFocus;
   while(Menu != &Interface->MenuSentinel)
   {
-    UpdateHotLeafs(Interface, Menu);
+    //UpdateHotLeafs(Interface, Menu);
     if(Menu->Visible && Menu->HotLeafCount > 0)
     {
       YOff -= PrintTree(Interface, Menu->HotLeafCount, Menu->HotLeafs, YOff, TargetPixelSize, HeightStep, WidthStep, FocusWindow);
@@ -613,6 +613,18 @@ internal void UpdateHotLeafs(menu_interface* Interface, menu_tree* Menu)
                &RemovedCount,       Removed,
                &ExistingCount,      Existing);
 
+  //Platform.DEBUGPrint("  UpdateHotLeafs  \n");
+  for (int i = 0; i < NewCount; ++i)
+  {
+    container_node* hl = New[i];
+    //Platform.DEBUGPrint("New:      %d\n", hl->DebugID);
+  }
+  for (int i = 0; i < ExistingCount; ++i)
+  {
+    container_node* hl = Existing[i];
+    //Platform.DEBUGPrint("Existing: %d\n", hl->DebugID);
+  }
+
   Assert(NewCount + ExistingCount < HotLeafsMaxCount);
   CopyArray( ExistingCount, Existing, Menu->HotLeafs);
   CopyArray( NewCount, New, Menu->HotLeafs+ExistingCount);
@@ -629,13 +641,15 @@ menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* Bas
 {
   menu_tree* Root = NewMenuTree(Interface); // Root
   Root->Visible = true;
+  DeleteContainer(Interface, Root->Root);
   Root->Root = CreateRootContainer(Interface, BaseWindow, MaxRegion);
 
   //  Root Node Complex, 4 Borders, 1 None
 
   TreeSensus(Root);
 
-  UpdateRegionsOfContainerTree(Interface, Root->NodeCount, Root->Root);
+  //UpdateRegionsOfContainerTree(Interface, Root->NodeCount, Root->Root);
+  UpdateRegionsOfContainerTree2(Interface, Root->NodeCount, Root->Root);
 
   UpdateHotLeafs(Interface, Root);
 
@@ -791,14 +805,17 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
       MouseEnterCalled = CallMouseEnterFunctions(Interface, NewLeafCount, NewLeaves);
     }
 
-    if(Menu->Visible && Menu == Interface->MenuInFocus)
+    if(jwin::Pushed(Interface->MouseLeftButton))
     {
-      if(!MouseDownCalled && jwin::Pushed(Interface->MouseLeftButton))
+      if(!MouseDownCalled && Menu->Visible && Menu == Interface->MenuInFocus)
       {
-        MouseUpCalled = CallMouseDownFunctions(Interface, Menu->HotLeafCount, Menu->HotLeafs);
+        MouseDownCalled = CallMouseDownFunctions(Interface, Menu->HotLeafCount, Menu->HotLeafs);
       }
-
-      if(!MouseUpCalled && jwin::Released(Interface->MouseLeftButton) && Menu == Interface->MenuInFocus)
+    }
+  
+    if(jwin::Released(Interface->MouseLeftButton))
+    {
+      if(!MouseUpCalled && Menu == Interface->MenuInFocus)
       {
         MouseUpCalled = CallMouseUpFunctions(Interface, Menu->HotLeafCount, Menu->HotLeafs);  
       }
@@ -816,7 +833,8 @@ void UpdateAndRenderMenuInterface(jwin::device_input* DeviceInput, menu_interfac
       if(Menu->Visible)
       {
         TreeSensus(Menu);
-        UpdateRegionsOfContainerTree( Interface, Menu->NodeCount, Menu->Root);
+        //UpdateRegionsOfContainerTree( Interface, Menu->NodeCount, Menu->Root);
+        UpdateRegionsOfContainerTree2( Interface, Menu->NodeCount, Menu->Root);
         DrawMenu( GlobalTransientArena, Interface, Menu);
         ecs::render::NewRenderLevel(GetRenderSystem());
       }
