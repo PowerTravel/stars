@@ -312,6 +312,31 @@ void NewComponents(entity_manager* EM, entity_id* EntityID, u32 ComponentFlags)
   CreateAndInsertNewComponents(EM, Entity, NewComponentFlags);
 }
 
+u32 GetComponentCount(entity_manager* EM, entity_id* EntityID)
+{
+  entity* Entity = GetEntityFromID(EM, EntityID);
+  Assert(Entity);
+  u32 Result = GetSetBitCount(Entity->ComponentFlags);
+  return Result;
+}
+
+u32 GetComponentTypes(entity_manager* EM, entity_id* EntityID, u32* ReturnVec)
+{
+  entity* Entity = GetEntityFromID(EM, EntityID);
+  Assert(Entity);
+  bitmask32 ComponentFlags = Entity->ComponentFlags;
+  u32 Index = 0;
+  while(ComponentFlags)
+  {
+    bitmask32 ComponentTypeIndex = IndexOfLeastSignificantSetBit(ComponentFlags);
+    bitmask32 ComponentType = 1 << ComponentTypeIndex;
+    ComponentFlags -= ComponentType;
+    ReturnVec[Index] = ComponentType;
+    Index++;
+  }
+  return Index;
+}
+
 // Get a single component from an entity
 // Returns 0 if no component exists
 bptr GetComponent(entity_manager* EM, entity_id* EntityID, u32 ComponentFlag)

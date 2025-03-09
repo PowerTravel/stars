@@ -1265,6 +1265,160 @@ void SetDEBUGSquareNode(container_node* Node,
   AlignAttr->YAlignment = YAlignment;
 }
 
+
+entity_buffer CreateEntityBuffer(memory_arena* Arena)
+{
+  entity_buffer Result = {};
+  Result.NewEntities =  NewChunkList(Arena, sizeof(ecs::entity_id), 16);
+  Result.RemovedEntities = NewChunkList(Arena, sizeof(ecs::entity_id), 16);
+  Result.Arena = Arena;
+  return Result;
+}
+
+void Clear(entity_buffer* EntityBuffer)
+{
+  Clear(&EntityBuffer->NewEntities);
+  Clear(&EntityBuffer->RemovedEntities);
+}
+
+ecs::entity_id NewEntity(bitmask32 ComponentFlags)
+{
+  ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ComponentFlags);
+  entity_buffer* EntityBuffer = &GlobalState->NewOrRemovedEntityBuffer;
+  Push(EntityBuffer->Arena, &EntityBuffer->NewEntities, (bptr) &Entity);
+  return Entity;
+}
+
+void RemoveEntity(ecs::entity_id Entity)
+{
+  entity_buffer* EntityBuffer = &GlobalState->NewOrRemovedEntityBuffer;
+  Push(EntityBuffer->Arena, &EntityBuffer->RemovedEntities, (bptr) &Entity);
+  DeleteEntity(GlobalState->World.EntityManager, &Entity);
+}
+
+void AddOrRemoveMenuEntityItems()
+{
+  entity_buffer* EntityBuffer = &GlobalState->NewOrRemovedEntityBuffer;
+  ecs::entity_manager* EntityManager = GlobalState->World.EntityManager;
+
+  container_node* EntityContainer = GlobalState->EntitiesPlugin;
+  container_node* Grid = EntityContainer->FirstChild;
+  Assert(Grid->Type == container_type::Grid);
+
+  chunk_list_iterator It = BeginIterator(&EntityBuffer->NewEntities);
+  while(Valid(&It))
+  {
+    ecs::entity_id* Entity = (ecs::entity_id*) Next(&It);
+
+    container_node* EntityContainer = ConnectNodeToBack(Grid, NewContainer(GetMenuInterface(), container_type::Grid));
+
+    grid_node* GridNode = GetGridNode(EntityContainer);
+    GridNode->Col = 1;
+    GridNode->Row = 0;
+    GridNode->TotalMarginX = 0.0;
+    GridNode->TotalMarginY = 0.0;
+    GridNode->Stack = true;
+    GridNode->StackXAlignment = menu_region_alignment::LEFT;
+    GridNode->StackYAlignment = menu_region_alignment::TOP;
+    
+    size_attribute* SizeAttr = (size_attribute*) PushAttribute(GetMenuInterface(), EntityContainer, ATTRIBUTE_SIZE);
+    SizeAttr->Width = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.15);
+    SizeAttr->Height = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.1);
+    SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
+    SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
+    alignment_attribute* AlignAttr = (alignment_attribute*) PushAttribute(GetMenuInterface(), EntityContainer, ATTRIBUTE_ALIGNMENT);
+    AlignAttr->XAlignment = menu_region_alignment::LEFT;
+    AlignAttr->YAlignment = menu_region_alignment::TOP;
+
+    SetColor(GetMenuInterface(), EntityContainer, menu::GetColor(GetColorTable(), "yale blue"));
+
+    container_node* EntityNameNode = ConnectNodeToBack(EntityContainer, NewContainer(GetMenuInterface(), container_type::None));
+    text_attribute* EntityNameTextAttr = (text_attribute*) PushAttribute(GetMenuInterface(), EntityNameNode, ATTRIBUTE_TEXT);
+    jstr::CopyStringsUnchecked( "Entity: ", EntityNameTextAttr->Text );
+    midx Pos = jstr::StringLength(EntityNameTextAttr->Text);
+    Pos = jstr::Itoa(Entity->EntityID, 256, EntityNameTextAttr->Text + Pos);
+    EntityNameTextAttr->FontSize = 14;
+    EntityNameTextAttr->Color = V4(1,1,1,1);
+
+    u32 ComponentArrayCount = ecs::GetComponentCount(GetEntityManager(), Entity);
+    u32* ComponentFlags = PushArray(GlobalTransientArena, ComponentArrayCount, u32);
+    u32 ComponentCount = ecs::GetComponentTypes(GetEntityManager(), Entity, ComponentFlags);
+    Assert(ComponentArrayCount == ComponentCount);
+    for (int i = 0; i < ComponentCount; ++i)
+    {
+      container_node* TextNode = ConnectNodeToBack(EntityContainer, NewContainer(GetMenuInterface(), container_type::None));
+      text_attribute* TextAttr = (text_attribute*) PushAttribute(GetMenuInterface(), TextNode, ATTRIBUTE_TEXT);
+      jstr::CopyStringsUnchecked(ecs::ComponentTypeToString( (ecs::flag::component_type) ComponentFlags[i]), TextAttr->Text);
+      TextAttr->FontSize = 12;
+      TextAttr->Color = V4(1,1,1,1);
+      switch((ecs::flag::component_type) ComponentFlags[i])
+      {
+        case ecs::flag::component_type::RENDER:
+          {
+
+          }break;
+        case ecs::flag::component_type::POSITION:
+          {
+            container_node* PositionGrid = ConnectNodeToBack(EntityContainer, NewContainer(GetMenuInterface(), container_type::Grid));
+            grid_node* PositionGridNode = GetGridNode(PositionGrid);
+            PositionGridNode->Col = 3;
+            PositionGridNode->Row = 1;
+            PositionGridNode->TotalMarginX = 0.0;
+            PositionGridNode->TotalMarginY = 0.0;
+            PositionGridNode->Stack = true;
+            PositionGridNode->StackXAlignment = menu_region_alignment::LEFT;
+            PositionGridNode->StackYAlignment = menu_region_alignment::TOP;
+
+            // Interface
+            // ecs::position::component* Position = GetPositionComponent(Entity);
+            // container_node* VectorInputNode = ConnectNodeToBack(EntityContainer, CreateV3InputContainer(GetMenuInterface()));
+            // ConnectToVector(VectorInputNode, &Position->FirstChild->RelativePosition);
+            // r' [x.xx, y.yy, z.zz]
+
+
+            { // X
+              container_node* PositionContainer = ConnectNodeToBack(PositionGrid, CreateTextInputNode(GetMenuInterface()));
+              text_input_node* PositionTextInputNode = GetTextInputNode(PositionContainer);
+              PositionTextInputNode->TextPixelSize = 12;
+              ecs::position::component* Position = GetPositionComponent(Entity);
+              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              char* NumBuf[32] = {};
+              jstr::Ftoa( Pos.X, 2, 255, (char*) NumBuf);
+              AppendStringToBuffer((utf8_byte*) NumBuf, &PositionTextInputNode->Buffer);
+            }
+
+            { // Y
+              container_node* PositionContainer = ConnectNodeToBack(PositionGrid, CreateTextInputNode(GetMenuInterface()));
+              text_input_node* PositionTextInputNode = GetTextInputNode(PositionContainer);
+              PositionTextInputNode->TextPixelSize = 12;
+              ecs::position::component* Position = GetPositionComponent(Entity);
+              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              char* NumBuf[32] = {};
+              jstr::Ftoa( Pos.Y, 2, 255, (char*) NumBuf);
+              AppendStringToBuffer((utf8_byte*) NumBuf, &PositionTextInputNode->Buffer);
+            }
+
+            { // Z
+              container_node* PositionContainer = ConnectNodeToBack(PositionGrid, CreateTextInputNode(GetMenuInterface()));
+              text_input_node* PositionTextInputNode = GetTextInputNode(PositionContainer);
+              PositionTextInputNode->TextPixelSize = 12;
+              ecs::position::component* Position = GetPositionComponent(Entity);
+              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              char* NumBuf[32] = {};
+              jstr::Ftoa( Pos.Z, 2, 255, (char*) NumBuf);
+              AppendStringToBuffer((utf8_byte*) NumBuf, &PositionTextInputNode->Buffer);
+            }
+
+            
+          }break;
+      }
+    }
+
+  }
+
+  Clear(EntityBuffer);
+}
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1381,11 +1535,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         DefaultWindow = SetDefaultPlugin(Interface, ScenePlugin);
       }
       {
-
         container_node* EntityContainer =  NewContainer(Interface, container_type::Grid);
         grid_node* Grid = GetGridNode(EntityContainer);
-        Grid->Col = 2;
-        Grid->Row = 2;
+        Grid->Col = 1;
+        Grid->Row = 0;
         Grid->TotalMarginX = 0.0;
         Grid->TotalMarginY = 0.0;
         Grid->Stack = true;
@@ -1407,24 +1560,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         //ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
         //ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
 
+        GlobalState->EntitiesPlugin = CreatePlugin(Interface, "Entities");
+        AddPlugintoMainMenu(Interface, WindowsDropDownMenu, GlobalState->EntitiesPlugin);
 
-        GlobalState->DebugContainerNodeCount = 5;
-        GlobalState->DebugContainerNodes[0] = GetDEBUGSquareNode(menu_region_alignment::CENTER, 1, menu_region_alignment::CENTER, 1, 10);
-        GlobalState->DebugContainerNodes[1] = GetDEBUGSquareNode(menu_region_alignment::CENTER, 1, menu_region_alignment::CENTER, 1, 15);
-        GlobalState->DebugContainerNodes[2] = GetDEBUGSquareNode(menu_region_alignment::CENTER, 1, menu_region_alignment::CENTER, 1, 20);
-        GlobalState->DebugContainerNodes[3] = GetDEBUGSquareNode(menu_region_alignment::CENTER, 1, menu_region_alignment::CENTER, 1, 25);
-        GlobalState->DebugContainerNodes[4] = EntityContainer;
-
-        ConnectNodeToBack(EntityContainer, GlobalState->DebugContainerNodes[0]);
-        ConnectNodeToBack(EntityContainer, GlobalState->DebugContainerNodes[1]);
-        ConnectNodeToBack(EntityContainer, GlobalState->DebugContainerNodes[2]);
-        ConnectNodeToBack(EntityContainer, GlobalState->DebugContainerNodes[3]);
-
-        container_node* SettingsPlugin = CreatePlugin(Interface, "Entities");
-        AddPlugintoMainMenu(Interface, WindowsDropDownMenu, SettingsPlugin);
-
-        ConnectNodeToBack(SettingsPlugin, EntityContainer);
-        container_node* EntityWindow = ConnectViaSplitWindow(Interface, DefaultWindow, SettingsPlugin, 0.3, true, false);
+        ConnectNodeToBack(GlobalState->EntitiesPlugin, EntityContainer);
+        container_node* EntityWindow = ConnectViaSplitWindow(Interface, DefaultWindow, GlobalState->EntitiesPlugin, 0.3, true, false);
       }
     }
     {
@@ -1441,12 +1581,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ConnectNodeToBack(TestPlugin, EntityContainer);
       }
     }
-    
-
-
+    GlobalState->NewOrRemovedEntityBuffer = CreateEntityBuffer(GlobalPersistentArena);
     { // Create some entities
       { // Checker Floor
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(0,-1.1,0), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1457,7 +1595,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Transparent Cube
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(2,0,0), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1468,7 +1606,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
       
       { // Transparent Cone
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(0,0,2), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1479,7 +1617,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
       
       { // Transparent Sphere
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(2,0,2), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1490,7 +1628,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Solid Cone
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(0,0,0), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1504,37 +1642,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     BeginRender(GetRenderSystem());
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
+
+  AddOrRemoveMenuEntityItems();
+
   ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
   CreateFrameBuffer(RenderCommands->RenderGroup, GlobalState->DefaultFrameBuffer,  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
 
 
   GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
-
-
-  SetDEBUGSquareNode(GlobalState->DebugContainerNodes[0],
-                     menu_size_type::ABSOLUTE_, 0.2,
-                     menu_size_type::ABSOLUTE_, 0.1,
-                     menu_region_alignment::RIGHT,
-                     menu_region_alignment::BOT);
-  SetDEBUGSquareNode(GlobalState->DebugContainerNodes[1],
-                     menu_size_type::ABSOLUTE_, 0.1, 
-                     menu_size_type::ABSOLUTE_, 0.2, 
-                     menu_region_alignment::RIGHT,
-                     menu_region_alignment::TOP);
-  SetDEBUGSquareNode(GlobalState->DebugContainerNodes[2],
-                     menu_size_type::ABSOLUTE_, 0.1, 
-                     menu_size_type::ABSOLUTE_, 0.2, 
-                     menu_region_alignment::LEFT,
-                     menu_region_alignment::TOP);
-  SetDEBUGSquareNode(GlobalState->DebugContainerNodes[3],
-                     menu_size_type::ABSOLUTE_, 0.2, 
-                     menu_size_type::ABSOLUTE_, 0.1, 
-                     menu_region_alignment::RIGHT,
-                     menu_region_alignment::TOP);
-  grid_node * GridNode = GetGridNode(GlobalState->DebugContainerNodes[4]);
-  GridNode->StackXAlignment = menu_region_alignment::CENTER;
-  GridNode->StackYAlignment = menu_region_alignment::CENTER;
 
 
   

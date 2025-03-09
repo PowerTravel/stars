@@ -24,7 +24,17 @@ namespace flag{
 }
 
   entity_manager* CreateEntityManager();
-
+  const c8* ComponentTypeToString(flag::component_type Type)
+  {
+    switch(Type){
+      case flag::NONE: return "NONE";
+      case flag::POSITION: return "POSITION";
+      case flag::COLLIDER: return "COLLIDER";
+      case flag::RENDER: return "RENDER";
+      case flag::END: return "END";
+    }
+    return "NONE";
+  }
 }
 
 
