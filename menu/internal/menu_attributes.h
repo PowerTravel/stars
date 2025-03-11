@@ -59,6 +59,8 @@ struct absolute_size_attribute
   r32 Height;
 };
 
+typedef absolute_size_attribute relative_size_attribute;
+
 typedef v2 position_attribute;
 
 struct size_attribute
@@ -120,7 +122,8 @@ enum container_attribute
   ATTRIBUTE_MENU_EVENT_HANDLE = 1<<5,
   ATTRIBUTE_TEXTURE           = 1<<6,
   ATTRIBUTE_ABS_SIZE          = 1<<7,
-  ATTRIBUTE_POSITION          = 1<<8
+  ATTRIBUTE_REL_SIZE          = 1<<8,
+  ATTRIBUTE_POSITION          = 1<<9
 };
 
 const c8* ToString(u32 Type)
@@ -134,8 +137,8 @@ const c8* ToString(u32 Type)
     case ATTRIBUTE_MENU_EVENT_HANDLE: return "Event";
     case ATTRIBUTE_TEXTURE: return "Texture";
     case ATTRIBUTE_ABS_SIZE: return "Abs Size";
+    case ATTRIBUTE_REL_SIZE: return "Rel Size";
     case ATTRIBUTE_POSITION: return "Position";
-      
   }
   return "";
 };
@@ -167,6 +170,7 @@ u32 GetAttributeSize(container_attribute Attribute)
     case ATTRIBUTE_MENU_EVENT_HANDLE: return sizeof(menu_event_handle_attribtue);
     case ATTRIBUTE_TEXTURE:           return sizeof(texture_attribute);
     case ATTRIBUTE_ABS_SIZE:          return sizeof(absolute_size_attribute);
+    case ATTRIBUTE_REL_SIZE:          return sizeof(relative_size_attribute);
     case ATTRIBUTE_POSITION:          return sizeof(position_attribute);
     default: INVALID_CODE_PATH;
   }

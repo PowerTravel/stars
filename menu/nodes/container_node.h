@@ -94,7 +94,7 @@ struct container_node
 
   rect2f Region;
   b32 StackHorizontal;
-  b32 Active;
+  b32 Active; // Remove? (not used)
 
   b32* UpdateFunctionRunning;
   menu_functions Functions;

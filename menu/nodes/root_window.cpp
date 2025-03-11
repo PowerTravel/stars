@@ -46,13 +46,9 @@ root_border_collection GetRoorBorders(container_node* RootContainer)
   root_border_collection Borders = {};
   Borders.Left = RootContainer->FirstChild;
   Borders.Right = Borders.Left->NextSibling;
-  Borders.Bot = Borders.Right->NextSibling;
-  Borders.Top = Borders.Bot->NextSibling;
-
-  Assert(Borders.Left->Type  == container_type::Border);
-  Assert(Borders.Right->Type == container_type::Border);
-  Assert(Borders.Bot->Type   == container_type::Border);
-  Assert(Borders.Top->Type   == container_type::Border);
+  Borders.Top = Borders.Right->NextSibling;
+  Borders.Bot = Borders.Top->NextSibling;
+  Borders.Body = Borders.Bot->NextSibling;
 
   return Borders;
 }
@@ -286,31 +282,71 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_
   }
 }
 
-internal rect2f GetMinimumRootWindowSize(root_border_collection* BorderCollection, r32 MinimumRegionWidth, r32 MinimumRegionHeight)
+struct border_drag_initiated
 {
-  rect2f Result = {};
-  Result.X = GetBorderNode(BorderCollection->Left)->Position  + MinimumRegionWidth*0.5;
-  Result.W = GetBorderNode(BorderCollection->Right)->Position - MinimumRegionWidth*0.5 - Result.X;
-  Result.Y = GetBorderNode(BorderCollection->Bot)->Position   + MinimumRegionHeight*0.5;
-  Result.H = GetBorderNode(BorderCollection->Top)->Position   - MinimumRegionHeight*0.5 - Result.Y;
-  return Result;
-}
-
+  v2 OriginalSize;
+  v2 MousePosInRect;
+};
 MENU_UPDATE_FUNCTION(RootBorderDragUpdate)
 {
   Assert(CallerNode->Parent->Type == container_type::Root);
 
   r32 AspectRatio = GetAspectRatio(Interface);
-  rect2f MaximumWindowSize = Rect2f(0,0,AspectRatio, 1 - Interface->HeaderSize);
+  
   root_border_collection BorderCollection = GetRoorBorders(CallerNode->Parent);
-  rect2f MinimumWindowSize = GetMinimumRootWindowSize(&BorderCollection, Interface->MinSize, Interface->MinSize);
-  UpdateBorderPosition(CallerNode, Interface->MousePos, MinimumWindowSize, MaximumWindowSize);
+
+  position_attribute* Pos = (position_attribute*) GetAttributePointer(CallerNode->Parent, ATTRIBUTE_POSITION);
+  absolute_size_attribute* Size = (absolute_size_attribute*) GetAttributePointer(CallerNode->Parent, ATTRIBUTE_ABS_SIZE);
+  border_drag_initiated* BorderDrag = (border_drag_initiated*)Data;
+
+
+  v2 MouseDownPos = Interface->MouseLeftButtonPush;
+  v2 OriginalSize = BorderDrag->OriginalSize;
+  v2 BorderSize = RectSize(CallerNode->Region);
+
+  v2 MouseDownBotLeft = BorderDrag->MousePosInRect - MouseDownPos;
+  v2 ControlBotLeft   = Interface->MousePos - BorderDrag->MousePosInRect;
+  v2 MaximumWindowSize = V2(AspectRatio, 1 - Interface->HeaderSize);
+  v2 MinimumWindowSize = V2(0.2,0.2);
+  
+  if(CallerNode == BorderCollection.Left)
+  {
+    r32 BoxRight = Pos->X + Size->Width;
+    r32 NewPos = Clamp(ControlBotLeft.X, 0, BoxRight - MinimumWindowSize.X);
+    Pos->X = NewPos;
+    r32 MouseMovementDistance = NewPos + MouseDownBotLeft.X;
+    Size->Width = OriginalSize.X - MouseMovementDistance;
+  }else if(CallerNode == BorderCollection.Right){
+    r32 BoxLeft = Pos->X;
+    r32 NewPosX = Clamp(ControlBotLeft.X, BoxLeft + MinimumWindowSize.X - BorderSize.X, MaximumWindowSize.X - BorderSize.X);
+    r32 MouseMovementDistance = NewPosX + MouseDownBotLeft.X;
+    Size->Width = OriginalSize.X + MouseMovementDistance;
+  }else if(CallerNode == BorderCollection.Top){
+    r32 BoxBot = Pos->Y;
+    r32 NewPosY = Clamp(ControlBotLeft.Y, BoxBot + MinimumWindowSize.Y - BorderSize.Y, MaximumWindowSize.Y - BorderSize.Y);
+    r32 MouseMovementDistance = NewPosY + MouseDownBotLeft.Y;
+    Size->Height = OriginalSize.Y + MouseMovementDistance;
+  }else if(CallerNode == BorderCollection.Bot){
+    r32 BoxTop = Pos->Y + Size->Height;
+    r32 NewPos = Clamp(ControlBotLeft.Y, 0, BoxTop - MinimumWindowSize.Y);
+    Pos->Y = NewPos;
+    r32 MouseMovementDistance = NewPos + MouseDownBotLeft.Y;
+    Size->Height = OriginalSize.Y - MouseMovementDistance;
+  }else{
+    INVALID_CODE_PATH;
+  }
   return Interface->MouseLeftButton.Active;
 }
 
+
 MENU_EVENT_CALLBACK(InitiateBorderDrag)
 {
-  PushToUpdateQueue(Interface, CallerNode, RootBorderDragUpdate, 0, false);
+  border_drag_initiated* BorderDrag =  (border_drag_initiated*) Allocate(&Interface->LinkedMemory, sizeof(border_drag_initiated));
+
+  absolute_size_attribute* Size = (absolute_size_attribute*) GetAttributePointer(CallerNode->Parent, ATTRIBUTE_ABS_SIZE);
+  BorderDrag->OriginalSize = V2(Size->Width, Size->Height);
+  BorderDrag->MousePosInRect = Interface->MousePos - LowerLeftPoint(CallerNode->Region);
+  PushToUpdateQueue(Interface, CallerNode, RootBorderDragUpdate, BorderDrag, true);
 }
 
 menu_functions GetRootMenuFunctions()
@@ -320,32 +356,33 @@ menu_functions GetRootMenuFunctions()
   return Result;
 }
 
+container_node* CreateBorderNode(menu_interface* Interface)
+{
+  container_node* Result = NewContainer(Interface);
+  color_attribute* ColorAttr = (color_attribute*) PushAttribute(Interface, Result, ATTRIBUTE_COLOR);
+  ColorAttr->Color = Interface->BorderColor;
+  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Result, 0, InitiateBorderDrag, 0);
+  return Result;
+}
+
 container_node* CreateRootContainer(menu_interface* Interface, container_node* BodyContainer, rect2f RootRegion)
 { 
   container_node* Root = NewContainer(Interface, container_type::Root);
+  position_attribute* Position = (position_attribute*) PushAttribute(Interface, Root, ATTRIBUTE_POSITION);
+  Position->X = 0;
+  Position->Y = 1 - Interface->HeaderSize;
 
-  r32 Thickness = Interface->BorderSize;
+  color_attribute* Color = (color_attribute*) PushAttribute(Interface, Root, ATTRIBUTE_COLOR);
+  Color->Color = V4(0.5,0.5,0.5,1);
 
-  container_node* Border1 = CreateBorderNode(Interface, Interface->BorderColor);
-  ConnectNodeToBack(Root, Border1);
-  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border1, 0, InitiateBorderDrag, 0);
-  SetBorderData(Border1, Thickness, RootRegion.X, border_type::LEFT);
+  absolute_size_attribute* Size = (absolute_size_attribute*) PushAttribute(Interface, Root, ATTRIBUTE_ABS_SIZE);
+  Size->Width = 0.25;
+  Size->Height = 0.25;
 
-  container_node* Border2 = CreateBorderNode(Interface, Interface->BorderColor);
-  ConnectNodeToBack(Root, Border2);
-  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border2, 0, InitiateBorderDrag, 0);
-  SetBorderData(Border2, Thickness, RootRegion.X + RootRegion.W, border_type::RIGHT);
-
-  container_node* Border3 = CreateBorderNode(Interface, Interface->BorderColor);
-  ConnectNodeToBack(Root, Border3);
-  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border3, 0, InitiateBorderDrag, 0);
-  SetBorderData(Border3, Thickness, RootRegion.Y,  border_type::BOTTOM);
-  
-  container_node* Border4 = CreateBorderNode(Interface, Interface->BorderColor);
-  ConnectNodeToBack(Root, Border4);
-  RegisterMenuEvent(Interface, menu_event_type::MouseDown, Border4, 0, InitiateBorderDrag, 0);
-  SetBorderData(Border4, Thickness, RootRegion.Y + RootRegion.H,  border_type::TOP);
-
+  ConnectNodeToBack(Root, CreateBorderNode(Interface));
+  ConnectNodeToBack(Root, CreateBorderNode(Interface));
+  ConnectNodeToBack(Root, CreateBorderNode(Interface));
+  ConnectNodeToBack(Root, CreateBorderNode(Interface));
   ConnectNodeToBack(Root, BodyContainer);
 
   return Root;

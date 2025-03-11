@@ -16,8 +16,9 @@ union root_border_collection {
     container_node* Right;
     container_node* Bot;
     container_node* Top;
+    container_node* Body;
   };
-  container_node* E[4];
+  container_node* E[5];
 };
 
 container_node* CreateRootContainer(menu_interface* Interface, container_node* BodyContainer, rect2f RootRegion);

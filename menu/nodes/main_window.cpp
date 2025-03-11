@@ -33,6 +33,10 @@ void DisplayPluginInNewWindow(menu_interface* Interface, container_node* Plugin,
 
   container_node* TabWindow = CreateTabWindow(Interface);
   menu_tree* NewWindow = CreateNewRootContainer(Interface, TabWindow, Region);
+  position_attribute* Pos = (position_attribute*) GetAttributePointer(NewWindow->Root, ATTRIBUTE_POSITION);
+
+  Pos->X = 0.5;
+  Pos->Y = 0.5;
 
   PushTab(TabWindow, Tab);
   ConnectNodeToBack(TabWindow, Plugin);
@@ -231,8 +235,8 @@ void AddPlugintoMainMenu(menu_interface* Interface, menu_tree* MenuItemContainer
 
   plugin_node* PluginNode = GetPluginNode(Plugin);
   RegisterMenuEvent(Interface, menu_event_type::MouseUp,    MenuItem, PluginNode->Tab, DropDownMouseUp, 0);
-  RegisterMenuEvent(Interface, menu_event_type::MouseEnter, MenuItem, PluginNode->Tab, DropDownMouseEnter, 0);
-  RegisterMenuEvent(Interface, menu_event_type::MouseExit,  MenuItem, PluginNode->Tab, DropDownMouseExit, 0);
+  //RegisterMenuEvent(Interface, menu_event_type::MouseEnter, MenuItem, PluginNode->Tab, DropDownMouseEnter, 0);
+  //RegisterMenuEvent(Interface, menu_event_type::MouseExit,  MenuItem, PluginNode->Tab, DropDownMouseExit, 0);
 //
  // Assert(Interface->MainMenuTabCount < ArrayCount(Interface->MainMenuTabs));
  // Interface->MainMenuTabs[Interface->MainMenuTabCount++] = DropDownMenu;

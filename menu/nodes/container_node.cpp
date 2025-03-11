@@ -13,8 +13,8 @@ u32 GetContainerPayloadSize(container_type Type)
   {
     case container_type::None:
     case container_type::Split:
-    case container_type::Root:
     case container_type::MainWindow: return 0;
+    case container_type::Root:       return sizeof(root_node);
     case container_type::Border:     return sizeof(border_leaf);
     case container_type::Grid:       return sizeof(grid_node);
     case container_type::TabWindow:  return sizeof(tab_window_node);
@@ -445,10 +445,10 @@ b32 IsLeaf(container_node* Node)
   return Node->FirstChild == 0;
 }
 
-void ArrangeChildPositions(container_node* Node)
+rect2f ArrangeChildPositions(container_node* Node)
 {
   if(!Node->FirstChild)
-    return;
+    return {};
 
   rect2f NodeRegion = GetFirstChild(Node)->Region;
   if(Node->StackHorizontal)
@@ -456,11 +456,6 @@ void ArrangeChildPositions(container_node* Node)
     container_node* Child = GetFirstChild(Node);
     while(Child)
     {
-      //Assert(Child->Region.W > 0);
-      //Assert(Child->Region.H > 0);
-      //Assert(Child->Region.X == 0);
-      //Assert(Child->Region.Y == 0);
-
       if(GetFirstChild(Node) == Child)
       {
         NodeRegion = Child->Region;
@@ -476,15 +471,10 @@ void ArrangeChildPositions(container_node* Node)
       Child = Next(Child);
     }
   }else{
-    container_node* LastChild = GetLastChild(Node);
+    container_node* LastChild = GetFirstChild(Node);
     container_node* Child = LastChild;
     while(Child)
     {
-      //Assert(Child->Region.W > 0);
-      //Assert(Child->Region.H > 0);
-      //Assert(Child->Region.X == 0);
-      //Assert(Child->Region.Y == 0);
-
       if(LastChild == Child)
       {
         NodeRegion = Child->Region;
@@ -497,20 +487,11 @@ void ArrangeChildPositions(container_node* Node)
           NodeRegion.W = Child->Region.W;
         }
       }
-      Child = Previous(Child);
+      Child = Next(Child);
     }
   }
-
-  if(HasAttribute(Node, ATTRIBUTE_ABS_SIZE))
-  {
-    // Handle size of parent given that NodeRegion may not fit inside
-    // For now just set to Size
-    absolute_size_attribute* Size = (absolute_size_attribute*) GetAttributePointer(Node, ATTRIBUTE_ABS_SIZE);
-    Node->Region.W = Size->Width;
-    Node->Region.H = Size->Height;
-  }else{
-    Node->Region = NodeRegion;
-  }
+ 
+  return NodeRegion;
 }
 
 void AlignChildRegions(container_node* Node)
@@ -530,6 +511,59 @@ void AlignChildRegions(container_node* Node)
     Child->Region.Y += Alignment.Y;
     Child = Next(Child);
   }
+}
+
+void SetRelativeSizes(container_node* Node)
+{
+  if(!Node->FirstChild) return;
+
+  if(HasAttribute(Node, ATTRIBUTE_ABS_SIZE))
+  {
+    container_node* Child = GetFirstChild(Node);
+    r32 Top = Node->Region.Y + Node->Region.H;
+    r32 Left = Node->Region.X;
+    while(Child)
+    {
+      if(HasAttribute(Child, ATTRIBUTE_ABS_SIZE))
+      {
+        absolute_size_attribute* Size = (absolute_size_attribute*) GetAttributePointer(Child, ATTRIBUTE_ABS_SIZE);
+        if(Size->Width == 0)
+          Child->Region.W = Child->Parent->Region.W;
+
+        if(Size->Height == 0)
+          Child->Region.H = Child->Parent->Region.H;
+      }
+      if(Node->StackHorizontal)
+      {
+        Child->Region.X = Left;
+        Left+=Child->Region.W;
+      }else{
+        Top -= Child->Region.H;
+        Child->Region.Y = Top - Child->Region.H;
+      }
+      Child = Next(Child);
+    }
+  }
+}
+
+rect2f ArangeRootChildren( container_node* Node )
+{
+  absolute_size_attribute* Size = (absolute_size_attribute*) GetAttributePointer(Node, ATTRIBUTE_ABS_SIZE);
+
+  container_node* Border1 = Node->FirstChild;
+  container_node* Border2 = Border1->NextSibling;
+  container_node* Border3 = Border2->NextSibling;
+  container_node* Border4 = Border3->NextSibling;
+  r32 BorderWidth = 0.005;
+  Border1->Region = Rect2f(0,                         0,                        BorderWidth, Size->Height); // Left
+  Border2->Region = Rect2f(Size->Width - BorderWidth, 0,                        BorderWidth, Size->Height); // Right
+  Border3->Region = Rect2f(0,                         Size->Height-BorderWidth, Size->Width, BorderWidth);  // Top
+  Border4->Region = Rect2f(0,                         0,                        Size->Width, BorderWidth);  // Bot
+
+  container_node* Body = Border4->NextSibling;
+  Body->Region = Rect2f(BorderWidth,BorderWidth,Size->Width - 2*BorderWidth,Size->Height - 2*BorderWidth);
+
+  return Rect2f(0,0,Size->Width,Size->Height);
 }
 
 void UpdateRegionsOfContainerTree2(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer)
@@ -568,7 +602,24 @@ void UpdateRegionsOfContainerTree2(menu_interface* Interface, u32 ContainerCount
         }
       }
     }else{
-      ArrangeChildPositions(Node);
+      rect2f NodeRegion = {};
+      switch(Node->Type)
+      {
+        case container_type::Root: NodeRegion = ArangeRootChildren( Node ); break;
+        default: NodeRegion = ArrangeChildPositions(Node); break;
+      }
+
+      if(HasAttribute(Node, ATTRIBUTE_ABS_SIZE))
+      {
+        // Handle size of parent given that NodeRegion may not fit inside
+        // For now just set to Size
+        absolute_size_attribute* Size = (absolute_size_attribute*) GetAttributePointer(Node, ATTRIBUTE_ABS_SIZE);
+        Node->Region.W = Size->Width == 0 ? NodeRegion.W : Size->Width;
+        Node->Region.H = Size->Height == 0 ? NodeRegion.H : Size->Height;
+      }else{
+        Node->Region = NodeRegion;
+      }
+
       Pop(ContainerStack);
     }
   }
