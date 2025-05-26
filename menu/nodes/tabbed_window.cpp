@@ -4,8 +4,36 @@
 container_node* CreateTabWindow(menu_interface* Interface)
 {
   container_node* TabWindow = NewContainer(Interface, container_type::TabWindow);
-  container_node* TabWindowHeader = ConnectNodeToBack(TabWindow, NewContainer(Interface));
+#if 1
+  { 
+    container_node* TabWindowHeader = ConnectNodeToBack(TabWindow, NewContainer(Interface));
+    color_attribute* Color = (color_attribute*) PushAttribute(Interface, TabWindowHeader, ATTRIBUTE_COLOR);
+    Color->Color = menu::GetColor(GetColorTable(),"café noir");
+    //relative_size_attribute* SizeAttr = (relative_size_attribute*) PushAttribute(Interface, TabWindowHeader, ATTRIBUTE_REL_SIZE);
+    //SizeAttr->Width = 1;
+    //SizeAttr->Height = 0.1;
+  }
 
+  {
+    container_node* TabWindowBody = ConnectNodeToBack(TabWindow, NewContainer(Interface));
+    color_attribute* Color = (color_attribute*) PushAttribute(Interface, TabWindowBody, ATTRIBUTE_COLOR);
+    Color->Color = menu::GetColor(GetColorTable(),"orchid");
+    //relative_size_attribute* SizeAttr = (relative_size_attribute*) PushAttribute(Interface, TabWindowBody, ATTRIBUTE_REL_SIZE);
+    //SizeAttr->Width = 1;
+    //SizeAttr->Height = 0.9;
+  }
+
+  {
+    container_node* TabWindowBody = ConnectNodeToBack(TabWindow, NewContainer(Interface));
+    color_attribute* Color = (color_attribute*) PushAttribute(Interface, TabWindowBody, ATTRIBUTE_COLOR);
+    Color->Color = menu::GetColor(GetColorTable(),"saffron");
+    //relative_size_attribute* SizeAttr = (relative_size_attribute*) PushAttribute(Interface, TabWindowBody, ATTRIBUTE_REL_SIZE);
+    //SizeAttr->Width = 1;
+    //SizeAttr->Height = 0.9;
+  }
+  
+#else
+  container_node* TabWindowHeader = ConnectNodeToBack(TabWindow, NewContainer(Interface));
   color_attribute* Color = (color_attribute*) PushAttribute(Interface, TabWindowHeader, ATTRIBUTE_COLOR);
   Color->Color = menu::GetColor(GetColorTable(),"café noir");
   RegisterMenuEvent(Interface, menu_event_type::MouseDown, TabWindowHeader, 0, TabWindowHeaderMouseDown, 0);
@@ -16,7 +44,7 @@ container_node* CreateTabWindow(menu_interface* Interface)
   relative_size_attribute* SizeAttr = (relative_size_attribute*) PushAttribute(Interface, TabItemCollection, ATTRIBUTE_REL_SIZE);
   SizeAttr->Width = 0.7;
   SizeAttr->Height =  1;
-  
+#endif
   return TabWindow;
 }
 

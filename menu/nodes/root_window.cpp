@@ -372,9 +372,6 @@ container_node* CreateRootContainer(menu_interface* Interface, container_node* B
   Position->X = 0;
   Position->Y = 1 - Interface->HeaderSize;
 
-  color_attribute* Color = (color_attribute*) PushAttribute(Interface, Root, ATTRIBUTE_COLOR);
-  Color->Color = V4(0.5,0.5,0.5,1);
-
   absolute_size_attribute* Size = (absolute_size_attribute*) PushAttribute(Interface, Root, ATTRIBUTE_ABS_SIZE);
   Size->Width = 0.25;
   Size->Height = 0.25;

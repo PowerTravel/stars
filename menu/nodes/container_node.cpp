@@ -554,7 +554,7 @@ rect2f ArangeRootChildren( container_node* Node )
   container_node* Border2 = Border1->NextSibling;
   container_node* Border3 = Border2->NextSibling;
   container_node* Border4 = Border3->NextSibling;
-  r32 BorderWidth = 0.005;
+  r32 BorderWidth = 0.007;
   Border1->Region = Rect2f(0,                         0,                        BorderWidth, Size->Height); // Left
   Border2->Region = Rect2f(Size->Width - BorderWidth, 0,                        BorderWidth, Size->Height); // Right
   Border3->Region = Rect2f(0,                         Size->Height-BorderWidth, Size->Width, BorderWidth);  // Top
@@ -566,15 +566,11 @@ rect2f ArangeRootChildren( container_node* Node )
   return Rect2f(0,0,Size->Width,Size->Height);
 }
 
-void UpdateRegionsOfContainerTree2(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer)
+void SetSizeAndPositionsBottomUp(container_stack ContainerStack, container_node* Root)
 {
-  Assert(!RootContainer->Parent);
-  SCOPED_TRANSIENT_ARENA;
-  container_stack ContainerStack = NewContainerStack(GlobalTransientArena, ContainerCount);
-
   // Push Root
-  RootContainer->Region = {};
-  Push(ContainerStack, RootContainer);
+  Root->Region = {};
+  Push(ContainerStack, Root);
 
   while(!IsEmpty(ContainerStack))
   {
@@ -602,13 +598,7 @@ void UpdateRegionsOfContainerTree2(menu_interface* Interface, u32 ContainerCount
         }
       }
     }else{
-      rect2f NodeRegion = {};
-      switch(Node->Type)
-      {
-        case container_type::Root: NodeRegion = ArangeRootChildren( Node ); break;
-        default: NodeRegion = ArrangeChildPositions(Node); break;
-      }
-
+      rect2f NodeRegion = ArrangeChildPositions(Node);
       if(HasAttribute(Node, ATTRIBUTE_ABS_SIZE))
       {
         // Handle size of parent given that NodeRegion may not fit inside
@@ -623,6 +613,73 @@ void UpdateRegionsOfContainerTree2(menu_interface* Interface, u32 ContainerCount
       Pop(ContainerStack);
     }
   }
+}
+
+void SetSizeAndPositionsTopDown(container_stack ContainerStack, container_node* Root)
+{
+  Push(ContainerStack, Root);
+  while(!IsEmpty(ContainerStack))
+  {
+    // Pop new parent from Stack
+    container_stack_entry Entry = Pop(ContainerStack);
+    container_node* Node = Entry.Node;
+
+    switch(Node->Type)
+    {
+      case container_type::Root: Node->Region = ArangeRootChildren( Node ); break;
+      default:{
+        // Here we want some scheme where we will, given Attribute Size, which can be ATTRIBUTE_REL_SIZE, ATTRIBUTE_ABS_SIZE, or ATTRIBUTE_SIZE or No size attribtue
+        // Stack the children in a way that makes sense.
+        // My thinking is that any
+          // absolute size takes precident,
+          // Next is Relative Sizes.
+            // This assumes that the parent has a size.
+          // Any child that have no size attribute but had its child size set from the bottom up stage keeps it's size
+          // Any left over child that have no size attribute and have not had its size set bottom upp fills out any leftover space 
+
+        if(HasAttribute(Node, ATTRIBUTE_REL_SIZE))
+        {
+          Assert(Node->Parent);
+          Assert(Node->Parent->Region.W);
+          Assert(Node->Parent->Region.H);
+          rect2f ParentRegion = Node->Parent->Region;
+          relative_size_attribute* Size = (relative_size_attribute*) GetAttributePointer(Node, ATTRIBUTE_REL_SIZE);
+          Node->Region.W = Size->Width * ParentRegion.W;
+          Node->Region.H = Size->Height* ParentRegion.H;
+          if(!Node->PreviousSibling)
+          {
+            Node->Region.X = 0;
+            Node->Region.Y = ParentRegion.H - Node->Region.H;
+          }else{
+            Assert(HasAttribute(Node->PreviousSibling, ATTRIBUTE_REL_SIZE))
+            Node->Region.X = 0;
+            Node->Region.Y = Node->PreviousSibling->Region.Y - Node->Region.H;
+          }
+        }
+      }break;
+    }
+
+    
+    container_node* Child = GetLastChild(Node);
+    while(Child)
+    {
+      Push(ContainerStack, Child);
+      Child = Previous(Child);
+    }
+  }
+
+}
+
+void UpdateRegionsOfContainerTree2(menu_interface* Interface, u32 ContainerCount, container_node* RootContainer)
+{
+  Assert(!RootContainer->Parent);
+  SCOPED_TRANSIENT_ARENA;
+  container_stack ContainerStack = NewContainerStack(GlobalTransientArena, ContainerCount);
+
+  SetSizeAndPositionsBottomUp(ContainerStack, RootContainer);
+
+  SetSizeAndPositionsTopDown(ContainerStack, RootContainer);
+  
 
   Push(ContainerStack, RootContainer);
   while(!IsEmpty(ContainerStack))
