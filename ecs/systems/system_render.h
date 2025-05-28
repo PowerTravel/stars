@@ -9,7 +9,7 @@ namespace ecs {
 
 namespace render {
 
-  namespace data {
+namespace data {
 
   struct font
   {

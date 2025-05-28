@@ -1413,10 +1413,230 @@ void AddOrRemoveMenuEntityItems()
           }break;
       }
     }
-
   }
 
   Clear(EntityBuffer);
+}
+
+struct imgui_id {
+  u32 id;
+  b32 idEdge;
+};
+
+inline imgui_id Update(imgui_id Id, u32 Value)
+{
+  Id.idEdge = (Id.id != Value); // <- Edge is true if Id changed
+  Id.id = Value;
+  return Id;
+}
+
+struct imgui_context {
+  imgui_id ActiveID;
+  imgui_id HotID;
+
+  r32 MouseX;
+  r32 MouseY;
+  r32 MouseZ;
+  jwin::binary_signal_state LeftMouse;
+};
+
+global_variable imgui_context G_ImguiContext = {};
+
+b32 ImguiIsActive(imgui_id Id){
+  return G_ImguiContext.ActiveID.id == Id.id;
+}
+
+b32 ImguiIsDragging(){
+  return G_ImguiContext.ActiveID.id == -1;
+}
+
+b32 ImguiIsInactive(){
+  return G_ImguiContext.ActiveID.id == 0;
+}
+
+b32 ImguiIsHot(imgui_id Id){
+  return G_ImguiContext.HotID.id == Id.id;
+}
+
+void ImguiSetActive(imgui_id Id) {
+  G_ImguiContext.ActiveID = Update(G_ImguiContext.ActiveID, Id.id);
+}
+
+void ImguiSetInactive() {
+  G_ImguiContext.ActiveID = Update(G_ImguiContext.ActiveID, 0);
+}
+
+void ImguiSetDragging() {
+  G_ImguiContext.ActiveID = Update(G_ImguiContext.ActiveID, -1);
+}
+
+void ImguiSetHot(imgui_id Id){
+  G_ImguiContext.HotID = Update(G_ImguiContext.HotID, Id.id);
+}
+
+void ImguiSetCold(){
+  G_ImguiContext.HotID = Update(G_ImguiContext.HotID, 0);
+}
+
+b32 ImguiMenuPushed(imgui_id Id) 
+{
+  return G_ImguiContext.ActiveID.id == Id.id && G_ImguiContext.ActiveID.idEdge;
+}
+
+void ImguiBegin(jwin::device_input* Input){
+  ImguiSetCold();
+  ImguiSetActive(G_ImguiContext.ActiveID);
+  G_ImguiContext.MouseX = Input->Mouse.X;
+  G_ImguiContext.MouseY = Input->Mouse.Y;
+  G_ImguiContext.MouseZ = Input->Mouse.Z;
+  G_ImguiContext.LeftMouse = Input->Mouse.Button[jwin::MouseButton_Left];
+}
+
+void ImguiEnd(){
+  if(!jwin::Active(G_ImguiContext.LeftMouse)) {
+    ImguiSetInactive();
+  }else if(ImguiIsInactive()){
+    ImguiSetDragging();
+  }
+}
+
+#define IMGUI_BUTTON_NOP  0
+#define IMGUI_BUTTON_DOWN 1
+#define IMGUI_BUTTON_UP   2
+
+
+u32 ImguiButton(imgui_id Id, u32 FontSize, c8* Text, r32 x, r32 y, r32 w, r32 h, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
+  if(G_ImguiContext.MouseX >= x && G_ImguiContext.MouseX <= x + w &&
+     G_ImguiContext.MouseY >= y && G_ImguiContext.MouseY <= y + h)
+  {
+    ImguiSetHot(Id);
+    if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
+      ImguiSetActive(Id);
+    }
+  }
+
+  ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(GetRenderSystem());
+  v2 ClickOffset = {};
+  v4 Color = menu::GetColor(&GlobalState->ColorTable, "plum");
+  if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
+    // Button is Highlighted and pressed
+    if(ClickOffsetPx != 0){
+      ClickOffset.X = ClickOffsetPx/WindowSize.ApplicationWidth;
+      ClickOffset.Y = -ClickOffsetPx/WindowSize.ApplicationWidth; 
+    }
+    Color = menu::GetColor(&GlobalState->ColorTable, "waterspout");
+  }else if(ImguiIsActive(Id)){
+    // Button is Pressed
+    if(ClickOffsetPx != 0){
+      ClickOffset.X = 4.f/WindowSize.ApplicationWidth;
+      ClickOffset.Y = -4.f/WindowSize.ApplicationWidth;
+    }
+    Color = menu::GetColor(&GlobalState->ColorTable, "old gold");
+  }else if(ImguiIsHot(Id)){
+    // Button is only highlighted
+    Color = menu::GetColor(&GlobalState->ColorTable, "khaki");
+  }else{
+    // Button is inactive
+    Color = menu::GetColor(&GlobalState->ColorTable, "taupe");
+  }
+
+  v2 CenterRect = V2(x + w * 0.5f, y + h * 0.5f); 
+  if(ShadowOffsetPx!=0)
+  {
+    r32 ShadowOffsetX = ShadowOffsetPx/WindowSize.ApplicationWidth;
+    r32 ShadowOffsetY = -ShadowOffsetPx/WindowSize.ApplicationWidth;
+    rect2f ShadowRect = Rect2f(
+      CenterRect.X + ShadowOffsetX,
+      CenterRect.Y + ShadowOffsetY, w, h);
+    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ShadowRect, menu::GetColor(&GlobalState->ColorTable, "rich carmine"));
+  }
+
+  rect2f ButtonRect = Rect2f(
+    CenterRect.X + ClickOffset.X,
+    CenterRect.Y + ClickOffset.Y, w, h);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ButtonRect, Color);
+  r32 LineSpacing = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), FontSize);
+  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+
+  v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, (utf8_byte*) Text);
+  v2 TextOrigin = CenterRect - TextSize*0.5 + ClickOffset;
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextOrigin, FontSize, (utf8_byte*) Text, V4(1.0,1.0,1.0,1.0));
+
+  if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Released(G_ImguiContext.LeftMouse)){
+    return IMGUI_BUTTON_UP;
+  }else if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Pushed(G_ImguiContext.LeftMouse)){
+    return IMGUI_BUTTON_DOWN;
+  }else{
+    return IMGUI_BUTTON_NOP;
+  }
+}
+
+struct imgui_text_list {
+
+};
+
+struct imgui_scrollable_list {
+  v2 ScrollButtonSize;
+  u32 Rows;
+  char** StringList;
+  imgui_id* ImguiIds;
+  u32 FontSize;
+  r32 LineSpacing;
+  r32 DescentOffset;
+
+  r32 ScrollAmmount;
+  u32 SelectedRow;
+};
+
+imgui_scrollable_list CreateScrollableTextList(u32 Rows, imgui_id* Ids, char* StringList[], u32 FontSize, v2 ScrollButtonSize, r32 ScrollAmmount)
+{
+  imgui_scrollable_list Result = {};
+  Result.ScrollAmmount = ScrollAmmount;
+  Result.ScrollButtonSize = ScrollButtonSize;
+  Result.FontSize = FontSize;
+  Result.Rows = Rows;
+  Result.StringList = StringList;
+  Result.ImguiIds = Ids;
+  Result.SelectedRow = Rows;
+
+  Result.LineSpacing = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), FontSize);
+  Result.DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+
+  return Result;
+}
+
+u32 ImguiScrollableButtonList(imgui_scrollable_list ScrollableList, v2 LowerLeft, v2 Size, imgui_id ScrollWheelButtonId, r32 ScrollWheelAmmount) {
+  r32 LinesToFit = Floor(Size.Y / ScrollableList.LineSpacing);
+  r32 LinesThatWontFit = ScrollableList.Rows - LinesToFit;
+  r32 StartLine = LinesThatWontFit * ScrollableList.ScrollAmmount;
+  Size.Y = LinesToFit* ScrollableList.LineSpacing;
+
+  rect2f Rect = Rect2f(LowerLeft.X,
+                       LowerLeft.Y,
+                       Size.X, Size.Y);
+  rect2f RectOriginMid = Rect2f(Rect.X + Rect.W + ScrollableList.ScrollButtonSize.X*0.5f,
+                                Rect.Y + Rect.H *0.5f,
+                                ScrollableList.ScrollButtonSize.X, Rect.H);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), RectOriginMid, V4(0.5,0.5,0.5,1.0));
+
+  r32 ScrollWheelHeight = Lerp(ScrollableList.ScrollAmmount, LowerLeft.Y + Rect.H - ScrollableList.ScrollButtonSize.Y, LowerLeft.Y);
+  rect2f ScrollWheelRect = Rect2f(RectOriginMid.X - ScrollableList.ScrollButtonSize.X*0.5f,
+                                  ScrollWheelHeight,
+                                  ScrollableList.ScrollButtonSize.X, ScrollableList.ScrollButtonSize.Y);
+
+  u32 Result = ImguiButton(ScrollWheelButtonId, ScrollableList.FontSize, "", ScrollWheelRect.X, ScrollWheelRect.Y, ScrollWheelRect.W, ScrollWheelRect.H, 0, 0);
+  
+
+  for (u32 i = 0; i < LinesToFit; ++i)
+  {
+    char* Text = ScrollableList.StringList[(u32)StartLine + i];
+    v2 TextOriginInRect = V2(Rect.X, Rect.Y + Rect.H - (i+1)*ScrollableList.LineSpacing);
+    if(u32 ButtonResult = ImguiButton(ScrollableList.ImguiIds[i], ScrollableList.FontSize, Text, TextOriginInRect.X, TextOriginInRect.Y, Rect.W, Rect.H/LinesToFit,0, 0))
+    {
+      Result = ButtonResult;
+    }
+  }
+  return Result;
 }
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
@@ -1426,6 +1646,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   
+  ImguiBegin(Input);
   if(!GlobalState->Initialized)
   {
     GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
@@ -1656,7 +1877,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   
   if(!GlobalState->World.MenuInterface->MenuVisible)
   {
-    SceneInput(&GlobalState->Camera, Input);
+    if(ImguiIsInactive() || ImguiIsDragging())
+    {
+      SceneInput(&GlobalState->Camera, Input);
+    }
   }
 
   render_group* RenderGroup = RenderCommands->RenderGroup;
@@ -1697,6 +1921,87 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   
   UpdateViewMatrix(&GlobalState->Camera);
 
+  u32 RowCount = 32;
+  imgui_id ButtonId = {};
+  ButtonId.id = 1;
+  imgui_id ScrollWheelButtonId = {};
+  ScrollWheelButtonId.id = 2;
+  char StringBuf[128][32] = {};
+  char* StringList[128] = {};
+  imgui_id ListButtonId[128] = {};
+  for (int i = 0; i < RowCount; ++i)
+  {
+    char NumBuf[32] = {};
+    jstr::Itoa(i, 32, NumBuf);
+    if(i < 10)
+    {
+      jstr::CatStrings( "Line  ", NumBuf, StringBuf[i]);
+    }else{
+      jstr::CatStrings( "Line ", NumBuf, StringBuf[i]);
+    }
+    
+    StringList[i] = StringBuf[i];
+    ListButtonId[i].id = i+3;
+  }
+  
+  local_persist r32 ScrollAmmount = 0;
+  v2 LowerLeft = V2(0.1,0.2);
+  v2 Size = V2(0.1,0.3);
+  imgui_scrollable_list ScrollableList = CreateScrollableTextList(RowCount, ListButtonId, StringList, 14,V2(0.01,0.04), ScrollAmmount);
+
+  local_persist r32 Diff = 0;
+  v2 ScrollButtonSize = ScrollableList.ScrollButtonSize;
+  
+  if(u32 Result = ImguiScrollableButtonList(ScrollableList, LowerLeft, Size, ScrollWheelButtonId, ScrollAmmount))
+  {
+    if(Result == IMGUI_BUTTON_DOWN && ImguiIsActive(ScrollWheelButtonId))
+    {
+      Diff = G_ImguiContext.MouseY - (LowerLeft.Y + (1-ScrollAmmount) * (Size.Y - ScrollButtonSize.Y));
+    }
+    for (int i = 0; i < RowCount; ++i)
+    {
+      if(ImguiIsHot(ListButtonId[i]) && Result == IMGUI_BUTTON_UP)
+      {
+        Platform.DEBUGPrint("%s\n", StringList[i]);
+      }else if(ImguiIsHot(ListButtonId[i]) && Result == IMGUI_BUTTON_DOWN)
+      {
+        ScrollableList.SelectedRow = i;
+      }
+    }
+  }
+
+  b32 AnyHot = false;
+  for (int i = 0; i < RowCount; ++i)
+  {
+    if(ImguiIsHot(ListButtonId[i]))
+    {
+      AnyHot = true;
+    }
+  }
+  if(AnyHot)
+  {
+    ScrollAmmount -= 0.1*Input->Mouse.dZ;
+    ScrollAmmount = Clamp(ScrollAmmount, 0, 1);
+  }
+
+  //Platform.DEBUGPrint("%d %d\n", G_ImguiContext.ActiveID.id, ScrollWheelButtonId.id);
+  r32 A = LowerLeft.Y + Diff;
+  r32 B = LowerLeft.Y + Size.Y - (ScrollButtonSize.Y-Diff);
+  //Platform.DEBUGPrint("Diff %1.2f M %1.2f SA %1.2f -- B(%1.2f)-A(%1.2f) = %1.2f,  SizeY(%1.2f) - Box(%1.2f) = %1.2f\n", Diff, G_ImguiContext.MouseY, ScrollAmmount, B, A, B-A, ScrollableList.Size.Y, ScrollButtonSize, ScrollableList.Size.Y-ScrollButtonSize);
+  if(G_ImguiContext.ActiveID.id == ScrollWheelButtonId.id && jwin::Active(G_ImguiContext.LeftMouse))
+  { 
+    ScrollAmmount = Unlerp(G_ImguiContext.MouseY, B, A);
+    ScrollAmmount = Clamp(ScrollAmmount, 0, 1);
+  }
+  
+  v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), 18, (utf8_byte*) "Press Me");
+  if(ImguiButton(ButtonId, 18, "Press Me", 0.5, 0.5, TextSize.X+0.01, TextSize.Y+0.01, 0, 0) == IMGUI_BUTTON_UP){
+    Platform.DEBUGPrint("Button Pressed\n");
+  }
+  
+  
+  ImguiEnd();
+#if 0
   UpdateAndRenderMenuInterface(Input, GetMenuInterface());
 
   if(!GlobalState->World.MenuInterface->MenuVisible){
@@ -1704,6 +2009,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       Rect2f(0,0,1,1));
     ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
   }
-  
+#else
+  ecs::render::SetDrawWindow(GetRenderSystem(), Rect2f(0,0,1,1));
+  ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
+#endif
   ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
 } 
