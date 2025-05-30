@@ -104,6 +104,10 @@ namespace data {
 
   v2 GetTextSizePixelSpace(system* System, r32 PixelSize, utf8_byte const * Text);
   v2 GetTextSizeCanonicalSpace(system* System, r32 PixelSize, utf8_byte const * Text);
+  
+  b32 GetCharsCountToFitPixelSpace(system* System, r32 PixelSize, r32 MaxWidthPixelSpace, utf8_byte const * Text, utf8_byte const * Suffix, size_t* CharCountRet);
+  b32 GetCharsCountToFitCanonicalSpace(system* System, r32 PixelSize, r32 MaxWidthCanonicalSpace, utf8_byte const * Text, utf8_byte const * Suffix, size_t* CharCountRet);
+
 
   rect2f RectCenterBotLeft(rect2f Rect)
   {

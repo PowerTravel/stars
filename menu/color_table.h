@@ -23,7 +23,6 @@ color_table CreateColorTable(memory_arena* Arena)
 {
   color_table ColorTable = {};
 
-
   named_color_hex TmpColors[] = {
     {0x000000, "black"},
     {0x100C08, "smoky black"},

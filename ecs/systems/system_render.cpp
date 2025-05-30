@@ -103,6 +103,8 @@ r32 GetCanonicalFontDescenOffset(system* System, r32 PixelSize)
 
 v2 GetTextSizePixelSpace(system* System, r32 PixelSize, utf8_byte const * Text)
 { 
+  if(!Text) return {};
+
   SCOPED_TRANSIENT_ARENA;
   r32 FontRelativeScale = GetScaleFromPixelSize(System, PixelSize);
   u32 Length = jstr::StringLength((const char*)Text);
@@ -110,6 +112,44 @@ v2 GetTextSizePixelSpace(system* System, r32 PixelSize, utf8_byte const * Text)
   u32 UnicodeLen = ConvertToUnicode((utf8_byte*) Text, CodePoints);
   v2 Result = {};
   jfont::GetTextDim(&System->Font.Font, FontRelativeScale, &Result.X, &Result.Y, CodePoints);
+  return Result;
+}
+
+// Calculates the number of characters to fit within a given MaxWidthPixelSpace leaving space for a suffix.
+// The current usecase is if we have the string 
+//    "Hello world"
+// We may want to print
+//    "Hello w..."
+// if the last 'd' does not fit. Result would be 7.
+// If suffix is null or the empty string the number result would be 10. (Hello worl)
+
+// Sets CharCountRet with the number of chars in Text that will fit for the suffix to also have space if Text is longer than MaxWidthPixelSpace,
+// Returns true if all of Text fits, otherwise false.
+b32 GetCharsCountToFitPixelSpace(system* System, r32 PixelSize, r32 MaxWidthPixelSpace, utf8_byte const * Text, utf8_byte const * Suffix, size_t* CharCountRet)
+{ 
+  SCOPED_TRANSIENT_ARENA;
+  r32 FontRelativeScale = GetScaleFromPixelSize(System, PixelSize);
+
+  r32 TextWidth = GetTextSizePixelSpace(System, PixelSize, Text).X;
+  b32 Result = true;
+  if(TextWidth > MaxWidthPixelSpace)
+  {
+    r32 SuffixWidth = GetTextSizePixelSpace(System, PixelSize, Suffix).X;
+    MaxWidthPixelSpace = Maximum(MaxWidthPixelSpace - SuffixWidth, 0);
+    Result = false;
+  }
+  
+  codepoint* TextCodePoints = PushArray(GlobalTransientArena, jstr::StringLength((const char*)Text)+1, codepoint);
+  ConvertToUnicode((utf8_byte*) Text, TextCodePoints);
+  *CharCountRet = jfont::GetUnicodeCharCountThatFitsInSize(&System->Font.Font, FontRelativeScale, MaxWidthPixelSpace, TextCodePoints);
+  
+  return Result;
+}
+
+b32 GetCharsCountToFitCanonicalSpace(system* System, r32 PixelSize, r32 MaxWidthCanonicalSpace, utf8_byte const * Text, utf8_byte const * Suffix, size_t* CharCountRet)
+{
+  r32 MaxWidthPixelSpace = CanonicalToPixelSpace(System, V2(MaxWidthCanonicalSpace,0)).X;
+  b32 Result = GetCharsCountToFitPixelSpace(System, PixelSize, MaxWidthPixelSpace, Text, Suffix, CharCountRet);
   return Result;
 }
 
@@ -197,7 +237,6 @@ void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8
   v2 PixelPos = CanonicalToPixelSpace(System, CanonicalPos);
   DrawTextPixelSpace(System, PixelPos, PixelSize, Text, Color);
 }
-
 
 void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color)
 {
