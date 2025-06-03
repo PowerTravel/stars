@@ -142,7 +142,7 @@ b32 GetCharsCountToFitPixelSpace(system* System, r32 PixelSize, r32 MaxWidthPixe
   codepoint* TextCodePoints = PushArray(GlobalTransientArena, jstr::StringLength((const char*)Text)+1, codepoint);
   ConvertToUnicode((utf8_byte*) Text, TextCodePoints);
   *CharCountRet = jfont::GetUnicodeCharCountThatFitsInSize(&System->Font.Font, FontRelativeScale, MaxWidthPixelSpace, TextCodePoints);
-  
+
   return Result;
 }
 
@@ -204,6 +204,42 @@ inline internal chunk_list* GetTransparentObjects(system* System, data::render_l
   }
   return &RenderLevel->TransparentObjects;
 }
+
+void DrawTextPixelSpace(system* System, v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color)
+{
+  SCOPED_TRANSIENT_ARENA;
+  u32 Length = jstr::StringLength((const char*) Text);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, Length+1, codepoint);
+  u32 UnicodeLen = ConvertToUnicode(Text, CodePoints);
+  r32 RelativeScale =  GetScaleFromPixelSize(System, PixelSize);
+  jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
+  jfont::GetTextPrintCoordinates(&System->Font.Font, &System->Font.FontAtlas, RelativeScale, PixelPos.X, PixelPos.Y, PixelClipRect, CodePoints, TextPrintCoordinates);
+
+  data::render_level* RenderLevel = GetTopRenderLevel(System);
+  chunk_list* TextBuffer = GetOverlayText(System, RenderLevel);
+  for (int i = 0; i < UnicodeLen; ++i)
+  {
+    jfont::print_coordinates* tc = TextPrintCoordinates+i;
+    data::overlay_text OverlayText = {};
+
+    OverlayText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
+    OverlayText.ModelMatrix = M4Identity();
+    Scale(V4(tc->sx, tc->sy,1,0), OverlayText.ModelMatrix);
+    Translate(V4(tc->x,tc->y, 0, 1), OverlayText.ModelMatrix);
+    OverlayText.ModelMatrix = Transpose(OverlayText.ModelMatrix);
+    OverlayText.Color = Color;
+    Push(&System->Arena, &RenderLevel->OverlayText, (bptr)&OverlayText);
+  }
+}
+
+void DrawTextCanonicalSpace(system* System, v2 CanonicalPos,  rect2f CanonicalClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color)
+{
+  v2 PixelPos = CanonicalToPixelSpace(System, CanonicalPos);
+  v2 PixelClipPos = CanonicalToPixelSpace(System, V2(CanonicalClipRect.X, CanonicalClipRect.Y));
+  v2 PixelClipSize = CanonicalToPixelSpace(System, V2(CanonicalClipRect.W, CanonicalClipRect.H));
+  DrawTextPixelSpace(System, PixelPos, Rect2f(PixelClipPos, PixelClipSize), PixelSize, Text, Color);
+}
+
 
 void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
 {

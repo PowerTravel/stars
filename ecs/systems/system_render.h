@@ -115,6 +115,8 @@ namespace data {
     return Result;
   }
 
+  void DrawTextPixelSpace(system* System, v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color);
+  void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, rect2f CanonicalClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color);
 
   void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte const * Text);
   void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color = V4(1,1,1,1));

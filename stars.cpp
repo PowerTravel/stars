@@ -24,6 +24,7 @@
 
 #define SPOTCOUNT 200
 
+global_variable r32 g_t = 0;
 
 u32 CreatePhongProgram(render_group* RenderGroup)
 {
@@ -1523,9 +1524,9 @@ utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, c8* Text, c8* Suff
   return Buff;
 }
 
-u32 ImguiButton(imgui_id Id, u32 FontSize, c8* Text, r32 x, r32 y, r32 w, r32 h, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
-  if(G_ImguiContext.MouseX >= x && G_ImguiContext.MouseX <= x + w &&
-     G_ImguiContext.MouseY >= y && G_ImguiContext.MouseY <= y + h)
+u32 ImguiButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
+  if(G_ImguiContext.MouseX >= ButtonX && G_ImguiContext.MouseX <= ButtonX + ButtonWidth &&
+     G_ImguiContext.MouseY >= ButtonY && G_ImguiContext.MouseY <= ButtonY + ButtonHeight)
   {
     ImguiSetHot(Id);
     if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
@@ -1536,7 +1537,8 @@ u32 ImguiButton(imgui_id Id, u32 FontSize, c8* Text, r32 x, r32 y, r32 w, r32 h,
   ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(GetRenderSystem());
   v2 ClickOffset = {};
   v4 Color = menu::GetColor(&GlobalState->ColorTable, "plum");
-  r32 ButtonTextWidth = w;
+  r32 ButtonTextWidth = ButtonWidth;
+  r32 ButtonTextHeight = ButtonHeight;
   if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
     // Button is Highlighted and pressed
     if(ClickOffsetPx != 0){
@@ -1554,38 +1556,45 @@ u32 ImguiButton(imgui_id Id, u32 FontSize, c8* Text, r32 x, r32 y, r32 w, r32 h,
   }else if(ImguiIsHot(Id)){
     // Button is only highlighted
     Color = menu::GetColor(&GlobalState->ColorTable, "khaki");
-    r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, (utf8_byte*) Text).X;
-    if(TextWidth > ButtonTextWidth)
+    if(FontSize && Text && *Text != '\0')
     {
-      ButtonTextWidth = TextWidth; 
+      r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, (utf8_byte*) Text).X;
+      if(TextWidth > ButtonTextWidth)
+      {
+        ButtonTextWidth = TextWidth; 
+      }
     }
   }else{
     // Button is inactive
     Color = menu::GetColor(&GlobalState->ColorTable, "taupe");
   }
 
-  v2 CenterRect = V2(x + ButtonTextWidth * 0.5f, y + h * 0.5f); 
+  v2 CenterRect = V2(ButtonX + ButtonTextWidth * 0.5f, ButtonY + ButtonHeight * 0.5f); 
   if(ShadowOffsetPx!=0)
   {
-    r32 ShadowOffsetX = ShadowOffsetPx/WindowSize.ApplicationWidth;
+    r32 ShadowOffsetX =  ShadowOffsetPx/WindowSize.ApplicationWidth;
     r32 ShadowOffsetY = -ShadowOffsetPx/WindowSize.ApplicationWidth;
     rect2f ShadowRect = Rect2f(
       CenterRect.X + ShadowOffsetX,
-      CenterRect.Y + ShadowOffsetY, ButtonTextWidth, h);
+      CenterRect.Y + ShadowOffsetY, ButtonTextWidth, ButtonHeight);
     ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ShadowRect, menu::GetColor(&GlobalState->ColorTable, "rich carmine"));
   }
 
   rect2f ButtonRect = Rect2f(
     CenterRect.X + ClickOffset.X,
-    CenterRect.Y + ClickOffset.Y, ButtonTextWidth, h);
+    CenterRect.Y + ClickOffset.Y, ButtonTextWidth, ButtonHeight);
   ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ButtonRect, Color);
-  r32 LineSpacing = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), FontSize);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+  
 
-  v2 TextOrigin = V2(x,y) + ClickOffset + V2(0,DescentOffset);
-
-  utf8_string_buffer StringBuffer = SetStringToFit(FontSize, ButtonTextWidth, Text);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextOrigin, FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
+  if(FontSize && Text && *Text != '\0')
+  {
+    r32 LineSpacing = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), FontSize);
+    r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+    v2 TextOrigin = V2(ButtonX + TextOffsetX,ButtonY + TextOffsetY) + ClickOffset + V2(0,DescentOffset);
+    utf8_string_buffer StringBuffer = SetStringToFit(FontSize, ButtonTextWidth, Text);
+    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextOrigin , Rect2f(ButtonX,ButtonY,ButtonTextWidth,ButtonHeight), FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));  
+  }
+  
 
   if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Released(G_ImguiContext.LeftMouse)){
     return IMGUI_BUTTON_UP;
@@ -1596,12 +1605,7 @@ u32 ImguiButton(imgui_id Id, u32 FontSize, c8* Text, r32 x, r32 y, r32 w, r32 h,
   }
 }
 
-struct imgui_text_list {
-
-};
-
 struct imgui_scrollable_list {
-  v2 ScrollButtonSize;
   u32 Rows;
   char** StringList;
   char** StringList2;
@@ -1613,58 +1617,133 @@ struct imgui_scrollable_list {
 
   r32 ScrollAmmount;
   u32 SelectedRow;
+
+  v2 Size;
+  v2 Pos;
 };
 
-imgui_scrollable_list CreateScrollableTextList(u32 Rows, imgui_id* Ids, char* StringList[], char* StringList2[], v4 ColorList[], u32 FontSize, v2 ScrollButtonSize, r32 ScrollAmmount)
+imgui_scrollable_list CreateScrollableTextList(u32 Rows, imgui_id* Ids, char* StringList[], char* StringList2[], v4 ColorList[], u32 FontSize, v2 Pos, v2 Size)
 {
   imgui_scrollable_list Result = {};
-  Result.ScrollAmmount = ScrollAmmount;
-  Result.ScrollButtonSize = ScrollButtonSize;
   Result.FontSize = FontSize;
   Result.Rows = Rows;
+  Result.Size = Size;
+  Result.Pos = Pos;
   Result.StringList = StringList;
   Result.StringList2 = StringList2;
   Result.ColorList = ColorList;
   Result.ImguiIds = Ids;
-  Result.SelectedRow = Rows;
-
   Result.LineSpacing = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), FontSize);
   Result.DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+
+  Result.SelectedRow = Rows;
+  return Result;
+}
+
+r32 GetScrollWheelSize(imgui_scrollable_list ScrollableList, r32 Min)
+{
+  r32 LinesToFit = ScrollableList.Size.Y / ScrollableList.LineSpacing;
+  r32 SizePercentage = LinesToFit / ScrollableList.Rows;
+  r32 Result = ScrollableList.Size.Y * SizePercentage;
+  return Result < Min ? Min : Result;
+}
+
+u32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, r32 ScrollAmmount) {
+  
+  r32 LinesToFit = ScrollableList->Size.Y / ScrollableList->LineSpacing;
+  r32 StartRow = ScrollAmmount * (ScrollableList->Rows - LinesToFit);
+  s32 StartIndex = (s32) Floor(StartRow);
+  r32 RowOffset = (StartRow - StartIndex) * ScrollableList->LineSpacing;
+
+  r32 ListBot = ScrollableList->Pos.Y;
+  r32 ListTop = ScrollableList->Pos.Y + ScrollableList->Size.Y;
+
+  u32 Result = 0;
+  for (s32 i = 0; i<=LinesToFit; ++i)
+  {
+    s32 Index = StartIndex + i;
+    if(Index < ScrollableList->Rows)
+    {
+      char* Text = ScrollableList->StringList[Index];
+
+      r32 YPos = -(i+1) * ScrollableList->LineSpacing + ScrollableList->Pos.Y + ScrollableList->Size.Y + RowOffset;
+      r32 Height = ScrollableList->LineSpacing;
+      v2 ButtonPos = V2(ScrollableList->Pos.X, YPos);
+      r32 TextOffsetY = 0;
+      if(YPos + ScrollableList->LineSpacing > ListTop)
+      {
+        Height = ListTop - YPos;
+      }else if(YPos < ListBot){
+        Height = (YPos + ScrollableList->LineSpacing) - ListBot;
+        ButtonPos.Y = ListBot;
+        TextOffsetY = -(ScrollableList->LineSpacing - Height);
+      }
+      u32 ButtonResult = ImguiButton(ScrollableList->ImguiIds[Index], ScrollableList->FontSize, Text, ButtonPos.X, ButtonPos.Y, ScrollableList->Size.X, Height, 0, TextOffsetY, 0,0);
+      Result = ButtonResult != IMGUI_BUTTON_NOP ? ButtonResult : Result;
+      if(ImguiIsActive(ScrollableList->ImguiIds[Index]))
+      {
+        ScrollableList->SelectedRow = Index;
+      }
+    }
+  }
 
   return Result;
 }
 
-u32 ImguiScrollableButtonList(imgui_scrollable_list ScrollableList, v2 LowerLeft, v2 Size, imgui_id ScrollWheelButtonId) {
-  r32 LinesToFit = Floor(Size.Y / ScrollableList.LineSpacing);
-  r32 LinesThatWontFit = ScrollableList.Rows - LinesToFit;
-  r32 StartLine = LinesThatWontFit * ScrollableList.ScrollAmmount;
-  //Size.Y = LinesToFit* ScrollableList.LineSpacing;
+struct imgui_scrollbar
+{
+  imgui_id ScrollbarId;
+  imgui_id ScrollbarButtonid;
+  r32 ScrollAmmount;
+  r32 MouseDiff;
+};
 
-  rect2f Rect = Rect2f(LowerLeft.X,
-                       LowerLeft.Y,
-                       Size.X, Size.Y);
-  rect2f BackgroundRect = Rect2f(Rect.X + Rect.W * 0.5f,
-                                Rect.Y + Rect.H * 0.5f,
-                                Rect.W, Rect.H);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), BackgroundRect, menu::GetColor(&GlobalState->ColorTable, "taupe"));
-  rect2f ScrollWheelBackgroundRect = Rect2f(Rect.X + Rect.W + ScrollableList.ScrollButtonSize.X*0.5f,
-                                Rect.Y + Rect.H * 0.5f,
-                                ScrollableList.ScrollButtonSize.X, Rect.H);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ScrollWheelBackgroundRect, V4(0.5,0.5,0.5,1.0));
-  r32 ScrollWheelHeight = Lerp(ScrollableList.ScrollAmmount, LowerLeft.Y + Rect.H - ScrollableList.ScrollButtonSize.Y, LowerLeft.Y);
-  rect2f ScrollWheelRect = Rect2f(ScrollWheelBackgroundRect.X - ScrollWheelBackgroundRect.W*0.5,
-                                  ScrollWheelHeight,
-                                  ScrollableList.ScrollButtonSize.X, ScrollableList.ScrollButtonSize.Y);
-  u32 Result = ImguiButton(ScrollWheelButtonId, ScrollableList.FontSize, "", ScrollWheelRect.X, ScrollWheelRect.Y, ScrollWheelRect.W, ScrollWheelRect.H, 0, 0);
-  
+imgui_scrollbar CreateScrollBar(imgui_id ScrollbarId, imgui_id ScrollbarButtonid, r32 ScrollAmmount)
+{
+  imgui_scrollbar Result = {};
+  Result.ScrollAmmount = ScrollAmmount;
+  Result.ScrollbarId = ScrollbarId;
+  Result.ScrollbarButtonid = ScrollbarButtonid;
+  return Result;
+}
 
-  for (u32 i = 0; i < LinesToFit; ++i)
-  {
-    char* Text = ScrollableList.StringList[(u32)StartLine + i];
-    v2 TextOriginInRect = V2(Rect.X, Rect.Y + Rect.H - (i+1)*ScrollableList.LineSpacing);
-    if(u32 ButtonResult = ImguiButton(ScrollableList.ImguiIds[i], ScrollableList.FontSize, Text, TextOriginInRect.X, TextOriginInRect.Y, Rect.W, Rect.H/LinesToFit,0, 0))
+u32 ImguiScrollBar(imgui_scrollbar* ScrollBar, v2 ScrollbarLowerLeft, v2 ScrollbarSize, v2 ScrollButtonSize)
+{
+  rect2f ScrollbarRect = Rect2f(ScrollbarLowerLeft.X, ScrollbarLowerLeft.Y,
+                                ScrollbarSize.X, ScrollbarSize.Y);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollbarRect), V4(0.5,0.5,0.5,1.0));
+
+  r32 ScrollWheelHeight = Lerp(ScrollBar->ScrollAmmount, ScrollbarLowerLeft.Y + ScrollbarSize.Y - ScrollButtonSize.Y, ScrollbarLowerLeft.Y);
+  rect2f ScrollWheelRect = Rect2f(ScrollbarLowerLeft.X, ScrollWheelHeight,
+                                  ScrollButtonSize.X, ScrollButtonSize.Y);
+  u32 Result = ImguiButton(ScrollBar->ScrollbarButtonid, 0, 0, ScrollWheelRect.X, ScrollWheelRect.Y, ScrollWheelRect.W, ScrollWheelRect.H, 0, 0, 0, 0);
+  if(ImguiIsActive(ScrollBar->ScrollbarButtonid)) {
+    // Mouse is clickedUp on the scrollbarButton, Cache the mouseDiff.
+    if(Result == IMGUI_BUTTON_DOWN)
     {
-      Result = ButtonResult;
+      ScrollBar->MouseDiff = G_ImguiContext.MouseY - (ScrollbarLowerLeft.Y + (1-ScrollBar->ScrollAmmount) * (ScrollbarSize.Y - ScrollButtonSize.Y));
+    }else{
+      r32 A = ScrollbarLowerLeft.Y + ScrollBar->MouseDiff;
+      r32 B = ScrollbarLowerLeft.Y + ScrollbarSize.Y - (ScrollButtonSize.Y-ScrollBar->MouseDiff);
+      ScrollBar->ScrollAmmount = Unlerp(G_ImguiContext.MouseY, B, A);
+      ScrollBar->ScrollAmmount = Clamp(ScrollBar->ScrollAmmount, 0, 1);
+    }
+  }else if(ImguiIsActive(ScrollBar->ScrollbarId)){
+    // Mouse is clicked on the scrollbarlist
+    if(jwin::Active(G_ImguiContext.LeftMouse))
+    {
+      ScrollBar->ScrollAmmount = Unlerp(G_ImguiContext.MouseY, ScrollbarLowerLeft.Y + ScrollbarSize.Y,ScrollbarLowerLeft.Y);
+      ScrollBar->ScrollAmmount = Clamp(ScrollBar->ScrollAmmount, 0, 1);
+      r32 DiffScrollbar = G_ImguiContext.MouseY - ScrollbarLowerLeft.Y;
+      if(DiffScrollbar < ScrollButtonSize.Y*0.5)
+      {
+        ScrollBar->MouseDiff = DiffScrollbar;
+      }else if (DiffScrollbar > ScrollbarLowerLeft.Y + ScrollbarSize.Y - ScrollButtonSize.Y*0.5)
+      {
+        ScrollBar->MouseDiff = ScrollButtonSize.Y - (ScrollbarLowerLeft.Y + ScrollbarSize.Y - DiffScrollbar);
+      }else{
+        ScrollBar->MouseDiff = ScrollButtonSize.Y*0.5;
+      }
     }
   }
   return Result;
@@ -1678,6 +1757,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   
   ImguiBegin(Input);
+  g_t = Input->Time;
   if(!GlobalState->Initialized)
   {
     GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
@@ -1955,10 +2035,13 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   UpdateViewMatrix(&GlobalState->Camera);
 
   u32 RowCount = GlobalState->ColorTable.ColorCount;
+  u32 ButtonID = 1;
   imgui_id ButtonId = {};
-  ButtonId.id = 1;
-  imgui_id ScrollWheelButtonId = {};
-  ScrollWheelButtonId.id = 2;
+  ButtonId.id = ButtonID++;
+  imgui_id ScrollbarId = {};
+  ScrollbarId.id = ButtonID++;
+  imgui_id ScrollbarButtonid = {};
+  ScrollbarButtonid.id = ButtonID++;
   char** ColorNameList = PushArray(GlobalTransientArena, RowCount, char*);
   char** HexValueList = PushArray(GlobalTransientArena, RowCount, char*);
   v4* ColorList = PushArray(GlobalTransientArena, RowCount, v4);
@@ -1974,33 +2057,27 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     FormatString(ColorNameList[i], TMP_STRING_SIZE-1, "%s", NamedColor->Name);
   
     ColorList[i] = Color;
-    ListButtonId[i].id = i+3;
+    ListButtonId[i].id = ButtonID++;
   }
-  
-  local_persist r32 ScrollAmmount = 0;
-  v2 LowerLeft = V2(0.1,0);
-  v2 Size = V2(0.1,1);
-  imgui_scrollable_list ScrollableList = CreateScrollableTextList(RowCount, ListButtonId, ColorNameList, HexValueList, ColorList, 14, V2(0.01,0.04), ScrollAmmount);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), Rect2f(0, 0.5, 1, 0.002), V4(1,1,1,1.0));
-  local_persist r32 Diff = 0;
-  v2 ScrollButtonSize = ScrollableList.ScrollButtonSize;
-  
-  if(u32 Result = ImguiScrollableButtonList(ScrollableList, LowerLeft, Size, ScrollWheelButtonId))
+
+  v2 ScrollableListPosition = V2(0.1,0.25);
+  v2 ScrollableListSize = V2(0.1,0.5);
+
+  local_persist u32 SelectedRow = 0;
+  imgui_scrollable_list ScrollableList = CreateScrollableTextList(RowCount, ListButtonId, ColorNameList, HexValueList, ColorList, 14, ScrollableListPosition, ScrollableListSize);
+  ScrollableList.SelectedRow = SelectedRow;
+
+  v2 ScrollbarLowerLeft = V2(ScrollableListPosition.X+ScrollableListSize.X, ScrollableListPosition.Y);
+  v2 ScrollbarSize      = V2(0.01f, ScrollableListSize.Y);
+  v2 ScrollbuttonSize   = V2(0.01f, GetScrollWheelSize(ScrollableList, 0.03f));
+
+  local_persist imgui_scrollbar ScrollBar = CreateScrollBar(ScrollbarId, ScrollbarButtonid, 0);
+  ImguiScrollBar(&ScrollBar, ScrollbarLowerLeft, ScrollbarSize, ScrollbuttonSize);
+  u32 ScrollbarResult = ImguiScrollableButtonList(&ScrollableList, ScrollBar.ScrollAmmount);
+  SelectedRow = ScrollableList.SelectedRow;
+  if(ScrollbarResult == IMGUI_BUTTON_DOWN)
   {
-    if(Result == IMGUI_BUTTON_DOWN && ImguiIsActive(ScrollWheelButtonId))
-    {
-      Diff = G_ImguiContext.MouseY - (LowerLeft.Y + (1-ScrollAmmount) * (Size.Y - ScrollButtonSize.Y));
-    }
-    for (int i = 0; i < RowCount; ++i)
-    {
-      if(ImguiIsHot(ListButtonId[i]) && Result == IMGUI_BUTTON_UP)
-      {
-        Platform.DEBUGPrint("%s\n", ColorNameList[i]);
-      }else if(ImguiIsHot(ListButtonId[i]) && Result == IMGUI_BUTTON_DOWN)
-      {
-        ScrollableList.SelectedRow = i;
-      }
-    }
+    Platform.DEBUGPrint("%d, %s\n", ScrollableList.SelectedRow, ColorNameList[ScrollableList.SelectedRow]);
   }
 
   b32 AnyHot = false;
@@ -2013,20 +2090,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
   if(AnyHot)
   {
-    ScrollAmmount -= 0.1*Input->Mouse.dZ;
-    ScrollAmmount = Clamp(ScrollAmmount, 0, 1);
-  }
-
-  r32 A = LowerLeft.Y + Diff;
-  r32 B = LowerLeft.Y + Size.Y - (ScrollButtonSize.Y-Diff);
-  if(G_ImguiContext.ActiveID.id == ScrollWheelButtonId.id && jwin::Active(G_ImguiContext.LeftMouse))
-  { 
-    ScrollAmmount = Unlerp(G_ImguiContext.MouseY, B, A);
-    ScrollAmmount = Clamp(ScrollAmmount, 0, 1);
+    ScrollBar.ScrollAmmount -= 0.01*Input->Mouse.dZ;
+    ScrollBar.ScrollAmmount = Clamp(ScrollBar.ScrollAmmount, 0, 1);
   }
   
   v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), 18, (utf8_byte*) "Press Me");
-  if(ImguiButton(ButtonId, 18, "Press Me", 0.5, 0.5, TextSize.X+0.01, TextSize.Y+0.01, 0, 0) == IMGUI_BUTTON_UP){
+  if(ImguiButton(ButtonId, 18, "Press Me", 0.5, 0.5, TextSize.X+0.01, TextSize.Y+0.01, 0, Sin(g_t) *0.5*ScrollableList.LineSpacing, 0, 0) == IMGUI_BUTTON_UP){
     Platform.DEBUGPrint("Button Pressed\n");
   }
   
