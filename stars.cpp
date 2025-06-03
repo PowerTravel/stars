@@ -1434,6 +1434,7 @@ inline imgui_id Update(imgui_id Id, u32 Value)
 struct imgui_context {
   imgui_id ActiveID;
   imgui_id HotID;
+  imgui_id LastHotID;
 
   r32 MouseX;
   r32 MouseY;
@@ -1456,7 +1457,7 @@ b32 ImguiIsInactive(){
 }
 
 b32 ImguiIsHot(imgui_id Id){
-  return G_ImguiContext.HotID.id == Id.id;
+  return G_ImguiContext.LastHotID.id == Id.id;
 }
 
 void ImguiSetActive(imgui_id Id) {
@@ -1476,6 +1477,7 @@ void ImguiSetHot(imgui_id Id){
 }
 
 void ImguiSetCold(){
+  G_ImguiContext.LastHotID = Update(G_ImguiContext.LastHotID, G_ImguiContext.HotID.id);
   G_ImguiContext.HotID = Update(G_ImguiContext.HotID, 0);
 }
 
@@ -1524,7 +1526,55 @@ utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, c8* Text, c8* Suff
   return Buff;
 }
 
-u32 ImguiButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
+struct imgui_button_color {
+  v4 InactiveColor;
+  v4 ActiveAndHotColor;
+  v4 ActiveColor;
+  v4 HotColor;
+};
+
+imgui_button_color ImguiDefaultButtonColor()
+{
+  imgui_button_color Result = {};
+  Result.InactiveColor =  menu::GetColor(&GlobalState->ColorTable, "taupe");
+  Result.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "waterspout");
+  Result.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "old gold");
+  Result.HotColor = menu::GetColor(&GlobalState->ColorTable, "khaki");
+  return Result;
+}
+
+u32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor) {
+  if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
+  {
+    ImguiSetHot(Id);
+    if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
+      ImguiSetActive(Id);
+    }
+  }
+  v4 Color = ButtonColor.InactiveColor;
+  if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
+    // Button is Highlighted and pressed
+    Color = ButtonColor.ActiveAndHotColor;
+  }else if(ImguiIsActive(Id)){
+    // Button is Pressed
+    Color = ButtonColor.ActiveColor;
+  }else if(ImguiIsHot(Id)){
+    // Button is only highlighted
+    Color = ButtonColor.HotColor;
+  }
+
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ButtonRect), Color);
+
+  if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Released(G_ImguiContext.LeftMouse)){
+    return IMGUI_BUTTON_UP;
+  }else if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Pushed(G_ImguiContext.LeftMouse)){
+    return IMGUI_BUTTON_DOWN;
+  }else{
+    return IMGUI_BUTTON_NOP;
+  }
+}
+
+u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
   if(G_ImguiContext.MouseX >= ButtonX && G_ImguiContext.MouseX <= ButtonX + ButtonWidth &&
      G_ImguiContext.MouseY >= ButtonY && G_ImguiContext.MouseY <= ButtonY + ButtonHeight)
   {
@@ -1584,18 +1634,15 @@ u32 ImguiButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r
     CenterRect.X + ClickOffset.X,
     CenterRect.Y + ClickOffset.Y, ButtonTextWidth, ButtonHeight);
   ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ButtonRect, Color);
-  
 
   if(FontSize && Text && *Text != '\0')
   {
-    r32 LineSpacing = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), FontSize);
     r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
-    v2 TextOrigin = V2(ButtonX + TextOffsetX,ButtonY + TextOffsetY) + ClickOffset + V2(0,DescentOffset);
+    v2 TextOrigin = V2(ButtonX + TextOffsetX,ButtonY + TextOffsetY) + ClickOffset + V2(0, DescentOffset);
     utf8_string_buffer StringBuffer = SetStringToFit(FontSize, ButtonTextWidth, Text);
     ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextOrigin , Rect2f(ButtonX,ButtonY,ButtonTextWidth,ButtonHeight), FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));  
   }
   
-
   if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Released(G_ImguiContext.LeftMouse)){
     return IMGUI_BUTTON_UP;
   }else if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Pushed(G_ImguiContext.LeftMouse)){
@@ -1667,18 +1714,45 @@ u32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, r32 ScrollA
       char* Text = ScrollableList->StringList[Index];
 
       r32 YPos = -(i+1) * ScrollableList->LineSpacing + ScrollableList->Pos.Y + ScrollableList->Size.Y + RowOffset;
-      r32 Height = ScrollableList->LineSpacing;
+
+      v2 ButtonSize = V2(ScrollableList->Size.X, ScrollableList->LineSpacing);
+      v2 ColorSquareSize = V2(ScrollableList->LineSpacing, ScrollableList->LineSpacing);
+      v2 TextSize = ButtonSize - ColorSquareSize;
+
+
       v2 ButtonPos = V2(ScrollableList->Pos.X, YPos);
+      v2 ColorSquarePos = ButtonPos;
+      v2 ColorSquarePadding = V2(0.001,0.001);
+      v2 TextPos = ButtonPos + V2(ColorSquareSize.X,0);
+      
       r32 TextOffsetY = 0;
       if(YPos + ScrollableList->LineSpacing > ListTop)
       {
-        Height = ListTop - YPos;
+        ButtonSize.Y = ListTop - YPos;
+        ColorSquareSize.Y = ButtonSize.Y;
       }else if(YPos < ListBot){
-        Height = (YPos + ScrollableList->LineSpacing) - ListBot;
-        ButtonPos.Y = ListBot;
-        TextOffsetY = -(ScrollableList->LineSpacing - Height);
+        ButtonSize.Y = (YPos + ScrollableList->LineSpacing) - ListBot;
+        ButtonPos.Y  = ListBot;
+        ColorSquarePos.Y += (ScrollableList->LineSpacing - ButtonSize.Y);
+        ColorSquareSize.Y = ButtonSize.Y;
+      }else{
+        if(ImguiIsHot(ScrollableList->ImguiIds[Index]) && ImguiIsInactive()){
+          r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ScrollableList->FontSize, (utf8_byte*) Text).X + 0.001;
+          if(TextWidth > TextSize.X)
+          {
+            ButtonSize.X = TextWidth + ColorSquareSize.X;
+            TextSize.X = TextWidth;
+          }
+        }
       }
-      u32 ButtonResult = ImguiButton(ScrollableList->ImguiIds[Index], ScrollableList->FontSize, Text, ButtonPos.X, ButtonPos.Y, ScrollableList->Size.X, Height, 0, TextOffsetY, 0,0);
+
+      u32 ButtonResult = ImguiPlainButton(&G_ImguiContext, ScrollableList->ImguiIds[Index], Rect2f(ButtonPos, ButtonSize), ImguiDefaultButtonColor());
+      
+      ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(Rect2f(ColorSquarePos + ColorSquarePadding, ColorSquareSize - 2*ColorSquarePadding)), ScrollableList->ColorList[Index]);
+      
+      utf8_string_buffer StringBuffer = SetStringToFit(ScrollableList->FontSize, TextSize.X, Text);
+      ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(TextPos.X, TextPos.Y+ScrollableList->DescentOffset) , Rect2f(ButtonPos, ButtonSize), ScrollableList->FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
+      
       Result = ButtonResult != IMGUI_BUTTON_NOP ? ButtonResult : Result;
       if(ImguiIsActive(ScrollableList->ImguiIds[Index]))
       {
@@ -1716,7 +1790,7 @@ u32 ImguiScrollBar(imgui_scrollbar* ScrollBar, v2 ScrollbarLowerLeft, v2 Scrollb
   r32 ScrollWheelHeight = Lerp(ScrollBar->ScrollAmmount, ScrollbarLowerLeft.Y + ScrollbarSize.Y - ScrollButtonSize.Y, ScrollbarLowerLeft.Y);
   rect2f ScrollWheelRect = Rect2f(ScrollbarLowerLeft.X, ScrollWheelHeight,
                                   ScrollButtonSize.X, ScrollButtonSize.Y);
-  u32 Result = ImguiButton(ScrollBar->ScrollbarButtonid, 0, 0, ScrollWheelRect.X, ScrollWheelRect.Y, ScrollWheelRect.W, ScrollWheelRect.H, 0, 0, 0, 0);
+  u32 Result = ImguiPlainButton(&G_ImguiContext, ScrollBar->ScrollbarButtonid, Rect2f(ScrollWheelRect.X, ScrollWheelRect.Y, ScrollWheelRect.W, ScrollWheelRect.H), ImguiDefaultButtonColor());
   if(ImguiIsActive(ScrollBar->ScrollbarButtonid)) {
     // Mouse is clickedUp on the scrollbarButton, Cache the mouseDiff.
     if(Result == IMGUI_BUTTON_DOWN)
@@ -2073,11 +2147,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   local_persist imgui_scrollbar ScrollBar = CreateScrollBar(ScrollbarId, ScrollbarButtonid, 0);
   ImguiScrollBar(&ScrollBar, ScrollbarLowerLeft, ScrollbarSize, ScrollbuttonSize);
+
   u32 ScrollbarResult = ImguiScrollableButtonList(&ScrollableList, ScrollBar.ScrollAmmount);
   SelectedRow = ScrollableList.SelectedRow;
   if(ScrollbarResult == IMGUI_BUTTON_DOWN)
   {
-    Platform.DEBUGPrint("%d, %s\n", ScrollableList.SelectedRow, ColorNameList[ScrollableList.SelectedRow]);
+    Platform.DEBUGPrint("%s\n", ScrollableList.StringList2[ScrollableList.SelectedRow]);
   }
 
   b32 AnyHot = false;
@@ -2095,7 +2170,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
   
   v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), 18, (utf8_byte*) "Press Me");
-  if(ImguiButton(ButtonId, 18, "Press Me", 0.5, 0.5, TextSize.X+0.01, TextSize.Y+0.01, 0, Sin(g_t) *0.5*ScrollableList.LineSpacing, 0, 0) == IMGUI_BUTTON_UP){
+  if(ImguiTextButton(ButtonId, 18, "Press Me", 0.5, 0.5, TextSize.X+0.01, TextSize.Y+0.01, 0, 0, 0, 0) == IMGUI_BUTTON_UP){
     Platform.DEBUGPrint("Button Pressed\n");
   }
   
