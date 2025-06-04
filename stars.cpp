@@ -1440,6 +1440,8 @@ struct imgui_context {
   r32 MouseY;
   r32 MouseZ;
   jwin::binary_signal_state LeftMouse;
+
+  r32 FontSize;
 };
 
 global_variable imgui_context G_ImguiContext = {};
@@ -1493,6 +1495,7 @@ void ImguiBegin(jwin::device_input* Input){
   G_ImguiContext.MouseY = Input->Mouse.Y;
   G_ImguiContext.MouseZ = Input->Mouse.Z;
   G_ImguiContext.LeftMouse = Input->Mouse.Button[jwin::MouseButton_Left];
+  G_ImguiContext.FontSize = 14;
 }
 
 void ImguiEnd(){
@@ -1541,6 +1544,25 @@ imgui_button_color ImguiDefaultButtonColor()
   Result.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "old gold");
   Result.HotColor = menu::GetColor(&GlobalState->ColorTable, "khaki");
   return Result;
+}
+
+u32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect)
+{
+  if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
+  {
+    ImguiSetHot(Id);
+    if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
+      ImguiSetActive(Id);
+    }
+  }
+
+  if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Released(G_ImguiContext.LeftMouse)){
+    return IMGUI_BUTTON_UP;
+  }else if(ImguiIsActive(Id) && ImguiIsHot(Id) && jwin::Pushed(G_ImguiContext.LeftMouse)){
+    return IMGUI_BUTTON_DOWN;
+  }else{
+    return IMGUI_BUTTON_NOP;
+  }
 }
 
 u32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor) {
@@ -1654,42 +1676,31 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
 
 struct imgui_scrollable_list {
   u32 Rows;
-  char** StringList;
-  char** StringList2;
-  v4* ColorList;
-  imgui_id* ImguiIds;
-  u32 FontSize;
-  r32 LineSpacing;
-  r32 DescentOffset;
+  imgui_id* ImguiIDs;
 
   r32 ScrollAmmount;
   u32 SelectedRow;
 
   v2 Size;
   v2 Pos;
+  r32 RowHeight;
 };
 
-imgui_scrollable_list CreateScrollableTextList(u32 Rows, imgui_id* Ids, char* StringList[], char* StringList2[], v4 ColorList[], u32 FontSize, v2 Pos, v2 Size)
+imgui_scrollable_list CreateScrollableTextList(u32 Rows, imgui_id* Ids, v2 Pos, v2 Size, r32 RowHeight)
 {
   imgui_scrollable_list Result = {};
-  Result.FontSize = FontSize;
   Result.Rows = Rows;
   Result.Size = Size;
   Result.Pos = Pos;
-  Result.StringList = StringList;
-  Result.StringList2 = StringList2;
-  Result.ColorList = ColorList;
-  Result.ImguiIds = Ids;
-  Result.LineSpacing = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), FontSize);
-  Result.DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
-
+  Result.ImguiIDs = Ids;
   Result.SelectedRow = Rows;
+  Result.RowHeight = RowHeight;
   return Result;
 }
 
 r32 GetScrollWheelSize(imgui_scrollable_list ScrollableList, r32 Min)
 {
-  r32 LinesToFit = ScrollableList.Size.Y / ScrollableList.LineSpacing;
+  r32 LinesToFit = ScrollableList.Size.Y / ScrollableList.RowHeight;
   r32 SizePercentage = LinesToFit / ScrollableList.Rows;
   r32 Result = ScrollableList.Size.Y * SizePercentage;
   return Result < Min ? Min : Result;
@@ -1710,55 +1721,69 @@ rect2f GetRowRect(imgui_scrollable_list* ScrollableList, s32 Index, r32 FirstRow
   return Rect2f(RowPos,RowSize);
 }
 
-/*
-DrawColorRow(ScrollableList->ImguiIds[Index], ScrollableList->StringList[Index], r32 ScrollAmmount)
-void DrawColorRow(imgui_scrollable_list* ScrollableList, u32 ListIndex, r32 ScrollAmmount, void* Data)
+v4 GetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors){
+  v4 Color = ButtonColors.InactiveColor;
+  if(ImguiIsHot(ButtonId) && ImguiIsActive(ButtonId)) {
+    // Button is Highlighted and pressed
+    Color = ButtonColors.ActiveAndHotColor;
+  }else if(ImguiIsActive(ButtonId)){
+    // Button is Pressed
+    Color = ButtonColors.ActiveColor;
+  }else if(ImguiIsHot(ButtonId)){
+    // Button is only highlighted
+    Color = ButtonColors.HotColor;
+  }
+  return Color;
+}
+struct color_list_data {
+  char** ColorNames;
+  v4* ColorValues;
+  imgui_id* ButtonIDs;
+};
+
+void DrawRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
 {
-  char* Text = ScrollableList->StringList[Index];
+  color_list_data* ColorListData = (color_list_data*) Data;
+  char* ColorName = ColorListData->ColorNames[ListIndex];
+  v4 ColorValue = ColorListData->ColorValues[ListIndex];
 
   v2 Padding = V2(ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1),ecs::render::PixelToCanonicalHeight(GetRenderSystem(),1));
 
-  rect2f RowRect = GetRowRect(ScrollableList, i, StartRow, RowHeight);
-  r32 ColorSquareSize = RowHeight;
-  v2 TextPos = V2(RowRect.X + ColorSquareSize + Padding.X, RowRect.Y + ScrollableList->DescentOffset);
-  if(Top(RowRect) > Top(ListRect) || Bot(RowRect) < Bot(ListRect))
-  {
-    RowRect = Clip(RowRect, Rect2f(ScrollableList->Pos, ScrollableList->Size));  
-  }
+  r32 RowWidth = RowRect.W;
+  r32 ColorSquareWidth = RowRect.H;
+  r32 TextWidth = RowRect.W - ColorSquareWidth;
 
-  r32 TextWidth = RowRect.W - ColorSquareSize;
-  if(ImguiIsHot(ScrollableList->ImguiIds[Index]) && ImguiIsInactive() && RowRect.H == RowHeight){
-    r32 TextWidthTmp = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ScrollableList->FontSize, (utf8_byte*) Text).X + Padding.X;
+  if(ImguiIsHot(ButtonID) && ImguiIsInactive() && RowRect.H == ClippedRowRect.H){
+    r32 TextWidthTmp = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte*) ColorName).X;
     if(TextWidthTmp > TextWidth)
     {
-      RowRect.W = TextWidthTmp + ColorSquareSize;
-      TextWidth = TextWidthTmp;
+      TextWidth = TextWidthTmp + 2*Padding.X;
+      RowWidth = TextWidthTmp + ColorSquareWidth + 2*Padding.X;
     }
   }
-  
-  u32 ButtonResult = ImguiPlainButton(&G_ImguiContext, ScrollableList->ImguiIds[Index], RowRect, ImguiDefaultButtonColor());
 
-  rect2f ColorSquare = Rect2f(RowRect.X, RowRect.Y, ColorSquareSize, RowRect.H);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(Shrink(ColorSquare,Padding)), ScrollableList->ColorList[Index]);
-  
-  utf8_string_buffer StringBuffer = SetStringToFit(ScrollableList->FontSize, TextWidth, Text);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, RowRect, ScrollableList->FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
-  
-  Result = ButtonResult != IMGUI_BUTTON_NOP ? ButtonResult : Result;
-  if(ImguiIsActive(ScrollableList->ImguiIds[Index]))
-  {
-    ScrollableList->SelectedRow = Index;
-  }
+  // Button Background
+  v4 ButtonColor = GetButtonColor(ButtonID, ImguiDefaultButtonColor());
+  rect2f ButtonBackgroundRect = Rect2f(ClippedRowRect.X,ClippedRowRect.Y, RowWidth, ClippedRowRect.H);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ButtonBackgroundRect), ButtonColor);
+
+  // Colored Square
+  rect2f ColorSquare = Rect2f(ClippedRowRect.X, ClippedRowRect.Y, ColorSquareWidth, ClippedRowRect.H);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(Shrink(ColorSquare,Padding)), ColorValue);
+
+  // Color Name
+  rect2f TextRect = Rect2f(RowRect.X + ColorSquareWidth, ClippedRowRect.Y, TextWidth, ClippedRowRect.H);
+  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+  v2 TextPos = V2(RowRect.X + ColorSquareWidth, RowRect.Y + DescentOffset);
+  utf8_string_buffer StringBuffer = SetStringToFit(ImguiContext->FontSize, TextWidth, ColorName);
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
 }
-*/
 
-u32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, r32 ScrollAmmount) {
-  
-  r32 RowHeight = ScrollableList->LineSpacing;
-  r32 LinesToFit = ScrollableList->Size.Y / RowHeight;
+u32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, r32 ScrollAmmount, void* Data, void (RowRenderFunction)(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)) {
+
+  r32 LinesToFit = ScrollableList->Size.Y / ScrollableList->RowHeight;
   r32 StartRow = ScrollAmmount * (ScrollableList->Rows - LinesToFit);
   s32 StartIndex = (s32) Floor(StartRow);
-  
 
   rect2f ListRect = Rect2f(ScrollableList->Pos, ScrollableList->Size);
   r32 ListBot = ScrollableList->Pos.Y;
@@ -1770,38 +1795,17 @@ u32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, r32 ScrollA
     s32 Index = StartIndex + i;
     if(Index < ScrollableList->Rows)
     {
-      char* Text = ScrollableList->StringList[Index];
-
-      v2 Padding = V2(ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1),ecs::render::PixelToCanonicalHeight(GetRenderSystem(),1));
-
-      rect2f RowRect = GetRowRect(ScrollableList, i, StartRow, RowHeight);
-      r32 ColorSquareSize = RowHeight;
-      v2 TextPos = V2(RowRect.X + ColorSquareSize + Padding.X, RowRect.Y + ScrollableList->DescentOffset);
-      if(Top(RowRect) > Top(ListRect) || Bot(RowRect) < Bot(ListRect))
-      {
-        RowRect = Clip(RowRect, Rect2f(ScrollableList->Pos, ScrollableList->Size));  
+      rect2f RowRect = GetRowRect(ScrollableList, i, StartRow, ScrollableList->RowHeight);
+      rect2f ClippedRow = RowRect;
+      if(Top(RowRect) > Top(ListRect) || Bot(RowRect) < Bot(ListRect)){
+        ClippedRow = Clip(RowRect, Rect2f(ScrollableList->Pos, ScrollableList->Size));  
       }
 
-      r32 TextWidth = RowRect.W - ColorSquareSize;
-      if(ImguiIsHot(ScrollableList->ImguiIds[Index]) && ImguiIsInactive() && RowRect.H == RowHeight){
-        r32 TextWidthTmp = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ScrollableList->FontSize, (utf8_byte*) Text).X + Padding.X;
-        if(TextWidthTmp > TextWidth)
-        {
-          RowRect.W = TextWidthTmp + ColorSquareSize;
-          TextWidth = TextWidthTmp;
-        }
-      }
-      
-      u32 ButtonResult = ImguiPlainButton(&G_ImguiContext, ScrollableList->ImguiIds[Index], RowRect, ImguiDefaultButtonColor());
-
-      rect2f ColorSquare = Rect2f(RowRect.X, RowRect.Y, ColorSquareSize, RowRect.H);
-      ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(Shrink(ColorSquare,Padding)), ScrollableList->ColorList[Index]);
-      
-      utf8_string_buffer StringBuffer = SetStringToFit(ScrollableList->FontSize, TextWidth, Text);
-      ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, RowRect, ScrollableList->FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
-      
+      u32 ButtonResult = ImguiButton(&G_ImguiContext, ScrollableList->ImguiIDs[Index], ClippedRow);
+      RowRenderFunction(&G_ImguiContext, ScrollableList->ImguiIDs[Index],  RowRect, ClippedRow, Index, Data);
+            
       Result = ButtonResult != IMGUI_BUTTON_NOP ? ButtonResult : Result;
-      if(ImguiIsActive(ScrollableList->ImguiIds[Index]))
+      if(ImguiIsActive(ScrollableList->ImguiIDs[Index]))
       {
         ScrollableList->SelectedRow = Index;
       }
@@ -2104,8 +2108,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
   GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
-
-
   
   if(!GlobalState->World.MenuInterface->MenuVisible)
   {
@@ -2163,29 +2165,25 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ScrollbarId.id = ButtonID++;
   imgui_id ScrollbarButtonid = {};
   ScrollbarButtonid.id = ButtonID++;
-  char** ColorNameList = PushArray(GlobalTransientArena, RowCount, char*);
-  char** HexValueList = PushArray(GlobalTransientArena, RowCount, char*);
-  v4* ColorList = PushArray(GlobalTransientArena, RowCount, v4);
-  imgui_id* ListButtonId = PushArray(GlobalTransientArena, RowCount, imgui_id);
+
+  color_list_data ColorListData = {};
+  ColorListData.ColorNames  = PushArray(GlobalTransientArena, RowCount, char*);
+  ColorListData.ColorValues = PushArray(GlobalTransientArena, RowCount, v4);
+  imgui_id* ListButtonIDs   = PushArray(GlobalTransientArena, RowCount, imgui_id);
   for (u32 i = 0; i < RowCount; ++i) {
     menu::named_color_hex* NamedColor = menu::GetNamedColor(&GlobalState->ColorTable, (umm) i);
-    v4 Color = HexCodeToColorV4(NamedColor->Color);
-    v4 HexColor = 255 * Color;
-
-    HexValueList[i] = PushArray(GlobalTransientArena, TMP_STRING_SIZE, char);
-    FormatString(HexValueList[i], TMP_STRING_SIZE-1, "(0x%0.2X, 0x%0.2X, 0x%0.2X, 0x%0.2X)", (u32)HexColor.X, (u32)HexColor.Y, (u32)HexColor.Z, (u32)HexColor.W);
-    ColorNameList[i] = PushArray(GlobalTransientArena, TMP_STRING_SIZE, char);
-    FormatString(ColorNameList[i], TMP_STRING_SIZE-1, "%s", NamedColor->Name);
-  
-    ColorList[i] = Color;
-    ListButtonId[i].id = ButtonID++;
+    ColorListData.ColorNames[i] = PushArray(GlobalTransientArena, TMP_STRING_SIZE, char);
+    FormatString(ColorListData.ColorNames[i], TMP_STRING_SIZE-1, "%s", NamedColor->Name);
+    ColorListData.ColorValues[i] = HexCodeToColorV4(NamedColor->Color);
+    ListButtonIDs[i].id = ButtonID++;
   }
 
   v2 ScrollableListPosition = V2(0.1,0.25);
   v2 ScrollableListSize = V2(0.1,0.5);
 
   local_persist u32 SelectedRow = 0;
-  imgui_scrollable_list ScrollableList = CreateScrollableTextList(RowCount, ListButtonId, ColorNameList, HexValueList, ColorList, 14, ScrollableListPosition, ScrollableListSize);
+  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(),G_ImguiContext.FontSize);
+  imgui_scrollable_list ScrollableList = CreateScrollableTextList(RowCount, ListButtonIDs, ScrollableListPosition, ScrollableListSize, RowHeight);
   ScrollableList.SelectedRow = SelectedRow;
 
   v2 ScrollbarLowerLeft = V2(ScrollableListPosition.X+ScrollableListSize.X, ScrollableListPosition.Y);
@@ -2195,17 +2193,22 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   local_persist imgui_scrollbar ScrollBar = CreateScrollBar(ScrollbarId, ScrollbarButtonid, 0);
   ImguiScrollBar(&ScrollBar, ScrollbarLowerLeft, ScrollbarSize, ScrollbuttonSize);
 
-  u32 ScrollbarResult = ImguiScrollableButtonList(&ScrollableList, ScrollBar.ScrollAmmount);
+  u32 ScrollbarResult = ImguiScrollableButtonList(&ScrollableList, ScrollBar.ScrollAmmount, (void*) &ColorListData , DrawRow);
   SelectedRow = ScrollableList.SelectedRow;
   if(ScrollbarResult == IMGUI_BUTTON_DOWN)
   {
-    Platform.DEBUGPrint("%s - %s\n", ScrollableList.StringList2[ScrollableList.SelectedRow], ScrollableList.StringList[ScrollableList.SelectedRow]);
+    v4 Color = ColorListData.ColorValues[ScrollableList.SelectedRow];
+    v4 HexColor = 255 * Color;
+    Platform.DEBUGPrint("(0x%0.2X, 0x%0.2X, 0x%0.2X, 0x%0.2X) - %s\n", 
+       (u32)HexColor.X, (u32)HexColor.Y, (u32)HexColor.Z, (u32)HexColor.W, 
+       ColorListData.ColorNames[ScrollableList.SelectedRow]);
+    
   }
 
   b32 AnyHot = false;
   for (int i = 0; i < RowCount; ++i)
   {
-    if(ImguiIsHot(ListButtonId[i]))
+    if(ImguiIsHot(ListButtonIDs[i]))
     {
       AnyHot = true;
     }
