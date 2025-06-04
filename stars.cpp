@@ -1434,7 +1434,6 @@ inline imgui_id Update(imgui_id Id, u32 Value)
 struct imgui_context {
   imgui_id ActiveID;
   imgui_id HotID;
-  imgui_id LastHotID;
   imgui_id SelectedID;
 
   r32 MouseX;
@@ -1460,7 +1459,7 @@ b32 ImguiIsInactive(){
 }
 
 b32 ImguiIsHot(imgui_id Id){
-  return G_ImguiContext.LastHotID.id == Id.id;
+  return G_ImguiContext.HotID.id == Id.id;
 }
 
 void ImguiSetActive(imgui_id Id) {
@@ -1496,7 +1495,6 @@ void ImguiSetHot(imgui_id Id){
 }
 
 void ImguiSetCold(){
-  G_ImguiContext.LastHotID = Update(G_ImguiContext.LastHotID, G_ImguiContext.HotID.id);
   G_ImguiContext.HotID = Update(G_ImguiContext.HotID, 0);
 }
 
