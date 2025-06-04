@@ -1435,6 +1435,7 @@ struct imgui_context {
   imgui_id ActiveID;
   imgui_id HotID;
   imgui_id LastHotID;
+  imgui_id SelectedID;
 
   r32 MouseX;
   r32 MouseY;
@@ -1470,6 +1471,22 @@ void ImguiSetInactive() {
   G_ImguiContext.ActiveID = Update(G_ImguiContext.ActiveID, 0);
 }
 
+void ImguiSetSelected(imgui_id Id) {
+  G_ImguiContext.SelectedID = Update(G_ImguiContext.SelectedID, Id.id);
+}
+
+void ImguiDeselect() {
+  G_ImguiContext.SelectedID = Update(G_ImguiContext.SelectedID, 0);
+}
+
+b32 ImguiNoneSelected() {
+  return G_ImguiContext.SelectedID.id == 0;
+}
+
+b32 ImguiIsSelected(imgui_id Id) {
+  return G_ImguiContext.SelectedID.id == Id.id;
+}
+
 void ImguiSetDragging() {
   G_ImguiContext.ActiveID = Update(G_ImguiContext.ActiveID, -1);
 }
@@ -1491,6 +1508,7 @@ b32 ImguiMenuPushed(imgui_id Id)
 void ImguiBegin(jwin::device_input* Input){
   ImguiSetCold();
   ImguiSetActive(G_ImguiContext.ActiveID);
+  ImguiSetSelected(G_ImguiContext.SelectedID);
   G_ImguiContext.MouseX = Input->Mouse.X;
   G_ImguiContext.MouseY = Input->Mouse.Y;
   G_ImguiContext.MouseZ = Input->Mouse.Z;
@@ -1563,6 +1581,22 @@ u32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect)
   }else{
     return IMGUI_BUTTON_NOP;
   }
+}
+
+b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect)
+{
+  if(Intersects(RegionRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
+  {
+    ImguiSetHot(Id);
+    if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
+      ImguiSetActive(Id);
+      ImguiSetSelected(Id);
+    }
+  }else if(jwin::Active(G_ImguiContext.LeftMouse)){
+    ImguiDeselect();
+  }
+
+  return ImguiIsSelected(Id);
 }
 
 u32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor) {
@@ -1874,6 +1908,86 @@ u32 ImguiScrollBar(imgui_scrollbar* ScrollBar, v2 ScrollbarLowerLeft, v2 Scrollb
   return Result;
 }
 
+struct imgui_text_input_buffer {
+  utf8_string_buffer Buffer;
+  u32 CaretPosition;
+  u32 CharCount;
+};
+
+void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, jwin::device_input* Input)
+{
+  u32 InputLen = 512;
+  if(jwin::Pushed(Input->Keyboard.Key_BACK) && TextInputBuffer->CaretPosition > 0){
+    if(TextInputBuffer->CaretPosition == TextInputBuffer->CharCount)
+    {
+      EraseFromBuffer(&TextInputBuffer->Buffer, 1);
+    }else{
+      utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
+      CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
+      EraseFromBuffer(&TempBuffer,1);
+      CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, TextInputBuffer->CaretPosition, TextInputBuffer->CharCount - TextInputBuffer->CaretPosition);
+      ClearBuffer(&TextInputBuffer->Buffer);
+      CopyBufferContent(&TempBuffer, &TextInputBuffer->Buffer);
+    }
+    TextInputBuffer->CaretPosition--;
+    TextInputBuffer->CharCount--;
+  }else if(jwin::Pushed(Input->Keyboard.Key_LEFT) && TextInputBuffer->CaretPosition > 0){
+    TextInputBuffer->CaretPosition--;
+  }else if(jwin::Pushed(Input->Keyboard.Key_RIGHT) && TextInputBuffer->CaretPosition < TextInputBuffer->CharCount){
+    TextInputBuffer->CaretPosition++;
+  }else if(jwin::Pushed(Input->Keyboard.Key_END)){
+    TextInputBuffer->CaretPosition = TextInputBuffer->CharCount;
+  }else if(jwin::Pushed(Input->Keyboard.Key_HOME)){
+    TextInputBuffer->CaretPosition = 0;
+  }else if(jwin::Pushed(Input->Keyboard.Key_ENTER) || jwin::Pushed(Input->Keyboard.Key_ESCAPE)){
+    ImguiDeselect();
+  }else{
+    utf8_string_buffer CharBuffer = CreateTempStringBuffer(8);
+    if(PushInputToBuffer(&Input->Keyboard, &CharBuffer, ENGLISH))
+    {
+      if(TextInputBuffer->CaretPosition == TextInputBuffer->CharCount)
+      {
+        CopyBufferContent(&CharBuffer, &TextInputBuffer->Buffer);
+      }else{
+        utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
+        CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
+        CopyBufferContent(&CharBuffer, &TempBuffer);
+        CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, TextInputBuffer->CaretPosition, TextInputBuffer->CharCount - TextInputBuffer->CaretPosition);
+        ClearBuffer(&TextInputBuffer->Buffer);
+        CopyBufferContent(&TempBuffer, &TextInputBuffer->Buffer);
+      }
+      TextInputBuffer->CaretPosition++;
+      TextInputBuffer->CharCount++;
+      Platform.DEBUGPrint("%d, %d\n", TextInputBuffer->CaretPosition, TextInputBuffer->CharCount);
+    }
+  }
+}
+
+b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth)
+{
+  rect2f DialogRect = Rect2f(DialogPos.X, DialogPos.Y, TextWidth.X, TextWidth.Y);
+  b32 Result = ImguiSelectabeRegion(&G_ImguiContext, DialogID, DialogRect);
+
+  s32 InputLen = 512;
+
+  v4 Color = menu::GetColor(&GlobalState->ColorTable, "bole");
+  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), 14);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(DialogRect), Color);
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(DialogPos.X, DialogPos.Y +DescentOffset), 14, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
+
+  if(ImguiIsSelected(DialogID))
+  {
+    utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
+    CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
+    v2 TextSizeToCaret = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), 14, TempBuffer.Buffer);
+    r32 CaretWidth = ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1);
+    rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), 14));
+    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(CaretBox), V4(1,1,1,1));  
+  }
+  
+  
+  return Result;
+}
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -2106,12 +2220,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
   CreateFrameBuffer(RenderCommands->RenderGroup, GlobalState->DefaultFrameBuffer,  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
 
-
   GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
   
   if(!GlobalState->World.MenuInterface->MenuVisible)
   {
-    if(ImguiIsInactive() || ImguiIsDragging())
+    if(ImguiNoneSelected() || ImguiIsDragging())
     {
       SceneInput(&GlobalState->Camera, Input);
     }
@@ -2165,6 +2278,30 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ScrollbarId.id = ButtonID++;
   imgui_id ScrollbarButtonid = {};
   ScrollbarButtonid.id = ButtonID++;
+  imgui_id TextInputID = {};
+  TextInputID.id = ButtonID++;
+
+  local_persist utf8_byte* InputMemory = 0;
+  local_persist imgui_text_input_buffer TextInputBuffer = {};
+  u32 InputLen = 512;
+  if(!InputMemory){
+    InputMemory = PushArray(GlobalPersistentArena, InputLen, utf8_byte);
+    TextInputBuffer.Buffer = Utf8StringBuffer(InputLen, InputMemory);
+    TextInputBuffer.CaretPosition = 0;
+    TextInputBuffer.CharCount = 0;
+  }
+  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(),G_ImguiContext.FontSize);
+  if(ImguiTextDialog(&TextInputBuffer, TextInputID, V2(0.6,0.6), V2(0.3, RowHeight)))
+  {
+    if(ImguiIsSelected(TextInputID))
+    {
+      Platform.DEBUGPrint("Hot: %d, Active: %d, Selected %d\n", G_ImguiContext.HotID.id, G_ImguiContext.ActiveID.id,  G_ImguiContext.SelectedID.id);
+      ImguiReadInput(&TextInputBuffer, Input);
+    }
+  }
+  Platform.DEBUGPrint("Hot: %d, Active: %d, Selected %d\n", G_ImguiContext.HotID.id, G_ImguiContext.ActiveID.id,  G_ImguiContext.SelectedID.id);
+
+  
 
   color_list_data ColorListData = {};
   ColorListData.ColorNames  = PushArray(GlobalTransientArena, RowCount, char*);
@@ -2182,7 +2319,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   v2 ScrollableListSize = V2(0.1,0.5);
 
   local_persist u32 SelectedRow = 0;
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(),G_ImguiContext.FontSize);
+  
   imgui_scrollable_list ScrollableList = CreateScrollableTextList(RowCount, ListButtonIDs, ScrollableListPosition, ScrollableListSize, RowHeight);
   ScrollableList.SelectedRow = SelectedRow;
 
@@ -2223,8 +2360,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   if(ImguiTextButton(ButtonId, 18, "Press Me", 0.5, 0.5, TextSize.X+0.01, TextSize.Y+0.01, 0, 0, 0, 0) == IMGUI_BUTTON_UP){
     Platform.DEBUGPrint("Button Pressed\n");
   }
-  
-  
+
   ImguiEnd();
 #if 0
   UpdateAndRenderMenuInterface(Input, GetMenuInterface());
