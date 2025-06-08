@@ -105,6 +105,7 @@ struct application_state
 
 debug_application_render_commands* GlobalDebugRenderCommands = 0;
 application_state* GlobalState = 0;
+jwin::device_input* GlobalInput = 0;
 
 // Global Singleton Getters
 inline ecs::render::system* GetRenderSystem() {
