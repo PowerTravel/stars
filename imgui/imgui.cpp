@@ -1,17 +1,17 @@
 #include "commons/string.h"
 #include "imgui.h"
 
-inline imgui_icon_coordinate PositionToCoordinate(u32 X, u32 Y, u32 IconSizePx, u32 AtlasSizePx) {
+inline v4 PositionToCoordinate(u32 X, u32 Y, u32 IconSizePx, u32 AtlasSizePx) {
   r32 X0 = (X * IconSizePx);
   r32 Y0 = (Y * IconSizePx);
   r32 X1 = ((X+1) * IconSizePx);
   r32 Y1 = ((Y+1) * IconSizePx);
   r32 OneOverSize = 1.f / (r32) AtlasSizePx;
-  imgui_icon_coordinate Result = {};
-  Result.u0 = X0*OneOverSize;
-  Result.v0 = Y0*OneOverSize;
-  Result.u1 = X1*OneOverSize;
-  Result.v1 = Y1*OneOverSize;
+  v4 Result = V4(
+     X0*OneOverSize,  // u0
+     Y0*OneOverSize,  // v0
+     X1*OneOverSize, // u1
+     Y1*OneOverSize); // v1
   return Result;
 }
 
@@ -22,25 +22,25 @@ imgui_icon_atlas LoadImguiIcons(render_group* RenderGroup)
 
   u32 IconSize = 64;
   u32 AtlasSize = 512;
-  Icons.Coordinates[ICON_DOUBLE_ANGLE_UP]    = PositionToCoordinate( 0, 0, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_DOUBLE_ANGLE_DOWN]  = PositionToCoordinate( 1, 0, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_DOUBLE_ANGLE_LEFT]  = PositionToCoordinate( 2, 0, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_DOUBLE_ANGLE_RIGHT] = PositionToCoordinate( 3, 0, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ANGLE_UP]           = PositionToCoordinate( 4, 0, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ANGLE_DOWN]         = PositionToCoordinate( 5, 0, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ANGLE_LEFT]         = PositionToCoordinate( 6, 0, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ANGLE_RIGHT]        = PositionToCoordinate( 7, 0, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ADD]                = PositionToCoordinate( 0, 1, IconSize, AtlasSize); 
-  Icons.Coordinates[ICON_SUBTRACT]           = PositionToCoordinate( 1, 1, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_SEARCH]             = PositionToCoordinate( 2, 1, IconSize, AtlasSize); 
-  Icons.Coordinates[ICON_FILTER]             = PositionToCoordinate( 3, 1, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_CHECBOX]            = PositionToCoordinate( 4, 1, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_EMPTY_CHECKBOX]     = PositionToCoordinate( 5, 1, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_MINIMIZE]    = PositionToCoordinate( 0, 2, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_X]           = PositionToCoordinate( 1, 2, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_MAXIMIZE]    = PositionToCoordinate( 2, 2, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_RESTORE]     = PositionToCoordinate( 3, 2, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_DETACH]      = PositionToCoordinate( 4, 2, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_DOUBLE_ANGLE_UP]    = PositionToCoordinate( 0, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_DOUBLE_ANGLE_DOWN]  = PositionToCoordinate( 1, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_DOUBLE_ANGLE_LEFT]  = PositionToCoordinate( 2, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_DOUBLE_ANGLE_RIGHT] = PositionToCoordinate( 3, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ANGLE_UP]           = PositionToCoordinate( 4, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ANGLE_DOWN]         = PositionToCoordinate( 5, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ANGLE_LEFT]         = PositionToCoordinate( 6, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ANGLE_RIGHT]        = PositionToCoordinate( 7, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ADD]                = PositionToCoordinate( 0, 6, IconSize, AtlasSize); 
+  Icons.Coordinates[ICON_SUBTRACT]           = PositionToCoordinate( 1, 6, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_SEARCH]             = PositionToCoordinate( 2, 6, IconSize, AtlasSize); 
+  Icons.Coordinates[ICON_FILTER]             = PositionToCoordinate( 3, 6, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_CHECBOX]            = PositionToCoordinate( 4, 6, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_EMPTY_CHECKBOX]     = PositionToCoordinate( 5, 6, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_MINIMIZE]    = PositionToCoordinate( 0, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_X]           = PositionToCoordinate( 1, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_MAXIMIZE]    = PositionToCoordinate( 2, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_RESTORE]     = PositionToCoordinate( 3, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_DETACH]      = PositionToCoordinate( 4, 5, IconSize, AtlasSize);
   return Icons;
 }
 
@@ -131,16 +131,14 @@ b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f Region
 }
 
 
-b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth)
+b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor)
 {
   rect2f DialogRect = Rect2f(DialogPos.X, DialogPos.Y, TextWidth.X, TextWidth.Y);
   b32 Result = ImguiSelectabeRegion(&GlobalState->ImguiContext, DialogID, DialogRect);
 
   s32 InputLen = 512;
-
-  v4 Color = menu::GetColor(&GlobalState->ColorTable, "bole");
   r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), 14);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(DialogRect), Color);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(DialogRect), BackgroundColor);
   ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(DialogPos.X, DialogPos.Y +DescentOffset), 14, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
 
   if(ImguiIsSelected(DialogID))

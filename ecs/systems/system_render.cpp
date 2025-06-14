@@ -187,13 +187,13 @@ inline internal chunk_list* GetOverlayQuads(system* System, data::render_level* 
   return &RenderLevel->OverlayQuads;
 }
 
-inline internal chunk_list* GetTexturedOverlayQuads(system* System, data::render_level* RenderLevel)
+inline internal chunk_list* GetOverlayIcon(system* System, data::render_level* RenderLevel)
 {
-  if(!IsInitiated(&RenderLevel->TexturedOverlayQuads))
+  if(!IsInitiated(&RenderLevel->OverlayIcon))
   {
-    RenderLevel->TexturedOverlayQuads = NewChunkList(&System->Arena, sizeof(data::textured_overlay_quad), 512);
+    RenderLevel->OverlayIcon = NewChunkList(&System->Arena, sizeof(data::textured_overlay_quad), 512);
   }
-  return &RenderLevel->TexturedOverlayQuads;
+  return &RenderLevel->OverlayIcon;
 }
   
 inline internal chunk_list* GetSolidObjects(system* System, data::render_level* RenderLevel)
@@ -328,7 +328,7 @@ void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Colo
   DrawOverlayQuadPixelSpace(System, PixelRect, Color);
 }
 
-void DrawTexturedOverlayQuadPixelSpace(system* System, rect2f PixelRect, u32 TextureHandle)
+void DrawIconPixelSpace(system* System, rect2f PixelRect, v4 TextureCoords, v4 Color)
 {
   m4 ModelMatrix = M4Identity();
   Scale(V4(0.5,0.5, 0, 1), ModelMatrix);
@@ -337,19 +337,20 @@ void DrawTexturedOverlayQuadPixelSpace(system* System, rect2f PixelRect, u32 Tex
   ModelMatrix = Transpose(ModelMatrix);
 
   data::textured_overlay_quad Quad = {};
-  Quad.TextureHandle = TextureHandle;
+  Quad.TexCoord = TextureCoords;
+  Quad.Color = Color;
   Quad.ModelMatrix = ModelMatrix;
  
   data::render_level* RenderLevel = GetTopRenderLevel(System); 
-  chunk_list* QuadBuffer = GetTexturedOverlayQuads(System, RenderLevel);
+  chunk_list* QuadBuffer = GetOverlayIcon(System, RenderLevel);
   Push(&System->Arena, QuadBuffer, (bptr)&Quad);
 }
 
-void DrawTexturedOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, u32 TextureHandle)
+void DrawIconCanonicalSpace(system* System, rect2f CanonicalRect, v4 TextureCoords, v4 Color)
 {
   rect2f PixelRect = Rect2f( CanonicalToPixelSpace(System, V2(CanonicalRect.X,CanonicalRect.Y)),
                              CanonicalToPixelSpace(System, V2(CanonicalRect.W,CanonicalRect.H)));
-  DrawTexturedOverlayQuadPixelSpace(System, PixelRect, TextureHandle);
+  DrawIconPixelSpace(System, PixelRect, TextureCoords, Color);
 }
 
 // Note: BinomialDepth must be even.
@@ -491,36 +492,42 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     render_state* DefaultState = PushNewState(RenderGroup);
     *DefaultState = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
 
+    // Clear default color frame buffer
     clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
     DefClearColor->BufferType = OPEN_GL_COLOR;
     DefClearColor->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
     DefClearColor->TextureIndex = 0;
     DefClearColor->Color = V4(0,0,0,1);
 
+    // Clear default depth frame buffer
     clear_operation* DefClearDepth = PushNewClearOperation(RenderGroup);
     DefClearDepth->BufferType = OPEN_GL_DEPTH;
     DefClearDepth->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
     DefClearDepth->TextureIndex = 0;
     DefClearDepth->Depth = 1;
 
+    // Clear MSAA Color frame buffer
     clear_operation* ClearMSAAColor = PushNewClearOperation(RenderGroup);
     ClearMSAAColor->BufferType = OPEN_GL_COLOR;
     ClearMSAAColor->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     ClearMSAAColor->TextureIndex = 0;
     ClearMSAAColor->Color = V4(0,0,0,1);
 
+    // Clear MSAA Depth frame buffer
     clear_operation* ClearMSAADepth = PushNewClearOperation(RenderGroup);
     ClearMSAADepth->BufferType = OPEN_GL_DEPTH;
     ClearMSAADepth->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     ClearMSAADepth->TextureIndex = 0;
     ClearMSAADepth->Depth = 1;
 
+    // Clear Transparent calculation frame buffer 0
     clear_operation* TransparenClearOp0 = PushNewClearOperation(RenderGroup);
     TransparenClearOp0->BufferType = OPEN_GL_COLOR;
     TransparenClearOp0->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
     TransparenClearOp0->TextureIndex = 0;
     TransparenClearOp0->Color = V4(0,0,0,0);
 
+    // Clear Transparent calculation frame buffer 1
     clear_operation* TransparenClearOp1 = PushNewClearOperation(RenderGroup);
     TransparenClearOp1->BufferType = OPEN_GL_COLOR;
     TransparenClearOp1->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
@@ -679,44 +686,29 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       QuadObject->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
       QuadObject->MeshHandle = GlobalState->BlitPlane;
       QuadObject->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-      
-      u32 i = 0;
-      data::overlay_quad* QuadInstanceData = PushArray(GlobalTransientArena, QuadCount, data::overlay_quad);
-      chunk_list_iterator OverlayQuadsIT = BeginIterator(OverlayQuads);
-      while(Valid(&OverlayQuadsIT)) {
-        data::overlay_quad* OverlayQuad = (data::overlay_quad*) Next(&OverlayQuadsIT);
+      data::overlay_quad* QuadInstanceData = (data::overlay_quad*) Copy(GlobalTransientArena, OverlayQuads);
 
-        QuadInstanceData[i++] = *OverlayQuad;
-      }
-      
       PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
       PushInstanceData(QuadObject, QuadCount, QuadCount*sizeof(data::overlay_quad), QuadInstanceData);
       Clear(OverlayQuads);
     }
     
-    chunk_list* TexturedOverlayQuads = &RenderLevel->TexturedOverlayQuads;
-    u32 TexturedQuadCount = GetBlockCount(TexturedOverlayQuads);
-    if(TexturedQuadCount)
+    chunk_list* OverlayIcon = &RenderLevel->OverlayIcon;
+    u32 IconCount = GetBlockCount(OverlayIcon);
+    if(IconCount)
     {
-      #if 0
       render_object* QuadObject = PushNewRenderObject(RenderGroup);
       QuadObject->ProgramHandle = GlobalState->TexturedSquareOverlayProgram;
       QuadObject->MeshHandle = GlobalState->BlitPlane;
       QuadObject->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
-      
-      u32 i = 0;
-      data::overlay_quad* QuadInstanceData = PushArray(GlobalTransientArena, TexturedQuadCount, data::overlay_quad);
-      chunk_list_iterator OverlayQuadsIT = BeginIterator(TexturedOverlayQuads);
-      while(Valid(&OverlayQuadsIT)) {
-        data::overlay_quad* OverlayQuad = (data::overlay_quad*) Next(&OverlayQuadsIT);
-
-        QuadInstanceData[i++] = *OverlayQuad;
-      }
+      QuadObject->TextureHandles[0] = GlobalState->ImguiContext.Icons.Atlas;
+      QuadObject->TextureCount = 1;
+      data::textured_overlay_quad* QuadInstanceData = (data::textured_overlay_quad*) Copy(GlobalTransientArena, OverlayIcon);
       
       PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
-      PushInstanceData(QuadObject, TexturedQuadCount, TexturedQuadCount*sizeof(data::overlay_quad), QuadInstanceData);
-      #endif
-      Clear(TexturedOverlayQuads);
+      PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "RenderedTexture"), (u32)0);
+      PushInstanceData(QuadObject, IconCount, IconCount*sizeof(data::textured_overlay_quad), QuadInstanceData);
+      Clear(OverlayIcon);
     }
 
     // Overlay text

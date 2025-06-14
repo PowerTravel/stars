@@ -112,6 +112,8 @@ u32 CreateEruptionBandProgram(render_group* RenderGroup)
   return ProgramHandle;
 }
 
+
+
 struct eurption_band{
   v4 Color;
   v3 Center;
@@ -521,9 +523,11 @@ u32 CreateColoredSquareOverlayProgram(render_group* RenderGroup)
 
 u32 CreateTexturedSquareOverlayProgram(render_group* RenderGroup)
 {
-  u32 ProgramHandle = NewShaderProgram(RenderGroup, "ColoredOverlayQuad");
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "TexturedOverlayQuad");
   AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "Projection");
-  AddVarying(RenderGroup, UniformType::U32,  ProgramHandle, "InTexture");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RenderedTexture");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "Color");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "Texture");
   AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "Model");
   
   CompileShader(RenderGroup, ProgramHandle, 
@@ -1311,10 +1315,13 @@ r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, jimg
     Data->Open = !Data->Open;
   }
 
+
   rect2f TextRect = Rect2f(ButtonBackgroundRect.X, ButtonBackgroundRect.Y, ButtonBackgroundRect.W, ButtonBackgroundRect.H);
   r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
-  v2 TextPos = V2(ButtonBackgroundRect.X, ButtonBackgroundRect.Y + DescentOffset);
-  
+
+  v4 TexCoord = Data->Open ? GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_DOWN] : GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_RIGHT];
+  ecs::render::DrawIconCanonicalSpace(GetRenderSystem(), CenteredRect(Rect2f(ButtonBackgroundRect.X, ButtonBackgroundRect.Y, Height,Height)), TexCoord, V4(1,1,1,1));
+  v2 TextPos = V2(ButtonBackgroundRect.X + Height, ButtonBackgroundRect.Y + DescentOffset);
   c8 NumBuf[32] = {};
   ecs::entity_id EntityID = Data->EntityID;
   jstr::Itoa(EntityID.EntityID, 31, NumBuf);
@@ -1354,6 +1361,8 @@ r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, jimg
 
       ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, (utf8_byte const *) NumBuf1, V4(1.0,1.0,1.0,1.0));
     }
+  }else{
+
   }
   
   return ResultHeight;
@@ -1599,13 +1608,20 @@ void DrawColorList() {
 
   imgui_bordered_window* BorderWindow = &ColorListData->BorderWindow;
 
+  // SearchIcon
+  v4 SearchBoxBackgroundColor = menu::GetColor(&GlobalState->ColorTable, "bole");
   v2 SearchIconPos = V2(BorderWindow->Region.X, BorderWindow->Region.Y);
   v2 SearchIconSize = V2(RowHeight, RowHeight);
-  //ecs::render::DrawTexturedOverlayQuadCanonicalSpace()
+  v4 TexCoord = GlobalImguiContext->Icons.Coordinates[ICON_SEARCH];
+  rect2f SearchIconRectBackground = Rect2f(SearchIconPos, SearchIconSize);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(SearchIconRectBackground), SearchBoxBackgroundColor);
+  rect2f SearchIconRect = Shrink(SearchIconRectBackground, 0.1*SearchIconRectBackground.W);
+  ecs::render::DrawIconCanonicalSpace(GetRenderSystem(), CenteredRect(SearchIconRect),  TexCoord, V4(1,1,1,1));
 
+  
   v2 FilterBarDialogPos  = V2(BorderWindow->Region.X + RowHeight, BorderWindow->Region.Y);
   v2 FilterBarDialogSize = V2(BorderWindow->Region.W - RowHeight, RowHeight);
-  if(ImguiTextDialog(&ColorListData->TextInputBuffer, ColorListData->TextInputBuffer.ID, FilterBarDialogPos, FilterBarDialogSize))
+  if(ImguiTextDialog(&ColorListData->TextInputBuffer, ColorListData->TextInputBuffer.ID, FilterBarDialogPos, FilterBarDialogSize, SearchBoxBackgroundColor))
   {
     if(ImguiIsSelected(ColorListData->TextInputBuffer.ID))
     {
@@ -1668,7 +1684,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->GaussianProgramY = CreateGaussianBlurProgramY(RenderGroup);
     GlobalState->FontRenterProgram =  CreateFontProgram(RenderGroup);
     GlobalState->ColoredSquareOverlayProgram = CreateColoredSquareOverlayProgram(RenderGroup);
-//    GlobalState->TexturedSquareOverlayProgram = CreateTexturedSquareOverlayProgram(RenderGroup);
+    GlobalState->TexturedSquareOverlayProgram = CreateTexturedSquareOverlayProgram(RenderGroup);
 
 
     GlobalState->Cube = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cube));
@@ -1680,7 +1696,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Billboard = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena,  billboard));
     GlobalState->BlitPlane =  PushBlitPlaneMesh(RenderGroup);
 
-    //GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
+    GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
 
     obj_bitmap* BrickWallTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\brick_wall_base.tga");
     obj_bitmap* FadedRayTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\faded_ray.tga");
@@ -1913,7 +1929,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     CompileShader(RenderGroup, GlobalState->GaussianProgramX,
       1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_vertex_x.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_fragment_x.glsl"));
-
+    CompileShader(RenderGroup, GlobalState->TexturedSquareOverlayProgram,
+      1, LoadFileFromDisk("..\\jwin\\shaders\\TexturedOverlayQuadVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\TexturedOverlayQuadFragment.glsl"));
   }
 
   ecs::position::UpdatePositions(GetEntityManager());

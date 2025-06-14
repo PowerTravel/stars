@@ -27,13 +27,9 @@ enum imgui_icon {
   ICON_COUNT
 };
 
-struct imgui_icon_coordinate {
-  r32 u0,u1,v0,v1;
-};
-
 struct imgui_icon_atlas {
   u32 Atlas;
-  imgui_icon_coordinate Coordinates[20];
+  v4 Coordinates[20];
 };
 
 struct imgui_id {
@@ -177,7 +173,7 @@ struct imgui_text_input_buffer {
 
 imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer);
 void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, jwin::device_input* Input);
-b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth);
+b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor);
 
 
 struct imgui_bordered_window {

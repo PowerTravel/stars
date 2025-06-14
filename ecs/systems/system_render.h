@@ -34,17 +34,17 @@ namespace data {
   };
 
   struct textured_overlay_quad {
-    u32 TextureHandle;
+    v4 Color;
+    v4 TexCoord;
     m4 ModelMatrix; // PixelSpace
   };
-
 
   struct render_level {
     chunk_list SolidObjects;
     chunk_list TransparentObjects;
     chunk_list OverlayText;
     chunk_list OverlayQuads;
-    chunk_list TexturedOverlayQuads;
+    chunk_list OverlayIcon;
     render_level* Next;
     render_level* Previous;
   };
@@ -128,11 +128,11 @@ namespace data {
   void DrawTextPixelSpace(system* System, v2 PixelPos, r32 PixelSize, utf8_byte const * Text);
   void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color = V4(1,1,1,1));
 
-  void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color);
-  void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color);
+  void DrawQuadPixelSpace(system* System, rect2f PixelRect, v4 Color);
+  void DrawQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color);
 
-  void DrawTexturedOverlayQuadPixelSpace(system* System, rect2f PixelRect, u32 TextureHandle);
-  void DrawTexturedOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, u32 TextureHandle);
+  void DrawIconPixelSpace(system* System, rect2f PixelRect,  v4 TextureCoords, v4 Color);
+  void DrawIconCanonicalSpace(system* System, rect2f CanonicalRect,  v4 TextureCoords, v4 Color);
 
   // When drawing with DrawTextPixelSpace or DrawTextCanonicalSpace, the position is the line someone would draw on in a note-book.
   // That is letters like 'g' dips under the line. If someone wants to draw text in a rect one maybe don't want the g to go outside the rect
