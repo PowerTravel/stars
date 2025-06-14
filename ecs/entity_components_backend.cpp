@@ -337,6 +337,11 @@ u32 GetComponentTypes(entity_manager* EM, entity_id* EntityID, u32* ReturnVec)
   return Index;
 }
 
+u32 GetEntityCount(entity_manager* EM)
+{
+  return GetBlockCount(&EM->EntityList);
+}
+
 // Get a single component from an entity
 // Returns 0 if no component exists
 bptr GetComponent(entity_manager* EM, entity_id* EntityID, u32 ComponentFlag)

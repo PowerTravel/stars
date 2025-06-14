@@ -69,7 +69,7 @@ inline r32 CanonicalToPixelHeight(system* System, r32 Y)
 inline v2 CanonicalToPixelSpace(system* System, v2 CanPos)
 {
   v2 PixelPos = V2( CanonicalToPixelWidth(System, CanPos.X),
-                        CanonicalToPixelHeight(System, CanPos.Y));
+                    CanonicalToPixelHeight(System, CanPos.Y));
   return PixelPos;
 }
 
@@ -186,6 +186,15 @@ inline internal chunk_list* GetOverlayQuads(system* System, data::render_level* 
   }
   return &RenderLevel->OverlayQuads;
 }
+
+inline internal chunk_list* GetTexturedOverlayQuads(system* System, data::render_level* RenderLevel)
+{
+  if(!IsInitiated(&RenderLevel->TexturedOverlayQuads))
+  {
+    RenderLevel->TexturedOverlayQuads = NewChunkList(&System->Arena, sizeof(data::textured_overlay_quad), 512);
+  }
+  return &RenderLevel->TexturedOverlayQuads;
+}
   
 inline internal chunk_list* GetSolidObjects(system* System, data::render_level* RenderLevel)
 {
@@ -288,7 +297,7 @@ void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color)
  
   data::render_level* RenderLevel = GetTopRenderLevel(System); 
   chunk_list* QuadBuffer = GetOverlayQuads(System, RenderLevel);
-  Push(&System->Arena, &RenderLevel->OverlayQuads, (bptr)&Quad);
+  Push(&System->Arena, QuadBuffer, (bptr)&Quad);
 }
 
 void DrawScene(system* System, ecs::entity_manager* EntityManager)
@@ -317,6 +326,30 @@ void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Colo
                              CanonicalToPixelSpace(System, V2(CanonicalRect.W,CanonicalRect.H)));
 
   DrawOverlayQuadPixelSpace(System, PixelRect, Color);
+}
+
+void DrawTexturedOverlayQuadPixelSpace(system* System, rect2f PixelRect, u32 TextureHandle)
+{
+  m4 ModelMatrix = M4Identity();
+  Scale(V4(0.5,0.5, 0, 1), ModelMatrix);
+  Scale(V4(PixelRect.W, PixelRect.H, 0, 1), ModelMatrix);
+  Translate(V4(PixelRect.X, PixelRect.Y, 0, 0), ModelMatrix);
+  ModelMatrix = Transpose(ModelMatrix);
+
+  data::textured_overlay_quad Quad = {};
+  Quad.TextureHandle = TextureHandle;
+  Quad.ModelMatrix = ModelMatrix;
+ 
+  data::render_level* RenderLevel = GetTopRenderLevel(System); 
+  chunk_list* QuadBuffer = GetTexturedOverlayQuads(System, RenderLevel);
+  Push(&System->Arena, QuadBuffer, (bptr)&Quad);
+}
+
+void DrawTexturedOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, u32 TextureHandle)
+{
+  rect2f PixelRect = Rect2f( CanonicalToPixelSpace(System, V2(CanonicalRect.X,CanonicalRect.Y)),
+                             CanonicalToPixelSpace(System, V2(CanonicalRect.W,CanonicalRect.H)));
+  DrawTexturedOverlayQuadPixelSpace(System, PixelRect, TextureHandle);
 }
 
 // Note: BinomialDepth must be even.
@@ -661,6 +694,30 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       Clear(OverlayQuads);
     }
     
+    chunk_list* TexturedOverlayQuads = &RenderLevel->TexturedOverlayQuads;
+    u32 TexturedQuadCount = GetBlockCount(TexturedOverlayQuads);
+    if(TexturedQuadCount)
+    {
+      #if 0
+      render_object* QuadObject = PushNewRenderObject(RenderGroup);
+      QuadObject->ProgramHandle = GlobalState->TexturedSquareOverlayProgram;
+      QuadObject->MeshHandle = GlobalState->BlitPlane;
+      QuadObject->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+      
+      u32 i = 0;
+      data::overlay_quad* QuadInstanceData = PushArray(GlobalTransientArena, TexturedQuadCount, data::overlay_quad);
+      chunk_list_iterator OverlayQuadsIT = BeginIterator(TexturedOverlayQuads);
+      while(Valid(&OverlayQuadsIT)) {
+        data::overlay_quad* OverlayQuad = (data::overlay_quad*) Next(&OverlayQuadsIT);
+
+        QuadInstanceData[i++] = *OverlayQuad;
+      }
+      
+      PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
+      PushInstanceData(QuadObject, TexturedQuadCount, TexturedQuadCount*sizeof(data::overlay_quad), QuadInstanceData);
+      #endif
+      Clear(TexturedOverlayQuads);
+    }
 
     // Overlay text
     chunk_list* OverlayText = &RenderLevel->OverlayText;

@@ -9,6 +9,7 @@
 #include "ecs/systems/system_render.h"
 #include "menu/menu_interface.h"
 #include "menu/color_table.h"
+#include "imgui/imgui.h"
 typedef void(*func_ptr_void)(void);
 
 #define DEBUGPrintRect(Rect) Platform.DEBUGPrint("%1.2f,%1.2f,%1.2f,%1.2f\n",(Rect).X, (Rect).Y ,(Rect).W, (Rect).H);
@@ -39,7 +40,6 @@ struct entity_buffer {
   chunk_list RemovedEntities;
   memory_arena* Arena;
 };
-
 
 struct application_state
 {
@@ -101,11 +101,14 @@ struct application_state
 
   entity_buffer NewOrRemovedEntityBuffer;
   container_node* EntitiesPlugin;
+
+  imgui_context ImguiContext;
 };
 
 debug_application_render_commands* GlobalDebugRenderCommands = 0;
 application_state* GlobalState = 0;
 jwin::device_input* GlobalInput = 0;
+imgui_context* GlobalImguiContext = 0;
 
 // Global Singleton Getters
 inline ecs::render::system* GetRenderSystem() {

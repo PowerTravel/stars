@@ -96,6 +96,7 @@ filtered_entity_iterator GetComponentsOfType(entity_manager* EM, bitmask32 Compo
 bptr GetComponent(entity_manager* EM, filtered_entity_iterator* ComponentList, bitmask32 ComponentFlag);
 u32 GetComponentCount(entity_manager* EM, entity_id* EntityID);
 u32 GetComponentTypes(entity_manager* EM, entity_id* EntityID, u32* ReturnVec); // ReturnVec is assumed to be big enough to hold all the component_type_flags
+u32 GetEntityCount(entity_manager* EM);
 
 // Delete entities and components
 void DeleteComponent(entity_manager* EM, entity_id* EntityID, bitmask32 ComponentFlag);

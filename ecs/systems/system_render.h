@@ -33,11 +33,18 @@ namespace data {
     m4 ModelMatrix; // PixelSpace
   };
 
+  struct textured_overlay_quad {
+    u32 TextureHandle;
+    m4 ModelMatrix; // PixelSpace
+  };
+
+
   struct render_level {
     chunk_list SolidObjects;
     chunk_list TransparentObjects;
     chunk_list OverlayText;
     chunk_list OverlayQuads;
+    chunk_list TexturedOverlayQuads;
     render_level* Next;
     render_level* Previous;
   };
@@ -124,6 +131,9 @@ namespace data {
   void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color);
   void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color);
 
+  void DrawTexturedOverlayQuadPixelSpace(system* System, rect2f PixelRect, u32 TextureHandle);
+  void DrawTexturedOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, u32 TextureHandle);
+
   // When drawing with DrawTextPixelSpace or DrawTextCanonicalSpace, the position is the line someone would draw on in a note-book.
   // That is letters like 'g' dips under the line. If someone wants to draw text in a rect one maybe don't want the g to go outside the rect
   // Therefore this 'FontDescenOffset' is the offset needed such that the text origin is the lowest dip of the text.
@@ -146,9 +156,5 @@ namespace data {
     ListInsertBefore(&System->RenderSentinel, RenderLevel);
   }
 
-  void DrawTexturedOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, rect2f TextureCoordinates, u32 TextureHandle)
-  {
-    Platform.DEBUGPrint("Warning: DrawTexturedOverlayQuadCanonicalSpace has no implementation\n");
-  }
 }
 }

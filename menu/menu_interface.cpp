@@ -66,7 +66,7 @@ void DrawMenu(memory_arena* Arena, menu_interface* Interface, menu_tree* Menu)
     if(HasAttribute(Parent, ATTRIBUTE_TEXTURE))
     {
       texture_attribute* Texture = (texture_attribute*) GetAttributePointer(Parent, ATTRIBUTE_TEXTURE);
-      ecs::render::DrawTexturedOverlayQuadCanonicalSpace(GetRenderSystem(), Parent->Region, Rect2f(0,0,1,1), Texture->Handle);
+      //ecs::render::DrawTexturedOverlayQuadCanonicalSpace(GetRenderSystem(), Parent->Region, Rect2f(0,0,1,1), Texture->Handle);
     }
 
     // Update the region of all children and push them to the stack

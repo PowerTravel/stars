@@ -784,3 +784,192 @@ void BlitToSkybox(camera* Camera, r32 SkyAngle, bitmap SkyboxTexture, bitmap Tga
     DrawPixels(DstPixels, SrcPixels, &SkyboxTexture, &TgaBitmap);
   }
 }
+
+
+
+
+
+
+
+struct skybox_params
+{
+  u32 TextureHeight; // Textures pixel size height
+  u32 TextureWidth; // Textures pixel size width
+  u32 SideSize; // Textures pixel size one side of the of skybox
+};
+
+v3 GetCubeCoordinateFromTexture(u32 PixelX, u32 PixelY, skybox_params* Params)
+{
+  u32 TextureGridX = PixelX % Params->SideSize;
+  u32 TextureGridY = PixelY % Params->SideSize;
+  u32 GridX = PixelX / Params->SideSize;
+  u32 GridY = PixelY / Params->SideSize;
+  u32 GridIndex = GridY * 3 + GridX;
+  r32 X = (2.f*TextureGridX - Params->SideSize) / ((r32)Params->SideSize);
+  r32 Y = (2.f*TextureGridY - Params->SideSize) / ((r32)Params->SideSize);
+
+  // Maps the direction of the plane in world-space to the direction of the texture
+  // 0,1,2 is the top half of the texture, 
+  //  It starts at face -X and wraps around to +X via -Z with top of the texture being in +Y dir.
+  // 3,4,5 is the bot half of the texture,
+  // It starts at face +Y and wraps around to -Y via +Z with top of texture being in +X dir.
+  switch(GridIndex)
+  {
+    case 0: {return V3(-1.0f,   -Y,   -X);} break; // Cube Normal -X, TextureY -> -Y
+    case 1: {return V3(    X,   -Y,-1.0f);} break; // Cube Normal -Z, TextureY -> -Y
+    case 2: {return V3( 1.0f,   -Y,    X);} break; // Cube Normal +X, TextureY -> -Y
+    case 3: {return V3(   -Y, 1.0f,    X);} break; // Cube Normal +Y, TextureY -> -X
+    case 4: {return V3(   -Y,   -X, 1.0f);} break; // Cube Normal +Z, TextureY -> -X
+    case 5: {return V3(   -Y,-1.0f,   -X);} break; // Cube Normal -Y, TextureY -> -X
+  }
+  INVALID_CODE_PATH;
+  return {};
+}
+
+u32 GetColorFromUnitVector(v3 UnitVec)
+{
+  v3 P = (V3(1,1,1) + UnitVec) / 2;
+  //P.X = Clamp(LinearRemap(UnitVec.X, -1,1, -1,1),0,1);
+  //P.Y = Clamp(LinearRemap(UnitVec.Y, -1,1, -1,1),0,1);
+  //P.Z = Clamp(LinearRemap(UnitVec.Z, -1,1, -1,1),0,1);
+  //Assert(P.X >= 0);
+  //P.X = 0;
+  //P.Y = 0;
+  //P.Z = 0;
+  return 0xFF << 24 | 
+         ((u32)(P.X * 0xFF)) << 16 |
+         ((u32)(P.Y * 0xFF)) <<  8 |
+         ((u32)(P.Z * 0xFF)) <<  0;
+}
+
+struct skybox_vertice {
+  v3 P;
+  v2 Tex;
+};
+
+skybox_vertice SkyboxVertice(r32 X, r32 Y, r32 Z, r32 Tx, r32 Ty)
+{
+  skybox_vertice Result = {};
+  Result.P = V3(X,Y,Z);
+  Result.Tex = V2(Tx,Ty);
+  return Result;
+}
+
+struct skybox_quad {
+  skybox_vertice A;
+  skybox_vertice B;
+  skybox_vertice C;
+  skybox_vertice D;
+};
+
+struct skybox_triangle {
+  skybox_vertice A;
+  skybox_vertice B;
+  skybox_vertice C;
+};
+
+skybox_quad SkyboxQuad(skybox_vertice A, skybox_vertice B, skybox_vertice C, skybox_vertice D) {
+  skybox_quad Result = {};
+  Result.A = A;
+  Result.B = B;
+  Result.C = C;
+  Result.D = D;
+  return Result;
+}
+
+// SkyboxQuad texture mapping: (Mapping done in graphics layer when setting up texture coordinates,
+//  At some point move that part here since theyre linked)
+//  Number is the index in the Colors array, x,y,z is the direction of the cube face normal
+//  ___________________
+//  |     |     |     |
+//  |0,-x |1,-z |2,+x |  
+//  |_____|_____|_____|
+//  |     |     |     |
+//  |3,+y |4,+z |5,-y |
+//  |_____|_____|_____|
+//
+//  Top Left maps to -x plane, Top Middle maps to -z plane etc
+//  The lower row mapping +y,+z-y wraps around in a way such that the 
+//  left edge of +y attaches to the top of -z
+//  Unwrapped with connecting edges the texture would look like this:
+//         _____
+//        |     |
+//        |5,-y |
+//        |_____|
+//        |     |
+//        |4,+z |
+//        |_____|
+//        |     |      
+//        |3,+y |
+//   _____|_____|_____
+//  |     |     |     |
+//  |0,-x |1,-z |2,+x |  
+//  |_____|_____|_____|
+//
+//  When folded to a cube it folds such that the 
+//  normals point inwards
+
+skybox_quad GetSkyboxQuad(skybox_side Side)
+{
+    // T1 = (A,C,D), T2 = (A B C)
+    local_persist skybox_quad Skybox_XMinus = SkyboxQuad(
+    SkyboxVertice(-1.0f, 1.0f,-1.0f, 1.0f/3.0f, 0.0f/2.0f),  // A
+    SkyboxVertice(-1.0f,-1.0f,-1.0f, 1.0f/3.0f, 1.0f/2.0f),  // B
+    SkyboxVertice(-1.0f,-1.0f, 1.0f, 0.0f/3.0f, 1.0f/2.0f),  // C
+    SkyboxVertice(-1.0f, 1.0f, 1.0f, 0.0f/3.0f, 0.0f/2.0f)); // D
+
+    local_persist skybox_quad Skybox_ZMinus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice( 1.0f, 1.0f,-1.0f, 2.0f/3.0f, 0.0f/2.0f),  // A
+    SkyboxVertice( 1.0f,-1.0f,-1.0f, 2.0f/3.0f, 1.0f/2.0f),  // B
+    SkyboxVertice(-1.0f,-1.0f,-1.0f, 1.0f/3.0f, 1.0f/2.0f),  // C
+    SkyboxVertice(-1.0f, 1.0f,-1.0f, 1.0f/3.0f, 0.0f/2.0f)); // D
+
+    local_persist skybox_quad Skybox_XPlus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice(1.0f, 1.0f, 1.0f, 3.0f/3.0f, 0.0f/2.0f),   // A
+    SkyboxVertice(1.0f,-1.0f, 1.0f, 3.0f/3.0f, 1.0f/2.0f),   // B
+    SkyboxVertice(1.0f,-1.0f,-1.0f, 2.0f/3.0f, 1.0f/2.0f),   // C
+    SkyboxVertice(1.0f, 1.0f,-1.0f, 2.0f/3.0f, 0.0f/2.0f));  // D
+
+    local_persist skybox_quad Skybox_YPlus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice( 1.0f, 1.0f, 1.0f, 1.0f/3.0f, 1.0f/2.0f),  // A
+    SkyboxVertice( 1.0f, 1.0f,-1.0f, 0.0f/3.0f, 1.0f/2.0f),  // B
+    SkyboxVertice(-1.0f, 1.0f,-1.0f, 0.0f/3.0f, 2.0f/2.0f),  // C
+    SkyboxVertice(-1.0f, 1.0f, 1.0f, 1.0f/3.0f, 2.0f/2.0f)); // D
+
+    local_persist skybox_quad Skybox_ZPlus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice( 1.0f,-1.0f, 1.0f, 2.0f/3.0f, 1.0f/2.0f),  // A
+    SkyboxVertice( 1.0f, 1.0f, 1.0f, 1.0f/3.0f, 1.0f/2.0f),  // B 
+    SkyboxVertice(-1.0f, 1.0f, 1.0f, 1.0f/3.0f, 2.0f/2.0f),  // C
+    SkyboxVertice(-1.0f,-1.0f, 1.0f, 2.0f/3.0f, 2.0f/2.0f)); // D
+
+    local_persist skybox_quad Skybox_YMinus = SkyboxQuad(
+    // T1 = (A,C,D), T2 = (A B C)
+    SkyboxVertice( 1.0f,-1.0f,-1.0f, 3.0f/3.0f, 1.0f/2.0f),  // A
+    SkyboxVertice( 1.0f,-1.0f, 1.0f, 2.0f/3.0f, 1.0f/2.0f),  // B
+    SkyboxVertice(-1.0f,-1.0f, 1.0f, 2.0f/3.0f, 2.0f/2.0f),  // C
+    SkyboxVertice(-1.0f,-1.0f,-1.0f, 3.0f/3.0f, 2.0f/2.0f)); // D
+
+    switch (Side)
+    {
+      case skybox_side::X_MINUS: return Skybox_XMinus;
+      case skybox_side::Z_MINUS: return Skybox_ZMinus;
+      case skybox_side::X_PLUS:  return Skybox_XPlus;
+      case skybox_side::Y_PLUS:  return Skybox_YPlus;
+      case skybox_side::Z_PLUS:  return Skybox_ZPlus;
+      case skybox_side::Y_MINUS: return Skybox_YMinus;
+    }
+    return {};
+}
+
+skybox_triangle GetBotLeftTriangle(skybox_quad* Quad) {
+  return {Quad->A, Quad->C, Quad->D};
+}
+skybox_triangle GetTopRightTriangle(skybox_quad* Quad) {
+  return {Quad->A, Quad->B, Quad->C};
+}
+
+

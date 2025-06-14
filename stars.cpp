@@ -1,5 +1,8 @@
 #include "stars.h"
 
+#include "render_utils.h"
+
+
 #include "platform/jwin_platform_memory.cpp"
 #include "platform/jwin_platform_input.h"
 #include "platform/jfont.cpp"
@@ -19,6 +22,7 @@
 #include "ecs/systems/system_position.cpp"
 #include "ecs/systems/system_render.cpp"
 #include "menu/menu_interface.cpp"
+#include "imgui/imgui.cpp"
 
 #include "utils.h"
 
@@ -92,12 +96,6 @@ u32 CreateSolidColorProgram(render_group* RenderGroup)
   return ProgramHandle;
 }
 
-struct eurption_band{
-  v4 Color;
-  v3 Center;
-  r32 InnerRadii;
-  r32 OuterRadii;
-};
 
 u32 CreateEruptionBandProgram(render_group* RenderGroup)
 {
@@ -113,6 +111,14 @@ u32 CreateEruptionBandProgram(render_group* RenderGroup)
      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"));
   return ProgramHandle;
 }
+
+struct eurption_band{
+  v4 Color;
+  v3 Center;
+  r32 InnerRadii;
+  r32 OuterRadii;
+};
+
 
 struct ray_cast
 {
@@ -500,224 +506,6 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   }
 }
 
-
-struct skybox_params
-{
-  u32 TextureHeight; // Textures pixel size height
-  u32 TextureWidth; // Textures pixel size width
-  u32 SideSize; // Textures pixel size one side of the of skybox
-};
-
-v3 GetCubeCoordinateFromTexture(u32 PixelX, u32 PixelY, skybox_params* Params)
-{
-  u32 TextureGridX = PixelX % Params->SideSize;
-  u32 TextureGridY = PixelY % Params->SideSize;
-  u32 GridX = PixelX / Params->SideSize;
-  u32 GridY = PixelY / Params->SideSize;
-  u32 GridIndex = GridY * 3 + GridX;
-  r32 X = (2.f*TextureGridX - Params->SideSize) / ((r32)Params->SideSize);
-  r32 Y = (2.f*TextureGridY - Params->SideSize) / ((r32)Params->SideSize);
-
-  // Maps the direction of the plane in world-space to the direction of the texture
-  // 0,1,2 is the top half of the texture, 
-  //  It starts at face -X and wraps around to +X via -Z with top of the texture being in +Y dir.
-  // 3,4,5 is the bot half of the texture,
-  // It starts at face +Y and wraps around to -Y via +Z with top of texture being in +X dir.
-  switch(GridIndex)
-  {
-    case 0: {return V3(-1.0f,   -Y,   -X);} break; // Cube Normal -X, TextureY -> -Y
-    case 1: {return V3(    X,   -Y,-1.0f);} break; // Cube Normal -Z, TextureY -> -Y
-    case 2: {return V3( 1.0f,   -Y,    X);} break; // Cube Normal +X, TextureY -> -Y
-    case 3: {return V3(   -Y, 1.0f,    X);} break; // Cube Normal +Y, TextureY -> -X
-    case 4: {return V3(   -Y,   -X, 1.0f);} break; // Cube Normal +Z, TextureY -> -X
-    case 5: {return V3(   -Y,-1.0f,   -X);} break; // Cube Normal -Y, TextureY -> -X
-  }
-  INVALID_CODE_PATH;
-  return {};
-}
-
-u32 GetColorFromUnitVector(v3 UnitVec)
-{
-  v3 P = (V3(1,1,1) + UnitVec) / 2;
-  //P.X = Clamp(LinearRemap(UnitVec.X, -1,1, -1,1),0,1);
-  //P.Y = Clamp(LinearRemap(UnitVec.Y, -1,1, -1,1),0,1);
-  //P.Z = Clamp(LinearRemap(UnitVec.Z, -1,1, -1,1),0,1);
-  //Assert(P.X >= 0);
-  //P.X = 0;
-  //P.Y = 0;
-  //P.Z = 0;
-  return 0xFF << 24 | 
-         ((u32)(P.X * 0xFF)) << 16 |
-         ((u32)(P.Y * 0xFF)) <<  8 |
-         ((u32)(P.Z * 0xFF)) <<  0;
-}
-
-struct skybox_vertice {
-  v3 P;
-  v2 Tex;
-};
-
-skybox_vertice SkyboxVertice(r32 X, r32 Y, r32 Z, r32 Tx, r32 Ty)
-{
-  skybox_vertice Result = {};
-  Result.P = V3(X,Y,Z);
-  Result.Tex = V2(Tx,Ty);
-  return Result;
-}
-
-struct skybox_quad {
-  skybox_vertice A;
-  skybox_vertice B;
-  skybox_vertice C;
-  skybox_vertice D;
-};
-
-struct skybox_triangle {
-  skybox_vertice A;
-  skybox_vertice B;
-  skybox_vertice C;
-};
-
-skybox_quad SkyboxQuad(skybox_vertice A, skybox_vertice B, skybox_vertice C, skybox_vertice D) {
-  skybox_quad Result = {};
-  Result.A = A;
-  Result.B = B;
-  Result.C = C;
-  Result.D = D;
-  return Result;
-}
-
-// SkyboxQuad texture mapping: (Mapping done in graphics layer when setting up texture coordinates,
-//  At some point move that part here since theyre linked)
-//  Number is the index in the Colors array, x,y,z is the direction of the cube face normal
-//  ___________________
-//  |     |     |     |
-//  |0,-x |1,-z |2,+x |  
-//  |_____|_____|_____|
-//  |     |     |     |
-//  |3,+y |4,+z |5,-y |
-//  |_____|_____|_____|
-//
-//  Top Left maps to -x plane, Top Middle maps to -z plane etc
-//  The lower row mapping +y,+z-y wraps around in a way such that the 
-//  left edge of +y attaches to the top of -z
-//  Unwrapped with connecting edges the texture would look like this:
-//         _____
-//        |     |
-//        |5,-y |
-//        |_____|
-//        |     |
-//        |4,+z |
-//        |_____|
-//        |     |      
-//        |3,+y |
-//   _____|_____|_____
-//  |     |     |     |
-//  |0,-x |1,-z |2,+x |  
-//  |_____|_____|_____|
-//
-//  When folded to a cube it folds such that the 
-//  normals point inwards
-
-skybox_quad GetSkyboxQuad(skybox_side Side)
-{
-    // T1 = (A,C,D), T2 = (A B C)
-    local_persist skybox_quad Skybox_XMinus = SkyboxQuad(
-    SkyboxVertice(-1.0f, 1.0f,-1.0f, 1.0f/3.0f, 0.0f/2.0f),  // A
-    SkyboxVertice(-1.0f,-1.0f,-1.0f, 1.0f/3.0f, 1.0f/2.0f),  // B
-    SkyboxVertice(-1.0f,-1.0f, 1.0f, 0.0f/3.0f, 1.0f/2.0f),  // C
-    SkyboxVertice(-1.0f, 1.0f, 1.0f, 0.0f/3.0f, 0.0f/2.0f)); // D
-
-    local_persist skybox_quad Skybox_ZMinus = SkyboxQuad(
-    // T1 = (A,C,D), T2 = (A B C)
-    SkyboxVertice( 1.0f, 1.0f,-1.0f, 2.0f/3.0f, 0.0f/2.0f),  // A
-    SkyboxVertice( 1.0f,-1.0f,-1.0f, 2.0f/3.0f, 1.0f/2.0f),  // B
-    SkyboxVertice(-1.0f,-1.0f,-1.0f, 1.0f/3.0f, 1.0f/2.0f),  // C
-    SkyboxVertice(-1.0f, 1.0f,-1.0f, 1.0f/3.0f, 0.0f/2.0f)); // D
-
-    local_persist skybox_quad Skybox_XPlus = SkyboxQuad(
-    // T1 = (A,C,D), T2 = (A B C)
-    SkyboxVertice(1.0f, 1.0f, 1.0f, 3.0f/3.0f, 0.0f/2.0f),   // A
-    SkyboxVertice(1.0f,-1.0f, 1.0f, 3.0f/3.0f, 1.0f/2.0f),   // B
-    SkyboxVertice(1.0f,-1.0f,-1.0f, 2.0f/3.0f, 1.0f/2.0f),   // C
-    SkyboxVertice(1.0f, 1.0f,-1.0f, 2.0f/3.0f, 0.0f/2.0f));  // D
-
-    local_persist skybox_quad Skybox_YPlus = SkyboxQuad(
-    // T1 = (A,C,D), T2 = (A B C)
-    SkyboxVertice( 1.0f, 1.0f, 1.0f, 1.0f/3.0f, 1.0f/2.0f),  // A
-    SkyboxVertice( 1.0f, 1.0f,-1.0f, 0.0f/3.0f, 1.0f/2.0f),  // B
-    SkyboxVertice(-1.0f, 1.0f,-1.0f, 0.0f/3.0f, 2.0f/2.0f),  // C
-    SkyboxVertice(-1.0f, 1.0f, 1.0f, 1.0f/3.0f, 2.0f/2.0f)); // D
-
-    local_persist skybox_quad Skybox_ZPlus = SkyboxQuad(
-    // T1 = (A,C,D), T2 = (A B C)
-    SkyboxVertice( 1.0f,-1.0f, 1.0f, 2.0f/3.0f, 1.0f/2.0f),  // A
-    SkyboxVertice( 1.0f, 1.0f, 1.0f, 1.0f/3.0f, 1.0f/2.0f),  // B 
-    SkyboxVertice(-1.0f, 1.0f, 1.0f, 1.0f/3.0f, 2.0f/2.0f),  // C
-    SkyboxVertice(-1.0f,-1.0f, 1.0f, 2.0f/3.0f, 2.0f/2.0f)); // D
-
-    local_persist skybox_quad Skybox_YMinus = SkyboxQuad(
-    // T1 = (A,C,D), T2 = (A B C)
-    SkyboxVertice( 1.0f,-1.0f,-1.0f, 3.0f/3.0f, 1.0f/2.0f),  // A
-    SkyboxVertice( 1.0f,-1.0f, 1.0f, 2.0f/3.0f, 1.0f/2.0f),  // B
-    SkyboxVertice(-1.0f,-1.0f, 1.0f, 2.0f/3.0f, 2.0f/2.0f),  // C
-    SkyboxVertice(-1.0f,-1.0f,-1.0f, 3.0f/3.0f, 2.0f/2.0f)); // D
-
-    switch (Side)
-    {
-      case skybox_side::X_MINUS: return Skybox_XMinus;
-      case skybox_side::Z_MINUS: return Skybox_ZMinus;
-      case skybox_side::X_PLUS:  return Skybox_XPlus;
-      case skybox_side::Y_PLUS:  return Skybox_YPlus;
-      case skybox_side::Z_PLUS:  return Skybox_ZPlus;
-      case skybox_side::Y_MINUS: return Skybox_YMinus;
-    }
-    return {};
-}
-
-skybox_triangle GetBotLeftTriangle(skybox_quad* Quad) {
-  return {Quad->A, Quad->C, Quad->D};
-}
-skybox_triangle GetTopRightTriangle(skybox_quad* Quad) {
-  return {Quad->A, Quad->B, Quad->C};
-}
-
-
-u32 Push32BitColorTexture(render_group* RenderGroup,  obj_bitmap* BitMap)
-{
-  texture_params Params = DefaultColorTextureParams();
-  Params.TextureFormat = texture_format::RGBA_U8;
-  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  u32 Result = PushNewTexture(RenderGroup, BitMap->Width, BitMap->Height, Params, BitMap->Pixels);
-  return Result;
-}
-
-
-//struct push_buffer_header
-//{
-//  render_buffer_entry_type Type;
-//  push_buffer_header* Next;
-//};
-char** getGaussianVertexCodeY() {
-
-  local_persist char GaussianVertexShaderCodeY[] = R"Foo(
-#version 330 core
-
-layout (location = 0) in vec3 v;
-out vec2 uv;
-void main()
-{
-  gl_Position = vec4(v,1);
-  uv = (v.xy+vec2(1,1))/2.0; // Map from [(-1,-1),(1,1)] to [(0,0),(1,1)]
-}
-
-)Foo";
-
-  local_persist char* GaussianVertexShaderYArr[1]   = {GaussianVertexShaderCodeY};
-  return GaussianVertexShaderYArr;
-
-}
-
 u32 CreateColoredSquareOverlayProgram(render_group* RenderGroup)
 {
   u32 ProgramHandle = NewShaderProgram(RenderGroup, "ColoredOverlayQuad");
@@ -731,113 +519,17 @@ u32 CreateColoredSquareOverlayProgram(render_group* RenderGroup)
   return ProgramHandle;
 }
 
-char** getGaussianFragmentCodeY() {
-
-  local_persist char GaussianFragmentShaderCodeY[] = R"Foo(
-#version 330 core
-
-in vec2 uv;
-out vec4 color;
-uniform sampler2D RenderedTexture;
-// This is a 9 texel kernel, see https://www.rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/
-// for why it has 3 numbers.
-// Short story is:
-//   1 Original weights come from the binomial distribution koefficients,
-//   2 For this 9-texel kernel we took the 12th degree because the outer 2 coefficients 
-//     contribute so little to the final pixel.
-//   3 Normalize the coefficients so their sum add up to 1.
-//   4 Apply the kernel twice, once in y-direction and once in x-direction
-//   5 Utilize the linear interprolation circuits graphic card has and get two
-//     texel lookups for the price of one.
-
-// So ->  12 binomial coefficients:              1 12 66 220 495 792 924 792 495 220 66 12 1
-//                              Or:              924 +- 792 495 220 66 12 1
-// Remove outer two coefficients:                924 +- 792 495 220 66
-// Normalize them:                               0.2270270270 +- 0.1945945946 0.1216216216 0.0540540541 0.0162162162
-// Scale them due to the linear interprolation:  Weight_l(t_1, t_2) = weigth_d(t_1) +  weigth_d(t_2)
-//                                               offset_l(t_1, t_2) = ( offset_d(t_1) * weigth_d(t_1) + offset_d(t_2) * weigth_d(t_2) ) / Weight_l(t_1, t_2);
-// Offset_d = [0,1,2,3,4]
-// Weight_d = [0.2270270270, 0.1945945946,  0.1216216216, 0.0540540541,  0.0162162162]
-// Weight_l = [0.2270270270, 0.1945945946 + 0.1216216216, 0.0540540541 + 0.0162162162] = [0.2270270270, 0.3162162162, 0.0702702703]
-// Offset_l = [0, (1*0.1945945946 + 2*0.1216216216) /(0.1945945946 + 0.1216216216), (3*0.0540540541 + 4*0.0162162162)/(0.0540540541 + 0.0162162162)]
-//          = [0.0, 1.3846153846, 3.2307692308]
-
-#define MAX_KERNEL_SIZE 128
-uniform vec2 sideSize;
-uniform int kernerlSize;
-uniform float offset[MAX_KERNEL_SIZE];// = float[](0.0, 1.3846153846, 3.2307692308);
-uniform float weight[MAX_KERNEL_SIZE];// = float[](0.2270270270, 0.3162162162, 0.0702702703);
-
-void main()
+u32 CreateTexturedSquareOverlayProgram(render_group* RenderGroup)
 {
-  vec2 side = vec2(gl_FragCoord.x / sideSize.x, gl_FragCoord.y / sideSize.y);
-  vec4 OutColor = texture(RenderedTexture, uv) * weight[0];
-  for(int i = 1; i<kernerlSize; i++)
-  {
-    vec2 off = vec2(0, offset[i]/sideSize.y);
-    OutColor += texture(RenderedTexture, uv + off) * weight[i];
-    OutColor += texture(RenderedTexture, uv - off) * weight[i];
-  }
-  color = vec4(OutColor.xyz,1);
-}
-
-)Foo";
-
-  local_persist char* GaussianFragmentShaderYArr[1] = {GaussianFragmentShaderCodeY};
-  return GaussianFragmentShaderYArr;
-}
-
-char** getGaussianVertexCodeX() {
-
-  local_persist char GaussianVertexShaderCodeX[] = R"Foo(
-#version 330 core
-
-layout (location = 0) in vec3 v;
-out vec2 uv;
-void main()
-{
-  gl_Position = vec4(v,1);
-  uv = (v.xy+vec2(1,1))/2.0; // Map from [(-1,-1),(1,1)] to [(0,0),(1,1)]
-}
-
-)Foo";
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "ColoredOverlayQuad");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "Projection");
+  AddVarying(RenderGroup, UniformType::U32,  ProgramHandle, "InTexture");
+  AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "Model");
   
-  local_persist char* GaussianVertexShaderXArr[1]   = { GaussianVertexShaderCodeX };
-  return GaussianVertexShaderXArr;
-}
-
-char** getGaussianFragmentCodeX() {
-  
-  local_persist char GaussianFragmentShaderCodeX[] = R"Foo(
-#version 330 core
-
-#define MAX_KERNEL_SIZE 128
-
-in vec2 uv;
-out vec4 color;
-uniform sampler2D RenderedTexture;
-uniform vec2 sideSize;
-uniform int kernerlSize;
-uniform float offset[MAX_KERNEL_SIZE];// = float[](0.0, 1.3846153846, 3.2307692308);
-uniform float weight[MAX_KERNEL_SIZE];// = float[](0.2270270270, 0.3162162162, 0.0702702703);
-
-void main()
-{
-  vec2 side = vec2(gl_FragCoord.x / sideSize.x, gl_FragCoord.y / sideSize.y);
-  vec4 OutColor = texture(RenderedTexture, uv) * weight[0];
-  for(int i = 1; i < kernerlSize; i++)
-  {
-    vec2 off = vec2(offset[i]/sideSize.x, 0);
-    OutColor += texture(RenderedTexture, uv + off) * weight[i];
-    OutColor += texture(RenderedTexture, uv - off) * weight[i];
-  }
-  color = vec4(OutColor.xyz,1);
-}
-)Foo";
-
-  local_persist char* GaussianFragmentShaderXArr[1] = { GaussianFragmentShaderCodeX };
- 
-  return GaussianFragmentShaderXArr;
+  CompileShader(RenderGroup, ProgramHandle, 
+    1, LoadFileFromDisk("..\\jwin\\shaders\\TexturedOverlayQuadVertex.glsl"),
+    1, LoadFileFromDisk("..\\jwin\\shaders\\TexturedOverlayQuadFragment.glsl"));
+  return ProgramHandle;
 }
 
 u32 CreateFontProgram(render_group* RenderGroup)
@@ -867,7 +559,9 @@ u32 CreateGaussianBlurProgramY(render_group* RenderGroup)
   AddUniform(RenderGroup, UniformType::R32, ProgramHandleY, "offset");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandleY, "weight");
   AddUniform(RenderGroup, UniformType::U32, ProgramHandleY, "kernerlSize");
-  CompileShader(RenderGroup, ProgramHandleY, 1, getGaussianVertexCodeY(), 1, getGaussianFragmentCodeY());
+  CompileShader(RenderGroup, ProgramHandleY,
+    1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_vertex_y.glsl"),
+    1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_fragment_y.glsl"));
   return ProgramHandleY;
 }
 
@@ -880,50 +574,10 @@ u32 CreateGaussianBlurProgramX(render_group* RenderGroup)
   AddUniform(RenderGroup, UniformType::R32, ProgramHandleX, "offset");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandleX, "weight");
   AddUniform(RenderGroup, UniformType::U32, ProgramHandleX, "kernerlSize");
-  CompileShader(RenderGroup, ProgramHandleX, 1, getGaussianVertexCodeX(), 1, getGaussianFragmentCodeX());
+  CompileShader(RenderGroup, ProgramHandleX,
+    1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_vertex_x.glsl"),
+    1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_fragment_x.glsl"));
   return ProgramHandleX;
-}
-
-char** GetTransparentCompositionVertexCode()
-{
- local_persist char TransparentCompositionVertexShaderCode[] = R"Foo(
-#version 330 core
-
-layout (location = 0) in vec3 v;
-out vec2 uv;
-void main()
-{
-  gl_Position = vec4(v,1);
-  uv = (v.xy+vec2(1,1))/2.0; // Map from [(-1,-1),(1,1)] to [(0,0),(1,1)]
-}
-
-)Foo";
-
-  local_persist char* TransparentCompositionVertexShaderCodeArr2[] =  {TransparentCompositionVertexShaderCode};
-  return TransparentCompositionVertexShaderCodeArr2;
-}
-
-char** GetTransparentCompositionFragmentCode()
-{
-  local_persist char TransparentCompositionFragmentShaderCode[] = R"Foo(
-#version 330 core
-
-in vec2 uv;
-layout(location = 0) out vec4 color;
-uniform sampler2D AccumTex;
-uniform sampler2D RevealTex;
-
-void main()
-{
-  vec4 Accum = texelFetch(AccumTex, ivec2(gl_FragCoord.xy),0);
-  float Reveal = texelFetch(RevealTex, ivec2(gl_FragCoord.xy),0 ).r;
-  color = vec4(Accum.rgb/clamp(Accum.a, 0.0001, 50000), Reveal);
-}
-
-)Foo";
-
-  local_persist char* TransparentCompositionFragmentShaderCodeArr2[]  = {TransparentCompositionFragmentShaderCode};
-  return TransparentCompositionFragmentShaderCodeArr2;
 }
 
 u32 CreateTransparentCompositionProgram(render_group* RenderGroup)
@@ -939,12 +593,12 @@ u32 CreateTransparentCompositionProgram(render_group* RenderGroup)
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AccumTex");
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RevealTex");
   CompileShader(RenderGroup, ProgramHandle,  
-    1, GetTransparentCompositionVertexCode(),
-    1, GetTransparentCompositionFragmentCode());
+    1, LoadFileFromDisk("..\\jwin\\shaders\\transparent_composition_vertex.glsl"),
+    1, LoadFileFromDisk("..\\jwin\\shaders\\transparent_composition_fragment.glsl"));
   return ProgramHandle;
 }
 
-u32 PushPlitPlaneMesh(render_group* RenderGroup)
+u32 PushBlitPlaneMesh(render_group* RenderGroup)
 {
   u32 PlaneIndex[] = {
     0,1,2,
@@ -1419,295 +1073,6 @@ void AddOrRemoveMenuEntityItems()
   Clear(EntityBuffer);
 }
 
-struct imgui_id {
-  u32 id;
-  b32 idEdge;
-};
-
-inline imgui_id Update(imgui_id Id, u32 Value)
-{
-  Id.idEdge = (Id.id != Value); // <- Edge is true if Id changed
-  Id.id = Value;
-  return Id;
-}
-
-struct imgui_context {
-  u32 ButtonCounter;
-
-  imgui_id ActiveID;
-  imgui_id HotID;
-  imgui_id SelectedID;
-
-  r32 MouseX;
-  r32 MouseY;
-  r32 MouseDZ;
-  jwin::binary_signal_state LeftMouse;
-
-  r32 FontSize;
-};
-
-global_variable imgui_context G_ImguiContext = {};
-
-imgui_id NewButtonID()
-{
-  imgui_id Result = {};
-  Result.id = ++G_ImguiContext.ButtonCounter;
-  return Result;
-}
-
-b32 ImguiIsActive(imgui_id Id){
-  return G_ImguiContext.ActiveID.id == Id.id;
-}
-
-b32 ImguiIsDragging(){
-  return G_ImguiContext.ActiveID.id == -1;
-}
-
-b32 ImguiIsInactive(){
-  return G_ImguiContext.ActiveID.id == 0;
-}
-
-b32 ImguiIsHot(imgui_id Id){
-  return G_ImguiContext.HotID.id == Id.id;
-}
-
-void ImguiSetActive(imgui_id Id) {
-  G_ImguiContext.ActiveID = Update(G_ImguiContext.ActiveID, Id.id);
-}
-
-void ImguiSetInactive() {
-  G_ImguiContext.ActiveID = Update(G_ImguiContext.ActiveID, 0);
-}
-
-void ImguiSetSelected(imgui_id Id) {
-  G_ImguiContext.SelectedID = Update(G_ImguiContext.SelectedID, Id.id);
-}
-
-void ImguiDeselect() {
-  G_ImguiContext.SelectedID = Update(G_ImguiContext.SelectedID, 0);
-}
-
-b32 ImguiNoneSelected() {
-  return G_ImguiContext.SelectedID.id == 0;
-}
-
-b32 ImguiIsSelected(imgui_id Id) {
-  return G_ImguiContext.SelectedID.id == Id.id;
-}
-
-void ImguiSetDragging() {
-  G_ImguiContext.ActiveID = Update(G_ImguiContext.ActiveID, -1);
-}
-
-void ImguiSetHot(imgui_id Id){
-  G_ImguiContext.HotID = Update(G_ImguiContext.HotID, Id.id);
-}
-
-void ImguiSetCold(){
-  G_ImguiContext.HotID = Update(G_ImguiContext.HotID, 0);
-}
-
-b32 ImguiMenuPushed(imgui_id Id) 
-{
-  return G_ImguiContext.ActiveID.id == Id.id && G_ImguiContext.ActiveID.idEdge;
-}
-
-void ImguiBegin(jwin::device_input* Input){
-  ImguiSetCold();
-  ImguiSetActive(G_ImguiContext.ActiveID);
-  ImguiSetSelected(G_ImguiContext.SelectedID);
-  G_ImguiContext.MouseX = Input->Mouse.X;
-  G_ImguiContext.MouseY = Input->Mouse.Y;
-  G_ImguiContext.MouseDZ = Input->Mouse.dZ;
-  G_ImguiContext.LeftMouse = Input->Mouse.Button[jwin::MouseButton_Left];
-  G_ImguiContext.FontSize = 14;
-}
-
-void ImguiEnd(){
-  if(!jwin::Active(G_ImguiContext.LeftMouse)) {
-    ImguiSetInactive();
-  }else if(ImguiIsInactive()){
-    ImguiSetDragging();
-  }
-}
-
-utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, c8* Text, c8* Suffix = "...")
-{
-  size_t ByteSize = jstr::StringLength(Text) + jstr::StringLength(Suffix) + 1;
-  utf8_string_buffer Buff = CreateTempStringBuffer(ByteSize);
-
-  size_t CharCount = 0;
-  if(GetCharsCountToFitCanonicalSpace(GetRenderSystem(), FontSize, MaxWidth, (utf8_byte*) Text, (utf8_byte*) Suffix, &CharCount)){
-    AppendStringToBuffer((utf8_byte*)Text, &Buff);
-  }else{
-    AppendStringToBuffer((u32)CharCount, (utf8_byte*)Text, &Buff);
-    while(*PeakChar(&Buff) == ' ')
-    {
-      EraseFromBuffer(&Buff, 1);
-    }
-    AppendStringToBuffer((utf8_byte*)Suffix, &Buff);
-  }
-  return Buff;
-}
-
-struct imgui_button_color {
-  v4 InactiveColor;
-  v4 ActiveAndHotColor;
-  v4 ActiveColor;
-  v4 HotColor;
-};
-
-imgui_button_color ImguiDefaultButtonColor()
-{
-  imgui_button_color Result = {};
-  Result.InactiveColor =  menu::GetColor(&GlobalState->ColorTable, "taupe");
-  Result.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "old gold"); 
-  Result.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "sandy taupe");
-  Result.HotColor = menu::GetColor(&GlobalState->ColorTable, "sandy taupe");
-  return Result;
-}
-
-b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect)
-{
-  if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
-  {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
-      ImguiSetActive(Id);
-    }
-  }
-
-  return ImguiIsActive(Id);
-}
-
-b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect)
-{
-  if(Intersects(RegionRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
-  {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
-      ImguiSetActive(Id);
-      ImguiSetSelected(Id);
-    }
-  }else if(jwin::Active(G_ImguiContext.LeftMouse)){
-    ImguiDeselect();
-  }
-
-  return ImguiIsSelected(Id);
-}
-
-b32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor) {
-  if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
-  {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
-      ImguiSetActive(Id);
-    }
-  }
-  v4 Color = ButtonColor.InactiveColor;
-  if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
-    // Button is Highlighted and pressed
-    Color = ButtonColor.ActiveAndHotColor;
-  }else if(ImguiIsActive(Id)){
-    // Button is Pressed
-    Color = ButtonColor.ActiveColor;
-  }else if(ImguiIsHot(Id)){
-    // Button is only highlighted
-    Color = ButtonColor.HotColor;
-  }
-
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ButtonRect), Color);
-  return ImguiIsActive(Id);
-}
-
-
-u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
-  if(G_ImguiContext.MouseX >= ButtonX && G_ImguiContext.MouseX <= ButtonX + ButtonWidth &&
-     G_ImguiContext.MouseY >= ButtonY && G_ImguiContext.MouseY <= ButtonY + ButtonHeight)
-  {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(G_ImguiContext.LeftMouse)){
-      ImguiSetActive(Id);
-    }
-  }
-
-  ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(GetRenderSystem());
-  v2 ClickOffset = {};
-  v4 Color = menu::GetColor(&GlobalState->ColorTable, "plum");
-  r32 ButtonTextWidth = ButtonWidth;
-  r32 ButtonTextHeight = ButtonHeight;
-  if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
-    // Button is Highlighted and pressed
-    if(ClickOffsetPx != 0){
-      ClickOffset.X = ClickOffsetPx/WindowSize.ApplicationWidth;
-      ClickOffset.Y = -ClickOffsetPx/WindowSize.ApplicationWidth; 
-    }
-    Color = menu::GetColor(&GlobalState->ColorTable, "waterspout");
-  }else if(ImguiIsActive(Id)){
-    // Button is Pressed
-    if(ClickOffsetPx != 0){
-      ClickOffset.X = 4.f/WindowSize.ApplicationWidth;
-      ClickOffset.Y = -4.f/WindowSize.ApplicationWidth;
-    }
-    Color = menu::GetColor(&GlobalState->ColorTable, "old gold");
-  }else if(ImguiIsHot(Id)){
-    // Button is only highlighted
-    Color = menu::GetColor(&GlobalState->ColorTable, "khaki");
-    if(FontSize && Text && *Text != '\0')
-    {
-      r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, (utf8_byte*) Text).X;
-      if(TextWidth > ButtonTextWidth)
-      {
-        ButtonTextWidth = TextWidth; 
-      }
-    }
-  }else{
-    // Button is inactive
-    Color = menu::GetColor(&GlobalState->ColorTable, "taupe");
-  }
-
-  v2 CenterRect = V2(ButtonX + ButtonTextWidth * 0.5f, ButtonY + ButtonHeight * 0.5f); 
-  if(ShadowOffsetPx!=0)
-  {
-    r32 ShadowOffsetX =  ShadowOffsetPx/WindowSize.ApplicationWidth;
-    r32 ShadowOffsetY = -ShadowOffsetPx/WindowSize.ApplicationWidth;
-    rect2f ShadowRect = Rect2f(
-      CenterRect.X + ShadowOffsetX,
-      CenterRect.Y + ShadowOffsetY, ButtonTextWidth, ButtonHeight);
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ShadowRect, menu::GetColor(&GlobalState->ColorTable, "rich carmine"));
-  }
-
-  rect2f ButtonRect = Rect2f(
-    CenterRect.X + ClickOffset.X,
-    CenterRect.Y + ClickOffset.Y, ButtonTextWidth, ButtonHeight);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ButtonRect, Color);
-
-  if(FontSize && Text && *Text != '\0')
-  {
-    r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
-    v2 TextOrigin = V2(ButtonX + TextOffsetX,ButtonY + TextOffsetY) + ClickOffset + V2(0, DescentOffset);
-    utf8_string_buffer StringBuffer = SetStringToFit(FontSize, ButtonTextWidth, Text);
-    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextOrigin , Rect2f(ButtonX,ButtonY,ButtonTextWidth,ButtonHeight), FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));  
-  }
-  
-  return ImguiIsActive(Id);
-}
-
-struct imgui_scrollable_list {
-  imgui_id ScrollbarId;
-
-  s32 SelectedRow;
-  r32 ScrollAmmount;
-  r32 ScrollButtonDiff;
-};
-
-imgui_scrollable_list CreateScrollableTextList()
-{
-  imgui_scrollable_list Result = {};
-  Result.ScrollbarId = NewButtonID();
-  Result.SelectedRow = -1;
-  return Result;
-}
 
 r32 GetScrollWheelSize(r32 ListHeight, r32 RowHeight, u32 RowCount, r32 Min, r32 Max)
 {
@@ -1747,38 +1112,6 @@ v4 GetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors){
   return Color;
 }
 
-struct imgui_text_input_buffer {
-  imgui_id ID;
-  utf8_string_buffer Buffer;
-  u32 CaretPosition;
-  u32 CharCount;
-};
-
-struct imgui_bordered_window {
-  v2 CornerSize;
-  r32 HeaderSize;
-  rect2f Region;
-
-  r32 LeftDiff;
-  r32 RightDiff;
-  r32 TopDiff;
-  r32 BotDiff;
-  v2 BotLeftDiff;
-  v2 BotRightDiff;
-  v2 TopLeftDiff;
-  v2 TopRightDiff;
-  v2 HeaderDiff;
-  imgui_id LeftID;
-  imgui_id RightID;
-  imgui_id TopID;
-  imgui_id BotID;
-  imgui_id BotLeftID;
-  imgui_id BotRightID;
-  imgui_id TopLeftID;
-  imgui_id TopRightID;
-  imgui_id HeaderID;
-};
-
 struct color_list_data {
   imgui_id* ImguiIDs; // ColorListIndeces
   s32* ColorIDs;      // Mapping IDS from Colors in the ColorTable to list indeces.
@@ -1788,7 +1121,7 @@ struct color_list_data {
   imgui_bordered_window BorderWindow;
 };
 
-void DrawRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
+void DrawColorRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
 {
   color_list_data* ColorListData = (color_list_data*) Data;
   umm ColorIndex = (umm) ColorListData->ColorIDs[ListIndex];
@@ -1831,65 +1164,65 @@ void DrawRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rec
 r32 MouseScroll(u32 RowCount, r32 RowHeight)
 {
   r32 Result = 0;
-  if(G_ImguiContext.MouseDZ)
+  if(GlobalState->ImguiContext.MouseDZ)
   {
     r32 ScrollTick = 1/20.f;
     r32 TotalListSize = RowHeight * RowCount;
     r32 ScrollTickPercentage = ScrollTick / TotalListSize;
-    Result = (G_ImguiContext.MouseDZ > 0) ? -ScrollTickPercentage : ScrollTickPercentage; 
+    Result = (GlobalState->ImguiContext.MouseDZ > 0) ? -ScrollTickPercentage : ScrollTickPercentage; 
   }
   return Result;
 }
 
-b32 ImguiScrollBar(imgui_scrollable_list* List, rect2f ListRegion, r32 ScrollbarWidth, r32 RowHeight, r32 RowCount)
+b32 ImguiScrollBarVertical(imgui_scrollable_list* List, rect2f ListRegion, r32 ScrollbarWidth, r32 RowHeight, r32 RowCount)
 {
   rect2f ScrollbarRect = Rect2f(ListRegion.X + ListRegion.W - ScrollbarWidth, ListRegion.Y, ScrollbarWidth, ListRegion.H);
   v2 ScrollButtonSize = V2(ScrollbarWidth, GetScrollWheelSize(ListRegion.H, RowHeight, RowCount, 0.03f, ListRegion.H));
 
   ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollbarRect), V4(0.5,0.5,0.5,1.0));
-  ImguiButton(&G_ImguiContext, List->ScrollbarId, ScrollbarRect);
+  ImguiButton(&GlobalState->ImguiContext, List->VerticalScrollbarId, ScrollbarRect);
 
   v2 Padding =  V2(ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1),
                    ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1));
   
-  r32 ScrollWheelPosY = Lerp(List->ScrollAmmount, ScrollbarRect.Y + ScrollbarRect.H - ScrollButtonSize.Y, ScrollbarRect.Y);
+  r32 ScrollWheelPosY = Lerp(List->ScrollAmmount.Y, ScrollbarRect.Y + ScrollbarRect.H - ScrollButtonSize.Y, ScrollbarRect.Y);
   rect2f ScrollWheelRect = Rect2f(ScrollbarRect.X, ScrollWheelPosY, ScrollButtonSize.X, ScrollButtonSize.Y);
   ScrollWheelRect = Shrink(ScrollWheelRect, Padding);
   
   imgui_button_color ButtonColor = ImguiDefaultButtonColor();
   
-  if(!ImguiIsHot(List->ScrollbarId))
+  if(!ImguiIsHot(List->VerticalScrollbarId))
   {
     ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollWheelRect), ButtonColor.InactiveColor);
   }else{
     ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollWheelRect), ButtonColor.HotColor);
   }
   
-  v2 MousePos = V2(G_ImguiContext.MouseX,G_ImguiContext.MouseY);
-  if(ImguiIsActive(List->ScrollbarId)) {
+  v2 MousePos = V2(GlobalState->ImguiContext.MouseX,GlobalState->ImguiContext.MouseY);
+  if(ImguiIsActive(List->VerticalScrollbarId)) {
     // Mouse is clickedUp on the scrollbarButton, Cache the mouseDiff.
-    if(G_ImguiContext.ActiveID.idEdge)
+    if(GlobalState->ImguiContext.ActiveID.idEdge)
     {
       if(Intersects(ScrollWheelRect, MousePos))
       {
-        List->ScrollButtonDiff = MousePos.Y - (ScrollbarRect.Y + (1-List->ScrollAmmount) * (ScrollbarRect.H - ScrollButtonSize.Y));  
+        List->ScrollButtonDiff.Y = MousePos.Y - (ScrollbarRect.Y + (1-List->ScrollAmmount.Y) * (ScrollbarRect.H - ScrollButtonSize.Y));  
       }else{
-        List->ScrollButtonDiff = ScrollButtonSize.Y*0.5f;
+        List->ScrollButtonDiff.Y = ScrollButtonSize.Y*0.5f;
       }
     }else{
-      r32 A = ScrollbarRect.Y + List->ScrollButtonDiff;
-      r32 B = ScrollbarRect.Y + ScrollbarRect.H - (ScrollButtonSize.Y-List->ScrollButtonDiff);
-      List->ScrollAmmount = Unlerp(MousePos.Y, B, A);
+      r32 A = ScrollbarRect.Y + List->ScrollButtonDiff.Y;
+      r32 B = ScrollbarRect.Y + ScrollbarRect.H - (ScrollButtonSize.Y-List->ScrollButtonDiff.Y);
+      List->ScrollAmmount.Y = Unlerp(MousePos.Y, B, A);
     }
   }else{
     if(Intersects(ListRegion,MousePos))
     {
-      List->ScrollAmmount += MouseScroll(RowCount, RowHeight);
+      List->ScrollAmmount.Y += MouseScroll(RowCount, RowHeight);
     }  
   }
-  List->ScrollAmmount = Clamp(List->ScrollAmmount, 0,1);
+  List->ScrollAmmount.Y = Clamp(List->ScrollAmmount.Y, 0,1);
 
-  return ImguiIsActive(List->ScrollbarId);
+  return ImguiIsActive(List->VerticalScrollbarId);
 }
 
 
@@ -1904,9 +1237,9 @@ b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 
   r32 StartRow = 0;
   if(LinesToFit < RowCount){
     r32 ScrollbarWidth = 0.01;
-    ImguiScrollBar(ScrollableList, BackgroundRect, ScrollbarWidth, RowHeight, RowCount);
+    ImguiScrollBarVertical(ScrollableList, BackgroundRect, ScrollbarWidth, RowHeight, RowCount);
     ListContentSize.X -= ScrollbarWidth;
-    StartRow = ScrollableList->ScrollAmmount * (RowCount - LinesToFit);
+    StartRow = ScrollableList->ScrollAmmount.Y * (RowCount - LinesToFit);
   }
 
   s32 StartIndex = (s32) Floor(StartRow);
@@ -1924,11 +1257,11 @@ b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 
         ClippedRow = Clip(RowRect, Rect2f(Pos, ListContentSize));  
       }
 
-      if(ImguiButton(&G_ImguiContext, RowIDs[Index], ClippedRow))
+      if(ImguiButton(&GlobalState->ImguiContext, RowIDs[Index], ClippedRow))
       {
         Result = true;    
       }
-      RowRenderFunction(&G_ImguiContext, RowIDs[Index],  RowRect, ClippedRow, Index, Data);
+      RowRenderFunction(&GlobalState->ImguiContext, RowIDs[Index],  RowRect, ClippedRow, Index, Data);
       if(ImguiIsActive(RowIDs[Index]))
       {
         ScrollableList->SelectedRow = Index;
@@ -1938,263 +1271,297 @@ b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 
   return Result;
 }
 
+struct jimgui_entity_data {
+  imgui_id ImguiID;
+  ecs::entity_id EntityID;
+  b32 Open;
+  r32 MenuBoxHeight;
+};
 
-void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, jwin::device_input* Input)
+struct menu_entity_list {
+
+  imgui_text_input_buffer TextInputBuffer;
+  imgui_scrollable_list EntityList;
+  imgui_bordered_window BorderWindow;
+
+  
+  // Cached menu data
+  chunk_list EntityData; // jimgui_entity_data
+  rb_tree EntityToDataMap;
+};
+
+r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, jimgui_entity_data* Data)
 {
-  u32 InputLen = 512;
-  if(jwin::Pushed(Input->Keyboard.Key_BACK) && TextInputBuffer->CaretPosition > 0){
-    if(TextInputBuffer->CaretPosition == TextInputBuffer->CharCount)
+  // Button Background
+  r32 Height = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
+  r32 ResultHeight = Height;
+  //v4 ButtonColor = menu::GetColor(&GlobalState->ColorTable, "taupe");
+  rect2f ButtonBackgroundRect = Rect2f(TopLeft.X, TopLeft.Y - Height, ClipArea.W, Height);
+//  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ButtonBackgroundRect), ButtonColor);
+
+
+  imgui_button_color ButtonColor = {};
+  ButtonColor.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "taupe");
+  ButtonColor.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "persian indigo");
+  ButtonColor.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "egyptian blue");
+  ButtonColor.HotColor =  menu::GetColor(&GlobalState->ColorTable, "rich black");
+  ImguiPlainButton(ImguiContext, Data->ImguiID, ButtonBackgroundRect, ButtonColor);
+  if(ImguiIsActive(Data->ImguiID) && ImguiIsHot(Data->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
+  {
+    Data->Open = !Data->Open;
+  }
+
+  rect2f TextRect = Rect2f(ButtonBackgroundRect.X, ButtonBackgroundRect.Y, ButtonBackgroundRect.W, ButtonBackgroundRect.H);
+  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+  v2 TextPos = V2(ButtonBackgroundRect.X, ButtonBackgroundRect.Y + DescentOffset);
+  
+  c8 NumBuf[32] = {};
+  ecs::entity_id EntityID = Data->EntityID;
+  jstr::Itoa(EntityID.EntityID, 31, NumBuf);
+  r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) NumBuf).X;
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, (utf8_byte const *) NumBuf, V4(1.0,1.0,1.0,1.0));
+
+  if(Data->Open)
+  {
+    ecs::position::component* Position = GetPositionComponent(&EntityID);
+    if(Position)
     {
-      EraseFromBuffer(&TextInputBuffer->Buffer, 1);
-    }else{
-      utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
-      CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
-      EraseFromBuffer(&TempBuffer,1);
-      CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, TextInputBuffer->CaretPosition, TextInputBuffer->CharCount - TextInputBuffer->CaretPosition);
-      ClearBuffer(&TextInputBuffer->Buffer);
-      CopyBufferContent(&TempBuffer, &TextInputBuffer->Buffer);
-    }
-    TextInputBuffer->CaretPosition--;
-    TextInputBuffer->CharCount--;
-  }else if(jwin::Pushed(Input->Keyboard.Key_LEFT) && TextInputBuffer->CaretPosition > 0){
-    TextInputBuffer->CaretPosition--;
-  }else if(jwin::Pushed(Input->Keyboard.Key_RIGHT) && TextInputBuffer->CaretPosition < TextInputBuffer->CharCount){
-    TextInputBuffer->CaretPosition++;
-  }else if(jwin::Pushed(Input->Keyboard.Key_END)){
-    TextInputBuffer->CaretPosition = TextInputBuffer->CharCount;
-  }else if(jwin::Pushed(Input->Keyboard.Key_HOME)){
-    TextInputBuffer->CaretPosition = 0;
-  }else if(jwin::Pushed(Input->Keyboard.Key_ENTER) || jwin::Pushed(Input->Keyboard.Key_ESCAPE)){
-    ImguiDeselect();
-  }else{
-    utf8_string_buffer CharBuffer = CreateTempStringBuffer(32);
-    if(PushInputToBuffer(&Input->Keyboard, &CharBuffer, ENGLISH))
-    {
-      u32 CharCount = utf8_GetCharCountOfString(CharBuffer.Buffer);
-      if(TextInputBuffer->CaretPosition == TextInputBuffer->CharCount)
+      TextPos.Y -= Height;
+      ResultHeight += Height;
+      world_coordinate Pos = Position->FirstChild->RelativePosition;
+      TextPos.X += ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) NumBuf).X + 0.01;
+      TextRect = Rect2f(TextPos.X, TextPos.Y, (ClipArea.X + ClipArea.W) - TextPos.X, Height);
+      u32 idx = 0;
+      c8 NumBuf1[32] = {};
+      c8* Scan = NumBuf1;
+      if(Pos.X >= 0)
       {
-        CopyBufferContent(&CharBuffer, &TextInputBuffer->Buffer);
-      }else{
-        utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
-        CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
-        CopyBufferContent(&CharBuffer, &TempBuffer);
-        CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, TextInputBuffer->CaretPosition, TextInputBuffer->CharCount - TextInputBuffer->CaretPosition);
-        ClearBuffer(&TextInputBuffer->Buffer);
-        CopyBufferContent(&TempBuffer, &TextInputBuffer->Buffer);
+        *Scan++ = ' ';  
       }
-      TextInputBuffer->CaretPosition += CharCount;
-      TextInputBuffer->CharCount += CharCount;
+      Scan += jstr::Ftoa( Pos.X, 2, 255, Scan);
+      *Scan++ = ' ';
+      if(Pos.Y >= 0)
+      {
+        *Scan++ = ' ';  
+      }
+      Scan += jstr::Ftoa( Pos.Y, 2, 255, Scan);
+      *Scan++ = ' ';
+      if(Pos.Z >= 0)
+      {
+        *Scan++ = ' ';
+      }
+      Scan += jstr::Ftoa( Pos.Z, 2, 255, Scan);
+
+      ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, (utf8_byte const *) NumBuf1, V4(1.0,1.0,1.0,1.0));
     }
-  }
-}
-
-b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth)
-{
-  rect2f DialogRect = Rect2f(DialogPos.X, DialogPos.Y, TextWidth.X, TextWidth.Y);
-  b32 Result = ImguiSelectabeRegion(&G_ImguiContext, DialogID, DialogRect);
-
-  s32 InputLen = 512;
-
-  v4 Color = menu::GetColor(&GlobalState->ColorTable, "bole");
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), 14);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(DialogRect), Color);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(DialogPos.X, DialogPos.Y +DescentOffset), 14, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
-
-  if(ImguiIsSelected(DialogID))
-  {
-    utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
-    CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
-    v2 TextSizeToCaret = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), 14, TempBuffer.Buffer);
-    r32 CaretWidth = ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1);
-    rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), 14));
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(CaretBox), V4(1,1,1,1));  
   }
   
-  return Result;
+  return ResultHeight;
+}
+
+struct list_map_pair {
+  rb_tree* MapToCheckAgainst;
+  chunk_list* ResultList;
+  memory_arena* Arena;
+};
+
+void PopulateWithDataNotInMap(red_black_tree_node const * MenuEntryNode, void* ListMapPairPtr) 
+{
+  list_map_pair* ListMapPair = (list_map_pair*) ListMapPairPtr;
+  rb_tree* MapToCheckAgainst = (rb_tree*) ListMapPair->MapToCheckAgainst;
+  chunk_list* ResultList = ListMapPair->ResultList;
+  memory_arena* Arena = ListMapPair->Arena;
+  midx Key = MenuEntryNode->Key;
+  if(Find(MapToCheckAgainst, Key) == 0)
+  {
+    Push(Arena, ResultList, (bptr) MenuEntryNode->Data->Data);
+  }
+}
+
+void UpdateListWithEntities(chunk_list* MenuEntityList)
+{
+  // Insert all current real entities into a search tree
+  u32 EntityCount = GetEntityManager()->EntityList.BlockCount;
+  u32 MenuEntityCount = MenuEntityList->BlockCount;
+  chunk_list ItemsToRemove = NewChunkList(GlobalTransientArena, sizeof(jimgui_entity_data*), EntityCount);
+  chunk_list ItemsToAdd    = NewChunkList(GlobalTransientArena, sizeof(ecs::entity*), EntityCount);
+
+  // Create Existing Menu entities search tree
+  rb_tree MenuEntitiesMap = NewRBTree(GlobalTransientArena, MenuEntityCount, MenuEntityCount);
+  {
+    u32 Index = 0;
+    chunk_list_iterator IT = BeginIterator(MenuEntityList);
+    while(jimgui_entity_data* EntityData = (jimgui_entity_data*) Next(&IT) )
+    {
+      u32 EntityID = EntityData->EntityID.EntityID;
+      Insert(&MenuEntitiesMap, EntityID, (void*) EntityData);
+    }
+  }
+
+  // Create Existing Entities search tree
+  rb_tree ExistingEntitiesMap = NewRBTree(GlobalTransientArena, EntityCount, EntityCount);
+  {
+    u32 Count = 0;
+    chunk_list_iterator IT = BeginIterator(&GetEntityManager()->EntityList);
+    while(ecs::entity* Entity = (ecs::entity*) Next(&IT))
+    {
+      u32 EntityID = Entity->ID.EntityID;
+      Insert(&ExistingEntitiesMap, (midx) EntityID, Entity);
+    }
+  }
+
+
+  // Fill ItemsToRemove with items in MenuEntitiesMap which are not in ExistingEntitiesMap. 
+  list_map_pair LMP1 = {};
+  LMP1.MapToCheckAgainst = &ExistingEntitiesMap;
+  LMP1.ResultList = &ItemsToRemove;
+  LMP1.Arena = GlobalTransientArena;
+  PostOrderTraverse(&MenuEntitiesMap.Tree,     (void*) &LMP1, PopulateWithDataNotInMap);
+
+  // Fill ItemsToAdd with items in ExistingEntitiesMap which are not in MenuEntitiesMap. 
+  list_map_pair LMP2 = {};
+  LMP2.MapToCheckAgainst = &MenuEntitiesMap;
+  LMP2.ResultList = &ItemsToAdd;
+  LMP2.Arena = GlobalTransientArena;
+  PostOrderTraverse(&ExistingEntitiesMap.Tree, (void*) &LMP2, PopulateWithDataNotInMap);
+
+  {
+    chunk_list_iterator IT = BeginIterator(&ItemsToRemove);
+    while(jimgui_entity_data* EntityData = (jimgui_entity_data*) Next(&IT))
+    {
+      FreeBlock(MenuEntityList, (bptr) EntityData);
+    }
+  }
+
+  {
+    chunk_list_iterator IT = BeginIterator(&ItemsToAdd);
+    while(ecs::entity* EntityData = (ecs::entity*) Next(&IT))
+    {
+      jimgui_entity_data Data = {};
+      Data.ImguiID = NewButtonID();
+      Data.EntityID = EntityData->ID;
+      Data.Open = 0;
+      Data.MenuBoxHeight = 0;
+      Push(GlobalPersistentArena, MenuEntityList, (bptr) &Data);
+    }
+  }
 }
 
 
+b32 ImguiEntityComponentList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 Size, chunk_list* MenuEntityList) {
 
-imgui_bordered_window ImguiBorderedWindow( rect2f Region, v2 CornerSize, r32 HeaderSize )
-{
-  imgui_bordered_window Result = {};
-  Result.LeftID = NewButtonID();
-  Result.RightID = NewButtonID();
-  Result.TopID = NewButtonID();
-  Result.BotID = NewButtonID();
-  Result.BotLeftID = NewButtonID();
-  Result.BotRightID = NewButtonID();
-  Result.TopLeftID = NewButtonID();
-  Result.TopRightID = NewButtonID();
-  Result.HeaderID = NewButtonID();
-  Result.Region = Region;
-  Result.CornerSize = CornerSize;
-  Result.HeaderSize = HeaderSize;
+  // List Background
+  rect2f BackgroundRect = Rect2f(Pos, Size);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
+
+  v2 ListContentSize = Size;
+  rect2f ListRect = Rect2f(Pos, ListContentSize);
+  b32 Result = 0;
+  v2 TopLeft = UpperLeftPoint(BackgroundRect);
+  s32 Index = 0;
+
+  UpdateListWithEntities(MenuEntityList);
+  chunk_list_iterator IT = BeginIterator(MenuEntityList);
+  while (jimgui_entity_data* Entity = (jimgui_entity_data*) Next(&IT))
+  {
+    r32 HeightOfRow = DrawEntityRow(&GlobalState->ImguiContext, TopLeft, BackgroundRect, Entity);
+    TopLeft.Y -= HeightOfRow;
+  }
   return Result;
 }
 
+void DrawEntityList() {
+  local_persist menu_entity_list* MenuEntityList = 0;
 
-void ImguiBorderWindow(imgui_bordered_window* BorderWindow)
-{
-  v2 CornerSize  = BorderWindow->CornerSize;
-  rect2f Region  = BorderWindow->Region;
-  v2 RegionPos   = V2(Region.X,Region.Y);
-  v2 RegionSize  = V2(Region.W,Region.H);
+  if(!MenuEntityList)
+  {
+    u32 IDCount  = 512;
+    u32 EntityChunkCount = 32;
+    r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), GlobalState->ImguiContext.FontSize);
+    MenuEntityList = PushStruct(GlobalPersistentArena, menu_entity_list);
+    MenuEntityList->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.1,0.5)), ecs::render::PixelToCanonicalSpace(GetRenderSystem(), V2(3,3)), RowHeight);
+    MenuEntityList->EntityList   = CreateScrollableTextList();
+    
+    MenuEntityList->EntityData = NewChunkList(GlobalPersistentArena, sizeof(jimgui_entity_data), EntityChunkCount);
+    MenuEntityList->EntityToDataMap = NewRBTree(GlobalTransientArena, EntityChunkCount, EntityChunkCount);
+  }
 
-  rect2f LeftBorder  = Rect2f(RegionPos - V2(CornerSize.X, 0), V2(CornerSize.X, Region.H));
-  rect2f RightBorder = Rect2f(RegionPos + V2(Region.W, 0),    V2(CornerSize.X, Region.H));
-  rect2f TopBorder   = Rect2f(RegionPos + V2(0, Region.H),    V2(Region.W, CornerSize.Y));
-  rect2f BotBorder   = Rect2f(RegionPos - V2(0, CornerSize.Y), V2(Region.W, CornerSize.Y));
 
-  rect2f BotLeftCorner  = Rect2f(RegionPos - CornerSize, CornerSize);
-  rect2f BotRightCorner = Rect2f(RegionPos + V2(Region.W, - CornerSize.Y), CornerSize);
-  rect2f TopLeftCorner  = Rect2f(RegionPos + V2(-CornerSize.X, Region.H), CornerSize);
-  rect2f TopRightCorner = Rect2f(RegionPos + RegionSize, CornerSize);
+  chunk_list_iterator It = BeginIterator(&GetEntityManager()->EntityList);
+  while(ecs::entity* Entity = (ecs::entity*) Next(&It))
+  {
+    ecs::entity_id* EntityID = &Entity->ID;
 
-  imgui_button_color BorderColor = {};
-  BorderColor.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "taupe");
-  BorderColor.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "sandy taupe");
-  BorderColor.ActiveColor = V4(0.098039, 0.349020, 0.019608, 1.000000);
-  BorderColor.HotColor =  menu::GetColor(&GlobalState->ColorTable, "golden brown");
+    u32 ComponentArrayCount = ecs::GetComponentCount(GetEntityManager(), EntityID);
+    u32* ComponentFlags = PushArray(GlobalTransientArena, ComponentArrayCount, u32);
+    u32 ComponentCount = ecs::GetComponentTypes(GetEntityManager(), EntityID, ComponentFlags);
+    Assert(ComponentArrayCount == ComponentCount);
+
+    for (int i = 0; i < ComponentCount; ++i)
+    {
+      switch((ecs::flag::component_type) ComponentFlags[i])
+      {
+        case ecs::flag::component_type::RENDER:
+        {
+
+        }break;
+        case ecs::flag::component_type::POSITION:
+          {
+            { // X
+              ecs::position::component* Position = GetPositionComponent(EntityID);
+              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              char* NumBuf[32] = {};
+              jstr::Ftoa( Pos.X, 2, 255, (char*) NumBuf);
+              //AppendStringToBuffer((utf8_byte*) NumBuf, &MenuEntityList->TextInputBufferX.Buffer);
+            }
+
+            { // Y
+              ecs::position::component* Position = GetPositionComponent(EntityID);
+              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              char* NumBuf[32] = {};
+              jstr::Ftoa( Pos.Y, 2, 255, (char*) NumBuf);
+              //AppendStringToBuffer((utf8_byte*) NumBuf, &MenuEntityList->TextInputBufferY.Buffer);
+            }
+
+            { // Z
+              ecs::position::component* Position = GetPositionComponent(EntityID);
+              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              char* NumBuf[32] = {};
+              jstr::Ftoa( Pos.Z, 2, 255, (char*) NumBuf);
+              //AppendStringToBuffer((utf8_byte*) NumBuf, &MenuEntityList->TextInputBufferZ.Buffer);
+            }
+
+          }break;
+      }
+    }
+  }
+
+  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(),GlobalState->ImguiContext.FontSize);
   
-  rect2f HeaderBarRect = Rect2f(Region.X, Region.Y + Region.H - BorderWindow->HeaderSize, Region.W, BorderWindow->HeaderSize);
+  v2 ScrollListPos  = V2(MenuEntityList->BorderWindow.Region.X, MenuEntityList->BorderWindow.Region.Y);
+  v2 ScrollListSize = V2(MenuEntityList->BorderWindow.Region.W, MenuEntityList->BorderWindow.Region.H - MenuEntityList->BorderWindow.HeaderSize);
 
+  ImguiBorderWindow(&MenuEntityList->BorderWindow, "Entities");
 
-  if(ImguiPlainButton(&G_ImguiContext, BorderWindow->LeftID, LeftBorder, BorderColor))
+  ImguiEntityComponentList(&MenuEntityList->EntityList, ScrollListPos, ScrollListSize, &MenuEntityList->EntityData);
+
+  if(MenuEntityList->EntityList.SelectedRow >= 0)
   {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->LeftDiff = G_ImguiContext.MouseX - LeftBorder.X;
-    }
-    r32 OldX = Region.X + Region.W;
-    Region.X = G_ImguiContext.MouseX + (LeftBorder.W - BorderWindow->LeftDiff);
-    Region.W = OldX - Region.X;
-  }
-
-  if(ImguiPlainButton(&G_ImguiContext, BorderWindow->RightID, RightBorder, BorderColor))
-  {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->RightDiff = G_ImguiContext.MouseX - RightBorder.X;
-    }
-    Region.W = G_ImguiContext.MouseX - Region.X - BorderWindow->RightDiff;
-  }
-
-  if(ImguiPlainButton(&G_ImguiContext, BorderWindow->TopID, TopBorder, BorderColor))
-  {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->TopDiff = G_ImguiContext.MouseY - TopBorder.Y;
-    }
-    Region.H = G_ImguiContext.MouseY - Region.Y - BorderWindow->TopDiff;
-  }
-
-  if(ImguiPlainButton(&G_ImguiContext, BorderWindow->BotID, BotBorder, BorderColor))
-  {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->BotDiff = G_ImguiContext.MouseY - BotBorder.Y;
-    }
-
-    r32 OldY = Region.Y + Region.H;
-    Region.Y = G_ImguiContext.MouseY + (BotBorder.H - BorderWindow->BotDiff);
-    Region.H = OldY - Region.Y;
+    jimgui_entity_data* EntityRow = (jimgui_entity_data*) GetBlockIfItExists(&MenuEntityList->EntityData, MenuEntityList->EntityList.SelectedRow); 
+    Assert(EntityRow);
+    ecs::entity_id* EntityID = &EntityRow->EntityID;
+    ecs::position::component* Position = GetPositionComponent(EntityID);
+    world_coordinate Pos = Position->FirstChild->RelativePosition;
+    Platform.DEBUGPrint("%d, (%1.2f,%1.2f,%1.2f)\n", EntityID->EntityID, Pos.X, Pos.Y, Pos.Z);
 
   }
-
-  if(ImguiPlainButton(&G_ImguiContext, BorderWindow->BotLeftID, BotLeftCorner, BorderColor))
-  {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->BotLeftDiff.X = G_ImguiContext.MouseX - BotLeftCorner.X;
-      BorderWindow->BotLeftDiff.Y = G_ImguiContext.MouseY - BotLeftCorner.Y;
-    }
-
-    r32 OldY = Region.Y + Region.H;
-    Region.Y = G_ImguiContext.MouseY + (BotBorder.H - BorderWindow->BotLeftDiff.Y);
-    Region.H = OldY - Region.Y;
-
-    r32 OldX = Region.X + Region.W;
-    Region.X = G_ImguiContext.MouseX + (LeftBorder.W - BorderWindow->BotLeftDiff.X);
-    Region.W = OldX - Region.X;
-  }
-
-
-  if(ImguiPlainButton(&G_ImguiContext, BorderWindow->BotRightID, BotRightCorner, BorderColor))
-  {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->BotRightDiff.X = G_ImguiContext.MouseX - BotRightCorner.X;
-      BorderWindow->BotRightDiff.Y = G_ImguiContext.MouseY - BotRightCorner.Y;
-    }
-
-    r32 OldY = Region.Y + Region.H;
-    Region.Y = G_ImguiContext.MouseY + (BotBorder.H - BorderWindow->BotRightDiff.Y);
-    Region.H = OldY - Region.Y;
-
-    Region.W = G_ImguiContext.MouseX - Region.X - BorderWindow->BotRightDiff.X;
-  }
-
-  if(ImguiPlainButton(&G_ImguiContext, BorderWindow->TopLeftID, TopLeftCorner, BorderColor))
-  {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->TopLeftDiff.X = G_ImguiContext.MouseX - TopLeftCorner.X;
-      BorderWindow->TopLeftDiff.Y = G_ImguiContext.MouseY - TopLeftCorner.Y;
-    }
-
-    Region.H = G_ImguiContext.MouseY - Region.Y - BorderWindow->TopLeftDiff.Y;
-
-    r32 OldX = Region.X + Region.W;
-    Region.X = G_ImguiContext.MouseX + (LeftBorder.W - BorderWindow->TopLeftDiff.X);
-    Region.W = OldX - Region.X;
-  }
-
-  if(ImguiPlainButton(&G_ImguiContext, BorderWindow->TopRightID, TopRightCorner, BorderColor))
-  {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->TopRightDiff.X = G_ImguiContext.MouseX - TopRightCorner.X;
-      BorderWindow->TopRightDiff.Y = G_ImguiContext.MouseY - TopRightCorner.Y;
-    }
-    Region.H = G_ImguiContext.MouseY - Region.Y - BorderWindow->TopRightDiff.Y;
-    Region.W = G_ImguiContext.MouseX - Region.X - BorderWindow->TopRightDiff.X;
-  }
-
-
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), G_ImguiContext.FontSize);
-  r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), G_ImguiContext.FontSize, (utf8_byte*) "Colors").X;
-  v2 TextOrigin = V2(HeaderBarRect.X + (HeaderBarRect.W - TextWidth) * 0.5f, HeaderBarRect.Y + DescentOffset);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextOrigin, HeaderBarRect, G_ImguiContext.FontSize, (utf8_byte *) "Colors", V4(1.0,1.0,1.0,1.0));  
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(HeaderBarRect), menu::GetColor(&GlobalState->ColorTable, "seal brown"));
-  if(ImguiButton(&G_ImguiContext, BorderWindow->HeaderID, HeaderBarRect))
-  {
-    if(G_ImguiContext.ActiveID.idEdge)
-    {
-      BorderWindow->HeaderDiff = V2(G_ImguiContext.MouseX - Region.X, G_ImguiContext.MouseY - Region.Y);
-    }
-    Region.X = G_ImguiContext.MouseX - BorderWindow->HeaderDiff.X; 
-    Region.Y = G_ImguiContext.MouseY - BorderWindow->HeaderDiff.Y;
-  }
-
-  BorderWindow->Region = Region;
-}
-
-imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer)
-{
-  imgui_text_input_buffer Result = {};
-  Result.ID = NewButtonID();
-  Result.Buffer = Utf8StringBuffer(InputLen, InputBuffer);
-  Result.CaretPosition = 0;
-  Result.CharCount = 0;
-  return Result;
 }
 
 void DrawColorList() {
 
   u32 InputLen = 512;
   u32 ColorCount = GlobalState->ColorTable.ColorCount;
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(),G_ImguiContext.FontSize);
+  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), GlobalState->ImguiContext.FontSize);
 
   local_persist color_list_data* ColorListData = 0;
 
@@ -2231,8 +1598,13 @@ void DrawColorList() {
   }
 
   imgui_bordered_window* BorderWindow = &ColorListData->BorderWindow;
-  v2 FilterBarDialogPos  = V2(BorderWindow->Region.X, BorderWindow->Region.Y);
-  v2 FilterBarDialogSize = V2(BorderWindow->Region.W, RowHeight);
+
+  v2 SearchIconPos = V2(BorderWindow->Region.X, BorderWindow->Region.Y);
+  v2 SearchIconSize = V2(RowHeight, RowHeight);
+  //ecs::render::DrawTexturedOverlayQuadCanonicalSpace()
+
+  v2 FilterBarDialogPos  = V2(BorderWindow->Region.X + RowHeight, BorderWindow->Region.Y);
+  v2 FilterBarDialogSize = V2(BorderWindow->Region.W - RowHeight, RowHeight);
   if(ImguiTextDialog(&ColorListData->TextInputBuffer, ColorListData->TextInputBuffer.ID, FilterBarDialogPos, FilterBarDialogSize))
   {
     if(ImguiIsSelected(ColorListData->TextInputBuffer.ID))
@@ -2244,11 +1616,11 @@ void DrawColorList() {
   v2 ScrollListPos  = V2(BorderWindow->Region.X, BorderWindow->Region.Y + RowHeight);
   v2 ScrollListSize = V2(BorderWindow->Region.W, BorderWindow->Region.H - 2* RowHeight);
   
-  ImguiBorderWindow(BorderWindow);
+  ImguiBorderWindow(BorderWindow, "Colors");
 
-  if(ImguiScrollableButtonList(&ColorListData->ColorList, ScrollListPos, ScrollListSize, RowCount, RowHeight, ImguiIDs, (void*) ColorListData, DrawRow))
+  if(ImguiScrollableButtonList(&ColorListData->ColorList, ScrollListPos, ScrollListSize, RowCount, RowHeight, ImguiIDs, (void*) ColorListData, DrawColorRow))
   {
-    if(G_ImguiContext.ActiveID.idEdge)
+    if(GlobalState->ImguiContext.ActiveID.idEdge)
     {
       menu::named_color_hex* NamedColor = menu::GetNamedColor(&GlobalState->ColorTable, ColorListData->ColorIDs[ColorListData->ColorList.SelectedRow] );
       v4 Color =  HexCodeToColorV4(NamedColor->Color);
@@ -2259,14 +1631,15 @@ void DrawColorList() {
   }
 }
 
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
   GlobalState = JwinBeginFrameMemory(application_state);
   GlobalInput = Input;
+  GlobalImguiContext = &GlobalState->ImguiContext;
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
-  
   ImguiBegin(Input);
   g_t = Input->Time;
   if(!GlobalState->Initialized)
@@ -2295,6 +1668,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->GaussianProgramY = CreateGaussianBlurProgramY(RenderGroup);
     GlobalState->FontRenterProgram =  CreateFontProgram(RenderGroup);
     GlobalState->ColoredSquareOverlayProgram = CreateColoredSquareOverlayProgram(RenderGroup);
+//    GlobalState->TexturedSquareOverlayProgram = CreateTexturedSquareOverlayProgram(RenderGroup);
 
 
     GlobalState->Cube = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cube));
@@ -2304,7 +1678,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Cylinder = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cylinder));
     GlobalState->Triangle = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, triangle));
     GlobalState->Billboard = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena,  billboard));
-    GlobalState->BlitPlane =  PushPlitPlaneMesh(RenderGroup);
+    GlobalState->BlitPlane =  PushBlitPlaneMesh(RenderGroup);
+
+    //GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
 
     obj_bitmap* BrickWallTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\brick_wall_base.tga");
     obj_bitmap* FadedRayTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\faded_ray.tga");
@@ -2517,22 +1893,26 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneVertex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\StarPlaneFragment.glsl"));
     CompileShader(RenderGroup,GlobalState->SolidColorProgram,
-     1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
-     1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"));
+      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidColorFragment.glsl"));
     CompileShader(RenderGroup,GlobalState->EruptionBandProgram,
-     1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
-     1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"));
+      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\EruptionBandFragment.glsl"));
     CompileShader(RenderGroup,GlobalState->TransparentCompositionProgram,
-    1, GetTransparentCompositionVertexCode(),
-    1, GetTransparentCompositionFragmentCode());
+      1, LoadFileFromDisk("..\\jwin\\shaders\\transparent_composition_vertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\transparent_composition_fragment.glsl"));
     CompileShader(RenderGroup, GlobalState->ColoredSquareOverlayProgram, 
-    1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadVertex.glsl"),
-    1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadFragment.glsl"));
+      1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\ColoredOverlayQuadFragment.glsl"));
     CompileShader(RenderGroup, GlobalState->FontRenterProgram, 
-     1, LoadFileFromDisk("..\\jwin\\shaders\\FontRenderVertex.glsl"),
-     1, LoadFileFromDisk("..\\jwin\\shaders\\FontRenderFragment.glsl"));
-    CompileShader(RenderGroup, GlobalState->GaussianProgramY, 1, getGaussianVertexCodeY(), 1, getGaussianFragmentCodeY());
-    CompileShader(RenderGroup, GlobalState->GaussianProgramX, 1, getGaussianVertexCodeX(), 1, getGaussianFragmentCodeX());
+      1, LoadFileFromDisk("..\\jwin\\shaders\\FontRenderVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\FontRenderFragment.glsl"));
+    CompileShader(RenderGroup, GlobalState->GaussianProgramY, 
+      1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_vertex_y.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_fragment_y.glsl"));
+    CompileShader(RenderGroup, GlobalState->GaussianProgramX,
+      1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_vertex_x.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\gaussian_fragment_x.glsl"));
 
   }
 
@@ -2542,9 +1922,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(&GlobalState->Camera);
 
-  DrawColorList();
-
-  ImguiEnd();
+  
 #if 0
   UpdateAndRenderMenuInterface(Input, GetMenuInterface());
 
@@ -2557,5 +1935,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ecs::render::SetDrawWindow(GetRenderSystem(), Rect2f(0,0,1,1));
   ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
 #endif
+  ecs::render::NewRenderLevel(GetRenderSystem());
+  DrawColorList();
+  ecs::render::NewRenderLevel(GetRenderSystem());
+  DrawEntityList();
+  ImguiEnd();
   ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
 } 
