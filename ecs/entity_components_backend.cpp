@@ -18,12 +18,16 @@ struct entity_component_link
 //  entity_component_link* NextOfSameType;
 };
 
+#define MAX_ENTITY_NAME_LENGTH 64
+
 struct entity
 {
   entity_id ID; // ID starts at 1. Index is ID-1
   u32 ChunkListIndex;
   bitmask32 ComponentFlags;
   entity_component_link* FirstComponentLink; // Points us to the associated components in the component list.
+
+  c8 Name[MAX_ENTITY_NAME_LENGTH];
 };
 
 struct component_head
@@ -284,19 +288,24 @@ component_list CreateComponentList(memory_arena* Arena, bitmask32 TypeFlag, bitm
 
 // Functions in header
 
-entity_id NewEntity( entity_manager* EM )
+entity_id NewEntity( entity_manager* EM, const c8* Name )
 {
   u32 ListIndex = 0;
   entity* NewEntity = (entity*) GetNewBlock(&EM->Arena, &EM->EntityList, &ListIndex);
   NewEntity->ID.EntityID = EM->EntityIdCounter++;
   NewEntity->ID.ChunkListIndex = ListIndex;
+  
+
+  u32 NameLength = jstr::StringLength(Name);
+  Assert(NameLength < MAX_ENTITY_NAME_LENGTH);
+  jstr::CopyStrings( NameLength, Name, MAX_ENTITY_NAME_LENGTH, NewEntity->Name);
 
   return NewEntity->ID;
 }
 
-entity_id NewEntity( entity_manager* EM, bitmask32 ComponentFlags)
+entity_id NewEntity( entity_manager* EM, const c8* Name, bitmask32 ComponentFlags)
 {
-  entity_id Result = NewEntity(EM);
+  entity_id Result = NewEntity(EM, Name);
   NewComponents(EM, &Result, ComponentFlags);
   return Result;
 }
@@ -310,6 +319,11 @@ void NewComponents(entity_manager* EM, entity_id* EntityID, u32 ComponentFlags)
   bitmask32 NewComponentFlags = (~Entity->ComponentFlags) & TotalRequirements;
 
   CreateAndInsertNewComponents(EM, Entity, NewComponentFlags);
+}
+
+const c8* GetName(entity_manager* EM, entity_id* EntityID){
+  entity* Entity = GetEntityFromID(EM, EntityID);
+  return Entity->Name;
 }
 
 u32 GetComponentCount(entity_manager* EM, entity_id* EntityID)

@@ -55,9 +55,11 @@ entity_manager* CreateEntityManager(u32 EntityChunkCount, u32 EntityMapChunkCoun
 
 
 // Create Entities and Components
-entity_id NewEntity( entity_manager* EM );
-entity_id NewEntity( entity_manager* EM, bitmask32 ComponentFlags);
+entity_id NewEntity( entity_manager* EM, const c8* Name );
+entity_id NewEntity( entity_manager* EM, const c8* Name, bitmask32 ComponentFlags);
 void NewComponents(entity_manager* EM, entity_id* EntityID, bitmask32 ComponentFlags);
+
+const c8* GetName(entity_manager* EM, entity_id* EntityID);
 
 // TODO: Add Unit tests
 inline b32 IsValid(entity_id* EntityID)

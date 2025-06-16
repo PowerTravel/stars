@@ -110,7 +110,7 @@ void RunUnitTestsA(memory_arena* Arena)
     
     for(u32 i = 0; i<ComponentCountA; i++)
     {
-      entity_id EntityID = NewEntity( EntityManager );
+      entity_id EntityID = NewEntity( EntityManager, "" );
       NewComponents(EntityManager, &EntityID, TEST_COMPONENT_FLAG_A);
       test_component_a* A = (test_component_a*) GetComponent(EntityManager, &EntityID, TEST_COMPONENT_FLAG_A);
       EntityIDs[i] = EntityID;
@@ -194,7 +194,7 @@ void RunUnitTestsA(memory_arena* Arena)
     //                               
     //                               e
     AssertComponentCounts(EntityManager,9,9,0,0,0,0);
-    Entity10 = NewEntity( EntityManager );
+    Entity10 = NewEntity( EntityManager, "" );
     NewComponents(EntityManager, &Entity10, TEST_COMPONENT_FLAG_E);
     AssertComponentCounts(EntityManager,10,10,0,1,0,1);
     test_component_a* A =  (test_component_a*) GetComponent(EntityManager, &Entity10, TEST_COMPONENT_FLAG_A);
@@ -270,7 +270,7 @@ void RunUnitTestsA(memory_arena* Arena)
 
     {
       // Adding new entity with component b
-      entity_id Entity11 = NewEntity( EntityManager );
+      entity_id Entity11 = NewEntity( EntityManager, "" );
       Assert(Entity11.EntityID == 11);
       NewComponents(EntityManager, &Entity11, TEST_COMPONENT_FLAG_B);
       AssertComponentCounts(EntityManager,11,10,2,1,1,1);
@@ -431,7 +431,7 @@ void RunUnitTestsA(memory_arena* Arena)
       //                c                 
       //                                d
       //                e
-      entity_id Entity = NewEntity(EntityManager, TEST_COMPONENT_FLAG_E);
+      entity_id Entity = NewEntity(EntityManager, "", TEST_COMPONENT_FLAG_E);
       Assert(Entity.EntityID == 12);
       Assert(Entity.ChunkListIndex == 1);
       Assert(GetComponent(EntityManager, &Entity, TEST_COMPONENT_FLAG_A) != 0);

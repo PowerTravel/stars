@@ -162,6 +162,8 @@ struct imgui_scrollable_list {
 };
 
 imgui_scrollable_list CreateScrollableTextList();
+b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 Size, u32 RowCount, r32 RowHeight, imgui_id* RowIDs, void* Data, 
+  void (RowRenderFunction)(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data));
 
 
 struct imgui_text_input_buffer {
@@ -213,6 +215,8 @@ struct imgui_button_color {
 };
 
 imgui_button_color ImguiDefaultButtonColor();
+v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors);
 b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect);
 b32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor);
 u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx);
+b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect);

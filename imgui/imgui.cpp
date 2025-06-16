@@ -1,5 +1,6 @@
 #include "commons/string.h"
 #include "imgui.h"
+#include "platform/jwin_platform_memory.h"
 
 inline v4 PositionToCoordinate(u32 X, u32 Y, u32 IconSizePx, u32 AtlasSizePx) {
   r32 X0 = (X * IconSizePx);
@@ -52,6 +53,143 @@ imgui_scrollable_list CreateScrollableTextList()
   Result.SelectedRow = -1;
   return Result;
 }
+
+r32 MouseScroll(u32 RowCount, r32 RowHeight)
+{
+  r32 Result = 0;
+  if(GlobalState->ImguiContext.MouseDZ)
+  {
+    r32 ScrollTick = 1/20.f;
+    r32 TotalListSize = RowHeight * RowCount;
+    r32 ScrollTickPercentage = ScrollTick / TotalListSize;
+    Result = (GlobalState->ImguiContext.MouseDZ > 0) ? -ScrollTickPercentage : ScrollTickPercentage; 
+  }
+  return Result;
+}
+
+r32 GetScrollWheelSize(r32 ListHeight, r32 RowHeight, u32 RowCount, r32 Min, r32 Max)
+{
+  r32 LinesToFit = ListHeight / RowHeight;
+  r32 SizePercentage = LinesToFit / RowCount;
+  r32 Result = Clamp(ListHeight * SizePercentage, Min, Max);
+  return Result;
+}
+
+b32 ImguiScrollBarVertical(imgui_scrollable_list* List, rect2f ListRegion, r32 ScrollbarWidth, r32 RowHeight, r32 RowCount)
+{
+  rect2f ScrollbarRect = Rect2f(ListRegion.X + ListRegion.W - ScrollbarWidth, ListRegion.Y, ScrollbarWidth, ListRegion.H);
+  v2 ScrollButtonSize = V2(ScrollbarWidth, GetScrollWheelSize(ListRegion.H, RowHeight, RowCount, 0.03f, ListRegion.H));
+
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollbarRect), V4(0.5,0.5,0.5,1.0));
+  ImguiButton(&GlobalState->ImguiContext, List->VerticalScrollbarId, ScrollbarRect);
+
+  v2 Padding =  V2(ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1),
+                   ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1));
+  
+  r32 ScrollWheelPosY = Lerp(List->ScrollAmmount.Y, ScrollbarRect.Y + ScrollbarRect.H - ScrollButtonSize.Y, ScrollbarRect.Y);
+  rect2f ScrollWheelRect = Rect2f(ScrollbarRect.X, ScrollWheelPosY, ScrollButtonSize.X, ScrollButtonSize.Y);
+  ScrollWheelRect = Shrink(ScrollWheelRect, Padding);
+  
+  imgui_button_color ButtonColor = ImguiDefaultButtonColor();
+  
+  if(!ImguiIsHot(List->VerticalScrollbarId))
+  {
+    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollWheelRect), ButtonColor.InactiveColor);
+  }else{
+    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollWheelRect), ButtonColor.HotColor);
+  }
+  
+  v2 MousePos = V2(GlobalState->ImguiContext.MouseX,GlobalState->ImguiContext.MouseY);
+  if(ImguiIsActive(List->VerticalScrollbarId)) {
+    // Mouse is clickedUp on the scrollbarButton, Cache the mouseDiff.
+    if(GlobalState->ImguiContext.ActiveID.idEdge)
+    {
+      if(Intersects(ScrollWheelRect, MousePos))
+      {
+        List->ScrollButtonDiff.Y = MousePos.Y - (ScrollbarRect.Y + (1-List->ScrollAmmount.Y) * (ScrollbarRect.H - ScrollButtonSize.Y));  
+      }else{
+        List->ScrollButtonDiff.Y = ScrollButtonSize.Y*0.5f;
+      }
+    }else{
+      r32 A = ScrollbarRect.Y + List->ScrollButtonDiff.Y;
+      r32 B = ScrollbarRect.Y + ScrollbarRect.H - (ScrollButtonSize.Y-List->ScrollButtonDiff.Y);
+      List->ScrollAmmount.Y = Unlerp(MousePos.Y, B, A);
+    }
+  }else{
+    if(Intersects(ListRegion,MousePos))
+    {
+      List->ScrollAmmount.Y += MouseScroll(RowCount, RowHeight);
+    }  
+  }
+  List->ScrollAmmount.Y = Clamp(List->ScrollAmmount.Y, 0,1);
+
+  return ImguiIsActive(List->VerticalScrollbarId);
+}
+
+rect2f GetRowRect(rect2f ListRect, s32 Index, r32 FirstRow, r32 RowHeight)
+{
+  s32 FirstIndex = (s32) Floor(FirstRow);
+  r32 RowOffset = (FirstRow - FirstIndex) * RowHeight;
+
+  v2 RowSize = V2(ListRect.W, RowHeight);
+
+  r32 ListBot =  ListRect.Y;
+  r32 ListTop =  ListRect.Y + ListRect.H;
+
+  r32 RowYPos = -(Index+1) * RowHeight + ListTop + RowOffset;
+  v2 RowPos = V2(ListRect.X, RowYPos);
+  return Rect2f(RowPos,RowSize);
+}
+
+
+
+
+b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 Size, u32 RowCount, r32 RowHeight, imgui_id* RowIDs, void* Data, void (RowRenderFunction)(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)) {
+
+  // List Background
+  rect2f BackgroundRect = Rect2f(Pos, Size);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
+
+  r32 LinesToFit = Size.Y / RowHeight;
+  v2 ListContentSize = Size;
+  r32 StartRow = 0;
+  if(LinesToFit < RowCount){
+    r32 ScrollbarWidth = 0.01;
+    ImguiScrollBarVertical(ScrollableList, BackgroundRect, ScrollbarWidth, RowHeight, RowCount);
+    ListContentSize.X -= ScrollbarWidth;
+    StartRow = ScrollableList->ScrollAmmount.Y * (RowCount - LinesToFit);
+  }
+
+  s32 StartIndex = (s32) Floor(StartRow);
+
+  rect2f ListRect = Rect2f(Pos, ListContentSize);
+  b32 Result = 0;
+  for (s32 i = 0; i<=LinesToFit; ++i)
+  {
+    s32 Index = StartIndex + i;
+    if(Index < RowCount)
+    {
+      rect2f RowRect = GetRowRect(ListRect, i, StartRow, RowHeight);
+      rect2f ClippedRow = RowRect;
+      if(Top(RowRect) > Top(ListRect) || Bot(RowRect) < Bot(ListRect)){
+        ClippedRow = Clip(RowRect, Rect2f(Pos, ListContentSize));  
+      }
+
+      if(ImguiButton(&GlobalState->ImguiContext, RowIDs[Index], ClippedRow))
+      {
+        Result = true;    
+      }
+      RowRenderFunction(&GlobalState->ImguiContext, RowIDs[Index],  RowRect, ClippedRow, Index, Data);
+      if(ImguiIsActive(RowIDs[Index]))
+      {
+        ScrollableList->SelectedRow = Index;
+      }
+    }
+  }
+  return Result;
+}
+
+
 
 
 imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer)
@@ -334,6 +472,21 @@ imgui_button_color ImguiDefaultButtonColor()
   return Result;
 }
 
+v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors){
+  v4 Color = ButtonColors.InactiveColor;
+  if(ImguiIsHot(ButtonId) && ImguiIsActive(ButtonId)) {
+    // Button is Highlighted and pressed
+    Color = ButtonColors.ActiveAndHotColor;
+  }else if(ImguiIsActive(ButtonId)){
+    // Button is Pressed
+    Color = ButtonColors.ActiveColor;
+  }else if(ImguiIsHot(ButtonId)){
+    // Button is only highlighted
+    Color = ButtonColors.HotColor;
+  }
+  return Color;
+}
+
 b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect)
 {
   if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
@@ -461,3 +614,4 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   
   return ImguiIsActive(Id);
 }
+

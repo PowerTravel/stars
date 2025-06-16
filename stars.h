@@ -10,6 +10,7 @@
 #include "menu/menu_interface.h"
 #include "menu/color_table.h"
 #include "imgui/imgui.h"
+#include "imgui/application_imgui.h"
 typedef void(*func_ptr_void)(void);
 
 #define DEBUGPrintRect(Rect) Platform.DEBUGPrint("%1.2f,%1.2f,%1.2f,%1.2f\n",(Rect).X, (Rect).Y ,(Rect).W, (Rect).H);
@@ -104,6 +105,7 @@ struct application_state
   container_node* EntitiesPlugin;
 
   imgui_context ImguiContext;
+  application_imgui ApplicationImgui;
 };
 
 debug_application_render_commands* GlobalDebugRenderCommands = 0;

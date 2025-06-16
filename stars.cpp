@@ -23,6 +23,7 @@
 #include "ecs/systems/system_render.cpp"
 #include "menu/menu_interface.cpp"
 #include "imgui/imgui.cpp"
+#include "imgui/application_imgui.cpp"
 
 #include "utils.h"
 
@@ -940,9 +941,9 @@ void Clear(entity_buffer* EntityBuffer)
   Clear(&EntityBuffer->RemovedEntities);
 }
 
-ecs::entity_id NewEntity(bitmask32 ComponentFlags)
+ecs::entity_id NewEntity(bitmask32 ComponentFlags, const c8* Name)
 {
-  ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, ComponentFlags);
+  ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, Name, ComponentFlags);
   entity_buffer* EntityBuffer = &GlobalState->NewOrRemovedEntityBuffer;
   Push(EntityBuffer->Arena, &EntityBuffer->NewEntities, (bptr) &Entity);
   return Entity;
@@ -1078,576 +1079,6 @@ void AddOrRemoveMenuEntityItems()
 }
 
 
-r32 GetScrollWheelSize(r32 ListHeight, r32 RowHeight, u32 RowCount, r32 Min, r32 Max)
-{
-  r32 LinesToFit = ListHeight / RowHeight;
-  r32 SizePercentage = LinesToFit / RowCount;
-  r32 Result = Clamp(ListHeight * SizePercentage, Min, Max);
-  return Result;
-}
-
-rect2f GetRowRect(rect2f ListRect, s32 Index, r32 FirstRow, r32 RowHeight)
-{
-  s32 FirstIndex = (s32) Floor(FirstRow);
-  r32 RowOffset = (FirstRow - FirstIndex) * RowHeight;
-
-  v2 RowSize = V2(ListRect.W, RowHeight);
-
-  r32 ListBot =  ListRect.Y;
-  r32 ListTop =  ListRect.Y + ListRect.H;
-
-  r32 RowYPos = -(Index+1) * RowHeight + ListTop + RowOffset;
-  v2 RowPos = V2(ListRect.X, RowYPos);
-  return Rect2f(RowPos,RowSize);
-}
-
-v4 GetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors){
-  v4 Color = ButtonColors.InactiveColor;
-  if(ImguiIsHot(ButtonId) && ImguiIsActive(ButtonId)) {
-    // Button is Highlighted and pressed
-    Color = ButtonColors.ActiveAndHotColor;
-  }else if(ImguiIsActive(ButtonId)){
-    // Button is Pressed
-    Color = ButtonColors.ActiveColor;
-  }else if(ImguiIsHot(ButtonId)){
-    // Button is only highlighted
-    Color = ButtonColors.HotColor;
-  }
-  return Color;
-}
-
-struct color_list_data {
-  imgui_id* ImguiIDs; // ColorListIndeces
-  s32* ColorIDs;      // Mapping IDS from Colors in the ColorTable to list indeces.
-
-  imgui_text_input_buffer TextInputBuffer;
-  imgui_scrollable_list ColorList;
-  imgui_bordered_window BorderWindow;
-};
-
-void DrawColorRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
-{
-  color_list_data* ColorListData = (color_list_data*) Data;
-  umm ColorIndex = (umm) ColorListData->ColorIDs[ListIndex];
-  menu::named_color_hex* NamedColor = menu::GetNamedColor(&GlobalState->ColorTable, (umm) ColorIndex);
-  char* ColorName = NamedColor->Name;
-  v4 ColorValue   = HexCodeToColorV4(NamedColor->Color);
-
-  v2 Padding = V2(ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1),ecs::render::PixelToCanonicalHeight(GetRenderSystem(),1));
-
-  r32 RowWidth = RowRect.W;
-  r32 ColorSquareWidth = RowRect.H;
-  r32 TextWidth = RowRect.W - ColorSquareWidth;
-
-  if(ImguiIsHot(ButtonID) && ImguiIsInactive() && RowRect.H == ClippedRowRect.H){
-    r32 TextWidthTmp = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte*) ColorName).X;
-    if(TextWidthTmp > TextWidth)
-    {
-      TextWidth = TextWidthTmp + 2*Padding.X;
-      RowWidth = TextWidthTmp + ColorSquareWidth + 2*Padding.X;
-    }
-  }
-
-  // Button Background
-  v4 ButtonColor = GetButtonColor(ButtonID, ImguiDefaultButtonColor());
-  rect2f ButtonBackgroundRect = Rect2f(ClippedRowRect.X, ClippedRowRect.Y, RowWidth, ClippedRowRect.H);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ButtonBackgroundRect), ButtonColor);
-
-  // Colored Square
-  rect2f ColorSquare = Rect2f(ClippedRowRect.X, ClippedRowRect.Y, ColorSquareWidth, ClippedRowRect.H);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(Shrink(ColorSquare,Padding)), ColorValue);
-
-  // Color Name
-  rect2f TextRect = Rect2f(RowRect.X + ColorSquareWidth, ClippedRowRect.Y, TextWidth, ClippedRowRect.H);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
-  v2 TextPos = V2(RowRect.X + ColorSquareWidth, RowRect.Y + DescentOffset);
-  utf8_string_buffer StringBuffer = SetStringToFit(ImguiContext->FontSize, TextWidth, ColorName);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
-}
-
-r32 MouseScroll(u32 RowCount, r32 RowHeight)
-{
-  r32 Result = 0;
-  if(GlobalState->ImguiContext.MouseDZ)
-  {
-    r32 ScrollTick = 1/20.f;
-    r32 TotalListSize = RowHeight * RowCount;
-    r32 ScrollTickPercentage = ScrollTick / TotalListSize;
-    Result = (GlobalState->ImguiContext.MouseDZ > 0) ? -ScrollTickPercentage : ScrollTickPercentage; 
-  }
-  return Result;
-}
-
-b32 ImguiScrollBarVertical(imgui_scrollable_list* List, rect2f ListRegion, r32 ScrollbarWidth, r32 RowHeight, r32 RowCount)
-{
-  rect2f ScrollbarRect = Rect2f(ListRegion.X + ListRegion.W - ScrollbarWidth, ListRegion.Y, ScrollbarWidth, ListRegion.H);
-  v2 ScrollButtonSize = V2(ScrollbarWidth, GetScrollWheelSize(ListRegion.H, RowHeight, RowCount, 0.03f, ListRegion.H));
-
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollbarRect), V4(0.5,0.5,0.5,1.0));
-  ImguiButton(&GlobalState->ImguiContext, List->VerticalScrollbarId, ScrollbarRect);
-
-  v2 Padding =  V2(ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1),
-                   ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1));
-  
-  r32 ScrollWheelPosY = Lerp(List->ScrollAmmount.Y, ScrollbarRect.Y + ScrollbarRect.H - ScrollButtonSize.Y, ScrollbarRect.Y);
-  rect2f ScrollWheelRect = Rect2f(ScrollbarRect.X, ScrollWheelPosY, ScrollButtonSize.X, ScrollButtonSize.Y);
-  ScrollWheelRect = Shrink(ScrollWheelRect, Padding);
-  
-  imgui_button_color ButtonColor = ImguiDefaultButtonColor();
-  
-  if(!ImguiIsHot(List->VerticalScrollbarId))
-  {
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollWheelRect), ButtonColor.InactiveColor);
-  }else{
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollWheelRect), ButtonColor.HotColor);
-  }
-  
-  v2 MousePos = V2(GlobalState->ImguiContext.MouseX,GlobalState->ImguiContext.MouseY);
-  if(ImguiIsActive(List->VerticalScrollbarId)) {
-    // Mouse is clickedUp on the scrollbarButton, Cache the mouseDiff.
-    if(GlobalState->ImguiContext.ActiveID.idEdge)
-    {
-      if(Intersects(ScrollWheelRect, MousePos))
-      {
-        List->ScrollButtonDiff.Y = MousePos.Y - (ScrollbarRect.Y + (1-List->ScrollAmmount.Y) * (ScrollbarRect.H - ScrollButtonSize.Y));  
-      }else{
-        List->ScrollButtonDiff.Y = ScrollButtonSize.Y*0.5f;
-      }
-    }else{
-      r32 A = ScrollbarRect.Y + List->ScrollButtonDiff.Y;
-      r32 B = ScrollbarRect.Y + ScrollbarRect.H - (ScrollButtonSize.Y-List->ScrollButtonDiff.Y);
-      List->ScrollAmmount.Y = Unlerp(MousePos.Y, B, A);
-    }
-  }else{
-    if(Intersects(ListRegion,MousePos))
-    {
-      List->ScrollAmmount.Y += MouseScroll(RowCount, RowHeight);
-    }  
-  }
-  List->ScrollAmmount.Y = Clamp(List->ScrollAmmount.Y, 0,1);
-
-  return ImguiIsActive(List->VerticalScrollbarId);
-}
-
-
-b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 Size, u32 RowCount, r32 RowHeight, imgui_id* RowIDs, void* Data, void (RowRenderFunction)(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)) {
-
-  // List Background
-  rect2f BackgroundRect = Rect2f(Pos, Size);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
-
-  r32 LinesToFit = Size.Y / RowHeight;
-  v2 ListContentSize = Size;
-  r32 StartRow = 0;
-  if(LinesToFit < RowCount){
-    r32 ScrollbarWidth = 0.01;
-    ImguiScrollBarVertical(ScrollableList, BackgroundRect, ScrollbarWidth, RowHeight, RowCount);
-    ListContentSize.X -= ScrollbarWidth;
-    StartRow = ScrollableList->ScrollAmmount.Y * (RowCount - LinesToFit);
-  }
-
-  s32 StartIndex = (s32) Floor(StartRow);
-
-  rect2f ListRect = Rect2f(Pos, ListContentSize);
-  b32 Result = 0;
-  for (s32 i = 0; i<=LinesToFit; ++i)
-  {
-    s32 Index = StartIndex + i;
-    if(Index < RowCount)
-    {
-      rect2f RowRect = GetRowRect(ListRect, i, StartRow, RowHeight);
-      rect2f ClippedRow = RowRect;
-      if(Top(RowRect) > Top(ListRect) || Bot(RowRect) < Bot(ListRect)){
-        ClippedRow = Clip(RowRect, Rect2f(Pos, ListContentSize));  
-      }
-
-      if(ImguiButton(&GlobalState->ImguiContext, RowIDs[Index], ClippedRow))
-      {
-        Result = true;    
-      }
-      RowRenderFunction(&GlobalState->ImguiContext, RowIDs[Index],  RowRect, ClippedRow, Index, Data);
-      if(ImguiIsActive(RowIDs[Index]))
-      {
-        ScrollableList->SelectedRow = Index;
-      }
-    }
-  }
-  return Result;
-}
-
-struct jimgui_entity_data {
-  imgui_id ImguiID;
-  ecs::entity_id EntityID;
-  b32 Open;
-  r32 MenuBoxHeight;
-};
-
-struct menu_entity_list {
-
-  imgui_text_input_buffer TextInputBuffer;
-  imgui_scrollable_list EntityList;
-  imgui_bordered_window BorderWindow;
-
-  
-  // Cached menu data
-  chunk_list EntityData; // jimgui_entity_data
-  rb_tree EntityToDataMap;
-};
-
-r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, jimgui_entity_data* Data)
-{
-  // Button Background
-  r32 Height = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
-  r32 ResultHeight = Height;
-  //v4 ButtonColor = menu::GetColor(&GlobalState->ColorTable, "taupe");
-  rect2f ButtonBackgroundRect = Rect2f(TopLeft.X, TopLeft.Y - Height, ClipArea.W, Height);
-//  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ButtonBackgroundRect), ButtonColor);
-
-
-  imgui_button_color ButtonColor = {};
-  ButtonColor.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "taupe");
-  ButtonColor.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "persian indigo");
-  ButtonColor.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "egyptian blue");
-  ButtonColor.HotColor =  menu::GetColor(&GlobalState->ColorTable, "rich black");
-  ImguiPlainButton(ImguiContext, Data->ImguiID, ButtonBackgroundRect, ButtonColor);
-  if(ImguiIsActive(Data->ImguiID) && ImguiIsHot(Data->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
-  {
-    Data->Open = !Data->Open;
-  }
-
-
-  rect2f TextRect = Rect2f(ButtonBackgroundRect.X, ButtonBackgroundRect.Y, ButtonBackgroundRect.W, ButtonBackgroundRect.H);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
-
-  v4 TexCoord = Data->Open ? GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_DOWN] : GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_RIGHT];
-  ecs::render::DrawIconCanonicalSpace(GetRenderSystem(), CenteredRect(Rect2f(ButtonBackgroundRect.X, ButtonBackgroundRect.Y, Height,Height)), TexCoord, V4(1,1,1,1));
-  v2 TextPos = V2(ButtonBackgroundRect.X + Height, ButtonBackgroundRect.Y + DescentOffset);
-  c8 NumBuf[32] = {};
-  ecs::entity_id EntityID = Data->EntityID;
-  jstr::Itoa(EntityID.EntityID, 31, NumBuf);
-  r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) NumBuf).X;
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, (utf8_byte const *) NumBuf, V4(1.0,1.0,1.0,1.0));
-
-  if(Data->Open)
-  {
-    ecs::position::component* Position = GetPositionComponent(&EntityID);
-    if(Position)
-    {
-      TextPos.Y -= Height;
-      ResultHeight += Height;
-      world_coordinate Pos = Position->FirstChild->RelativePosition;
-      TextPos.X += ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) NumBuf).X + 0.01;
-      TextRect = Rect2f(TextPos.X, TextPos.Y, (ClipArea.X + ClipArea.W) - TextPos.X, Height);
-      u32 idx = 0;
-      c8 NumBuf1[32] = {};
-      c8* Scan = NumBuf1;
-      if(Pos.X >= 0)
-      {
-        *Scan++ = ' ';  
-      }
-      Scan += jstr::Ftoa( Pos.X, 2, 255, Scan);
-      *Scan++ = ' ';
-      if(Pos.Y >= 0)
-      {
-        *Scan++ = ' ';  
-      }
-      Scan += jstr::Ftoa( Pos.Y, 2, 255, Scan);
-      *Scan++ = ' ';
-      if(Pos.Z >= 0)
-      {
-        *Scan++ = ' ';
-      }
-      Scan += jstr::Ftoa( Pos.Z, 2, 255, Scan);
-
-      ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, (utf8_byte const *) NumBuf1, V4(1.0,1.0,1.0,1.0));
-    }
-  }else{
-
-  }
-  
-  return ResultHeight;
-}
-
-struct list_map_pair {
-  rb_tree* MapToCheckAgainst;
-  chunk_list* ResultList;
-  memory_arena* Arena;
-};
-
-void PopulateWithDataNotInMap(red_black_tree_node const * MenuEntryNode, void* ListMapPairPtr) 
-{
-  list_map_pair* ListMapPair = (list_map_pair*) ListMapPairPtr;
-  rb_tree* MapToCheckAgainst = (rb_tree*) ListMapPair->MapToCheckAgainst;
-  chunk_list* ResultList = ListMapPair->ResultList;
-  memory_arena* Arena = ListMapPair->Arena;
-  midx Key = MenuEntryNode->Key;
-  if(Find(MapToCheckAgainst, Key) == 0)
-  {
-    Push(Arena, ResultList, (bptr) MenuEntryNode->Data->Data);
-  }
-}
-
-void UpdateListWithEntities(chunk_list* MenuEntityList)
-{
-  // Insert all current real entities into a search tree
-  u32 EntityCount = GetEntityManager()->EntityList.BlockCount;
-  u32 MenuEntityCount = MenuEntityList->BlockCount;
-  chunk_list ItemsToRemove = NewChunkList(GlobalTransientArena, sizeof(jimgui_entity_data*), EntityCount);
-  chunk_list ItemsToAdd    = NewChunkList(GlobalTransientArena, sizeof(ecs::entity*), EntityCount);
-
-  // Create Existing Menu entities search tree
-  rb_tree MenuEntitiesMap = NewRBTree(GlobalTransientArena, MenuEntityCount, MenuEntityCount);
-  {
-    u32 Index = 0;
-    chunk_list_iterator IT = BeginIterator(MenuEntityList);
-    while(jimgui_entity_data* EntityData = (jimgui_entity_data*) Next(&IT) )
-    {
-      u32 EntityID = EntityData->EntityID.EntityID;
-      Insert(&MenuEntitiesMap, EntityID, (void*) EntityData);
-    }
-  }
-
-  // Create Existing Entities search tree
-  rb_tree ExistingEntitiesMap = NewRBTree(GlobalTransientArena, EntityCount, EntityCount);
-  {
-    u32 Count = 0;
-    chunk_list_iterator IT = BeginIterator(&GetEntityManager()->EntityList);
-    while(ecs::entity* Entity = (ecs::entity*) Next(&IT))
-    {
-      u32 EntityID = Entity->ID.EntityID;
-      Insert(&ExistingEntitiesMap, (midx) EntityID, Entity);
-    }
-  }
-
-
-  // Fill ItemsToRemove with items in MenuEntitiesMap which are not in ExistingEntitiesMap. 
-  list_map_pair LMP1 = {};
-  LMP1.MapToCheckAgainst = &ExistingEntitiesMap;
-  LMP1.ResultList = &ItemsToRemove;
-  LMP1.Arena = GlobalTransientArena;
-  PostOrderTraverse(&MenuEntitiesMap.Tree,     (void*) &LMP1, PopulateWithDataNotInMap);
-
-  // Fill ItemsToAdd with items in ExistingEntitiesMap which are not in MenuEntitiesMap. 
-  list_map_pair LMP2 = {};
-  LMP2.MapToCheckAgainst = &MenuEntitiesMap;
-  LMP2.ResultList = &ItemsToAdd;
-  LMP2.Arena = GlobalTransientArena;
-  PostOrderTraverse(&ExistingEntitiesMap.Tree, (void*) &LMP2, PopulateWithDataNotInMap);
-
-  {
-    chunk_list_iterator IT = BeginIterator(&ItemsToRemove);
-    while(jimgui_entity_data* EntityData = (jimgui_entity_data*) Next(&IT))
-    {
-      FreeBlock(MenuEntityList, (bptr) EntityData);
-    }
-  }
-
-  {
-    chunk_list_iterator IT = BeginIterator(&ItemsToAdd);
-    while(ecs::entity* EntityData = (ecs::entity*) Next(&IT))
-    {
-      jimgui_entity_data Data = {};
-      Data.ImguiID = NewButtonID();
-      Data.EntityID = EntityData->ID;
-      Data.Open = 0;
-      Data.MenuBoxHeight = 0;
-      Push(GlobalPersistentArena, MenuEntityList, (bptr) &Data);
-    }
-  }
-}
-
-
-b32 ImguiEntityComponentList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 Size, chunk_list* MenuEntityList) {
-
-  // List Background
-  rect2f BackgroundRect = Rect2f(Pos, Size);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
-
-  v2 ListContentSize = Size;
-  rect2f ListRect = Rect2f(Pos, ListContentSize);
-  b32 Result = 0;
-  v2 TopLeft = UpperLeftPoint(BackgroundRect);
-  s32 Index = 0;
-
-  UpdateListWithEntities(MenuEntityList);
-  chunk_list_iterator IT = BeginIterator(MenuEntityList);
-  while (jimgui_entity_data* Entity = (jimgui_entity_data*) Next(&IT))
-  {
-    r32 HeightOfRow = DrawEntityRow(&GlobalState->ImguiContext, TopLeft, BackgroundRect, Entity);
-    TopLeft.Y -= HeightOfRow;
-  }
-  return Result;
-}
-
-void DrawEntityList() {
-  local_persist menu_entity_list* MenuEntityList = 0;
-
-  if(!MenuEntityList)
-  {
-    u32 IDCount  = 512;
-    u32 EntityChunkCount = 32;
-    r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), GlobalState->ImguiContext.FontSize);
-    MenuEntityList = PushStruct(GlobalPersistentArena, menu_entity_list);
-    MenuEntityList->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.1,0.5)), ecs::render::PixelToCanonicalSpace(GetRenderSystem(), V2(3,3)), RowHeight);
-    MenuEntityList->EntityList   = CreateScrollableTextList();
-    
-    MenuEntityList->EntityData = NewChunkList(GlobalPersistentArena, sizeof(jimgui_entity_data), EntityChunkCount);
-    MenuEntityList->EntityToDataMap = NewRBTree(GlobalTransientArena, EntityChunkCount, EntityChunkCount);
-  }
-
-
-  chunk_list_iterator It = BeginIterator(&GetEntityManager()->EntityList);
-  while(ecs::entity* Entity = (ecs::entity*) Next(&It))
-  {
-    ecs::entity_id* EntityID = &Entity->ID;
-
-    u32 ComponentArrayCount = ecs::GetComponentCount(GetEntityManager(), EntityID);
-    u32* ComponentFlags = PushArray(GlobalTransientArena, ComponentArrayCount, u32);
-    u32 ComponentCount = ecs::GetComponentTypes(GetEntityManager(), EntityID, ComponentFlags);
-    Assert(ComponentArrayCount == ComponentCount);
-
-    for (int i = 0; i < ComponentCount; ++i)
-    {
-      switch((ecs::flag::component_type) ComponentFlags[i])
-      {
-        case ecs::flag::component_type::RENDER:
-        {
-
-        }break;
-        case ecs::flag::component_type::POSITION:
-          {
-            { // X
-              ecs::position::component* Position = GetPositionComponent(EntityID);
-              world_coordinate Pos = Position->FirstChild->RelativePosition;
-              char* NumBuf[32] = {};
-              jstr::Ftoa( Pos.X, 2, 255, (char*) NumBuf);
-              //AppendStringToBuffer((utf8_byte*) NumBuf, &MenuEntityList->TextInputBufferX.Buffer);
-            }
-
-            { // Y
-              ecs::position::component* Position = GetPositionComponent(EntityID);
-              world_coordinate Pos = Position->FirstChild->RelativePosition;
-              char* NumBuf[32] = {};
-              jstr::Ftoa( Pos.Y, 2, 255, (char*) NumBuf);
-              //AppendStringToBuffer((utf8_byte*) NumBuf, &MenuEntityList->TextInputBufferY.Buffer);
-            }
-
-            { // Z
-              ecs::position::component* Position = GetPositionComponent(EntityID);
-              world_coordinate Pos = Position->FirstChild->RelativePosition;
-              char* NumBuf[32] = {};
-              jstr::Ftoa( Pos.Z, 2, 255, (char*) NumBuf);
-              //AppendStringToBuffer((utf8_byte*) NumBuf, &MenuEntityList->TextInputBufferZ.Buffer);
-            }
-
-          }break;
-      }
-    }
-  }
-
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(),GlobalState->ImguiContext.FontSize);
-  
-  v2 ScrollListPos  = V2(MenuEntityList->BorderWindow.Region.X, MenuEntityList->BorderWindow.Region.Y);
-  v2 ScrollListSize = V2(MenuEntityList->BorderWindow.Region.W, MenuEntityList->BorderWindow.Region.H - MenuEntityList->BorderWindow.HeaderSize);
-
-  ImguiBorderWindow(&MenuEntityList->BorderWindow, "Entities");
-
-  ImguiEntityComponentList(&MenuEntityList->EntityList, ScrollListPos, ScrollListSize, &MenuEntityList->EntityData);
-
-  if(MenuEntityList->EntityList.SelectedRow >= 0)
-  {
-    jimgui_entity_data* EntityRow = (jimgui_entity_data*) GetBlockIfItExists(&MenuEntityList->EntityData, MenuEntityList->EntityList.SelectedRow); 
-    Assert(EntityRow);
-    ecs::entity_id* EntityID = &EntityRow->EntityID;
-    ecs::position::component* Position = GetPositionComponent(EntityID);
-    world_coordinate Pos = Position->FirstChild->RelativePosition;
-    Platform.DEBUGPrint("%d, (%1.2f,%1.2f,%1.2f)\n", EntityID->EntityID, Pos.X, Pos.Y, Pos.Z);
-
-  }
-}
-
-void DrawColorList() {
-
-  u32 InputLen = 512;
-  u32 ColorCount = GlobalState->ColorTable.ColorCount;
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), GlobalState->ImguiContext.FontSize);
-
-  local_persist color_list_data* ColorListData = 0;
-
-  if(!ColorListData)
-  {
-    ColorListData = PushStruct(GlobalPersistentArena, color_list_data);
-    ColorListData->TextInputBuffer = ImguiNewTextInputBuffer(InputLen, PushArray(GlobalPersistentArena, InputLen, utf8_byte));
-    ColorListData->ImguiIDs         = PushArray(GlobalPersistentArena, ColorCount, imgui_id);
-    ColorListData->ColorIDs         = PushArray(GlobalPersistentArena, ColorCount, s32);
-
-    ColorListData->ColorList = CreateScrollableTextList();
-    ColorListData->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.1,0.25), V2(0.1,0.5)), ecs::render::PixelToCanonicalSpace(GetRenderSystem(), V2(3,3)), RowHeight);
-    for (int i = 0; i < ColorCount; ++i)
-    {
-      ColorListData->ImguiIDs[i] = NewButtonID();
-    }
-  }
-
-  s32 RowCount = 0;
-  ZeroArray(ColorCount, ColorListData->ColorIDs);
-  imgui_id* ImguiIDs = PushArray(GlobalPersistentArena, ColorCount, imgui_id);
-  for (u32 i = 0; i < ColorCount; ++i) {
-    menu::named_color_hex* NamedColor = menu::GetNamedColor(&GlobalState->ColorTable, (umm) i);
-    char ColorNameLower[512] = {};
-    Utf8ToLower( (utf8_byte*) NamedColor->Name, (utf8_byte*) ColorNameLower);
-    char InputStringLower[512] = {};
-    Utf8ToLower( ColorListData->TextInputBuffer.Buffer.Buffer, (utf8_byte*) InputStringLower);
-    if(ColorListData->TextInputBuffer.CharCount == 0 || jstr::Contains( InputStringLower, ColorNameLower))
-    {
-      ColorListData->ColorIDs[RowCount] = i;
-      ImguiIDs[RowCount] = ColorListData->ImguiIDs[i];
-      RowCount++;
-    }
-  }
-
-  imgui_bordered_window* BorderWindow = &ColorListData->BorderWindow;
-
-  // SearchIcon
-  v4 SearchBoxBackgroundColor = menu::GetColor(&GlobalState->ColorTable, "bole");
-  v2 SearchIconPos = V2(BorderWindow->Region.X, BorderWindow->Region.Y);
-  v2 SearchIconSize = V2(RowHeight, RowHeight);
-  v4 TexCoord = GlobalImguiContext->Icons.Coordinates[ICON_SEARCH];
-  rect2f SearchIconRectBackground = Rect2f(SearchIconPos, SearchIconSize);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(SearchIconRectBackground), SearchBoxBackgroundColor);
-  rect2f SearchIconRect = Shrink(SearchIconRectBackground, 0.1*SearchIconRectBackground.W);
-  ecs::render::DrawIconCanonicalSpace(GetRenderSystem(), CenteredRect(SearchIconRect),  TexCoord, V4(1,1,1,1));
-
-  
-  v2 FilterBarDialogPos  = V2(BorderWindow->Region.X + RowHeight, BorderWindow->Region.Y);
-  v2 FilterBarDialogSize = V2(BorderWindow->Region.W - RowHeight, RowHeight);
-  if(ImguiTextDialog(&ColorListData->TextInputBuffer, ColorListData->TextInputBuffer.ID, FilterBarDialogPos, FilterBarDialogSize, SearchBoxBackgroundColor))
-  {
-    if(ImguiIsSelected(ColorListData->TextInputBuffer.ID))
-    {
-      ImguiReadInput(&ColorListData->TextInputBuffer, GlobalInput);
-    }
-  }
-
-  v2 ScrollListPos  = V2(BorderWindow->Region.X, BorderWindow->Region.Y + RowHeight);
-  v2 ScrollListSize = V2(BorderWindow->Region.W, BorderWindow->Region.H - 2* RowHeight);
-  
-  ImguiBorderWindow(BorderWindow, "Colors");
-
-  if(ImguiScrollableButtonList(&ColorListData->ColorList, ScrollListPos, ScrollListSize, RowCount, RowHeight, ImguiIDs, (void*) ColorListData, DrawColorRow))
-  {
-    if(GlobalState->ImguiContext.ActiveID.idEdge)
-    {
-      menu::named_color_hex* NamedColor = menu::GetNamedColor(&GlobalState->ColorTable, ColorListData->ColorIDs[ColorListData->ColorList.SelectedRow] );
-      v4 Color =  HexCodeToColorV4(NamedColor->Color);
-      v4 HexColor = 255 * Color;
-      Platform.DEBUGPrint("V4(%f, %f, %f, %f) - %s\n", Color.X, Color.Y, Color.Z, Color.W, 
-        NamedColor->Name);  
-    }
-  }
-}
-
-
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1697,6 +1128,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->BlitPlane =  PushBlitPlaneMesh(RenderGroup);
 
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
+    GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
     obj_bitmap* BrickWallTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\brick_wall_base.tga");
     obj_bitmap* FadedRayTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\faded_ray.tga");
@@ -1819,7 +1251,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->NewOrRemovedEntityBuffer = CreateEntityBuffer(GlobalPersistentArena);
     { // Create some entities
       { // Checker Floor
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Checkered Floor");
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(0,-1.1,0), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1830,7 +1262,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Transparent Cube
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Cube");
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(2,0,0), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1841,7 +1273,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
       
       { // Transparent Cone
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Cone");
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(0,0,2), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1852,7 +1284,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
       
       { // Transparent Sphere
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Sphere");
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(2,0,2), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1863,7 +1295,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Solid Cone
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Solid Cone");
         ecs::position::component* Position = GetPositionComponent(&Entity);
         InitiatePositionComponent(Position, V3(0,0,0), 0);
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1954,9 +1386,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
 #endif
   ecs::render::NewRenderLevel(GetRenderSystem());
-  DrawColorList();
+  DrawColorList(&GlobalState->ApplicationImgui);
   ecs::render::NewRenderLevel(GetRenderSystem());
-  DrawEntityList();
+  DrawEntityList(&GlobalState->ApplicationImgui);
   ImguiEnd();
   ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
 } 
