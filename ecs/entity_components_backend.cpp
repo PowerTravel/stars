@@ -15,7 +15,7 @@ struct entity_component_link
 
   // TODO: Enable to have many of the same component type
   //       How to associate with required components?
-//  entity_component_link* NextOfSameType;
+  //  entity_component_link* NextOfSameType;
 };
 
 #define MAX_ENTITY_NAME_LENGTH 64
@@ -28,6 +28,9 @@ struct entity
   entity_component_link* FirstComponentLink; // Points us to the associated components in the component list.
 
   c8 Name[MAX_ENTITY_NAME_LENGTH];
+  entity* Parent;
+  entity* FirstChild;
+  entity* NextSibling;
 };
 
 struct component_head
@@ -285,10 +288,19 @@ component_list CreateComponentList(memory_arena* Arena, bitmask32 TypeFlag, bitm
   return Result;
 }
 
+void InsertEntityIntoTree(entity* Parent, entity* NewEntity)
+{
+  NewEntity->Parent = Parent;
+  entity** ChildToAdd = &Parent->FirstChild;
+  while(ChildToAdd)
+  {
+    ChildToAdd = &(*ChildToAdd)->NextSibling;
+  }
+  *ChildToAdd = NewEntity;    
+}
 
 // Functions in header
-
-entity_id NewEntity( entity_manager* EM, const c8* Name )
+entity_id NewEntity( entity_manager* EM, entity_id* ParentID, const c8* Name )
 {
   u32 ListIndex = 0;
   entity* NewEntity = (entity*) GetNewBlock(&EM->Arena, &EM->EntityList, &ListIndex);
@@ -300,12 +312,18 @@ entity_id NewEntity( entity_manager* EM, const c8* Name )
   Assert(NameLength < MAX_ENTITY_NAME_LENGTH);
   jstr::CopyStrings( NameLength, Name, MAX_ENTITY_NAME_LENGTH, NewEntity->Name);
 
+  if(ParentID)
+  {
+    entity* Parent = GetEntityFromID(EM, ParentID);
+    InsertEntityIntoTree(Parent, NewEntity);
+  }
+
   return NewEntity->ID;
 }
 
-entity_id NewEntity( entity_manager* EM, const c8* Name, bitmask32 ComponentFlags)
+entity_id NewEntity( entity_manager* EM, entity_id* ParentID, const c8* Name, bitmask32 ComponentFlags)
 {
-  entity_id Result = NewEntity(EM, Name);
+  entity_id Result = NewEntity(EM, ParentID, Name);
   NewComponents(EM, &Result, ComponentFlags);
   return Result;
 }

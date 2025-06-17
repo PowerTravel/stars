@@ -941,7 +941,7 @@ void Clear(entity_buffer* EntityBuffer)
 
 ecs::entity_id NewEntity(bitmask32 ComponentFlags, const c8* Name)
 {
-  ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, Name, ComponentFlags);
+  ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, Name, ComponentFlags);
   entity_buffer* EntityBuffer = &GlobalState->NewOrRemovedEntityBuffer;
   Push(EntityBuffer->Arena, &EntityBuffer->NewEntities, (bptr) &Entity);
   return Entity;
