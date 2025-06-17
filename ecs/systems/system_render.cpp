@@ -430,6 +430,14 @@ u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWei
   return Size;
 }
 
+v3 GetAbsolutePosition(ecs::position::component* Position)
+{
+  return Position->AbsolutePosition;
+}
+v4 GetAbsoluteRotation(ecs::position::component* Position)
+{
+  return Position->AbsoluteRotation;
+}
 
 void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
   v3 LightDirection, v3 LightColor)
@@ -445,7 +453,7 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   Object->TextureHandles[0] = Render->TextureHandle;
 
   m4 Scale = GetScaleMatrix(V4(Render->Scale,1));
-  m4 Rotation = GetRotationMatrix(GetAbsoluteRotation(Position), -V4(0,1,0,0));
+  m4 Rotation = GetRotationMatrix(GetAbsoluteRotation(Position));
   m4 Translation = GetTranslationMatrix(V4(GetAbsolutePosition(Position),1));
   m4 ModelMat =  Translation*Rotation*Scale;
   //Rotate( GetAbsoluteRotation(Position), -V4(0,1,0,0), ModelMat );

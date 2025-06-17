@@ -33,7 +33,6 @@ struct world {
   ecs::render::system* RenderSystem;
   menu_interface* MenuInterface;
   container_node* ScenePlugin;
-  chunk_list PositionNodes;
 };
 
 struct entity_buffer {

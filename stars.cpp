@@ -18,7 +18,6 @@
 #include "containers/linked_memory.cpp"
 #include "ecs/entity_components_backend.cpp"
 #include "ecs/entity_components.cpp"
-#include "ecs/components/component_position.cpp"
 #include "ecs/systems/system_position.cpp"
 #include "ecs/systems/system_render.cpp"
 #include "menu/menu_interface.cpp"
@@ -632,7 +631,6 @@ world InitiateWorld(application_render_commands* RenderCommands)
 {
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
-  Result.PositionNodes = NewChunkList(GlobalPersistentArena, sizeof(ecs::position::position_node), 128);
   Result.RenderSystem = ecs::render::CreateRenderSystem(RenderCommands->RenderGroup, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height, RenderCommands);
 
   return Result;
@@ -1032,7 +1030,7 @@ void AddOrRemoveMenuEntityItems()
             // Interface
             // ecs::position::component* Position = GetPositionComponent(Entity);
             // container_node* VectorInputNode = ConnectNodeToBack(EntityContainer, CreateV3InputContainer(GetMenuInterface()));
-            // ConnectToVector(VectorInputNode, &Position->FirstChild->RelativePosition);
+            // ConnectToVector(VectorInputNode, &Position->RelativePosition);
             // r' [x.xx, y.yy, z.zz]
 
 
@@ -1041,7 +1039,7 @@ void AddOrRemoveMenuEntityItems()
               text_input_node* PositionTextInputNode = GetTextInputNode(PositionContainer);
               PositionTextInputNode->TextPixelSize = 12;
               ecs::position::component* Position = GetPositionComponent(Entity);
-              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              world_coordinate Pos = Position->RelativePosition;
               char* NumBuf[32] = {};
               jstr::Ftoa( Pos.X, 2, 255, (char*) NumBuf);
               AppendStringToBuffer((utf8_byte*) NumBuf, &PositionTextInputNode->Buffer);
@@ -1052,7 +1050,7 @@ void AddOrRemoveMenuEntityItems()
               text_input_node* PositionTextInputNode = GetTextInputNode(PositionContainer);
               PositionTextInputNode->TextPixelSize = 12;
               ecs::position::component* Position = GetPositionComponent(Entity);
-              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              world_coordinate Pos = Position->RelativePosition;
               char* NumBuf[32] = {};
               jstr::Ftoa( Pos.Y, 2, 255, (char*) NumBuf);
               AppendStringToBuffer((utf8_byte*) NumBuf, &PositionTextInputNode->Buffer);
@@ -1063,7 +1061,7 @@ void AddOrRemoveMenuEntityItems()
               text_input_node* PositionTextInputNode = GetTextInputNode(PositionContainer);
               PositionTextInputNode->TextPixelSize = 12;
               ecs::position::component* Position = GetPositionComponent(Entity);
-              world_coordinate Pos = Position->FirstChild->RelativePosition;
+              world_coordinate Pos = Position->RelativePosition;
               char* NumBuf[32] = {};
               jstr::Ftoa( Pos.Z, 2, 255, (char*) NumBuf);
               AppendStringToBuffer((utf8_byte*) NumBuf, &PositionTextInputNode->Buffer);
@@ -1253,7 +1251,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       { // Checker Floor
         ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Checkered Floor");
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        InitiatePositionComponent(Position, V3(0,-1.1,0), 0);
+        ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GlobalState->Plane;
         Render->TextureHandle = GlobalState->CheckerBoardTexture;
@@ -1264,7 +1262,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       { // Transparent Cube
         ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Cube");
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        InitiatePositionComponent(Position, V3(2,0,0), 0);
+        ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GlobalState->Cube;
         Render->TextureHandle = GlobalState->WhitePixelTexture;
@@ -1275,7 +1273,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       { // Transparent Cone
         ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Cone");
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        InitiatePositionComponent(Position, V3(0,0,2), 0);
+        ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GlobalState->Cone;
         Render->TextureHandle = GlobalState->WhitePixelTexture;
@@ -1286,7 +1284,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       { // Transparent Sphere
         ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Sphere");
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        InitiatePositionComponent(Position, V3(2,0,2), 0);
+        ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GlobalState->Sphere;
         Render->TextureHandle = GlobalState->WhitePixelTexture;
@@ -1297,7 +1295,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       { // Solid Cone
         ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Solid Cone");
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        InitiatePositionComponent(Position, V3(0,0,0), 0);
+        ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GlobalState->Cone;
         Render->TextureHandle = GlobalState->WhitePixelTexture;

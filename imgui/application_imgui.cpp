@@ -145,7 +145,7 @@ r32 RenderPositionComponent(imgui_context* ImguiContext, ecs::position::componen
   v2 TextSize = V2(ClipArea.W, RowHeight);
   rect2f LineRect = Rect2f(TextPos, TextSize);
 
-  world_coordinate Pos = Position->FirstChild->RelativePosition;
+  world_coordinate Pos = Position->RelativePosition;
 
   c8 LineToPrint[512] = {};
   midx Len = jstr::CopyStringsUnchecked("  Position: ", LineToPrint);
