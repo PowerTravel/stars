@@ -35,12 +35,6 @@ struct world {
   container_node* ScenePlugin;
 };
 
-struct entity_buffer {
-  chunk_list NewEntities;
-  chunk_list RemovedEntities;
-  memory_arena* Arena;
-};
-
 struct application_state
 {
   b32 Initialized;
@@ -100,7 +94,6 @@ struct application_state
   u32 DebugContainerNodeCount;
   container_node* DebugContainerNodes[16];
 
-  entity_buffer NewOrRemovedEntityBuffer;
   container_node* EntitiesPlugin;
 
   imgui_context ImguiContext;
