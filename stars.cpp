@@ -937,6 +937,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   ImguiBegin(Input);
   g_t = Input->Time;
+
   if(!GlobalState->Initialized)
   {
     GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
@@ -1098,7 +1099,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     }
     { // Create some entities
       { // Checker Floor
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Checkered Floor");
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1109,7 +1110,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Transparent Cube
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Cube");
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1117,10 +1118,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
         Render->Scale = V3(1,1,1);
+        GlobalState->DebugSquare = PushStruct(GlobalPersistentArena, ecs::entity_id);
+        *GlobalState->DebugSquare = Entity;
       }
       
       { // Transparent Cone
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Cone");
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1131,7 +1134,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
       
       { // Transparent Sphere
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Transparent Sphere");
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Sphere", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1142,7 +1145,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Solid Cone
-        ecs::entity_id Entity = NewEntity(ecs::flag::RENDER, "Solid Cone");
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1157,6 +1160,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
 
+  //Platform.DEBUGPrint("%d, %d, %d\n", Square->EntityID, Square->ChunkListIndex, GetBlockCount(&GlobalState->World.EntityManager->EntityList));
+
+  ecs::position::component* Position = GetPositionComponent(GlobalState->DebugSquare);
+  //ecs::position::Set(Position, Position->RelativePosition, RotateQuaternion(0, V3(1,0,0)));
+  ecs::position::Set(Position, Position->RelativePosition, QuaternionMultiplication(Position->RelativeRotation, RotateQuaternion(0.01, V3(0,1,0))));
 
   ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);

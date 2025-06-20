@@ -202,37 +202,144 @@ imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBu
   return Result;
 }
 
-void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, jwin::device_input* Input)
+void DeleteSelection(imgui_text_input_buffer* TextInputBuffer){
+  u32 InputLen = 512;
+  utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
+  u32 Start = Minimum(TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart);
+  u32 End = Maximum(TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart);
+  CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, End);
+  EraseFromBuffer(&TempBuffer,End-Start);
+  CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, End, TextInputBuffer->CharCount - End);
+  ClearBuffer(&TextInputBuffer->Buffer);
+  CopyBufferContent(&TempBuffer, &TextInputBuffer->Buffer);
+  TextInputBuffer->CaretPosition = Start;
+  TextInputBuffer->CharCount -= End-Start;
+}
+
+void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, jwin::device_input* Input, v2 TextPos )
 {
   u32 InputLen = 512;
-  if(jwin::Pushed(Input->Keyboard.Key_BACK) && TextInputBuffer->CaretPosition > 0){
-    if(TextInputBuffer->CaretPosition == TextInputBuffer->CharCount)
+  r32 FontSize = 14;
+
+  b32 ShiftDown = jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT);
+
+  v2 MousePos = V2(Input->Mouse.X, Input->Mouse.Y);
+  v2 MousePosRelText = MousePos - TextPos;
+  if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
+  {
+    size_t CharCount = 0;
+    GetCharsCountToFitCanonicalSpace(GetRenderSystem(), FontSize, MousePosRelText.X, TextInputBuffer->Buffer.Buffer, 0, &CharCount);
+    TextInputBuffer->CaretPosition = CharCount;
+    if(jwin::Pushed(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
-      EraseFromBuffer(&TextInputBuffer->Buffer, 1);
-    }else{
-      utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
-      CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
-      EraseFromBuffer(&TempBuffer,1);
-      CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, TextInputBuffer->CaretPosition, TextInputBuffer->CharCount - TextInputBuffer->CaretPosition);
-      ClearBuffer(&TextInputBuffer->Buffer);
-      CopyBufferContent(&TempBuffer, &TextInputBuffer->Buffer);
+      TextInputBuffer->SelectMode = true;
+      TextInputBuffer->SelectionStart = CharCount;
+      Platform.DEBUGPrint("%1.2f, %1.2f %d\n", MousePosRelText.X, MousePosRelText.Y, CharCount);
     }
-    TextInputBuffer->CaretPosition--;
-    TextInputBuffer->CharCount--;
+  }
+
+  b32 KeyClicked = false;
+  if(jwin::Pushed(Input->Keyboard.Key_BACK)){
+    KeyClicked = true;
+    if(TextInputBuffer->SelectMode)
+    {        
+      DeleteSelection(TextInputBuffer);
+      TextInputBuffer->SelectMode = false;
+    }else{
+      if(TextInputBuffer->CaretPosition > 0)
+      {
+        if(TextInputBuffer->CaretPosition == TextInputBuffer->CharCount)
+        {
+          EraseFromBuffer(&TextInputBuffer->Buffer, 1);
+        }else{
+          utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
+          CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
+          EraseFromBuffer(&TempBuffer,1);
+          CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, TextInputBuffer->CaretPosition, TextInputBuffer->CharCount - TextInputBuffer->CaretPosition);
+          ClearBuffer(&TextInputBuffer->Buffer);
+          CopyBufferContent(&TempBuffer, &TextInputBuffer->Buffer);
+        }
+        TextInputBuffer->CaretPosition = Minimum(TextInputBuffer->CaretPosition-1, 0);
+        TextInputBuffer->CharCount = Minimum(TextInputBuffer->CharCount-1, 0);;  
+      }
+    }
+
   }else if(jwin::Pushed(Input->Keyboard.Key_LEFT) && TextInputBuffer->CaretPosition > 0){
-    TextInputBuffer->CaretPosition--;
+    KeyClicked = true;
+
+    if(ShiftDown)
+    {
+      if(!TextInputBuffer->SelectMode)
+      {
+        TextInputBuffer->SelectionStart = TextInputBuffer->CaretPosition;
+        TextInputBuffer->SelectMode = true;
+      }
+      TextInputBuffer->CaretPosition = Maximum(TextInputBuffer->CaretPosition-1, 0);
+    }else{
+      if(TextInputBuffer->SelectMode){
+        TextInputBuffer->CaretPosition = Minimum(TextInputBuffer->SelectionStart, TextInputBuffer->CaretPosition);
+        TextInputBuffer->SelectMode = false;
+      }else{
+        TextInputBuffer->CaretPosition = Maximum(TextInputBuffer->CaretPosition-1, 0);
+      }
+    }
   }else if(jwin::Pushed(Input->Keyboard.Key_RIGHT) && TextInputBuffer->CaretPosition < TextInputBuffer->CharCount){
-    TextInputBuffer->CaretPosition++;
+    KeyClicked = true;
+    if(ShiftDown)
+    {
+      if(!TextInputBuffer->SelectMode)
+      {
+        TextInputBuffer->SelectionStart = TextInputBuffer->CaretPosition;
+        TextInputBuffer->SelectMode = true;
+      }
+      TextInputBuffer->CaretPosition = Minimum(TextInputBuffer->CaretPosition+1, TextInputBuffer->CharCount);
+    }else{
+      if(TextInputBuffer->SelectMode){
+        TextInputBuffer->CaretPosition = Maximum(TextInputBuffer->SelectionStart, TextInputBuffer->CaretPosition);
+        TextInputBuffer->SelectMode = false;
+      }else{
+        TextInputBuffer->CaretPosition = Minimum(TextInputBuffer->CaretPosition+1, TextInputBuffer->CharCount);
+      }
+    }
   }else if(jwin::Pushed(Input->Keyboard.Key_END)){
+    KeyClicked = true;
+    if(ShiftDown)
+    {
+      if(!TextInputBuffer->SelectMode)
+      {
+        TextInputBuffer->SelectionStart = TextInputBuffer->CaretPosition;
+        TextInputBuffer->SelectMode = true;
+      }
+    }else{
+      TextInputBuffer->SelectMode = false;
+    }
     TextInputBuffer->CaretPosition = TextInputBuffer->CharCount;
   }else if(jwin::Pushed(Input->Keyboard.Key_HOME)){
+    KeyClicked = true;
+    if(ShiftDown)
+    {
+      if(!TextInputBuffer->SelectMode)
+      {
+        TextInputBuffer->SelectionStart = TextInputBuffer->CaretPosition;
+        TextInputBuffer->SelectMode = true;
+      }
+    }else{
+      TextInputBuffer->SelectMode = false;
+    }
     TextInputBuffer->CaretPosition = 0;
   }else if(jwin::Pushed(Input->Keyboard.Key_ENTER) || jwin::Pushed(Input->Keyboard.Key_ESCAPE)){
-    ImguiDeselect();
+    KeyClicked = true;
+    ImguiDeselect(TextInputBuffer->ID);
   }else{
     utf8_string_buffer CharBuffer = CreateTempStringBuffer(32);
     if(PushInputToBuffer(&Input->Keyboard, &CharBuffer, ENGLISH))
     {
+      KeyClicked = true;
+      if(TextInputBuffer->SelectMode)
+      {
+        DeleteSelection(TextInputBuffer);
+        TextInputBuffer->SelectMode = false;
+      }
       u32 CharCount = utf8_GetCharCountOfString(CharBuffer.Buffer);
       if(TextInputBuffer->CaretPosition == TextInputBuffer->CharCount)
       {
@@ -249,6 +356,11 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, jwin::device_input
       TextInputBuffer->CharCount += CharCount;
     }
   }
+  if(KeyClicked)
+  {
+    Platform.DEBUGPrint("Len %d, Caret Pos %d, Selection Start %d Selection Mode %s\n",
+      TextInputBuffer->CharCount, TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart, TextInputBuffer->SelectMode ? "'On'" : "'off'");
+  }
 }
 
 
@@ -261,11 +373,11 @@ b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f Region
       ImguiSetActive(Id);
       ImguiSetSelected(Id);
     }
-  }else if(jwin::Active(GlobalState->ImguiContext.LeftMouse)){
-    ImguiDeselect();
+  }else if(jwin::Pushed(GlobalState->ImguiContext.LeftMouse)){
+    ImguiDeselect(Id);
   }
 
-  return ImguiIsSelected(Id);
+  return ImguiIsSelected(Id) || ImguiIsActive(Id);
 }
 
 
@@ -274,16 +386,37 @@ b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
   rect2f DialogRect = Rect2f(DialogPos.X, DialogPos.Y, TextWidth.X, TextWidth.Y);
   b32 Result = ImguiSelectabeRegion(&GlobalState->ImguiContext, DialogID, DialogRect);
 
+  r32 FontSize = 14;
   s32 InputLen = 512;
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), 14);
+  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
   ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(DialogRect), BackgroundColor);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(DialogPos.X, DialogPos.Y +DescentOffset), 14, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(DialogPos.X, DialogPos.Y +DescentOffset), FontSize, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
 
-  if(ImguiIsSelected(DialogID))
+
+  if(Result)
   {
+
+    if(TextInputBuffer->SelectMode)
+    {
+      s32 Start = Minimum(TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart);
+      s32 End   = Maximum(TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart);
+      
+      utf8_string_buffer TempBuffer1 = CreateTempStringBuffer(InputLen);
+      CopySubstring(&TextInputBuffer->Buffer, &TempBuffer1, 0, Start);
+
+      utf8_string_buffer TempBuffer2 = CreateTempStringBuffer(InputLen);
+      CopySubstring(&TextInputBuffer->Buffer, &TempBuffer2, 0, End);
+
+      v2 TextSizeSelectStart = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer1.Buffer);
+      v2 TextSizeSelectEnd = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer2.Buffer);
+
+      rect2f HighlightRect = Rect2f(DialogPos.X + TextSizeSelectStart.X, DialogPos.Y, TextSizeSelectEnd.X - TextSizeSelectStart.X, TextWidth.Y);
+      ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(HighlightRect), BackgroundColor * 1.2);
+    }
+
     utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
     CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
-    v2 TextSizeToCaret = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), 14, TempBuffer.Buffer);
+    v2 TextSizeToCaret = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer.Buffer);
     r32 CaretWidth = ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1);
     rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), 14));
     ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(CaretBox), V4(1,1,1,1));  
@@ -292,6 +425,33 @@ b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
   return Result;
 }
 
+
+b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, rect2f DialogRect, v2 MousePosRelativeRect, v4 BackgroundColor, v4 HighlightColor, v4 TextColor)
+{
+  v2 DialogPos = V2(DialogRect.X, DialogRect.Y);
+  b32 Result = ImguiSelectabeRegion(&GlobalState->ImguiContext, DialogID, DialogRect);
+
+  s32 InputLen = 512;
+  r32 FontSize = 14;
+  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(DialogRect), BackgroundColor);
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(DialogPos.X, DialogPos.Y +DescentOffset), FontSize, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
+
+  if(Result)
+  {
+    utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
+    CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
+    v2 TextSizeToCaret = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer.Buffer);
+    r32 CaretWidth = ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1);
+    rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), 14));
+    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(CaretBox), V4(1,1,1,1));  
+  }
+  
+  return Result;  
+}
+b32 ImguiTextDialogSelectAll(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, rect2f DialogRect, v4 BackgroundColor, v4 HighlightColor, v4 TextColor);
+void PushString(imgui_text_input_buffer* TextInputBuffer, utf8_byte* String);
+void SetCaretPos(imgui_text_input_buffer* TextInputBuffer, u32 CaretPos);
 
 
 

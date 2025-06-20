@@ -46,6 +46,7 @@ struct imgui_context {
   imgui_id ActiveID;
   imgui_id HotID;
   imgui_id SelectedID;
+  imgui_id PreviouslySelectedID;
 
   r32 MouseX;
   r32 MouseY;
@@ -100,19 +101,30 @@ void ImguiSetInactive() {
 }
 
 void ImguiSetSelected(imgui_id Id) {
+  GlobalImguiContext->PreviouslySelectedID = Update(GlobalImguiContext->PreviouslySelectedID, GlobalImguiContext->SelectedID.id);
   GlobalImguiContext->SelectedID = Update(GlobalImguiContext->SelectedID, Id.id);
 }
 
-void ImguiDeselect() {
+void ImguiDeselectAny(){
   GlobalImguiContext->SelectedID = Update(GlobalImguiContext->SelectedID, 0);
-}
-
-b32 ImguiNoneSelected() {
-  return GlobalImguiContext->SelectedID.id == 0;
 }
 
 b32 ImguiIsSelected(imgui_id Id) {
   return GlobalImguiContext->SelectedID.id == Id.id;
+}
+
+b32 ImguiWasDeselected(imgui_id Id) {
+  return GlobalImguiContext->PreviouslySelectedID.id == Id.id && Id.id != GlobalImguiContext->SelectedID.id;
+}
+
+void ImguiDeselect(imgui_id Id) {
+  if(ImguiIsSelected(Id)){
+    ImguiDeselectAny();
+  }
+}
+
+b32 ImguiNoneSelected() {
+  return GlobalImguiContext->SelectedID.id == 0;
 }
 
 void ImguiSetDragging() {
@@ -169,13 +181,19 @@ b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 
 struct imgui_text_input_buffer {
   imgui_id ID;
   utf8_string_buffer Buffer;
-  u32 CaretPosition;
-  u32 CharCount;
+  s32 CaretPosition;
+  b32 SelectMode;
+  s32 SelectionStart;
+  s32 CharCount;
 };
 
 imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer);
-void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, jwin::device_input* Input);
+void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, jwin::device_input* Input, v2 MousePos);
 b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor);
+b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, rect2f DialogRect, v2 MousePosRelativeRect, v4 BackgroundColor, v4 HighlightColor, v4 TextColor);
+b32 ImguiTextDialogSelectAll(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, rect2f DialogRect, v4 BackgroundColor, v4 HighlightColor, v4 TextColor);
+void PushString(imgui_text_input_buffer* TextInputBuffer, utf8_byte* String);
+void SetCaretPos(imgui_text_input_buffer* TextInputBuffer, u32 CaretPos);
 
 
 struct imgui_bordered_window {

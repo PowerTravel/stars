@@ -7,7 +7,8 @@ using namespace component;
 
 void Update(component* Position)
 {
-  Position->AbsolutePosition = Position->RelativePosition;
+  Position->AbsolutePosition = Position->RelativePosition; 
+  //Position->RelativeRotation = QuaternionMultiplication(Position->RelativeRotation, RotateQuaternion(-0.01, V3(0,1,0)));
   Position->AbsoluteRotation = Position->RelativeRotation;
   Position->Dirty = false;
 }

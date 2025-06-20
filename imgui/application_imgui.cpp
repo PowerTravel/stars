@@ -4,6 +4,7 @@
 application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* ImguiContext, u32 ColorCount) {
   application_imgui Result = {};
 
+  u32 InputLen = 512;
   r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), GlobalState->ImguiContext.FontSize);
 
   u32 IDCount  = 512;
@@ -11,13 +12,12 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   Result.MenuEntityList = PushStruct(Arena, menu_entity_list);
   Result.MenuEntityList->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), ecs::render::PixelToCanonicalSpace(GetRenderSystem(), V2(3,3)), RowHeight);
   Result.MenuEntityList->EntityList   = CreateScrollableTextList();
-  Result.MenuEntityList->EntityData = NewChunkList(Arena, sizeof(imgui_entity_data), EntityChunkCount);
-
-  
-  u32 InputLen = 512;
+  Result.MenuEntityList->EntityData   = NewChunkList(Arena, sizeof(imgui_entity_data), EntityChunkCount);
+  Result.MenuEntityList->PositionComponentData = NewChunkList(Arena, sizeof(position_component_data), EntityChunkCount);
+  Result.MenuEntityList->TextInputBuffer = ImguiNewTextInputBuffer(InputLen, PushArray(Arena, InputLen, utf8_byte));
 
   Result.ColorListData = PushStruct(Arena, color_list_data);
-  Result.ColorListData->TextInputBuffer = ImguiNewTextInputBuffer(InputLen, PushArray(Arena, InputLen, utf8_byte));
+  Result.ColorListData->TextInputBuffer  = ImguiNewTextInputBuffer(InputLen, PushArray(Arena, InputLen, utf8_byte));
   Result.ColorListData->ImguiIDs         = PushArray(Arena, ColorCount, imgui_id);
   Result.ColorListData->ColorIDs         = PushArray(Arena, ColorCount, s32);
 
@@ -112,10 +112,7 @@ void DrawColorList(application_imgui* AppImgui) {
   v2 FilterBarDialogSize = V2(BorderWindow->Region.W - RowHeight, RowHeight);
   if(ImguiTextDialog(&ColorListData->TextInputBuffer, ColorListData->TextInputBuffer.ID, FilterBarDialogPos, FilterBarDialogSize, SearchBoxBackgroundColor))
   {
-    if(ImguiIsSelected(ColorListData->TextInputBuffer.ID))
-    {
-      ImguiReadInput(&ColorListData->TextInputBuffer, GlobalInput);
-    }
+    ImguiReadInput(&ColorListData->TextInputBuffer, GlobalInput, FilterBarDialogPos);
   }
 
   v2 ScrollListPos  = V2(BorderWindow->Region.X, BorderWindow->Region.Y + RowHeight);
@@ -136,51 +133,126 @@ void DrawColorList(application_imgui* AppImgui) {
   }
 }
 
-
-r32 RenderPositionComponent(imgui_context* ImguiContext, ecs::position::component* Position, v2 TopLeft, rect2f ClipArea)
+void DrawNumber(c8* Number, r32 FontSize, rect2f Rect)
 {
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
-  v2 TextPos  = V2(TopLeft.X, TopLeft.Y + DescentOffset - RowHeight ); 
-  v2 TextSize = V2(ClipArea.W, RowHeight);
-  rect2f LineRect = Rect2f(TextPos, TextSize);
-
-  world_coordinate Pos = Position->RelativePosition;
-
-  c8 LineToPrint[512] = {};
-  midx Len = jstr::CopyStringsUnchecked("  Position: ", LineToPrint);
-  rect2f TextRect = Rect2f(TopLeft.X, TopLeft.Y-RowHeight, (ClipArea.X + ClipArea.W) - TextPos.X, RowHeight);
-  u32 idx = 0;
-  c8 NumBuf[32] = {};
-  c8* Scan = NumBuf;
-  if(Pos.X >= 0)
-  {
-    *Scan++ = ' ';  
-  }
-  Scan += jstr::Ftoa( Pos.X, 2, 255, Scan);
-  *Scan++ = ' ';
-  if(Pos.Y >= 0)
-  {
-    *Scan++ = ' ';  
-  }
-  Scan += jstr::Ftoa( Pos.Y, 2, 255, Scan);
-  *Scan++ = ' ';
-  if(Pos.Z >= 0)
-  {
-    *Scan++ = ' ';
-  }
-  Scan += jstr::Ftoa( Pos.Z, 2, 255, Scan);
-
-  Len = jstr::CopyStringsUnchecked(NumBuf, LineToPrint+Len);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, (utf8_byte const *) LineToPrint, V4(1.0,1.0,1.0,1.0));
-  return RowHeight;
+  v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, (utf8_byte const *) Number);
+  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+  v2 TextPos  = V2(Rect.X + (Rect.W - TextSize.X), Rect.Y);
+  Rect.Y -= DescentOffset;
+  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, Rect, FontSize, (utf8_byte const *) Number, V4(1.0,1.0,1.0,1.0));
 }
 
-r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgui_entity_data* Data)
+void DrawNumber(r32 Number, r32 FontSize, rect2f Rect)
+{
+  c8 NumBuf[32] = {};
+  jstr::Ftoa( Number, 2, 31, NumBuf);
+  DrawNumber(NumBuf, FontSize, Rect);
+}
+
+
+r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data* PosCompData, ecs::position::component* Position, v2 TopLeft, rect2f ClipArea, imgui_text_input_buffer* TextInputBuffer)
+{
+  r32 RowHeight1 = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
+  r32 DescentOffset1 = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
+  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+  v2 TextPos = V2(TopLeft.X, TopLeft.Y + DescentOffset1 - RowHeight1 );
+
+  r32 Height = RowHeight1;
+
+  {
+    c8 Header[] = "Position Component";
+    v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) Header);
+    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(TopLeft.X + (ClipArea.W - TextSize.X)/2.f, TextPos.Y), ClipArea, ImguiContext->FontSize, (utf8_byte const *) Header, V4(1.0,1.0,1.0,1.0));
+    Height += RowHeight;
+    TextPos.Y -= RowHeight;
+  }
+
+  {    
+    c8 Preamble[] = "  Pos:";
+    v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) Preamble);
+    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, ClipArea, ImguiContext->FontSize, (utf8_byte const *) Preamble, V4(1.0,1.0,1.0,1.0));
+    v2 LeftOverSize = V2(ClipArea.W - TextSize.X - 0.01, TextSize.Y);
+
+    rect2f LeftoverRect = Rect2f(V2(TextPos.X + TextSize.X, TextPos.Y), LeftOverSize);
+    r32 SubrectWidth = LeftoverRect.W/3.f;
+
+    v3 Pos = Position->RelativePosition;
+
+    rect2f Rect1 = Rect2f(LeftoverRect.X, LeftoverRect.Y, SubrectWidth, RowHeight);
+    //ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor);
+      
+    v2 TextPos= V2(Rect1.X, Rect1.Y-DescentOffset);
+    if(ImguiTextDialog(TextInputBuffer, PosCompData->PosX, TextPos, V2(Rect1.W,Rect1.H), V4(0.5,0.5,0.5,1)))
+    //if(ImguiSelectabeRegion(ImguiContext, PosCompData->PosX, Rect1))
+    {
+      if(ImguiContext->SelectedID.idEdge)
+      {
+        ClearBuffer(&TextInputBuffer->Buffer);
+        c8 NumBuf[32] = {};
+        midx Len = jstr::Ftoa( Pos.X, 2, 31, NumBuf);
+        AppendStringToBuffer(Len, (utf8_byte*)NumBuf, &TextInputBuffer->Buffer);
+      }
+
+      ImguiReadInput(TextInputBuffer, GlobalInput, TextPos);
+
+      DrawNumber( (c8*) TextInputBuffer->Buffer.Buffer, ImguiContext->FontSize, Rect1);
+      //Platform.DEBUGPrint("%s\n", (c8*) TextInputBuffer->Buffer.Buffer);
+    }else{
+      if(ImguiWasDeselected(PosCompData->PosX))
+      {
+        Platform.DEBUGPrint("Kiss\n");
+        quat Rot = Position->RelativeRotation;
+        v3 Pos = Position->RelativePosition;
+        Pos.X = jstr::StringToReal64((c8*) TextInputBuffer->Buffer.Buffer);
+        ecs::position::Set(Position, Pos,Rot);
+      }
+      DrawNumber(Pos.X, ImguiContext->FontSize, Rect1);
+    }
+
+    rect2f Rect2 = Rect2f(LeftoverRect.X + SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
+    DrawNumber(Pos.Y, ImguiContext->FontSize, Rect2);
+    rect2f Rect3 = Rect2f(LeftoverRect.X + 2.f*SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
+    DrawNumber(Pos.Z, ImguiContext->FontSize, Rect3);
+
+    Height += RowHeight;
+    TextPos.Y -= RowHeight;
+  }
+  
+  {
+    c8 Preamble[] = "  Rot:";
+    v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) Preamble);
+    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, ClipArea, ImguiContext->FontSize, (utf8_byte const *) Preamble, V4(1.0,1.0,1.0,1.0));
+    v2 LeftOverSize = V2(ClipArea.W - TextSize.X - 0.01, TextSize.Y);
+
+    rect2f LeftoverRect = Rect2f(V2(TextPos.X + TextSize.X, TextPos.Y), LeftOverSize);
+    r32 SubrectWidth = LeftoverRect.W/3.f;
+
+    euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+     EulerAngle.Angles.X = EulerAngle.Angles.X * 180.f/Pi32;
+     EulerAngle.Angles.Y = EulerAngle.Angles.Y * 180.f/Pi32;
+     EulerAngle.Angles.Z = EulerAngle.Angles.Z * 180.f/Pi32;
+      
+    rect2f Rect1 = Rect2f(LeftoverRect.X, LeftoverRect.Y, SubrectWidth, RowHeight);
+    DrawNumber(EulerAngle.Angles.X, ImguiContext->FontSize, Rect1);
+    
+    rect2f Rect2 = Rect2f(LeftoverRect.X + SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
+    DrawNumber(EulerAngle.Angles.Y, ImguiContext->FontSize, Rect2);
+  
+    rect2f Rect3 = Rect2f(LeftoverRect.X + 2.f*SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
+    DrawNumber(EulerAngle.Angles.Z, ImguiContext->FontSize, Rect3);
+
+    //Height += RowHeight;
+    TextPos.Y -= RowHeight;
+  }
+
+  return Height;
+}
+
+r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgui_entity_data* Data, imgui_text_input_buffer* TextInputBuffer)
 {
   // Button Background
   r32 Height = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
-  r32 ResultHeight = Height;
   rect2f ButtonBackgroundRect = Rect2f(TopLeft.X, TopLeft.Y - Height, ClipArea.W, Height);
 
   imgui_button_color ButtonColor = {};
@@ -214,13 +286,13 @@ r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgu
     ecs::position::component* Position = GetPositionComponent(&EntityID);
     if(Position)
     {
-      ResultHeight += RenderPositionComponent(ImguiContext, Position, V2(TopLeft.X, TopLeft.Y - Height), ClipArea);
+      Height += RenderPositionComponent(ImguiContext, Data->PositionComponentData, Position, V2(TopLeft.X, TopLeft.Y - Height), ClipArea, TextInputBuffer);
     }
   }else{
 
   }
   
-  return ResultHeight;
+  return Height;
 }
 
 struct list_map_pair {
@@ -242,8 +314,11 @@ void PopulateWithDataNotInMap(red_black_tree_node const * MenuEntryNode, void* L
   }
 }
 
-void UpdateListWithEntities(chunk_list* MenuEntityList)
+void UpdateListWithEntities(menu_entity_list* MenuEntity)
 {
+  chunk_list* MenuEntityList = &MenuEntity->EntityData;
+  chunk_list* PositionComponentList = &MenuEntity->PositionComponentData;
+
   // Insert all current real entities into a search tree
   u32 EntityCount = GetEntityManager()->EntityList.BlockCount;
   u32 MenuEntityCount = MenuEntityList->BlockCount;
@@ -292,6 +367,10 @@ void UpdateListWithEntities(chunk_list* MenuEntityList)
     chunk_list_iterator IT = BeginIterator(&ItemsToRemove);
     while(imgui_entity_data* EntityData = (imgui_entity_data*) Next(&IT))
     {
+      if(EntityData->PositionComponentData)
+      {
+        FreeBlock(PositionComponentList, (bptr) EntityData->PositionComponentData);
+      }
       FreeBlock(MenuEntityList, (bptr) EntityData);
     }
   }
@@ -304,13 +383,25 @@ void UpdateListWithEntities(chunk_list* MenuEntityList)
       Data.ImguiID = NewButtonID();
       Data.EntityID = EntityData->ID;
       Data.Open = 0;
-      Data.MenuBoxHeight = 0;
+      if(ecs::position::component* Pos = (ecs::position::component*) GetComponent(GetEntityManager(), &EntityData->ID, ecs::flag::POSITION)) {
+        position_component_data PosComp = {};        
+        PosComp.ComponentID = NewButtonID();
+        PosComp.PosX = NewButtonID();
+        PosComp.PosY = NewButtonID();
+        PosComp.PosZ = NewButtonID();
+        PosComp.RotX = NewButtonID();
+        PosComp.RotY = NewButtonID();
+        PosComp.RotZ = NewButtonID();
+        Data.PositionComponentData  = (position_component_data*) Push(GlobalPersistentArena, PositionComponentList, (bptr) &PosComp);
+      }
       Push(GlobalPersistentArena, MenuEntityList, (bptr) &Data);
+
+      
     }
   }
 }
 
-b32 ImguiEntityComponentList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 Size, chunk_list* MenuEntityList) {
+b32 ImguiEntityComponentList(menu_entity_list* MenuEntityList, v2 Pos, v2 Size) {
 
   // List Background
   rect2f BackgroundRect = Rect2f(Pos, Size);
@@ -323,12 +414,13 @@ b32 ImguiEntityComponentList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 S
   s32 Index = 0;
 
   UpdateListWithEntities(MenuEntityList);
-  chunk_list_iterator IT = BeginIterator(MenuEntityList);
+  chunk_list_iterator IT = BeginIterator(&MenuEntityList->EntityData);
   while (imgui_entity_data* Entity = (imgui_entity_data*) Next(&IT))
   {
-    r32 HeightOfRow = DrawEntityRow(&GlobalState->ImguiContext, TopLeft, BackgroundRect, Entity);
+    r32 HeightOfRow = DrawEntityRow(&GlobalState->ImguiContext, TopLeft, BackgroundRect, Entity, &MenuEntityList->TextInputBuffer);
     TopLeft.Y -= HeightOfRow;
   }
+
   return Result;
 }
 
@@ -344,5 +436,5 @@ void DrawEntityList(application_imgui* AppImgui) {
 
   ImguiBorderWindow(&MenuEntityList->BorderWindow, "Entities");
 
-  ImguiEntityComponentList(&MenuEntityList->EntityList, ScrollListPos, ScrollListSize, &MenuEntityList->EntityData);
+  ImguiEntityComponentList(MenuEntityList, ScrollListPos, ScrollListSize);
 }

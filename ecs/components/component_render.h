@@ -86,12 +86,6 @@ struct component {
   u32 TextureHandle;
   v3 Scale;
   data::material Material;
-
-//  b32 ModifyRenderState;
-//  b32 UseZBuffer;
-//  b32 BackfaceCulling;
-//
-//  component* Next;
 };
 
 } // namespace render

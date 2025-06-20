@@ -15,12 +15,24 @@ struct color_list_data {
   imgui_bordered_window BorderWindow;
 };
 
+struct position_component_data {
+  imgui_id ComponentID;
+
+  imgui_id PosX;
+  imgui_id PosY;
+  imgui_id PosZ;
+
+  imgui_id RotX;
+  imgui_id RotY;
+  imgui_id RotZ;
+};
 
 struct imgui_entity_data {
   imgui_id ImguiID;
   ecs::entity_id EntityID;
   b32 Open;
-  r32 MenuBoxHeight;
+
+  position_component_data* PositionComponentData;
 };
 
 struct menu_entity_list {
@@ -31,6 +43,7 @@ struct menu_entity_list {
   
   // Cached menu data
   chunk_list EntityData; // imgui_entity_data
+  chunk_list PositionComponentData; // position_component_data
 };
 
 struct application_imgui {

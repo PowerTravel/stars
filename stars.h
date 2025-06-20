@@ -98,6 +98,8 @@ struct application_state
 
   imgui_context ImguiContext;
   application_imgui ApplicationImgui;
+
+  ecs::entity_id* DebugSquare;
 };
 
 debug_application_render_commands* GlobalDebugRenderCommands = 0;
