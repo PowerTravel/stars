@@ -215,7 +215,7 @@ void DeleteSelection(imgui_text_input_buffer* TextInputBuffer){
   TextInputBuffer->CharCount -= End-Start;
 }
 
-void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, jwin::device_input* Input, v2 TextPos )
+void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, jwin::device_input* Input, v2 TextPos, b32 HighlightAll)
 {
   u32 InputLen = 512;
   r32 FontSize = 14;
@@ -231,8 +231,14 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
     TextInputBuffer->CaretPosition = CharCount;
     if(jwin::Pushed(Input->Mouse.Button[jwin::MouseButton_Left]))
     {
-      TextInputBuffer->SelectionStart = CharCount;
-      Platform.DEBUGPrint("%1.2f, %1.2f %d\n", MousePosRelText.X, MousePosRelText.Y, CharCount);
+      if(HighlightAll)
+      {
+        TextInputBuffer->SelectMode = true;
+        TextInputBuffer->SelectionStart = 0;
+        TextInputBuffer->CaretPosition = TextInputBuffer->CharCount;
+      }else{
+        TextInputBuffer->SelectionStart = CharCount;
+      }
     }
 
     if(TextInputBuffer->SelectionStart != TextInputBuffer->CaretPosition)
@@ -267,7 +273,7 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
       }
     }
 
-  }else if(jwin::Pushed(Input->Keyboard.Key_LEFT) && TextInputBuffer->CaretPosition > 0){
+  }else if(jwin::Pushed(Input->Keyboard.Key_LEFT)){
     KeyClicked = true;
 
     if(ShiftDown)
@@ -286,7 +292,7 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
         TextInputBuffer->CaretPosition = Maximum(TextInputBuffer->CaretPosition-1, 0);
       }
     }
-  }else if(jwin::Pushed(Input->Keyboard.Key_RIGHT) && TextInputBuffer->CaretPosition < TextInputBuffer->CharCount){
+  }else if(jwin::Pushed(Input->Keyboard.Key_RIGHT)){
     KeyClicked = true;
     if(ShiftDown)
     {
@@ -330,9 +336,6 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
       TextInputBuffer->SelectMode = false;
     }
     TextInputBuffer->CaretPosition = 0;
-  }else if(jwin::Pushed(Input->Keyboard.Key_ENTER) || jwin::Pushed(Input->Keyboard.Key_ESCAPE)){
-    KeyClicked = true;
-    ImguiDeselect(DialogID);
   }else{
     utf8_string_buffer CharBuffer = CreateTempStringBuffer(InputLen);
     if(PushInputToBuffer(&Input->Keyboard, &CharBuffer, ENGLISH))
@@ -367,7 +370,7 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
 }
 
 
-b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect)
+b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect, jwin::device_input* Input)
 {
   if(Intersects(RegionRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
   {
@@ -380,6 +383,12 @@ b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f Region
     ImguiDeselect(Id);
   }
 
+  if(jwin::Pushed(Input->Keyboard.Key_ENTER)) {
+    ImguiDeselect(Id);
+  }else if(jwin::Pushed(Input->Keyboard.Key_ESCAPE)){
+    ImguiDeselect(Id);
+  } 
+
   return ImguiIsSelected(Id) || ImguiIsActive(Id);
 }
 
@@ -387,7 +396,7 @@ b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f Region
 b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor)
 {
   rect2f DialogRect = Rect2f(DialogPos.X, DialogPos.Y, TextWidth.X, TextWidth.Y);
-  b32 Result = ImguiSelectabeRegion(&GlobalState->ImguiContext, DialogID, DialogRect);
+  b32 Result = ImguiSelectabeRegion(&GlobalState->ImguiContext, DialogID, DialogRect, GlobalInput);
 
   r32 FontSize = 14;
   s32 InputLen = 512;
@@ -397,12 +406,11 @@ b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
 
   if(Result)
   {
-
     if(TextInputBuffer->SelectMode)
     {
       s32 Start = Minimum(TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart);
       s32 End   = Maximum(TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart);
-      
+
       utf8_string_buffer TempBuffer1 = CreateTempStringBuffer(InputLen);
       CopySubstring(&TextInputBuffer->Buffer, &TempBuffer1, 0, Start);
 
@@ -421,9 +429,9 @@ b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
     v2 TextSizeToCaret = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer.Buffer);
     r32 CaretWidth = ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1);
     rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), 14));
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(CaretBox), V4(1,1,1,1));  
+    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(CaretBox), V4(1,1,1,1));
   }
-  
+
   return Result;
 }
 

@@ -14,7 +14,6 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   Result.MenuEntityList->EntityList   = CreateScrollableTextList();
   Result.MenuEntityList->EntityData   = NewChunkList(Arena, sizeof(imgui_entity_data), EntityChunkCount);
   Result.MenuEntityList->PositionComponentData = NewChunkList(Arena, sizeof(position_component_data), EntityChunkCount);
-  Result.MenuEntityList->TextInputBuffer = ImguiNewTextInputBuffer(InputLen, PushArray(Arena, InputLen, utf8_byte));
 
   Result.ColorListData = PushStruct(Arena, color_list_data);
   Result.ColorListData->TextInputBuffer  = ImguiNewTextInputBuffer(InputLen, PushArray(Arena, InputLen, utf8_byte));
@@ -151,7 +150,92 @@ void DrawNumber(r32 Number, r32 FontSize, rect2f Rect)
 }
 
 
-r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data* PosCompData, ecs::position::component* Position, v2 TopLeft, rect2f ClipArea, imgui_text_input_buffer* TextInputBuffer)
+float PosXToFloat(void* Data)
+{
+  ecs::position::component* Pos = (ecs::position::component*) Data;
+  return Pos->RelativePosition.X;
+}
+
+void StoreXPos(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  quat Rot = Position->RelativeRotation;
+  v3 Pos = Position->RelativePosition;
+  Pos.X = Val;
+  ecs::position::Set(Position, Pos, Rot);
+}
+
+float PosYToFloat(void* Data)
+{
+  ecs::position::component* Pos = (ecs::position::component*) Data;
+  return Pos->RelativePosition.Y;
+}
+
+void StoreYPos(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  quat Rot = Position->RelativeRotation;
+  v3 Pos = Position->RelativePosition;
+  Pos.Y = Val;
+  ecs::position::Set(Position, Pos, Rot);
+}
+
+float PosZToFloat(void* Data)
+{
+  ecs::position::component* Pos = (ecs::position::component*) Data;
+  return Pos->RelativePosition.Z;
+}
+
+void StoreZPos(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  quat Rot = Position->RelativeRotation;
+  v3 Pos = Position->RelativePosition;
+  Pos.Z = Val;
+  ecs::position::Set(Position, Pos, Rot);
+}
+
+void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffer* TextInputBuffer, rect2f DialogRect, jwin::device_input* Input,
+  float (*DataToFloat)(void* Data),
+  void (*StoreFloat)(float Val, void* Data), void* Data) {
+  b32 SelectAll = !ImguiIsSelected(ID);
+  v2 DialogPosition = V2(DialogRect.X,DialogRect.Y);
+  v2 DialogSize     = V2(DialogRect.W,DialogRect.H);
+  float DataValue = DataToFloat(Data);
+  if(ImguiSelectabeRegion(ImguiContext, ID, DialogRect, Input))
+  {
+    if(ImguiContext->SelectedID.idEdge)
+    {
+      ClearBuffer(TextInputBuffer);
+      c8 NumBuf[32] = {};
+      midx Len = jstr::Ftoa(DataValue, 2, 31, NumBuf);
+      PushString(TextInputBuffer, NumBuf);
+    }
+
+    ImguiReadInput(TextInputBuffer, ID, GlobalInput, DialogPosition, SelectAll);  
+
+    ImguiRenderTextDialog(TextInputBuffer, ID, DialogPosition, DialogSize, V4(0.5,0.5,0.5,1));
+  } else {
+    if(ImguiWasDeselected(ID))
+    {
+      if(!jwin::Pushed(Input->Keyboard.Key_ESCAPE))
+      {
+        float Val = jstr::StringToReal64((c8*) TextInputBuffer->Buffer.Buffer);
+        StoreFloat(Val, Data);
+      }
+    }
+
+    r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+    rect2f TextRect = DialogRect;
+    TextRect.Y +=DescentOffset;
+    DrawNumber(DataValue, ImguiContext->FontSize, TextRect);
+  }
+}
+
+r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data* PosCompData, ecs::position::component* Position, v2 TopLeft, rect2f ClipArea)
 {
   r32 RowHeight1 = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
   r32 DescentOffset1 = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
@@ -172,48 +256,32 @@ r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data
     c8 Preamble[] = "  Pos:";
     v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) Preamble);
     ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, ClipArea, ImguiContext->FontSize, (utf8_byte const *) Preamble, V4(1.0,1.0,1.0,1.0));
+    
     v2 LeftOverSize = V2(ClipArea.W - TextSize.X - 0.01, TextSize.Y);
-
     rect2f LeftoverRect = Rect2f(V2(TextPos.X + TextSize.X, TextPos.Y), LeftOverSize);
     r32 SubrectWidth = LeftoverRect.W/3.f;
 
-    v3 Pos = Position->RelativePosition;
-
     rect2f Rect1 = Rect2f(LeftoverRect.X, LeftoverRect.Y, SubrectWidth, RowHeight);
     v2 XDialogPos = V2(Rect1.X, Rect1.Y-DescentOffset);
-    v2 XDialogSize =  V2(Rect1.W,Rect1.H);
+    v2 XDialogSize = V2(Rect1.W,Rect1.H);
     rect2f XDialogRect = Rect2f(XDialogPos, XDialogSize);
-    if(ImguiSelectabeRegion(&GlobalState->ImguiContext, PosCompData->PosX, XDialogRect))
-    {
-      if(ImguiContext->SelectedID.idEdge)
-      {
-        ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+    ReadNumber(ImguiContext,  PosCompData->PosX, &PosCompData->TextBufferPosX, XDialogRect, GlobalInput,
+    PosXToFloat, StoreXPos, (void*) Position );
 
-        ClearBuffer(TextInputBuffer);
-        c8 NumBuf[32] = {};
-        midx Len = jstr::Ftoa( Pos.X, 2, 31, NumBuf);
-        PushString(TextInputBuffer, NumBuf);
-      }
-
-      ImguiReadInput(TextInputBuffer, PosCompData->PosX, GlobalInput, XDialogPos);
-      ImguiRenderTextDialog(TextInputBuffer, PosCompData->PosX, XDialogPos, XDialogSize, V4(0.5,0.5,0.5,1));
-    }else{
-      if(ImguiWasDeselected(PosCompData->PosX))
-      {
-        ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
-
-        quat Rot = Position->RelativeRotation;
-        v3 Pos = Position->RelativePosition;
-        Pos.X = jstr::StringToReal64((c8*) TextInputBuffer->Buffer.Buffer);
-        ecs::position::Set(Position, Pos,Rot);
-      }
-      DrawNumber(Pos.X, ImguiContext->FontSize, Rect1);
-    }
-    
     rect2f Rect2 = Rect2f(LeftoverRect.X + SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
-    DrawNumber(Pos.Y, ImguiContext->FontSize, Rect2);
+    v2 YDialogPos = V2(Rect2.X, Rect2.Y-DescentOffset);
+    v2 YDialogSize = V2(Rect2.W,Rect2.H);
+    rect2f YDialogRect = Rect2f(YDialogPos, YDialogSize);
+    ReadNumber(ImguiContext,  PosCompData->PosY, &PosCompData->TextBufferPosY, YDialogRect, GlobalInput,
+    PosYToFloat, StoreYPos, (void*) Position );
+
     rect2f Rect3 = Rect2f(LeftoverRect.X + 2.f*SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
-    DrawNumber(Pos.Z, ImguiContext->FontSize, Rect3);
+    v2 ZDialogPos = V2(Rect3.X, Rect3.Y-DescentOffset);
+    v2 ZDialogSize = V2(Rect3.W, Rect3.H);
+    rect2f ZDialogRect = Rect2f(ZDialogPos, ZDialogSize);
+    ReadNumber(ImguiContext,  PosCompData->PosZ, &PosCompData->TextBufferPosZ, ZDialogRect, GlobalInput,
+    PosZToFloat, StoreZPos, (void*) Position );
+    
 
     Height += RowHeight;
     TextPos.Y -= RowHeight;
@@ -248,7 +316,7 @@ r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data
   return Height;
 }
 
-r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgui_entity_data* Data, imgui_text_input_buffer* TextInputBuffer)
+r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgui_entity_data* Data)
 {
   // Button Background
   r32 Height = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
@@ -285,7 +353,7 @@ r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgu
     ecs::position::component* Position = GetPositionComponent(&EntityID);
     if(Position)
     {
-      Height += RenderPositionComponent(ImguiContext, Data->PositionComponentData, Position, V2(TopLeft.X, TopLeft.Y - Height), ClipArea, TextInputBuffer);
+      Height += RenderPositionComponent(ImguiContext, Data->PositionComponentData, Position, V2(TopLeft.X, TopLeft.Y - Height), ClipArea);
     }
   }else{
 
@@ -383,15 +451,23 @@ void UpdateListWithEntities(menu_entity_list* MenuEntity)
       Data.EntityID = EntityData->ID;
       Data.Open = 0;
       if(ecs::position::component* Pos = (ecs::position::component*) GetComponent(GetEntityManager(), &EntityData->ID, ecs::flag::POSITION)) {
-        position_component_data PosComp = {};        
-        PosComp.ComponentID = NewButtonID();
-        PosComp.PosX = NewButtonID();
-        PosComp.PosY = NewButtonID();
-        PosComp.PosZ = NewButtonID();
-        PosComp.RotX = NewButtonID();
-        PosComp.RotY = NewButtonID();
-        PosComp.RotZ = NewButtonID();
-        Data.PositionComponentData  = (position_component_data*) Push(GlobalPersistentArena, PositionComponentList, (bptr) &PosComp);
+        position_component_data* PosComp = (position_component_data*) GetNewBlock(GlobalPersistentArena, PositionComponentList); 
+        PosComp->ComponentID = NewButtonID();
+        u32 TextDataLen = 512;
+        PosComp->PosX = NewButtonID();
+        PosComp->TextBufferPosX = ImguiNewTextInputBuffer(TextDataLen, &PosComp->TextData[0]);
+        PosComp->PosY = NewButtonID();
+        PosComp->TextBufferPosY = ImguiNewTextInputBuffer(TextDataLen, &PosComp->TextData[TextDataLen]);
+        PosComp->PosZ = NewButtonID();
+        PosComp->TextBufferPosZ = ImguiNewTextInputBuffer(TextDataLen, &PosComp->TextData[2*TextDataLen]);
+        PosComp->RotX = NewButtonID();
+        PosComp->TextBufferRotX = ImguiNewTextInputBuffer(TextDataLen, &PosComp->TextData[3*TextDataLen]);
+        PosComp->RotY = NewButtonID();
+        PosComp->TextBufferRotY = ImguiNewTextInputBuffer(TextDataLen, &PosComp->TextData[4*TextDataLen]);
+        PosComp->RotZ = NewButtonID();
+        PosComp->TextBufferRotZ = ImguiNewTextInputBuffer(TextDataLen, &PosComp->TextData[5*TextDataLen]);
+
+        Data.PositionComponentData  = PosComp;
       }
       Push(GlobalPersistentArena, MenuEntityList, (bptr) &Data);
     }
@@ -414,7 +490,7 @@ b32 ImguiEntityComponentList(menu_entity_list* MenuEntityList, v2 Pos, v2 Size) 
   chunk_list_iterator IT = BeginIterator(&MenuEntityList->EntityData);
   while (imgui_entity_data* Entity = (imgui_entity_data*) Next(&IT))
   {
-    r32 HeightOfRow = DrawEntityRow(&GlobalState->ImguiContext, TopLeft, BackgroundRect, Entity, &MenuEntityList->TextInputBuffer);
+    r32 HeightOfRow = DrawEntityRow(&GlobalState->ImguiContext, TopLeft, BackgroundRect, Entity);
     TopLeft.Y -= HeightOfRow;
   }
 

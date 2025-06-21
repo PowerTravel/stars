@@ -105,10 +105,6 @@ void ImguiSetSelected(imgui_id Id) {
   GlobalImguiContext->SelectedID = Update(GlobalImguiContext->SelectedID, Id.id);
 }
 
-void ImguiDeselectAny(){
-  GlobalImguiContext->SelectedID = Update(GlobalImguiContext->SelectedID, 0);
-}
-
 b32 ImguiIsSelected(imgui_id Id) {
   return GlobalImguiContext->SelectedID.id == Id.id;
 }
@@ -119,7 +115,7 @@ b32 ImguiWasDeselected(imgui_id Id) {
 
 void ImguiDeselect(imgui_id Id) {
   if(ImguiIsSelected(Id)){
-    ImguiDeselectAny();
+    ImguiSetSelected({});
   }
 }
 
@@ -187,7 +183,7 @@ struct imgui_text_input_buffer {
 };
 
 imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer);
-void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, jwin::device_input* Input, v2 MousePos);
+void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, jwin::device_input* Input, v2 MousePos, b32 HighlightAll = false);
 b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor);
 void ClearBuffer(imgui_text_input_buffer* TextInputBuffer);
 void PushString(imgui_text_input_buffer* TextInputBuffer, c8* String);
@@ -233,4 +229,4 @@ v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors);
 b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect);
 b32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor);
 u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx);
-b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect);
+b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect, jwin::device_input* Input);

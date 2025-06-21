@@ -19,12 +19,25 @@ struct position_component_data {
   imgui_id ComponentID;
 
   imgui_id PosX;
+  imgui_text_input_buffer TextBufferPosX;
+
   imgui_id PosY;
+  imgui_text_input_buffer TextBufferPosY;
+
   imgui_id PosZ;
+  imgui_text_input_buffer TextBufferPosZ;
 
   imgui_id RotX;
+  imgui_text_input_buffer TextBufferRotX;
+
   imgui_id RotY;
+  imgui_text_input_buffer TextBufferRotY;
+
   imgui_id RotZ;
+  imgui_text_input_buffer TextBufferRotZ;
+
+  // Each TextBuffer is reserved 512 bytes of data, 512 x 6 = 3072.
+  utf8_byte TextData[3072];
 };
 
 struct imgui_entity_data {
@@ -36,8 +49,6 @@ struct imgui_entity_data {
 };
 
 struct menu_entity_list {
-
-  imgui_text_input_buffer TextInputBuffer;
   imgui_scrollable_list EntityList;
   imgui_bordered_window BorderWindow;
   

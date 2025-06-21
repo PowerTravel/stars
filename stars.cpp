@@ -1181,7 +1181,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 
   render_group* RenderGroup = RenderCommands->RenderGroup;
-  if(jwin::Pushed(Input->Keyboard.Key_ENTER) || Input->ExecutableReloaded)
+  if(( jwin::Pushed(Input->Keyboard.Key_ENTER) && jwin::Active(Input->Keyboard.Key_LSHIFT) && jwin::Active(Input->Keyboard.Key_LCTRL) ) || Input->ExecutableReloaded)
   {
     ReinitiatePool();
     Platform.DEBUGPrint("We should reload debug code\n");
