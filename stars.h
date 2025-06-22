@@ -35,6 +35,22 @@ struct world {
   container_node* ScenePlugin;
 };
 
+struct mesh_data {
+  c8 Name [128];
+  c8 FilePath [256];
+  obj_loaded_file* Data;
+  b32 Loaded;
+  u32 Handle;
+};
+
+struct texture_data {
+  c8 Name [128];
+  c8 FilePath [256];
+  b32 Loaded;
+  u32 Handle;
+};
+
+
 struct application_state
 {
   b32 Initialized;
@@ -56,18 +72,14 @@ struct application_state
   u32 ColoredSquareOverlayProgram;
   u32 TexturedSquareOverlayProgram;
 
+  chunk_list MeshData; // mesh_data
+  rb_tree Meshes;      // Pointer to MeshData
+
+  chunk_list TextureData; // mesh_data
+  rb_tree Textures;       // Pointer to MeshData
+
+
   u32 BlitPlane;
-  u32 Plane;
-  u32 Sphere;
-  u32 Triangle;
-  u32 Cone;
-  u32 Cube;
-  u32 Billboard;
-  u32 Cylinder;
-  u32 CheckerBoardTexture;
-  u32 BrickWallTexture;
-  u32 FadedRayTexture;
-  u32 EarthTexture;
   u32 WhitePixelTexture;
   u32 Skybox;
 

@@ -391,6 +391,11 @@ r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgu
     {
       Height += RenderPositionComponent(ImguiContext, Data->PositionComponentData, Position, V2(TopLeft.X, TopLeft.Y - Height), ClipArea);
     }
+    //ecs::render::component* Position = GetRenderComponent(&EntityID);
+    //if(Position)
+    //{
+    //  Height += RenderPositionComponent(ImguiContext, Data->PositionComponentData, Position, V2(TopLeft.X, TopLeft.Y - Height), ClipArea);
+    //}
   }else{
 
   }

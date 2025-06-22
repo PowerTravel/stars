@@ -30,6 +30,55 @@
 
 global_variable r32 g_t = 0;
 
+u32 LoadMesh(render_group* RenderGroup, c8* Name, c8* Path, obj_loaded_file* Data)
+{
+  mesh_data* MeshData = (mesh_data*) GetNewBlock(GlobalPersistentArena, &GlobalState->MeshData);
+  jstr::CopyStringsUnchecked(Name, MeshData->Name);
+  jstr::CopyStringsUnchecked(Path, MeshData->FilePath);
+  MeshData->Data = Data;
+  MeshData->Loaded = true;
+  MeshData->Handle = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, Data));
+  uint32_t Hash = utils::djb2_hash(Name);
+  Insert(&GlobalState->Meshes, Hash, MeshData);
+  return MeshData->Handle;
+}
+u32 LoadMesh(render_group* RenderGroup, c8* Name, c8* Path)
+{
+  obj_loaded_file* Data = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, Path);
+  return LoadMesh(RenderGroup, Name, Path, Data);
+}
+
+
+u32 Load32BitColorTexture(render_group* RenderGroup, c8* Name, c8* Path, obj_bitmap* Data)
+{
+  texture_data* TextureData = (texture_data*) GetNewBlock(GlobalPersistentArena, &GlobalState->TextureData);
+  jstr::CopyStringsUnchecked(Name, TextureData->Name);
+  jstr::CopyStringsUnchecked(Path, TextureData->FilePath);
+  TextureData->Loaded = true;
+  TextureData->Handle = Push32BitColorTexture(RenderGroup, Data);
+  uint32_t Hash = utils::djb2_hash(Name);
+  Insert(&GlobalState->Textures, Hash, TextureData);
+  return TextureData->Handle;
+}
+
+u32 Load32BitColorTexture(render_group* RenderGroup, c8* Name, c8* Path)
+{
+  obj_bitmap* Data = LoadTGA(GlobalTransientArena, Path);
+  return Load32BitColorTexture(RenderGroup, Name, Path, Data);
+}
+
+u32 GetMeshHandle(c8* Name)
+{
+  mesh_data* MeshData = (mesh_data*) Find(&GlobalState->Meshes, utils::djb2_hash(Name));
+  return MeshData->Handle;
+}
+
+u32 GetTextureHandle(c8* Name)
+{
+  texture_data* TextureData = (texture_data*) Find(&GlobalState->Textures, utils::djb2_hash(Name));
+  return TextureData->Handle;
+}
+
 u32 CreatePhongProgram(render_group* RenderGroup)
 {
   u32 ProgramHandle = NewShaderProgram(RenderGroup, "PhongShading");
@@ -176,7 +225,7 @@ void CastConeRays(application_render_commands* RenderCommands, jwin::device_inpu
   render_group* RenderGroup = RenderCommands->RenderGroup;
   render_object* RayObj = PushNewRenderObject(RenderGroup);
   RayObj->ProgramHandle = GlobalState->PlaneStarProgram;
-  RayObj->MeshHandle = GlobalState->Cone;
+  RayObj->MeshHandle = GetMeshHandle("Cone");
   RayObj->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
 
   PushUniform(RayObj, GetUniformHandle(RenderGroup, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
@@ -205,7 +254,7 @@ void CastRays(application_render_commands* RenderCommands, jwin::device_input* I
 
   render_object* Ray = PushNewRenderObject(RenderCommands->RenderGroup);
   Ray->ProgramHandle = GlobalState->PlaneStarProgram;
-  Ray->MeshHandle = GlobalState->Triangle;
+  Ray->MeshHandle = GetMeshHandle("Triangle");
   Ray->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
 
   PushUniform(Ray, GetUniformHandle(RenderCommands->RenderGroup, GlobalState->PlaneStarProgram, "ProjectionMat"), Camera->P);
@@ -286,7 +335,7 @@ void DrawEruptionBands(application_render_commands* RenderCommands, jwin::device
 
   render_object* Eruptions = PushNewRenderObject(RenderCommands->RenderGroup);
   Eruptions->ProgramHandle = GlobalState->EruptionBandProgram;
-  Eruptions->MeshHandle = GlobalState->Sphere;
+  Eruptions->MeshHandle = GetMeshHandle("Sphere");
   Eruptions->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
   PushUniform(Eruptions, GetUniformHandle(RenderCommands->RenderGroup, GlobalState->EruptionBandProgram, "ProjectionMat"), GlobalState->Camera.P);
   PushUniform(Eruptions, GetUniformHandle(RenderCommands->RenderGroup, GlobalState->EruptionBandProgram, "ModelView"), GlobalState->Camera.V*StarModelMat);
@@ -331,7 +380,7 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   {
     render_object* Sphere1 = PushNewRenderObject(RenderGroup);
     Sphere1->ProgramHandle = GameState->SolidColorProgram;
-    Sphere1->MeshHandle = GameState->Sphere;
+    Sphere1->MeshHandle = GetMeshHandle("Sphere");
     Sphere1->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     r32 FinalSizeOscillation = StarSize * ( 1 + 0.01* Sin(0.05*Input->Time));
     Sphere1ModelMat = GetTranslationMatrix(V4(Position, 1))*  Sphere1RotationMatrix * GetScaleMatrix(V4(FinalSizeOscillation,FinalSizeOscillation,FinalSizeOscillation,1));
@@ -345,7 +394,7 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   {
     render_object* Sphere2 = PushNewRenderObject(RenderGroup);
     Sphere2->ProgramHandle = GameState->SolidColorProgram;
-    Sphere2->MeshHandle = GameState->Sphere;
+    Sphere2->MeshHandle = GetMeshHandle("Sphere");
     Sphere2->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     r32 LargeSize = 0.95 * StarSize;
     r32 LargeSizeOscillation = LargeSize * ( 1 + 0.02* Sin(0.1 * Input->Time+ 1.1));
@@ -359,7 +408,7 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   {
     render_object* Sphere3 = PushNewRenderObject(RenderGroup);
     Sphere3->ProgramHandle = GameState->SolidColorProgram;
-    Sphere3->MeshHandle = GameState->Sphere;
+    Sphere3->MeshHandle = GetMeshHandle("Sphere");
     Sphere3->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     r32 MediumSize = 0.85 * StarSize;
     r32 MediumScaleOccilation = MediumSize * ( 1 + 0.02* Sin(Input->Time+Pi32/4.f));
@@ -374,7 +423,7 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
   {
     render_object* Sphere4 = PushNewRenderObject(RenderGroup);
     Sphere4->ProgramHandle = GameState->SolidColorProgram;
-    Sphere4->MeshHandle = GameState->Sphere;
+    Sphere4->MeshHandle = GetMeshHandle("Sphere");
     Sphere4->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
     r32 SmallSize = 0.65;
     r32 SmallScaleOccilation = SmallSize * ( 1 + 0.03* Sin(Input->Time+3/4.f *Pi32));
@@ -493,7 +542,7 @@ void RenderStar(application_state* GameState, application_render_commands* Rende
 
     render_object* Halo = PushNewRenderObject(RenderCommands->RenderGroup);
     Halo->ProgramHandle = GameState->PlaneStarProgram;
-    Halo->MeshHandle = GameState->Plane;
+    Halo->MeshHandle = GetMeshHandle("Plane");
     Halo->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
 
     PushUniform(Halo, GetUniformHandle(RenderCommands->RenderGroup, GameState->PlaneStarProgram, "ProjectionMat"), Camera->P);
@@ -924,9 +973,6 @@ void SetDEBUGSquareNode(container_node* Node,
 }
 
 
-
-
-
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -940,17 +986,19 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   if(!GlobalState->Initialized)
   {
+
     GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
     RenderCommands->RenderGroup = InitiateRenderGroup();
     GlobalState->World = InitiateWorld(RenderCommands);
+
+    
+    GlobalState->MeshData = NewChunkList(GlobalPersistentArena, sizeof(mesh_data), 64);
+    GlobalState->Meshes = NewRBTree(GlobalPersistentArena, 64, 64);
+    GlobalState->TextureData = NewChunkList(GlobalPersistentArena, sizeof(texture_data), 64);
+    GlobalState->Textures = NewRBTree(GlobalPersistentArena, 64, 64);
+
+
     ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
-    obj_loaded_file* plane = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\checker_plane_simple.obj");
-    obj_loaded_file* billboard = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\plane.obj");
-    obj_loaded_file* sphere = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\sphere.obj");
-    obj_loaded_file* triangle = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\triangle.obj");
-    obj_loaded_file* cone = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\cone.obj");
-    obj_loaded_file* cube = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\qube.obj");
-    obj_loaded_file* cylinder = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\cylinder.obj");
 
     render_group* RenderGroup = RenderCommands->RenderGroup;
     // This memory only needs to exist until the data is loaded to the GPU
@@ -966,32 +1014,31 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->ColoredSquareOverlayProgram = CreateColoredSquareOverlayProgram(RenderGroup);
     GlobalState->TexturedSquareOverlayProgram = CreateTexturedSquareOverlayProgram(RenderGroup);
 
+    LoadMesh(RenderGroup, "Cube",     "..\\data\\qube.obj");
+    LoadMesh(RenderGroup, "Plane",    "..\\data\\checker_plane_simple.obj");
+    LoadMesh(RenderGroup, "Sphere",   "..\\data\\sphere.obj");
+    LoadMesh(RenderGroup, "Cone",     "..\\data\\cone.obj");
+    LoadMesh(RenderGroup, "Cylinder", "..\\data\\cylinder.obj");
+    LoadMesh(RenderGroup, "Triangle", "..\\data\\triangle.obj");
+    LoadMesh(RenderGroup, "Billboard","..\\data\\plane.obj");
+    GlobalState->BlitPlane = PushBlitPlaneMesh(RenderGroup);
 
-    GlobalState->Cube = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cube));
-    GlobalState->Plane = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, plane));
-    GlobalState->Sphere = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, sphere));
-    GlobalState->Cone = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cone));
-    GlobalState->Cylinder = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cylinder));
-    GlobalState->Triangle = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, triangle));
-    GlobalState->Billboard = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena,  billboard));
-    GlobalState->BlitPlane =  PushBlitPlaneMesh(RenderGroup);
+    Load32BitColorTexture(RenderGroup, "Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
+    Load32BitColorTexture(RenderGroup, "Faded Ray", "..\\data\\textures\\faded_ray.tga");
+    Load32BitColorTexture(RenderGroup, "Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
+    
+    mesh_data* PlaneMesh = (mesh_data*) Find(&GlobalState->Meshes, utils::djb2_hash("Plane"));
+    Load32BitColorTexture(RenderGroup, "Checkered", "N/A,", PlaneMesh->Data->MaterialData->Materials[0].MapKd);
 
-    GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
-    GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
-
-    obj_bitmap* BrickWallTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\brick_wall_base.tga");
-    obj_bitmap* FadedRayTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\faded_ray.tga");
-    obj_bitmap* EarthTexture = LoadTGA(GlobalTransientArena, "..\\data\\textures\\8081_earthmap4k.tga");
-
-    GlobalState->CheckerBoardTexture = Push32BitColorTexture(RenderGroup, plane->MaterialData->Materials[0].MapKd);
-    GlobalState->BrickWallTexture = Push32BitColorTexture(RenderGroup, BrickWallTexture);
-    GlobalState->FadedRayTexture = Push32BitColorTexture(RenderGroup, FadedRayTexture);
-    GlobalState->EarthTexture = Push32BitColorTexture(RenderGroup, EarthTexture);
     
     texture_params DefaultColor = DefaultColorTextureParams();
     texture_params DefaultDepth = DefaultDepthTextureParams();
     texture_params RevealTexParam = DefaultColorTextureParams();
     RevealTexParam.TextureFormat = texture_format::R_8;
+
+
+    GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
+    GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
     
 
     GlobalState->MsaaColorTexture = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
@@ -1103,8 +1150,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = GlobalState->Plane;
-        Render->TextureHandle = GlobalState->CheckerBoardTexture;
+        Render->MeshHandle = GetMeshHandle("Plane");
+        Render->TextureHandle = GetTextureHandle("Checkered");
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_PEARL);
         Render->Scale = V3(10,1,10);
       }
@@ -1114,7 +1161,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = GlobalState->Cube;
+        Render->MeshHandle = GetMeshHandle("Cube");
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
         Render->Scale = V3(1,1,1);
@@ -1127,7 +1174,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = GlobalState->Cone;
+        Render->MeshHandle = GetMeshHandle("Cone");
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_EMERALD);
         Render->Scale = V3(1,1,1);
@@ -1138,7 +1185,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = GlobalState->Sphere;
+        Render->MeshHandle = GetMeshHandle("Sphere");
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_JADE);
         Render->Scale = V3(1,1,1);
@@ -1149,7 +1196,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0));
         ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = GlobalState->Cone;
+        Render->MeshHandle = GetMeshHandle("Cone");
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_SILVER);
         Render->Scale = V3(1,1,1);
