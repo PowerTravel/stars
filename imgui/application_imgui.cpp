@@ -152,50 +152,96 @@ void DrawNumber(r32 Number, r32 FontSize, rect2f Rect)
 
 float PosXToFloat(void* Data)
 {
-  ecs::position::component* Pos = (ecs::position::component*) Data;
-  return Pos->RelativePosition.X;
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  return Position->RelativePosition.X;
 }
 
 void StoreXPos(float Val, void* Data)
 {
   ecs::position::component* Position = (ecs::position::component*) Data;
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
-  quat Rot = Position->RelativeRotation;
   v3 Pos = Position->RelativePosition;
   Pos.X = Val;
-  ecs::position::Set(Position, Pos, Rot);
+  ecs::position::Set(Position, Pos, Position->RelativeRotation);
 }
 
 float PosYToFloat(void* Data)
 {
-  ecs::position::component* Pos = (ecs::position::component*) Data;
-  return Pos->RelativePosition.Y;
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  return Position->RelativePosition.Y;
 }
 
 void StoreYPos(float Val, void* Data)
 {
   ecs::position::component* Position = (ecs::position::component*) Data;
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
-  quat Rot = Position->RelativeRotation;
   v3 Pos = Position->RelativePosition;
   Pos.Y = Val;
-  ecs::position::Set(Position, Pos, Rot);
+  ecs::position::Set(Position, Pos, Position->RelativeRotation);
 }
 
 float PosZToFloat(void* Data)
 {
-  ecs::position::component* Pos = (ecs::position::component*) Data;
-  return Pos->RelativePosition.Z;
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  return Position->RelativePosition.Z;
 }
 
 void StoreZPos(float Val, void* Data)
 {
   ecs::position::component* Position = (ecs::position::component*) Data;
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
-  quat Rot = Position->RelativeRotation;
   v3 Pos = Position->RelativePosition;
   Pos.Z = Val;
-  ecs::position::Set(Position, Pos, Rot);
+  ecs::position::Set(Position, Pos, Position->RelativeRotation);
+}
+
+float RollToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  return EulerAngle.Roll * 180.f/Pi32;
+}
+
+void StoreRoll(float Val, void* Data)
+{
+  r32 Roll = Val * Pi32 / 180.f;
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  EulerAngle.Roll = Roll;
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle);
+}
+
+float YawToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  return EulerAngle.Yaw * 180.f/Pi32;
+}
+
+void StoreYaw(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  EulerAngle.Yaw = Val * Pi32 / 180.f;
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle);
+}
+
+float PitchToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  return EulerAngle.Pitch * 180.f/Pi32;
+}
+
+void StorePitch(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  EulerAngle.Pitch = Val * Pi32 / 180.f;
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle);
 }
 
 void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffer* TextInputBuffer, rect2f DialogRect, jwin::device_input* Input,
@@ -204,7 +250,7 @@ void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffe
   b32 SelectAll = !ImguiIsSelected(ID);
   v2 DialogPosition = V2(DialogRect.X,DialogRect.Y);
   v2 DialogSize     = V2(DialogRect.W,DialogRect.H);
-  float DataValue = DataToFloat(Data);
+  float DataValue   = DataToFloat(Data);
   if(ImguiSelectabeRegion(ImguiContext, ID, DialogRect, Input))
   {
     if(ImguiContext->SelectedID.idEdge)
@@ -261,26 +307,17 @@ r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data
     rect2f LeftoverRect = Rect2f(V2(TextPos.X + TextSize.X, TextPos.Y), LeftOverSize);
     r32 SubrectWidth = LeftoverRect.W/3.f;
 
-    rect2f Rect1 = Rect2f(LeftoverRect.X, LeftoverRect.Y, SubrectWidth, RowHeight);
-    v2 XDialogPos = V2(Rect1.X, Rect1.Y-DescentOffset);
-    v2 XDialogSize = V2(Rect1.W,Rect1.H);
-    rect2f XDialogRect = Rect2f(XDialogPos, XDialogSize);
-    ReadNumber(ImguiContext,  PosCompData->PosX, &PosCompData->TextBufferPosX, XDialogRect, GlobalInput,
-    PosXToFloat, StoreXPos, (void*) Position );
+    rect2f Rect1 = Rect2f(LeftoverRect.X, LeftoverRect.Y - DescentOffset, SubrectWidth, RowHeight);
+    ReadNumber(ImguiContext,  PosCompData->PosX, &PosCompData->TextBufferPosX, Rect1, GlobalInput,
+      PosXToFloat, StoreXPos, (void*) Position );
 
-    rect2f Rect2 = Rect2f(LeftoverRect.X + SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
-    v2 YDialogPos = V2(Rect2.X, Rect2.Y-DescentOffset);
-    v2 YDialogSize = V2(Rect2.W,Rect2.H);
-    rect2f YDialogRect = Rect2f(YDialogPos, YDialogSize);
-    ReadNumber(ImguiContext,  PosCompData->PosY, &PosCompData->TextBufferPosY, YDialogRect, GlobalInput,
-    PosYToFloat, StoreYPos, (void*) Position );
+    rect2f Rect2 = Rect2f(LeftoverRect.X + SubrectWidth, LeftoverRect.Y - DescentOffset, SubrectWidth, RowHeight);
+    ReadNumber(ImguiContext,  PosCompData->PosY, &PosCompData->TextBufferPosY, Rect2, GlobalInput,
+      PosYToFloat, StoreYPos, (void*) Position );
 
-    rect2f Rect3 = Rect2f(LeftoverRect.X + 2.f*SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
-    v2 ZDialogPos = V2(Rect3.X, Rect3.Y-DescentOffset);
-    v2 ZDialogSize = V2(Rect3.W, Rect3.H);
-    rect2f ZDialogRect = Rect2f(ZDialogPos, ZDialogSize);
-    ReadNumber(ImguiContext,  PosCompData->PosZ, &PosCompData->TextBufferPosZ, ZDialogRect, GlobalInput,
-    PosZToFloat, StoreZPos, (void*) Position );
+    rect2f Rect3 = Rect2f(LeftoverRect.X + 2.f*SubrectWidth, LeftoverRect.Y - DescentOffset, SubrectWidth, RowHeight);
+    ReadNumber(ImguiContext,  PosCompData->PosZ, &PosCompData->TextBufferPosZ, Rect3, GlobalInput,
+      PosZToFloat, StoreZPos, (void*) Position );
     
 
     Height += RowHeight;
@@ -295,19 +332,18 @@ r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data
     rect2f LeftoverRect = Rect2f(V2(TextPos.X + TextSize.X, TextPos.Y), LeftOverSize);
     r32 SubrectWidth = LeftoverRect.W/3.f;
 
-    euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
-     EulerAngle.Angles.X = EulerAngle.Angles.X * 180.f/Pi32;
-     EulerAngle.Angles.Y = EulerAngle.Angles.Y * 180.f/Pi32;
-     EulerAngle.Angles.Z = EulerAngle.Angles.Z * 180.f/Pi32;
-      
-    rect2f Rect1 = Rect2f(LeftoverRect.X, LeftoverRect.Y, SubrectWidth, RowHeight);
-    DrawNumber(EulerAngle.Angles.X, ImguiContext->FontSize, Rect1);
-    
-    rect2f Rect2 = Rect2f(LeftoverRect.X + SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
-    DrawNumber(EulerAngle.Angles.Y, ImguiContext->FontSize, Rect2);
-  
-    rect2f Rect3 = Rect2f(LeftoverRect.X + 2.f*SubrectWidth, LeftoverRect.Y, SubrectWidth, RowHeight);
-    DrawNumber(EulerAngle.Angles.Z, ImguiContext->FontSize, Rect3);
+    rect2f Rect1 = Rect2f(LeftoverRect.X, LeftoverRect.Y-DescentOffset, SubrectWidth, RowHeight);
+    ReadNumber(ImguiContext,  PosCompData->RotX, &PosCompData->TextBufferPosX, Rect1, GlobalInput,
+      RollToFloat, StoreRoll, (void*) Position );
+
+    rect2f Rect2 = Rect2f(LeftoverRect.X + SubrectWidth, LeftoverRect.Y-DescentOffset, SubrectWidth, RowHeight);
+    ReadNumber(ImguiContext,  PosCompData->RotY, &PosCompData->TextBufferPosY, Rect2, GlobalInput,
+      YawToFloat, StoreYaw, (void*) Position );
+
+    rect2f Rect3 = Rect2f(LeftoverRect.X + 2.f*SubrectWidth, LeftoverRect.Y-DescentOffset, SubrectWidth, RowHeight);
+    ReadNumber(ImguiContext,  PosCompData->RotZ, &PosCompData->TextBufferPosZ, Rect3, GlobalInput,
+      PitchToFloat, StorePitch, (void*) Position );
+
 
     //Height += RowHeight;
     TextPos.Y -= RowHeight;

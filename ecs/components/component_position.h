@@ -32,7 +32,7 @@ void Set(component* Component, world_coordinate Position, euler_angle Euler)
 {
   Component->Dirty = true;
   Component->RelativePosition = Position;
-  Component->RelativeRotation = Quaternion(Euler.Roll, Euler.Pitch, Euler.Yaw);
+  Component->RelativeRotation = Quaternion(Euler);
 }
 
 // Creates a new position node, initializes and if parent exists, insert it into the tree

@@ -228,19 +228,23 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
   {
     size_t CharCount = 0;
     GetCharsCountToFitCanonicalSpace(GetRenderSystem(), FontSize, MousePosRelText.X, TextInputBuffer->Buffer.Buffer, 0, &CharCount);
-    TextInputBuffer->CaretPosition = CharCount;
-    if(jwin::Pushed(Input->Mouse.Button[jwin::MouseButton_Left]))
+    
+    if(HighlightAll)
     {
-      if(HighlightAll)
+      if(jwin::Pushed(Input->Mouse.Button[jwin::MouseButton_Left]))
       {
         TextInputBuffer->SelectMode = true;
         TextInputBuffer->SelectionStart = 0;
         TextInputBuffer->CaretPosition = TextInputBuffer->CharCount;
-      }else{
+      }
+    }else{  
+      if(jwin::Pushed(Input->Mouse.Button[jwin::MouseButton_Left]))
+      {
         TextInputBuffer->SelectionStart = CharCount;
       }
+      TextInputBuffer->CaretPosition = CharCount;
     }
-
+    
     if(TextInputBuffer->SelectionStart != TextInputBuffer->CaretPosition)
     {
       TextInputBuffer->SelectMode = true;
