@@ -16,31 +16,34 @@ struct component
   world_coordinate AbsolutePosition;
   quat RelativeRotation;
   quat AbsoluteRotation;
-
+  v3 Scale;
   b32 Dirty;
 };
 
 // Creates a new position node, initializes and if parent exists, insert it into the tree
-void Set(component* Component, world_coordinate Position, quat Rotation)
+void Set(component* Component, world_coordinate Position, quat Rotation, v3 Scale)
 {
   Component->Dirty = true;
   Component->RelativePosition = Position;
   Component->RelativeRotation = Rotation;
+  Component->Scale = Scale;
 }
 
-void Set(component* Component, world_coordinate Position, euler_angle Euler)
+void Set(component* Component, world_coordinate Position, euler_angle Euler, v3 Scale)
 {
   Component->Dirty = true;
   Component->RelativePosition = Position;
   Component->RelativeRotation = Quaternion(Euler);
+  Component->Scale = Scale;
 }
 
 // Creates a new position node, initializes and if parent exists, insert it into the tree
-void Set(component* Component, world_coordinate Position, r32 Angle, v3 Axis)
+void Set(component* Component, world_coordinate Position, r32 Angle, v3 Axis, v3 Scale)
 {
   Component->Dirty = true;
   Component->RelativePosition = Position;
   Component->RelativeRotation = RotateQuaternion(Angle, Axis);
+  Component->Scale = Scale;
 }
 
 }

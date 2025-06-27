@@ -13,7 +13,7 @@
 #include "math/AABB.cpp"
 #include "camera.cpp"
 #include "math/geometry_math.h"
-#include "skybox_drawing.h"
+//#include "skybox_drawing.h"
 #include "containers/chunk_list.cpp"
 #include "containers/linked_memory.cpp"
 #include "ecs/entity_components_backend.cpp"
@@ -161,6 +161,26 @@ u32 CreateEruptionBandProgram(render_group* RenderGroup)
   return ProgramHandle;
 }
 
+u32 CreatePhongNoTexProgram(render_group* RenderGroup)
+{
+  u32 ProgramHandle = NewShaderProgram(RenderGroup,
+      "PhongShadingNoTex");
+
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ProjectionMat");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ModelView");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "NormalView");
+  AddUniform(RenderGroup, UniformType::V3, ProgramHandle, "LightDirection");
+  AddUniform(RenderGroup, UniformType::V3, ProgramHandle, "LightColor");
+  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialAmbient");
+  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialDiffuse");
+  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialSpecular");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Shininess");
+  CompileShader(RenderGroup, ProgramHandle,
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
+
+  return ProgramHandle;
+}
 
 
 struct eurption_band{
@@ -979,6 +999,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GlobalState = JwinBeginFrameMemory(application_state);
   GlobalInput = Input;
   GlobalImguiContext = &GlobalState->ImguiContext;
+  GlobalRenderCommands = RenderCommands;
+
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   ImguiBegin(Input);
@@ -1007,6 +1029,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->PlaneStarProgram = CreatePlaneStarProgram(RenderGroup);
     GlobalState->SolidColorProgram = CreateSolidColorProgram(RenderGroup);
     GlobalState->EruptionBandProgram = CreateEruptionBandProgram(RenderGroup);
+    GlobalState->PhongShadingNoTexProgram = CreatePhongNoTexProgram(RenderGroup);
     GlobalState->TransparentCompositionProgram = CreateTransparentCompositionProgram(RenderGroup);
     GlobalState->GaussianProgramX = CreateGaussianBlurProgramX(RenderGroup);
     GlobalState->GaussianProgramY = CreateGaussianBlurProgramY(RenderGroup);
@@ -1071,12 +1094,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     LookAt(&GlobalState->Camera, V3(0,0,4), V3(0,0,0));
  
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
-
+/*
     GlobalState->DebugRenderCommands = PushStruct(GlobalPersistentArena, debug_application_render_commands);
     *GlobalState->DebugRenderCommands = DebugApplicationRenderCommands(RenderCommands, &GlobalState->Camera);
     GlobalState->DebugRenderCommands->MsaaFrameBuffer = GlobalState->MsaaFrameBuffer;
     GlobalState->DebugRenderCommands->DefaultFrameBuffer = GlobalState->DefaultFrameBuffer;
-
+*/
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
     
     GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, &Input->Keyboard, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
@@ -1148,23 +1171,21 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       { // Checker Floor
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0));
+        ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GetMeshHandle("Plane");
         Render->TextureHandle = GetTextureHandle("Checkered");
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_PEARL);
-        Render->Scale = V3(10,1,10);
       }
 
       { // Transparent Cube
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0));
+        ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GetMeshHandle("Cube");
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
-        Render->Scale = V3(1,1,1);
         GlobalState->DebugSquare = PushStruct(GlobalPersistentArena, ecs::entity_id);
         *GlobalState->DebugSquare = Entity;
       }
@@ -1172,34 +1193,31 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       { // Transparent Cone
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0));
+        ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GetMeshHandle("Cone");
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_EMERALD);
-        Render->Scale = V3(1,1,1);
       }
       
       { // Transparent Sphere
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Sphere", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0));
+        ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GetMeshHandle("Sphere");
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_JADE);
-        Render->Scale = V3(1,1,1);
       }
 
       { // Solid Cone
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0));
+        ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = GetMeshHandle("Cone");
         Render->TextureHandle = GlobalState->WhitePixelTexture;
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_SILVER);
-        Render->Scale = V3(1,1,1);
       }
     }
   }else{
@@ -1211,13 +1229,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   ecs::position::component* Position = GetPositionComponent(GlobalState->DebugSquare);
   //ecs::position::Set(Position, Position->RelativePosition, RotateQuaternion(0, V3(1,0,0)));
-  ecs::position::Set(Position, Position->RelativePosition, QuaternionMultiplication(Position->RelativeRotation, RotateQuaternion(0.01, V3(0,1,0))));
+  ecs::position::Set(Position, Position->RelativePosition, QuaternionMultiplication(Position->RelativeRotation, RotateQuaternion(0.01, V3(0,1,0))), Position->Scale);
 
   ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
   CreateFrameBuffer(RenderCommands->RenderGroup, GlobalState->DefaultFrameBuffer,  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
-
-  GlobalDebugRenderCommands = GlobalState->DebugRenderCommands;
   
   if(!GlobalState->World.MenuInterface->MenuVisible)
   {
@@ -1265,12 +1281,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     CompileShader(RenderGroup, GlobalState->TexturedSquareOverlayProgram,
       1, LoadFileFromDisk("..\\jwin\\shaders\\TexturedOverlayQuadVertex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\TexturedOverlayQuadFragment.glsl"));
+    CompileShader(RenderGroup, GlobalState->PhongShadingNoTexProgram,
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
   }
 
   ecs::position::UpdatePositions(GetEntityManager());
   
 #define TMP_STRING_SIZE 128
-
   UpdateViewMatrix(&GlobalState->Camera);
 
   

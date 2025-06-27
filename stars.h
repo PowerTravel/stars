@@ -3,7 +3,8 @@
 #include "platform/jfont.h"
 #include "commons/random.h"
 #include "camera.h"
-#include "debug_draw.h"
+//#include "debug_draw.h"
+#include "platform/obj_loader.h"
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
 #include "ecs/systems/system_render.h"
@@ -59,7 +60,7 @@ struct application_state
   random_generator RandomGenerator;
 
   u32 PhongProgram;
-  u32 PhongProgramNoTex;
+  u32 PhongShadingNoTexProgram;
   u32 PhongProgramTransparent;
   u32 PlaneStarProgram;
   u32 SphereStarProgram;
@@ -97,8 +98,6 @@ struct application_state
   u32 GaussianAFrameBuffer;
   u32 GaussianBFrameBuffer;
 
-  debug_application_render_commands* DebugRenderCommands;
-
   function_pool* FunctionPool;
   menu::color_table ColorTable;
   world World;
@@ -114,10 +113,14 @@ struct application_state
   ecs::entity_id* DebugSquare;
 };
 
-debug_application_render_commands* GlobalDebugRenderCommands = 0;
-application_state* GlobalState = 0;
-jwin::device_input* GlobalInput = 0;
-imgui_context* GlobalImguiContext = 0;
+global_variable application_render_commands* GlobalRenderCommands = 0;
+global_variable application_state* GlobalState = 0;
+global_variable jwin::device_input* GlobalInput = 0;
+global_variable imgui_context* GlobalImguiContext = 0;
+
+
+u32 GetMeshHandle(c8* Name);
+u32 GetTextureHandle(c8* Name);
 
 // Global Singleton Getters
 inline ecs::render::system* GetRenderSystem() {

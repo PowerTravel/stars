@@ -4,71 +4,15 @@
 #include "platform/obj_loader.h"
 #include "utils.h"
 
-struct debug_application_render_commands
-{
-  application_render_commands* RenderCommands;
-  camera* Camera;
-  v3 LightDirection;
-
-  u32 PhongProgramNoTex;
-  u32 Sphere;
-  u32 Cylinder;
-  u32 Cone;
-  u32 MsaaFrameBuffer;
-  u32 DefaultFrameBuffer;
-};
-
-extern debug_application_render_commands* GlobalDebugRenderCommands;
-
-u32 CreatePhongNoTexProgram(render_group* RenderGroup)
-{
-  u32 ProgramHandle = NewShaderProgram(RenderGroup,
-      "PhongShadingNoTex");
-
-  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ProjectionMat");
-  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ModelView");
-  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "NormalView");
-  AddUniform(RenderGroup, UniformType::V3, ProgramHandle, "LightDirection");
-  AddUniform(RenderGroup, UniformType::V3, ProgramHandle, "LightColor");
-  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialAmbient");
-  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialDiffuse");
-  AddUniform(RenderGroup, UniformType::V4, ProgramHandle, "MaterialSpecular");
-  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Shininess");
-  CompileShader(RenderGroup, ProgramHandle,
-      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
-      1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
-
-  return ProgramHandle;
-}
-
-debug_application_render_commands DebugApplicationRenderCommands(application_render_commands* RenderCommands, camera* Camera)
-{
-  debug_application_render_commands Result = {};
-  render_group* RenderGroup = RenderCommands->RenderGroup;
-  Result.PhongProgramNoTex = CreatePhongNoTexProgram(RenderGroup);
-  Result.RenderCommands = RenderCommands;
-  Result.Camera = Camera;
-  Result.LightDirection = V3(1,2,1);
-
-  obj_loaded_file* sphere = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\sphere.obj");
-  Result.Sphere = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, sphere));
-
-  obj_loaded_file* cylinder = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\cylinder.obj");
-  Result.Cylinder = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cylinder));
-  
-  obj_loaded_file* cone = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, "..\\data\\cone.obj");
-  Result.Cone = PushNewMesh(RenderGroup, MapObjToOpenGLMesh(GlobalTransientArena, cone));
-  return Result;
-}
-
 
 void DrawDebugDot(v3 Pos, v3 Color, r32 scale)
 {
-  application_render_commands* RenderCommands = GlobalDebugRenderCommands->RenderCommands;
-  m4 P = GlobalDebugRenderCommands->Camera->P;
-  m4 V = GlobalDebugRenderCommands->Camera->V;
-  v3 LightDirection = GlobalDebugRenderCommands->LightDirection;
-  u32 PhongProgramNoTex = GlobalDebugRenderCommands->PhongProgramNoTex;
+  application_render_commands* RenderCommands = GlobalRenderCommands->RenderCommands;
+  ecs::system::render 
+  m4 P = GlobalRenderCommands->Camera->P;
+  m4 V = GlobalRenderCommands->Camera->V;
+  v3 LightDirection = GlobalRenderCommands->LightDirection;
+  u32 PhongProgramNoTex = GlobalRenderCommands->PhongProgramNoTex;
 
   v4 Amb =  V4(Color.X * 0.5, Color.Y * 0.5, Color.Z * 0.5, 1.0);
   v4 Diff = V4(Color.X * 1, Color.Y * 1, Color.Z * 1, 1.0);

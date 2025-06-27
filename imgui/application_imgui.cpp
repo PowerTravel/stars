@@ -162,7 +162,7 @@ void StoreXPos(float Val, void* Data)
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
   v3 Pos = Position->RelativePosition;
   Pos.X = Val;
-  ecs::position::Set(Position, Pos, Position->RelativeRotation);
+  ecs::position::Set(Position, Pos, Position->RelativeRotation, Position->Scale);
 }
 
 float PosYToFloat(void* Data)
@@ -177,7 +177,7 @@ void StoreYPos(float Val, void* Data)
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
   v3 Pos = Position->RelativePosition;
   Pos.Y = Val;
-  ecs::position::Set(Position, Pos, Position->RelativeRotation);
+  ecs::position::Set(Position, Pos, Position->RelativeRotation, Position->Scale);
 }
 
 float PosZToFloat(void* Data)
@@ -192,7 +192,7 @@ void StoreZPos(float Val, void* Data)
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
   v3 Pos = Position->RelativePosition;
   Pos.Z = Val;
-  ecs::position::Set(Position, Pos, Position->RelativeRotation);
+  ecs::position::Set(Position, Pos, Position->RelativeRotation, Position->Scale);
 }
 
 float RollToFloat(void* Data)
@@ -209,7 +209,7 @@ void StoreRoll(float Val, void* Data)
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
   euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
   EulerAngle.Roll = Roll;
-  ecs::position::Set(Position, Position->RelativePosition, EulerAngle);
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle, Position->Scale);
 }
 
 float YawToFloat(void* Data)
@@ -225,7 +225,7 @@ void StoreYaw(float Val, void* Data)
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
   euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
   EulerAngle.Yaw = Val * Pi32 / 180.f;
-  ecs::position::Set(Position, Position->RelativePosition, EulerAngle);
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle, Position->Scale);
 }
 
 float PitchToFloat(void* Data)
@@ -241,7 +241,7 @@ void StorePitch(float Val, void* Data)
   ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
   euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
   EulerAngle.Pitch = Val * Pi32 / 180.f;
-  ecs::position::Set(Position, Position->RelativePosition, EulerAngle);
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle, Position->Scale);
 }
 
 void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffer* TextInputBuffer, rect2f DialogRect, jwin::device_input* Input,

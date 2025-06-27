@@ -84,7 +84,6 @@ data::material GetMaterial(u32 MaterialIndex) {
 struct component {
   u32 MeshHandle;
   u32 TextureHandle;
-  v3 Scale;
   data::material Material;
 };
 

@@ -39,9 +39,11 @@ namespace data {
     m4 ModelMatrix; // PixelSpace
   };
 
+
+// Note: Maybe only Overlay-things should have render-levels.
+// Anything rendered in the 3d-world should be able to use z-culling.
+
   struct render_level {
-    chunk_list SolidObjects;
-    chunk_list TransparentObjects;
     chunk_list OverlayText;
     chunk_list OverlayQuads;
     chunk_list OverlayIcon;
@@ -70,6 +72,9 @@ namespace data {
     render_group* RenderGroup;
     data::font Font;
     u32 FontTextureHandle;
+    chunk_list SolidObjects;
+    chunk_list TransparentObjects;
+    chunk_list OverlayObjects; // Turn off z-buffer and render on top of everything
     data::render_level RenderSentinel;
     rect2f UnitDrawRegion; // UnitCoordinate [0,0,1,1], Percentage of applicationWidth/Height
     window_size_pixel WindowSize;
@@ -88,6 +93,9 @@ namespace data {
     EndTemporaryMemory( System->TempMem );
     System->TempMem = BeginTemporaryMemory(&System->Arena);
     ListInitiate(&System->RenderSentinel);
+    System->TransparentObjects = {};
+    System->SolidObjects = {};
+    System->OverlayObjects = {};
   }
   void DrawScene(system* System, ecs::entity_manager* EntityManager);
   void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix);
