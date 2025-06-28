@@ -1,7 +1,7 @@
 #pragma once
 
 #include "platform/coordinate_systems.h"
-
+#include "math/affine_transformations.h"
 // Wanna make a difference to how position_node vs position works.
 // Today position is the root node of a position_tree.
 // I want a position_node with no parents to be the root node that gets updated
@@ -46,5 +46,26 @@ void Set(component* Component, world_coordinate Position, r32 Angle, v3 Axis, v3
   Component->Scale = Scale;
 }
 
+v3 GetAbsolutePosition(ecs::position::component* Position)
+{
+  return Position->AbsolutePosition;
+}
+v4 GetAbsoluteRotation(ecs::position::component* Position)
+{
+  return Position->AbsoluteRotation;
+}
+v3 GetScale(ecs::position::component* Position)
+{
+  return Position->Scale;
+}
+
+m4 GetModelMatrix(ecs::position::component* Position)
+{
+  m4 Scale = GetScaleMatrix(V4(GetScale(Position),1));
+  m4 Rotation = GetRotationMatrix(GetAbsoluteRotation(Position));
+  m4 Translation = GetTranslationMatrix(V4(GetAbsolutePosition(Position),1));
+  m4 ModelMat = Translation*Rotation*Scale;
+  return ModelMat;
+}
 }
 }

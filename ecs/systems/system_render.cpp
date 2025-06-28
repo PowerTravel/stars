@@ -456,18 +456,7 @@ u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWei
   return Size;
 }
 
-v3 GetAbsolutePosition(ecs::position::component* Position)
-{
-  return Position->AbsolutePosition;
-}
-v4 GetAbsoluteRotation(ecs::position::component* Position)
-{
-  return Position->AbsoluteRotation;
-}
-v3 GetScale(ecs::position::component* Position)
-{
-  return Position->Scale;
-}
+
 void PushRenderObjectWithoutEntity(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
   v3 LightDirection, v3 LightColor, v3 Pos, quat Rot, v3 Scal)
 {
@@ -481,7 +470,7 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, component* Render,
   m4 Scale = GetScaleMatrix(V4(Scal,1));
   m4 Rotation = GetRotationMatrix(Rot);
   m4 Translation = GetTranslationMatrix(V4(Pos,1));
-  m4 ModelMat =  Translation*Rotation*Scale;
+  m4 ModelMat = Translation*Rotation*Scale;
   //Rotate( GetAbsoluteRotation(Position), -V4(0,1,0,0), ModelMat );
 
   m4 ModelView = ViewMatrix*ModelMat;
@@ -510,10 +499,7 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   Object->TextureCount = 1;
   Object->TextureHandles[0] = Render->TextureHandle;
 
-  m4 Scale = GetScaleMatrix(V4(GetScale(Position),1));
-  m4 Rotation = GetRotationMatrix(GetAbsoluteRotation(Position));
-  m4 Translation = GetTranslationMatrix(V4(GetAbsolutePosition(Position),1));
-  m4 ModelMat =  Translation*Rotation*Scale;
+  m4 ModelMat = GetModelMatrix(Position);
   //Rotate( GetAbsoluteRotation(Position), -V4(0,1,0,0), ModelMat );
 
   m4 ModelView = ViewMatrix*ModelMat;
