@@ -16,10 +16,13 @@ inline v4 PositionToCoordinate(u32 X, u32 Y, u32 IconSizePx, u32 AtlasSizePx) {
   return Result;
 }
 
+
 imgui_icon_atlas LoadImguiIcons(render_group* RenderGroup)
 {
   imgui_icon_atlas Icons = {};
-  Icons.Atlas = Push32BitColorTexture(RenderGroup, LoadTGA(GlobalTransientArena, "..\\data\\icons\\icons.tga"));
+  Icons.Atlas = Push32BitColorTexture(RenderGroup, LoadTGA([](u32 ByteSize){
+    return PushSize(GlobalTransientArena, ByteSize);
+  }, "..\\data\\icons\\icons.tga"));
 
   u32 IconSize = 64;
   u32 AtlasSize = 512;

@@ -13,7 +13,6 @@
 #include "math/AABB.cpp"
 #include "camera.cpp"
 #include "math/geometry_math.h"
-//#include "skybox_drawing.h"
 #include "containers/chunk_list.cpp"
 #include "containers/linked_memory.cpp"
 #include "ecs/entity_components_backend.cpp"
@@ -30,6 +29,24 @@
 
 global_variable r32 g_t = 0;
 
+obj_loaded_file* ReadOBJFile(char* FileName)
+{
+  obj_loaded_file* Result = ReadOBJFile([](u32 MemorySize){
+    return PushSize(GlobalPersistentArena, MemorySize);
+  }, GlobalTransientArena, FileName);
+  return Result;
+}
+
+
+obj_bitmap* LoadTGA(char* FileName)
+{
+  obj_bitmap* Result = LoadTGA([](u32 ByteSize){
+    void* Result = PushSize(GlobalPersistentArena, ByteSize);
+    return Result;
+  }, FileName);
+  return Result;
+}
+
 u32 LoadMesh(render_group* RenderGroup, c8* Name, c8* Path, obj_loaded_file* Data)
 {
   mesh_data* MeshData = (mesh_data*) GetNewBlock(GlobalPersistentArena, &GlobalState->MeshData);
@@ -42,9 +59,10 @@ u32 LoadMesh(render_group* RenderGroup, c8* Name, c8* Path, obj_loaded_file* Dat
   Insert(&GlobalState->Meshes, Hash, MeshData);
   return MeshData->Handle;
 }
+
 u32 LoadMesh(render_group* RenderGroup, c8* Name, c8* Path)
 {
-  obj_loaded_file* Data = ReadOBJFile(GlobalPersistentArena, GlobalTransientArena, Path);
+  obj_loaded_file* Data = ReadOBJFile(Path);
   return LoadMesh(RenderGroup, Name, Path, Data);
 }
 
@@ -63,7 +81,7 @@ u32 Load32BitColorTexture(render_group* RenderGroup, c8* Name, c8* Path, obj_bit
 
 u32 Load32BitColorTexture(render_group* RenderGroup, c8* Name, c8* Path)
 {
-  obj_bitmap* Data = LoadTGA(GlobalTransientArena, Path);
+  obj_bitmap* Data = LoadTGA(Path);
   return Load32BitColorTexture(RenderGroup, Name, Path, Data);
 }
 
