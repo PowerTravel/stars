@@ -2,6 +2,35 @@
 
 namespace ecs::render {
 
+enum class overlay_object_type {
+  POSITION
+};
+
+struct overlay_object {
+  overlay_object_type Type;
+  v3 Position;
+  quat Rotation;
+};
+
+u32 GetMeshHandle(c8* Name)
+{
+  u32 Key = asset::ToKey(asset::type::OBJ, Name);
+  u32* Handle = (u32*) Find(&GlobalState->MeshHandleMap, Key);
+  return *Handle;
+}
+
+u32 GetTextureHandle(c8* Name)
+{
+  u32* Handle = (u32*) Find(&GlobalState->TextureHandleMap, utils::djb2_hash(Name));
+  return *Handle;
+}
+
+u32 GetFrameBufferHandle(c8* Name)
+{
+  u32* Handle = (u32*) Find(&GlobalState->FrameBufferHandleMap, utils::djb2_hash(Name));
+  return *Handle;
+}
+
 void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas, r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])
 {
   codepoint TextString[1024] = {};
@@ -227,7 +256,7 @@ inline internal chunk_list* GetOverlayObjects(system* System)
 {
   if(!IsInitiated(&System->OverlayObjects))
   {
-    System->OverlayObjects = NewChunkList(&System->Arena, sizeof(component), 32);
+    System->OverlayObjects = NewChunkList(&System->Arena, sizeof(overlay_object), 32);
   }
   return &System->OverlayObjects;
 }
@@ -304,12 +333,11 @@ void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8
 void DrawOverlayDot3D(system* System, v3 Position)
 {
   chunk_list* ObjList =  GetOverlayObjects(System);
-  ecs::render::component Component = {};
-  Component.MeshHandle = GetMeshHandle("Sphere");
-  u32 TextureHandle = 0;
-  Component.Material = GetMaterial(ecs::render::data::MATERIAL_RED_RUBBER);
-  //Push(memory_arena* Arena, chunk_list* List, bptr Data, u32* ResultIndex = 0);
-  Push(&System->Arena, ObjList, (bptr) &Component);
+  overlay_object Object = {};
+  Object.Type = overlay_object_type::POSITION;
+  Object.Position = Position;
+  Object.Rotation = Quaternion();
+  Push(&System->Arena, ObjList, (bptr) &Object);
 }
 
 void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color)
@@ -342,6 +370,12 @@ void DrawScene(system* System, ecs::entity_manager* EntityManager)
       Push(&System->Arena, TransparentObjects, (bptr) &Component);
     }else{ 
       Push(&System->Arena, SolidObjects, (bptr) &Component);
+    }
+
+    ecs::position::component* Position = GetPositionComponent(&EntityIterator);
+    if(Position)
+    {
+      DrawOverlayDot3D(System, Position->RelativePosition);
     }
   }
 }
@@ -457,13 +491,13 @@ u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWei
 }
 
 
-void PushRenderObjectWithoutEntity(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
-  v3 LightDirection, v3 LightColor, v3 Pos, quat Rot, v3 Scal)
+void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
+  v3 LightDirection, v3 LightColor, v3 Pos, quat Rot, v3 Scal, data::material Material)
 {
   render_object* Object = PushNewRenderObject(RenderGroup);
   Object->ProgramHandle = Program;
   Object->FrameBufferHandle = FrameBuffer;
-  Object->MeshHandle = Render->MeshHandle;
+  Object->MeshHandle = MeshHandle;
   Object->TextureCount = 0;
   //Object->TextureHandles[0] = Render->TextureHandle;
 
@@ -480,10 +514,10 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, component* Render,
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Render->Material.Ambient);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Render->Material.Diffuse);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Render->Material.Specular);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Render->Material.Shininess);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Material.Ambient);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Material.Diffuse);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Material.Specular);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Material.Shininess);
 }
 
 void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
@@ -528,7 +562,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 {
   render_group* RenderGroup = RenderSystem->RenderGroup;
 
-  DrawOverlayDot3D(RenderSystem, V3(0,3,0));
+  //DrawOverlayDot3D(RenderSystem, V3(0,3,0));
 
   v3 LightColor = V3(1,1,1);
   v3 LightPosition = V3(1,1,1);
@@ -549,42 +583,42 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     // Clear default color frame buffer
     clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
     DefClearColor->BufferType = OPEN_GL_COLOR;
-    DefClearColor->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+    DefClearColor->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
     DefClearColor->TextureIndex = 0;
     DefClearColor->Color = V4(0,0,0,1);
 
     // Clear default depth frame buffer
     clear_operation* DefClearDepth = PushNewClearOperation(RenderGroup);
     DefClearDepth->BufferType = OPEN_GL_DEPTH;
-    DefClearDepth->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+    DefClearDepth->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
     DefClearDepth->TextureIndex = 0;
     DefClearDepth->Depth = 1;
 
     // Clear MSAA Color frame buffer
     clear_operation* ClearMSAAColor = PushNewClearOperation(RenderGroup);
     ClearMSAAColor->BufferType = OPEN_GL_COLOR;
-    ClearMSAAColor->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+    ClearMSAAColor->FrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
     ClearMSAAColor->TextureIndex = 0;
     ClearMSAAColor->Color = V4(0,0,0,1);
 
     // Clear MSAA Depth frame buffer
     clear_operation* ClearMSAADepth = PushNewClearOperation(RenderGroup);
     ClearMSAADepth->BufferType = OPEN_GL_DEPTH;
-    ClearMSAADepth->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
+    ClearMSAADepth->FrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
     ClearMSAADepth->TextureIndex = 0;
     ClearMSAADepth->Depth = 1;
 
     // Clear Transparent calculation frame buffer 0
     clear_operation* TransparenClearOp0 = PushNewClearOperation(RenderGroup);
     TransparenClearOp0->BufferType = OPEN_GL_COLOR;
-    TransparenClearOp0->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+    TransparenClearOp0->FrameBufferHandle = GetFrameBufferHandle("TransparentFrameBuffer");
     TransparenClearOp0->TextureIndex = 0;
     TransparenClearOp0->Color = V4(0,0,0,0);
 
     // Clear Transparent calculation frame buffer 1
     clear_operation* TransparenClearOp1 = PushNewClearOperation(RenderGroup);
     TransparenClearOp1->BufferType = OPEN_GL_COLOR;
-    TransparenClearOp1->FrameBufferHandle = GlobalState->TransparentFrameBuffer;
+    TransparenClearOp1->FrameBufferHandle = GetFrameBufferHandle("TransparentFrameBuffer");
     TransparenClearOp1->TextureIndex = 1;
     TransparenClearOp1->Color = V4(1,0,0,0);
   }
@@ -607,12 +641,10 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       chunk_list_iterator SolidIt = BeginIterator(SolidObjects);
       while(Valid(&SolidIt)) {
         component** RenderPtr = (component**) Next(&SolidIt);
-        PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgram, GlobalState->MsaaFrameBuffer, ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
+        PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgram, GetFrameBufferHandle("MsaaFrameBuffer"), ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
       }
       Clear(SolidObjects);
     }
-
-
 
     if(GetBlockCount(TransparentObjects) > 0)
     {
@@ -636,7 +668,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       chunk_list_iterator TransparentIt = BeginIterator(TransparentObjects);
       while(Valid(&TransparentIt)) {
         component** RenderPtr = (component**) Next(&TransparentIt);
-        PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgramTransparent, GlobalState->TransparentFrameBuffer, ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
+        PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgramTransparent, GetFrameBufferHandle("TransparentFrameBuffer"), ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
       }
       Clear(TransparentObjects);
 
@@ -658,10 +690,10 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       // Then composit the solid and transparent objects into a single image
       render_object* CompositionObject = PushNewRenderObject(RenderGroup);
       CompositionObject->ProgramHandle = GlobalState->TransparentCompositionProgram;
-      CompositionObject->MeshHandle = GlobalState->BlitPlane;
-      CompositionObject->FrameBufferHandle = GlobalState->MsaaFrameBuffer;
-      CompositionObject->TextureHandles[0] = GlobalState->AccumTexture;
-      CompositionObject->TextureHandles[1] = GlobalState->RevealTexture;
+      CompositionObject->MeshHandle = GetMeshHandle("BlitPlane");
+      CompositionObject->FrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
+      CompositionObject->TextureHandles[0] = GetTextureHandle("AccumTexture");
+      CompositionObject->TextureHandles[1] = GetTextureHandle("RevealTexture");
       CompositionObject->TextureCount = 2;
 
       PushUniform(CompositionObject, GetUniformHandle(RenderGroup, GlobalState->TransparentCompositionProgram,  "AccumTex"), (u32)0);
@@ -669,29 +701,38 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 
     }
 
-    if(GetBlockCount(OverlayObjects) > 0)
-    {
-      render_state* DefaultState = PushNewState(RenderGroup);
-      *DefaultState = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
-      DefaultState->UseDepth = true; // Enable to set depth state
-      DefaultState->DepthState.TestActive = false;
-      DefaultState->DepthState.WriteActive = false;
-      chunk_list_iterator OverlayIt = BeginIterator(OverlayObjects);
+    { 
+      // Render overlay doodads.
+      render_state* BlendAndDepth = PushNewState(RenderGroup);
+      SetState(BlendAndDepth, DefaultBlendState());
+      depth_state DepthState = {};
+      DepthState.TestActive = true;
+      DepthState.WriteActive = true; 
+      SetState(BlendAndDepth,DepthState);
+     
+      clear_operation* ClearMsaaDepthBuffer = PushNewClearOperation(RenderGroup);
+      ClearMsaaDepthBuffer->BufferType = OPEN_GL_DEPTH;
+      ClearMsaaDepthBuffer->FrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
+      ClearMsaaDepthBuffer->TextureIndex = 0;
+      ClearMsaaDepthBuffer->Depth = 1;
+      
+      if(GetBlockCount(OverlayObjects) > 0)
+      {
+        chunk_list_iterator OverlayIt = BeginIterator(OverlayObjects);
 
-      v3 Posi = V3(0,3,0);
-      m4 CamToWorld = RigidInverse(ViewMatrix);
-      v3 CamPosition = V3(Column(CamToWorld,3));
-      r32 Scale = 2*Norm(Posi-CamPosition)  * 0.01;
-      Platform.DEBUGPrint("Cam = (%f, %f, %f), Pos = (%f, %f, %f) - Diff %f\n",
-        CamPosition.X,CamPosition.Y,CamPosition.Z,
-        Posi.X,Posi.Y,Posi.Z, Scale);
-      while(Valid(&OverlayIt)) {
-        component* RenderPtr = (component*) Next(&OverlayIt);
-        PushRenderObjectWithoutEntity(RenderGroup, RenderPtr, GlobalState->PhongShadingNoTexProgram, GlobalState->MsaaFrameBuffer, ProjectionMatrix, ViewMatrix, LightDirection, LightColor,
-          Posi, Quaternion(), V3(Scale,Scale,Scale));
+        m4 CamToWorld = RigidInverse(ViewMatrix);
+        v3 CamPosition = V3(Column(CamToWorld,3));
+        while(Valid(&OverlayIt)) {
+          overlay_object* Object = (overlay_object*) Next(&OverlayIt);
+
+          r32 Scale = 2*Norm(Object->Position-CamPosition)  * 0.01;
+          PushRenderObjectWithoutEntity(RenderGroup, GetMeshHandle("Sphere"), GlobalState->PhongShadingNoTexProgram, GetFrameBufferHandle("MsaaFrameBuffer"), ProjectionMatrix, ViewMatrix, LightDirection, LightColor,
+            Object->Position, Object->Rotation, V3(Scale,Scale,Scale),
+            GetMaterial(data::material_type::MATERIAL_RED_RUBBER));
+        }
+
+        Clear(OverlayObjects);
       }
-
-      Clear(OverlayObjects);
     }
 
     // Shrink to regular screeen sice
@@ -701,22 +742,22 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     SetState(ViewportAndBlend, DefaultBlendState());
 
     blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
-    BlitOperation->ReadFrameBufferHandle = GlobalState->MsaaFrameBuffer;
+    BlitOperation->ReadFrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
   
 #if 1
-    BlitOperation->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
+    BlitOperation->DrawFrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
     BlitOperation->DrawRegionUnitCoord = RenderSystem->UnitDrawRegion;
 #else
   // Gaussian blur
-  BlitOperation->DrawFrameBufferHandle = GlobalState->GaussianAFrameBuffer;
+  BlitOperation->DrawFrameBufferHandle = GetFrameBufferHandle("GaussianAFrameBuffer");
 
   for (int i = 0; i < 4; ++i)
   {
     render_object* GaussianBlurX = PushNewRenderObject(RenderGroup);
     GaussianBlurX->ProgramHandle = GlobalState->GaussianProgramX;
-    GaussianBlurX->MeshHandle = GlobalState->BlitPlane;
-    GaussianBlurX->FrameBufferHandle = GlobalState->GaussianBFrameBuffer;
-    GaussianBlurX->TextureHandles[0] = GlobalState->GaussianATexture;
+    GaussianBlurX->MeshHandle =  GetMeshHandle("BlitPlane");
+    GaussianBlurX->FrameBufferHandle = GetFrameBufferHandle("GaussianBFrameBuffer");
+    GaussianBlurX->TextureHandles[0] = GetTextureHandle("GaussianATexture");
     GaussianBlurX->TextureCount = 1;
 
     PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
@@ -727,9 +768,9 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 
     render_object* GaussianBlurY = PushNewRenderObject(RenderGroup);
     GaussianBlurY->ProgramHandle = GlobalState->GaussianProgramY;
-    GaussianBlurY->MeshHandle = GlobalState->BlitPlane;
-    GaussianBlurY->FrameBufferHandle = GlobalState->GaussianAFrameBuffer;
-    GaussianBlurY->TextureHandles[0] = GlobalState->GaussianBTexture;
+    GaussianBlurY->MeshHandle = GetMeshHandle("BlitPlane");
+    GaussianBlurY->FrameBufferHandle = GetFrameBufferHandle("GaussianAFrameBuffer");
+    GaussianBlurY->TextureHandles[0] = GetTextureHandle("GaussianBTexture");
     GaussianBlurY->TextureCount = 1;
     
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
@@ -739,8 +780,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "sideSize"), V2(Window->ApplicationWidth, Window->ApplicationHeight));
   }
   blit_operation* BlitOperation2 = PushNewBlitOperation(RenderGroup);
-  BlitOperation2->ReadFrameBufferHandle = GlobalState->GaussianBFrameBuffer;
-  BlitOperation2->DrawFrameBufferHandle = GlobalState->DefaultFrameBuffer;
+  BlitOperation2->ReadFrameBufferHandle = GetFrameBufferHandle("GaussianBFrameBuffer");
+  BlitOperation2->DrawFrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
 #endif
 
   }else{
@@ -750,7 +791,11 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     SetState(ViewportAndBlend, ViewportState(Window->WindowWidth, Window->WindowHeight, Window->ApplicationAspectRatio));
     SetState(ViewportAndBlend, DefaultBlendState());
   }
-      
+    
+
+
+
+
   data::render_level* RenderLevel = GetBotRenderLevel(RenderSystem);
   while(!ListEnd(&RenderSystem->RenderSentinel, RenderLevel))
   {
@@ -767,8 +812,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     {
       render_object* QuadObject = PushNewRenderObject(RenderGroup);
       QuadObject->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
-      QuadObject->MeshHandle = GlobalState->BlitPlane;
-      QuadObject->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+      QuadObject->MeshHandle = GetMeshHandle("BlitPlane");
+      QuadObject->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
       data::overlay_quad* QuadInstanceData = (data::overlay_quad*) Copy(GlobalTransientArena, OverlayQuads);
 
       PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
@@ -782,8 +827,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     {
       render_object* QuadObject = PushNewRenderObject(RenderGroup);
       QuadObject->ProgramHandle = GlobalState->TexturedSquareOverlayProgram;
-      QuadObject->MeshHandle = GlobalState->BlitPlane;
-      QuadObject->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+      QuadObject->MeshHandle = GetMeshHandle("BlitPlane");
+      QuadObject->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
       QuadObject->TextureHandles[0] = GlobalState->ImguiContext.Icons.Atlas;
       QuadObject->TextureCount = 1;
       data::textured_overlay_quad* QuadInstanceData = (data::textured_overlay_quad*) Copy(GlobalTransientArena, OverlayIcon);
@@ -801,8 +846,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     {
       render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
       OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
-      OverlayTextProgram->MeshHandle = GlobalState->BlitPlane;
-      OverlayTextProgram->FrameBufferHandle = GlobalState->DefaultFrameBuffer;
+      OverlayTextProgram->MeshHandle = GetMeshHandle("BlitPlane");
+      OverlayTextProgram->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
       OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
       OverlayTextProgram->TextureCount = 1;
       

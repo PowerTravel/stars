@@ -66,7 +66,6 @@ namespace data {
     r32 MSAA;
   };
 
-
   struct system {
     memory_arena Arena;
     render_group* RenderGroup;

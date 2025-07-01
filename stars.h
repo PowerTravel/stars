@@ -12,6 +12,7 @@
 #include "menu/color_table.h"
 #include "imgui/imgui.h"
 #include "imgui/application_imgui.h"
+#include "asset_manager/asset_manager.h"
 typedef void(*func_ptr_void)(void);
 
 #define DEBUGPrintRect(Rect) Platform.DEBUGPrint("%1.2f,%1.2f,%1.2f,%1.2f\n",(Rect).X, (Rect).Y ,(Rect).W, (Rect).H);
@@ -28,7 +29,6 @@ struct function_pool
   function_ptr Functions[256];
 };
 
-
 struct world {
   ecs::entity_manager* EntityManager;
   ecs::render::system* RenderSystem;
@@ -36,28 +36,13 @@ struct world {
   container_node* ScenePlugin;
 };
 
-struct mesh_data {
-  c8 Name [128];
-  c8 FilePath [256];
-  obj_loaded_file* Data;
-  b32 Loaded;
-  u32 Handle;
-};
-
-struct texture_data {
-  c8 Name [128];
-  c8 FilePath [256];
-  b32 Loaded;
-  u32 Handle;
-};
-
-
 struct application_state
 {
   b32 Initialized;
   camera Camera;
 
   random_generator RandomGenerator;
+  asset::manager* AssetManager;
 
   u32 PhongProgram;
   u32 PhongShadingNoTexProgram;
@@ -73,30 +58,18 @@ struct application_state
   u32 ColoredSquareOverlayProgram;
   u32 TexturedSquareOverlayProgram;
 
-  chunk_list MeshData; // mesh_data
-  rb_tree Meshes;      // Pointer to MeshData
+  chunk_list RenderHandles; // u32
+  // Key is Asset Index
+  // Value is u32, Handle from the render system
+  rb_tree MeshHandleMap;
+  rb_tree TextureHandleMap;
+  rb_tree FrameBufferHandleMap;
 
-  chunk_list TextureData; // mesh_data
-  rb_tree Textures;       // Pointer to MeshData
 
+  // Key is Asset Index
+  // Value is u32, Handle from the render system
 
-  u32 BlitPlane;
-  u32 WhitePixelTexture;
   u32 Skybox;
-
-
-  u32 MsaaColorTexture;
-  u32 MsaaDepthTexture;
-  u32 AccumTexture;
-  u32 RevealTexture;
-  u32 GaussianATexture;
-  u32 GaussianBTexture;
-
-  u32 DefaultFrameBuffer;
-  u32 MsaaFrameBuffer;
-  u32 TransparentFrameBuffer;
-  u32 GaussianAFrameBuffer;
-  u32 GaussianBFrameBuffer;
 
   function_pool* FunctionPool;
   menu::color_table ColorTable;
@@ -117,7 +90,7 @@ global_variable application_render_commands* GlobalRenderCommands = 0;
 global_variable application_state* GlobalState = 0;
 global_variable jwin::device_input* GlobalInput = 0;
 global_variable imgui_context* GlobalImguiContext = 0;
-
+global_variable asset::manager* GlobalAssetManager = 0;
 
 u32 GetMeshHandle(c8* Name);
 u32 GetTextureHandle(c8* Name);

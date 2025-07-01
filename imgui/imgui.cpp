@@ -16,13 +16,22 @@ inline v4 PositionToCoordinate(u32 X, u32 Y, u32 IconSizePx, u32 AtlasSizePx) {
   return Result;
 }
 
+u32 PushImguiIconAtlasToGPU(render_group* RenderGroup)
+{
+  obj_bitmap* BitMap = LoadTGA([](u32 ByteSize){
+    return PushSize(GlobalTransientArena, ByteSize);
+  }, "..\\data\\icons\\icons.tga");
+  texture_params Params = DefaultColorTextureParams();
+  Params.TextureFormat = texture_format::RGBA_U8;
+  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+  u32 Result = PushNewTexture(RenderGroup, BitMap->Width, BitMap->Height, Params, BitMap->Pixels);
+  return Result;
+}
 
 imgui_icon_atlas LoadImguiIcons(render_group* RenderGroup)
 {
   imgui_icon_atlas Icons = {};
-  Icons.Atlas = Push32BitColorTexture(RenderGroup, LoadTGA([](u32 ByteSize){
-    return PushSize(GlobalTransientArena, ByteSize);
-  }, "..\\data\\icons\\icons.tga"));
+  Icons.Atlas = PushImguiIconAtlasToGPU(RenderGroup);
 
   u32 IconSize = 64;
   u32 AtlasSize = 512;
