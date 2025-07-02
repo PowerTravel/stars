@@ -22,6 +22,7 @@
 #include "menu/menu_interface.cpp"
 #include "imgui/imgui.cpp"
 #include "imgui/application_imgui.cpp"
+#include "broad_phase_collision_tree.cpp"
 
 #include "utils.h"
 
