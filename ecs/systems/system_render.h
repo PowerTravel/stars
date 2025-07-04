@@ -4,6 +4,10 @@
 #include "platform/jfont.h"
 #include "containers/chunk_list.h"
 #include "math/rect2f.h"
+#include "containers/rb_tree.h"
+#include "asset_manager/asset_manager.h"
+
+struct opengl_buffer_data;
 
 namespace ecs {
 
@@ -39,16 +43,31 @@ namespace data {
     m4 ModelMatrix; // PixelSpace
   };
 
-
-// Note: Maybe only Overlay-things should have render-levels.
-// Anything rendered in the 3d-world should be able to use z-culling.
-
   struct render_level {
     chunk_list OverlayText;
     chunk_list OverlayQuads;
     chunk_list OverlayIcon;
     render_level* Next;
     render_level* Previous;
+  };
+
+  enum internal_textures {
+    INT_TEX_MSAA_COLOR,
+    INT_TEX_MSAA_DEPTH,
+    INT_TEX_ACCUM,
+    INT_TEX_REVEAL,
+    INT_TEX_GAUSSIAN_A,
+    INT_TEX_GAUSSIAN_B,
+    INT_TEX_COUNT,
+  };
+
+  enum framebuffers{
+    FRAMEBUFFER_DEFAULT,
+    FRAMEBUFFER_MSAA,
+    FRAMEBUFFER_TRANSPARENT,
+    FRAMEBUFFER_GAUSSIAN_A,
+    FRAMEBUFFER_GAUSSIAN_B,
+    FRAMEBUFFER_COUNT
   };
 
   }// namespace data
@@ -69,7 +88,18 @@ namespace data {
   struct system {
     memory_arena Arena;
     render_group* RenderGroup;
+
+    chunk_list RenderHandles; // u32 // Global PErsistent Arena
+    // Key is Asset Index
+    // Value is u32, Handle from the render system
+    rb_tree MeshHandleMap;
+    rb_tree TextureHandleMap;
+    
+    u32* InternalTextures;
+    u32* FrameBuffers;
+
     data::font Font;
+    u32 BlitPlaneHandle;
     u32 FontTextureHandle;
     chunk_list SolidObjects;
     chunk_list TransparentObjects;
@@ -87,15 +117,7 @@ namespace data {
   }
 
   system* CreateRenderSystem(render_group* RenderGroup, r32 ResolutionWidth, r32 ResolutionHeight, application_render_commands* RenderCommands);
-  void BeginRender(system* System)
-  {
-    EndTemporaryMemory( System->TempMem );
-    System->TempMem = BeginTemporaryMemory(&System->Arena);
-    ListInitiate(&System->RenderSentinel);
-    System->TransparentObjects = {};
-    System->SolidObjects = {};
-    System->OverlayObjects = {};
-  }
+  void Begin();
   void DrawScene(system* System, ecs::entity_manager* EntityManager);
   void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix);
   void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale);
@@ -163,5 +185,14 @@ namespace data {
     ListInsertBefore(&System->RenderSentinel, RenderLevel);
   }
 
+
+  // Loading assets to gpu
+  u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr);
+  u32 GetMeshHandle(asset::type Type, c8* Name);
+
+  u32 Load32BitTextureToGpu(u32 AssetKey, obj_bitmap* Bitmap);
+  u32 Get32BitTextureHandle(asset::type Type, c8* Name);
+
+  u32 FrameBuffer(u32 Index);
 }
 }

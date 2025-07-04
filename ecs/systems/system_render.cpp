@@ -1,6 +1,11 @@
 #include "ecs/systems/system_render.h"
 
+
+extern ecs::render::system* GlobalRenderSystem;
+
 namespace ecs::render {
+
+
 
 enum class overlay_object_type {
   POSITION
@@ -15,19 +20,14 @@ struct overlay_object {
 u32 GetMeshHandle(c8* Name)
 {
   u32 Key = asset::ToKey(asset::type::OBJ, Name);
-  u32* Handle = (u32*) Find(&GlobalState->MeshHandleMap, Key);
+  u32* Handle = (u32*) Find(&GlobalRenderSystem->MeshHandleMap, Key);
   return *Handle;
 }
 
-u32 GetTextureHandle(c8* Name)
+u32 Get32BitTextureHandle(c8* Name)
 {
-  u32* Handle = (u32*) Find(&GlobalState->TextureHandleMap, utils::djb2_hash(Name));
-  return *Handle;
-}
-
-u32 GetFrameBufferHandle(c8* Name)
-{
-  u32* Handle = (u32*) Find(&GlobalState->FrameBufferHandleMap, utils::djb2_hash(Name));
+  u32 Key = asset::ToKey(asset::type::TGA, Name);
+  u32* Handle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, Key);
   return *Handle;
 }
 
@@ -558,6 +558,18 @@ void DEBUGPrintMatrix(m4 Matrix)
   Platform.DEBUGPrint("| %1.2f, %1.2f, %1.2f, %1.2f |\n", Matrix.r3.X, Matrix.r3.Y,Matrix.r3.Z,Matrix.r3.W);
 }
 
+inline u32 InternalTexture(u32 Index)
+{
+  u32 Result = GlobalRenderSystem->InternalTextures[Index];
+  return Result;
+}
+
+inline u32 FrameBuffer(u32 Index)
+{
+  u32 Result = GlobalRenderSystem->FrameBuffers[Index];
+  return Result;
+}
+
 void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix)
 {
   render_group* RenderGroup = RenderSystem->RenderGroup;
@@ -583,42 +595,42 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     // Clear default color frame buffer
     clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
     DefClearColor->BufferType = OPEN_GL_COLOR;
-    DefClearColor->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
+    DefClearColor->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_DEFAULT);
     DefClearColor->TextureIndex = 0;
     DefClearColor->Color = V4(0,0,0,1);
 
     // Clear default depth frame buffer
     clear_operation* DefClearDepth = PushNewClearOperation(RenderGroup);
     DefClearDepth->BufferType = OPEN_GL_DEPTH;
-    DefClearDepth->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
+    DefClearDepth->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_DEFAULT);
     DefClearDepth->TextureIndex = 0;
     DefClearDepth->Depth = 1;
 
     // Clear MSAA Color frame buffer
     clear_operation* ClearMSAAColor = PushNewClearOperation(RenderGroup);
     ClearMSAAColor->BufferType = OPEN_GL_COLOR;
-    ClearMSAAColor->FrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
+    ClearMSAAColor->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
     ClearMSAAColor->TextureIndex = 0;
     ClearMSAAColor->Color = V4(0,0,0,1);
 
     // Clear MSAA Depth frame buffer
     clear_operation* ClearMSAADepth = PushNewClearOperation(RenderGroup);
     ClearMSAADepth->BufferType = OPEN_GL_DEPTH;
-    ClearMSAADepth->FrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
+    ClearMSAADepth->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
     ClearMSAADepth->TextureIndex = 0;
     ClearMSAADepth->Depth = 1;
 
     // Clear Transparent calculation frame buffer 0
     clear_operation* TransparenClearOp0 = PushNewClearOperation(RenderGroup);
     TransparenClearOp0->BufferType = OPEN_GL_COLOR;
-    TransparenClearOp0->FrameBufferHandle = GetFrameBufferHandle("TransparentFrameBuffer");
+    TransparenClearOp0->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_TRANSPARENT);
     TransparenClearOp0->TextureIndex = 0;
     TransparenClearOp0->Color = V4(0,0,0,0);
 
     // Clear Transparent calculation frame buffer 1
     clear_operation* TransparenClearOp1 = PushNewClearOperation(RenderGroup);
     TransparenClearOp1->BufferType = OPEN_GL_COLOR;
-    TransparenClearOp1->FrameBufferHandle = GetFrameBufferHandle("TransparentFrameBuffer");
+    TransparenClearOp1->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_TRANSPARENT);
     TransparenClearOp1->TextureIndex = 1;
     TransparenClearOp1->Color = V4(1,0,0,0);
   }
@@ -641,7 +653,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       chunk_list_iterator SolidIt = BeginIterator(SolidObjects);
       while(Valid(&SolidIt)) {
         component** RenderPtr = (component**) Next(&SolidIt);
-        PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgram, GetFrameBufferHandle("MsaaFrameBuffer"), ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
+        PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgram, FrameBuffer(data::FRAMEBUFFER_MSAA), ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
       }
       Clear(SolidObjects);
     }
@@ -668,7 +680,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       chunk_list_iterator TransparentIt = BeginIterator(TransparentObjects);
       while(Valid(&TransparentIt)) {
         component** RenderPtr = (component**) Next(&TransparentIt);
-        PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgramTransparent, GetFrameBufferHandle("TransparentFrameBuffer"), ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
+        PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgramTransparent, FrameBuffer(data::FRAMEBUFFER_TRANSPARENT), ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
       }
       Clear(TransparentObjects);
 
@@ -690,10 +702,10 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       // Then composit the solid and transparent objects into a single image
       render_object* CompositionObject = PushNewRenderObject(RenderGroup);
       CompositionObject->ProgramHandle = GlobalState->TransparentCompositionProgram;
-      CompositionObject->MeshHandle = GetMeshHandle("BlitPlane");
-      CompositionObject->FrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
-      CompositionObject->TextureHandles[0] = GetTextureHandle("AccumTexture");
-      CompositionObject->TextureHandles[1] = GetTextureHandle("RevealTexture");
+      CompositionObject->MeshHandle =  RenderSystem->BlitPlaneHandle;
+      CompositionObject->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
+      CompositionObject->TextureHandles[0] = InternalTexture(data::INT_TEX_ACCUM);
+      CompositionObject->TextureHandles[1] = InternalTexture(data::INT_TEX_REVEAL);
       CompositionObject->TextureCount = 2;
 
       PushUniform(CompositionObject, GetUniformHandle(RenderGroup, GlobalState->TransparentCompositionProgram,  "AccumTex"), (u32)0);
@@ -712,7 +724,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
      
       clear_operation* ClearMsaaDepthBuffer = PushNewClearOperation(RenderGroup);
       ClearMsaaDepthBuffer->BufferType = OPEN_GL_DEPTH;
-      ClearMsaaDepthBuffer->FrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
+      ClearMsaaDepthBuffer->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
       ClearMsaaDepthBuffer->TextureIndex = 0;
       ClearMsaaDepthBuffer->Depth = 1;
       
@@ -726,7 +738,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
           overlay_object* Object = (overlay_object*) Next(&OverlayIt);
 
           r32 Scale = 2*Norm(Object->Position-CamPosition)  * 0.01;
-          PushRenderObjectWithoutEntity(RenderGroup, GetMeshHandle("Sphere"), GlobalState->PhongShadingNoTexProgram, GetFrameBufferHandle("MsaaFrameBuffer"), ProjectionMatrix, ViewMatrix, LightDirection, LightColor,
+          PushRenderObjectWithoutEntity(RenderGroup, GetMeshHandle("Sphere"), GlobalState->PhongShadingNoTexProgram, FrameBuffer(data::FRAMEBUFFER_MSAA), ProjectionMatrix, ViewMatrix, LightDirection, LightColor,
             Object->Position, Object->Rotation, V3(Scale,Scale,Scale),
             GetMaterial(data::material_type::MATERIAL_RED_RUBBER));
         }
@@ -742,22 +754,22 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     SetState(ViewportAndBlend, DefaultBlendState());
 
     blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
-    BlitOperation->ReadFrameBufferHandle = GetFrameBufferHandle("MsaaFrameBuffer");
+    BlitOperation->ReadFrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
   
 #if 1
-    BlitOperation->DrawFrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
+    BlitOperation->DrawFrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_DEFAULT);
     BlitOperation->DrawRegionUnitCoord = RenderSystem->UnitDrawRegion;
 #else
   // Gaussian blur
-  BlitOperation->DrawFrameBufferHandle = GetFrameBufferHandle("GaussianAFrameBuffer");
+  BlitOperation->DrawFrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_GAUSSIAN_A);
 
   for (int i = 0; i < 4; ++i)
   {
     render_object* GaussianBlurX = PushNewRenderObject(RenderGroup);
     GaussianBlurX->ProgramHandle = GlobalState->GaussianProgramX;
-    GaussianBlurX->MeshHandle =  GetMeshHandle("BlitPlane");
-    GaussianBlurX->FrameBufferHandle = GetFrameBufferHandle("GaussianBFrameBuffer");
-    GaussianBlurX->TextureHandles[0] = GetTextureHandle("GaussianATexture");
+    GaussianBlurX->MeshHandle =  RenderSystem->BlitPlaneHandle;
+    GaussianBlurX->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_GAUSSIAN_B);
+    GaussianBlurX->TextureHandles[0] = InternalTexture(data::INT_TEX_GAUSSIAN_A);
     GaussianBlurX->TextureCount = 1;
 
     PushUniform(GaussianBlurX, GetUniformHandle(RenderGroup, GaussianBlurX->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
@@ -768,9 +780,9 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 
     render_object* GaussianBlurY = PushNewRenderObject(RenderGroup);
     GaussianBlurY->ProgramHandle = GlobalState->GaussianProgramY;
-    GaussianBlurY->MeshHandle = GetMeshHandle("BlitPlane");
-    GaussianBlurY->FrameBufferHandle = GetFrameBufferHandle("GaussianAFrameBuffer");
-    GaussianBlurY->TextureHandles[0] = GetTextureHandle("GaussianBTexture");
+    GaussianBlurY->MeshHandle = RenderSystem->BlitPlaneHandle;
+    GaussianBlurY->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_GAUSSIAN_A);
+    GaussianBlurY->TextureHandles[0] = InternalTexture(data::INT_TEX_GAUSSIAN_B);
     GaussianBlurY->TextureCount = 1;
     
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "offset"), UniformType::R32, KernelOffset, KernelSize);
@@ -780,8 +792,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "sideSize"), V2(Window->ApplicationWidth, Window->ApplicationHeight));
   }
   blit_operation* BlitOperation2 = PushNewBlitOperation(RenderGroup);
-  BlitOperation2->ReadFrameBufferHandle = GetFrameBufferHandle("GaussianBFrameBuffer");
-  BlitOperation2->DrawFrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
+  BlitOperation2->ReadFrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_GAUSSIAN_B);
+  BlitOperation2->DrawFrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_DEFAULT);
 #endif
 
   }else{
@@ -812,8 +824,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     {
       render_object* QuadObject = PushNewRenderObject(RenderGroup);
       QuadObject->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
-      QuadObject->MeshHandle = GetMeshHandle("BlitPlane");
-      QuadObject->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
+      QuadObject->MeshHandle = RenderSystem->BlitPlaneHandle;
+      QuadObject->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_DEFAULT);
       data::overlay_quad* QuadInstanceData = (data::overlay_quad*) Copy(GlobalTransientArena, OverlayQuads);
 
       PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
@@ -827,8 +839,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     {
       render_object* QuadObject = PushNewRenderObject(RenderGroup);
       QuadObject->ProgramHandle = GlobalState->TexturedSquareOverlayProgram;
-      QuadObject->MeshHandle = GetMeshHandle("BlitPlane");
-      QuadObject->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
+      QuadObject->MeshHandle = RenderSystem->BlitPlaneHandle;
+      QuadObject->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_DEFAULT);
       QuadObject->TextureHandles[0] = GlobalState->ImguiContext.Icons.Atlas;
       QuadObject->TextureCount = 1;
       data::textured_overlay_quad* QuadInstanceData = (data::textured_overlay_quad*) Copy(GlobalTransientArena, OverlayIcon);
@@ -846,8 +858,8 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     {
       render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
       OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
-      OverlayTextProgram->MeshHandle = GetMeshHandle("BlitPlane");
-      OverlayTextProgram->FrameBufferHandle = GetFrameBufferHandle("DefaultFrameBuffer");
+      OverlayTextProgram->MeshHandle = RenderSystem->BlitPlaneHandle;
+      OverlayTextProgram->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_DEFAULT);
       OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
       OverlayTextProgram->TextureCount = 1;
       
@@ -905,10 +917,83 @@ data::font CreateFont(memory_arena* Arena)
   midx AtlasFileSize = jfont::SDFAtlasRequiredMemoryAmount(&Font.Font);
   u8* FontMemory = PushArray(Arena, AtlasFileSize, u8);
   Font.FontAtlas = jfont::CreateSDFAtlas(&Font.Font, FontMemory);
-
-
-
   return Font;
+}
+
+
+u32 PushBlitPlaneMesh(system* RenderSystem, render_group* RenderGroup)
+{
+  // Define and Load Blitplane into asset manager.
+  gl_vertex_buffer* StoredVertexBuffer = 0;
+  u32 AssetKey  = 0;
+  {
+    u32 PlaneIndex[] = {
+      0,1,2,
+      2,1,3
+    };
+    opengl_vertex PlaneVertex [] = {
+      {{-1.0f, -1.0f, 0.0f},{0,0,0},{0,0}},
+      {{ 1.0f, -1.0f, 0.0f},{0,0,0},{1,0}},
+      {{-1.0f,  1.0f, 0.0f},{0,0,0},{0,1}},
+      {{ 1.0f,  1.0f, 0.0f},{0,0,0},{1,1}},
+    };
+
+    gl_vertex_buffer VertexBuffer = {};
+    VertexBuffer.IndexCount = ArrayCount(PlaneIndex);
+    VertexBuffer.Indeces = PlaneIndex;
+    VertexBuffer.VertexCount = ArrayCount(PlaneVertex);
+    VertexBuffer.VertexData = PlaneVertex;
+
+    StoredVertexBuffer = asset::LoadGLVertexBuffer("BlitPlane", VertexBuffer, &AssetKey);
+  }
+
+  // Send BlitPlane to the render-system
+  u32 RenderHandle = 0;
+  {
+    opengl_buffer_data GlBufferData = {};
+    GlBufferData.BufferCount = 1;
+    GlBufferData.BufferData = StoredVertexBuffer;
+    RenderHandle = PushNewMesh(RenderGroup, GlBufferData);  
+  }
+  
+
+  // Create a mapping between the render-handle and the asset-handle
+  {
+    u32* StoredRenderHandle = (u32*) GetNewBlock(GlobalPersistentArena, &RenderSystem->RenderHandles);
+    *StoredRenderHandle = RenderHandle;
+    Insert(&RenderSystem->MeshHandleMap, AssetKey, StoredRenderHandle);
+  }
+
+  return RenderHandle;
+}
+
+u32* CreateInternalTextures(render_group* RenderGroup, window_size_pixel* Window)
+{    
+  texture_params DefaultColor = DefaultColorTextureParams();
+  texture_params DefaultDepth = DefaultDepthTextureParams();
+  texture_params RevealTexParam = DefaultColorTextureParams();
+  RevealTexParam.TextureFormat = texture_format::R_8;
+
+  u32* Result = (u32*) PushArray(GlobalPersistentArena, data::INT_TEX_COUNT, u32);
+  Result[data::INT_TEX_MSAA_COLOR] = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
+  Result[data::INT_TEX_MSAA_DEPTH] = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultDepth, 0);
+  Result[data::INT_TEX_ACCUM]      = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
+  Result[data::INT_TEX_REVEAL]     = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, RevealTexParam, 0);
+  Result[data::INT_TEX_GAUSSIAN_A] = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
+  Result[data::INT_TEX_GAUSSIAN_B] = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
+  return Result;
+}
+
+u32* CreateFrameBuffers(render_group* RenderGroup, window_size_pixel* Window, u32* Textures )
+{
+  u32* Result = (u32*) PushArray(GlobalPersistentArena, data::FRAMEBUFFER_COUNT, u32);
+  u32 TransparentColorTexture[]         = {Textures[data::INT_TEX_ACCUM], Textures[data::INT_TEX_REVEAL]};
+  Result[data::FRAMEBUFFER_DEFAULT]     = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth, Window->ApplicationHeight, 0, 0, 0, 0);
+  Result[data::FRAMEBUFFER_MSAA]        = PushNewFrameBuffer(RenderGroup,  Window->MSAA * Window->ApplicationWidth,  Window->MSAA * Window->ApplicationHeight, 1, &Textures[data::INT_TEX_MSAA_COLOR], Textures[data::INT_TEX_MSAA_DEPTH], 0);
+  Result[data::FRAMEBUFFER_TRANSPARENT] = PushNewFrameBuffer(RenderGroup,  Window->MSAA * Window->ApplicationWidth,  Window->MSAA * Window->ApplicationHeight, ArrayCount(TransparentColorTexture), TransparentColorTexture, Textures[data::INT_TEX_MSAA_DEPTH], 0);
+  Result[data::FRAMEBUFFER_GAUSSIAN_A]  = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth, Window->ApplicationHeight, 1, &Textures[data::INT_TEX_GAUSSIAN_A], 0, 0);
+  Result[data::FRAMEBUFFER_GAUSSIAN_B]  = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth, Window->ApplicationHeight, 1, &Textures[data::INT_TEX_GAUSSIAN_B], 0, 0);
+  return Result;
 }
 
 system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands)
@@ -917,6 +1002,10 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   ListInitiate(&Result->RenderSentinel);
   Result->RenderGroup = RenderGroup;
   Result->Font = CreateFont(&Result->Arena);
+
+  Result->RenderHandles    = NewChunkList(GlobalPersistentArena, sizeof(u32), 128);
+  Result->MeshHandleMap    = NewRBTree(GlobalPersistentArena, 64, 64);
+  Result->TextureHandleMap = NewRBTree(GlobalPersistentArena, 64, 64);
 
   jfont::sdf_atlas* FontAtlas = &Result->Font.FontAtlas;
 
@@ -936,11 +1025,46 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   Result->WindowSize.ApplicationHeight  = ApplicationHeight;
   Result->WindowSize.ApplicationAspectRatio = ApplicationWidth / ApplicationHeight;
 
+  Result->InternalTextures  = CreateInternalTextures(RenderGroup, &Result->WindowSize);
+  Result->FrameBuffers      = CreateFrameBuffers(RenderGroup, &Result->WindowSize, Result->InternalTextures);
+  Result->BlitPlaneHandle = PushBlitPlaneMesh(Result, RenderGroup);
+
   Result->TempMem = BeginTemporaryMemory(&Result->Arena);
 
   return Result;
 }
 
+void Begin()
+{
+  EndTemporaryMemory( GlobalRenderSystem->TempMem );
+  GlobalRenderSystem->TempMem = BeginTemporaryMemory(&GlobalRenderSystem->Arena);
+  ListInitiate(&GlobalRenderSystem->RenderSentinel);
+  GlobalRenderSystem->TransparentObjects = {};
+  GlobalRenderSystem->SolidObjects = {};
+  GlobalRenderSystem->OverlayObjects = {};
 }
+
+internal void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
+  u32* HandleMem = (u32*) GetNewBlock(GlobalPersistentArena, &GlobalRenderSystem->RenderHandles);
+  *HandleMem = Handle;
+  Insert(HandleTree, Key, (void*) HandleMem);
+}
+
+u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr) {
+  u32 Handle = PushNewMesh(GlobalRenderCommands->RenderGroup, *BufferDataPtr);
+  SetHandle(&GlobalRenderSystem->MeshHandleMap, AssetKey, Handle);
+  return Handle;
+}
+
+u32 Load32BitTextureToGpu(u32 AssetKey, obj_bitmap* BitMap) {
+  texture_params Params = DefaultColorTextureParams();
+  Params.TextureFormat = texture_format::RGBA_U8;
+  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, BitMap->Width, BitMap->Height, Params, BitMap->Pixels);
+  SetHandle(&GlobalRenderSystem->TextureHandleMap, AssetKey, Handle);
+  return Handle;
+}
+
+} // ecs::render
 
 

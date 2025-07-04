@@ -1,4 +1,6 @@
 #include "asset_manager.h"
+#include "platform/obj_loader.h"
+#include "renderer/render_push_buffer/render_push_buffer.h"
 
 extern asset::manager* GlobalAssetManager;
 extern memory_arena* GlobalTransientArena;
@@ -46,6 +48,8 @@ c8* TypeToString(type Type)
   {
     case type::NONE: return "NONE";
     case type::OBJ: return "OBJ";
+    case type::TGA: return "TGA";
+    case type::GL_VERTEX_BUFFER: return "GL_VERTEX_BUFFER";
     default: {
       INVALID_CODE_PATH
     }
@@ -84,24 +88,8 @@ u32 ToKey(type Type, c8* Name)
   return Result;
 }
 
-void* AllocateFunction(u32 MemorySize) {
+void* StorageAllocator(u32 MemorySize) {
   void* Result = Allocate(&GlobalAssetManager->Memory, MemorySize);
-  return Result;
-}
-  
-void* LoadAsset(type Type, c8* Path)
-{
-  void* Result = 0;
-  switch(Type)
-  {
-    case type::OBJ: {
-      Result = (void*) ReadOBJFile(AllocateFunction, GlobalTransientArena, Path);
-    } break;
-    default: {
-      INVALID_CODE_PATH
-    };
-  }
-
   return Result;
 }
 
@@ -129,6 +117,15 @@ void FreeAsset(header* Header)
         FreeMemory(&GlobalAssetManager->Memory, Data);
       }, (obj_loaded_file*) Header->Data);
     } break;
+    case type::TGA: {
+      FreeBitmap([](void* Data){
+        FreeMemory(&GlobalAssetManager->Memory, Data);
+      }, (obj_bitmap*) Header->Data);
+    };
+    case type::GL_VERTEX_BUFFER: {
+      // LoadGLVertexBuffer allocates the whole mesh as a contious block
+      FreeMemory(&GlobalAssetManager->Memory, Header->Data);
+    }
     default: {
       INVALID_CODE_PATH
     };
@@ -149,24 +146,13 @@ header* CreateHeader(type Type, c8* Name, c8* Path, void* Data)
   return Result;
 }
 
-void* Load(type Type, c8* Name, c8* Path, u32* ResultKey)
+u32 Load(type Type, c8* Name, c8* Path, void* Asset)
 {
-  u32 Key = ToKey(Type, Name);
-  if(FindHeader(Key))
-  {
-    return 0;
-  }
-
-  void* Asset = LoadAsset(Type, Path);
-  header* Header = CreateHeader(type::OBJ, Name, Path, Asset);
-  Insert(&GlobalAssetManager->Headers, Key, (void*) Header);
-  if(ResultKey)
-  {
-    *ResultKey = Key;
-  }
-
-  return Asset;
+  header* Header = CreateHeader(Type, Name, Path, Asset);
+  Insert(&GlobalAssetManager->Headers, Header->Key, (void*) Header);
+  return Header->Key;
 }
+
 
 void* Find(type Type, u32 Key) {
   header* Header = FindHeader(Key);
@@ -197,6 +183,52 @@ void Free(type Type, u32 Key)
 void Free(type Type, c8* Name) {
   u32 Key = ToKey(Type, Name);
   Free(Type, Key);
+}
+
+
+obj_loaded_file* LoadObj(c8* Name, c8* Path, u32* ResultKey)
+{
+  obj_loaded_file* Result =  ReadOBJFile(StorageAllocator, GlobalTransientArena, Path);
+  u32 Key = Load(type::OBJ, Name, Path, (void*) Result);
+  if(ResultKey)
+  {
+    *ResultKey = Key;
+  }
+  return Result;
+}
+
+gl_vertex_buffer* LoadGLVertexBuffer(c8* Name, const gl_vertex_buffer Data, u32* ResultKey)
+{
+  u32 VertexBufferSize = sizeof(gl_vertex_buffer);
+  u32 IndexSize = Data.IndexCount * sizeof(u32);
+  u32 VertexSize = Data.VertexCount * sizeof(opengl_vertex);
+  u32 TotalSize = VertexBufferSize + IndexSize + VertexSize;
+
+  gl_vertex_buffer* VertexBuffer = (gl_vertex_buffer*) Allocate(&GlobalAssetManager->Memory, TotalSize);
+  VertexBuffer->IndexCount = Data.IndexCount;
+  VertexBuffer->Indeces = (u32*) AdvanceBytePointer(VertexBuffer, VertexBufferSize);
+  utils::Copy(IndexSize, Data.Indeces, VertexBuffer->Indeces);
+  VertexBuffer->VertexCount = Data.VertexCount;
+  VertexBuffer->VertexData = (opengl_vertex*) AdvanceBytePointer(VertexBuffer, VertexBufferSize + IndexSize);
+  utils::Copy(VertexSize, Data.VertexData, VertexBuffer->VertexData);
+
+  u32 Key = Load(type::GL_VERTEX_BUFFER, Name, "N/A", (void*) VertexBuffer);
+  if(ResultKey)
+  {
+    *ResultKey = Key;
+  }
+  return VertexBuffer;
+}
+
+obj_bitmap* LoadTga(c8* Name, c8* Path, u32* ResultKey)
+{
+  obj_bitmap* Result = LoadTGA(StorageAllocator, Path);
+  u32 Key = Load(type::TGA, Name, Path, (void*) Result);
+  if(ResultKey)
+  {
+    *ResultKey = Key;
+  }
+  return Result;
 }
 
 }

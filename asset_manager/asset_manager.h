@@ -2,15 +2,19 @@
 #include "commons/types.h"
 #include "commons/string.h"
 #include "commons/macros.h"
-#include "platform/obj_loader.h"
 #include "ecs/components/component_collider.h"
+#include "containers/linked_memory.h"
 
+struct gl_vertex_buffer;
+struct obj_loaded_file;
 
 namespace asset {
 
 enum class type {
   NONE,
-  OBJ // Points to loaded_obj*.
+  OBJ, // Points to loaded_obj*.
+  TGA, // obj_bitmap*
+  GL_VERTEX_BUFFER
 };
 
 struct manager {
@@ -31,16 +35,13 @@ manager* CreateAssetManager() {
 }
 
 u32 ToKey(type Type, c8* Name);
-void* Load(type Type, c8* Name, c8* Path, u32* ResultKey = 0);
 void* Find(type Type, u32 Key);
 void* Find(type Type, c8* Name);
 void Free(type Type, u32 Key);
 void Free(type Type, c8* Name);
 
-obj_loaded_file* LoadObj(c8* Name, c8* Path, u32* ResultKey = 0)
-{
-  obj_loaded_file* Result = (obj_loaded_file*) Load(type::OBJ, Name, Path, ResultKey);
-  return Result;
-}
+gl_vertex_buffer* LoadGLVertexBuffer(c8* Name, const gl_vertex_buffer Data, u32* ResultKey = 0);
+obj_loaded_file* LoadObj(c8* Name, c8* Path, u32* ResultKey = 0);
+obj_bitmap* LoadTga(c8* Name, c8* Path, u32* ResultKey = 0);
 
 }

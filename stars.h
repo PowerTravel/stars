@@ -58,12 +58,6 @@ struct application_state
   u32 ColoredSquareOverlayProgram;
   u32 TexturedSquareOverlayProgram;
 
-  chunk_list RenderHandles; // u32
-  // Key is Asset Index
-  // Value is u32, Handle from the render system
-  rb_tree MeshHandleMap;
-  rb_tree TextureHandleMap;
-  rb_tree FrameBufferHandleMap;
 
 
   // Key is Asset Index
@@ -91,6 +85,7 @@ global_variable application_state* GlobalState = 0;
 global_variable jwin::device_input* GlobalInput = 0;
 global_variable imgui_context* GlobalImguiContext = 0;
 global_variable asset::manager* GlobalAssetManager = 0;
+global_variable ecs::render::system* GlobalRenderSystem = 0;
 
 u32 GetMeshHandle(c8* Name);
 u32 GetTextureHandle(c8* Name);
