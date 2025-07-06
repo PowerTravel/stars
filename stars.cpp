@@ -30,33 +30,6 @@
 
 global_variable r32 g_t = 0;
 
-u32 Push32BitColorTexture(render_group* RenderGroup,  obj_bitmap* BitMap)
-{
-  texture_params Params = DefaultColorTextureParams();
-  Params.TextureFormat = texture_format::RGBA_U8;
-  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  u32 Result = PushNewTexture(RenderGroup, BitMap->Width, BitMap->Height, Params, BitMap->Pixels);
-  return Result;
-}
-
-obj_loaded_file* ReadOBJFile(char* FileName)
-{
-  obj_loaded_file* Result = ReadOBJFile([](u32 MemorySize){
-    return PushSize(GlobalPersistentArena, MemorySize);
-  }, GlobalTransientArena, FileName);
-  return Result;
-}
-
-
-obj_bitmap* LoadTGA(char* FileName)
-{
-  obj_bitmap* Result = LoadTGA([](u32 ByteSize){
-    void* Result = PushSize(GlobalPersistentArena, ByteSize);
-    return Result;
-  }, FileName);
-  return Result;
-}
-
 u32 LoadMesh(c8* Name, c8* Path)
 {
   u32 Key  = 0;
