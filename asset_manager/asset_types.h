@@ -1,0 +1,98 @@
+#pragma once
+
+#include "commons/types.h"
+
+namespace asset {
+
+  enum class type {
+    NONE,
+    MESH,
+    TEXTURE,
+    MATERIAL,
+    RENDER_GROUP
+  };
+
+
+  c8* TypeToString(type Type)
+  {
+    switch(Type)
+    {
+      case type::MESH: return "MESH";
+      case type::TEXTURE: return "TEXTURE";
+      case type::MATERIAL: return "MATERIAL";
+      case type::RENDER_GROUP: return "RENDER_GROUP";
+      default: {
+        INVALID_CODE_PATH
+      }
+    }
+
+    return '\0';
+  }
+
+  struct string {
+    u32 Length; // Length of string + 1;
+    c8* String;
+  };
+
+
+// Map from obj to gl-mesh, but keep each v/vn/vt separated into their own vectors.
+  struct mesh {
+    u32 IndexCount;
+    u32* Indeces;
+
+    u32 VertexCount;
+    v3* v;     // Vertices
+    v3* vn;    // Vertice Normals
+    v2* vt;    // Texture Vertices
+  };
+
+  enum class texture_type {
+    DIFFUSE_COLOR,
+    SPECULAR_COLOR,
+    BUMP_MAP
+  };
+
+  struct texture {
+    texture_type Type;
+    u32 BPP; // Bits Per pixel 8,16,24,32
+    u32 Width;
+    u32 Height;
+    bptr Pixels;
+  };
+
+  struct material {
+    v4* Kd;
+    v4* Ka;
+    v4* Tf;
+    v4* Ks;
+    v4* Ke;
+    r32* d;
+    r32* Ni;
+    r32* Ns;
+
+    r32 BumpMapBM;
+    texture* BumpMap;
+    texture* MapKd;
+    texture* MapKs;
+  };
+
+  // Combines a mesh (a shape), with a material (How its rendered)
+  // Does not have a header
+  struct render_group_element {
+    mesh* Mesh;
+
+    // Obj_groups that share a smoothing group have joined edges that should be smoothe
+    // -1 means _no smothing group used_
+    s32 SmoothingGroup;
+
+    material* Material;
+  };
+
+  // A collection of shapes and materials that makes up an object.
+  // A render object can reference this render_group.
+  struct render_group {
+    u32 ElementCount;
+    render_group_element* Elements;
+  };
+
+}

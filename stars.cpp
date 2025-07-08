@@ -30,11 +30,11 @@
 
 global_variable r32 g_t = 0;
 
-u32 LoadMesh(c8* Name, c8* Path)
+u32 LoadMesh(c8* Path)
 {
-  u32 Key  = 0;
-  obj_loaded_file* Obj = (obj_loaded_file*) asset::LoadObj(Name, Path, &Key);
-  opengl_buffer_data glBufferData = mapper::ObjToGLMesh(GlobalTransientArena, Obj);
+  u32 Key = asset::LoadObj(Path);
+  asset::render_group* Grp = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, Key);
+  opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Grp);
   u32 Handle = ecs::render::LoadMeshToGpu(Key, &glBufferData);
   return Handle;
 }
@@ -42,7 +42,7 @@ u32 LoadMesh(c8* Name, c8* Path)
 u32 Load32BitColorTexture(c8* Name, c8* Path)
 {
   u32 Key = 0;
-  obj_bitmap* Data = (obj_bitmap*) asset::LoadTga(Name, Path, &Key);
+  asset::texture* Data = (asset::texture*) asset::LoadTga(Name, Path, &Key);
   u32 Handle = ecs::render::Load32BitTextureToGpu(Key, Data);
   return Handle;
 }
@@ -979,33 +979,34 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->ColoredSquareOverlayProgram = CreateColoredSquareOverlayProgram(RenderGroup);
     GlobalState->TexturedSquareOverlayProgram = CreateTexturedSquareOverlayProgram(RenderGroup);
 
-    LoadMesh("Cube",     "..\\data\\qube.obj");
-    LoadMesh("Plane",    "..\\data\\checker_plane_simple.obj");
-    LoadMesh("Sphere",   "..\\data\\sphere.obj");
-    LoadMesh("Cone",     "..\\data\\cone.obj");
-    LoadMesh("Cylinder", "..\\data\\cylinder.obj");
-    LoadMesh("Triangle", "..\\data\\triangle.obj");
-    LoadMesh("Billboard","..\\data\\plane.obj");
+    LoadMesh("..\\data\\qube.obj");
+    LoadMesh("..\\data\\checker_plane_simple.obj");
+    LoadMesh("..\\data\\sphere.obj");
+    LoadMesh("..\\data\\cone.obj");
+    LoadMesh("..\\data\\cylinder.obj");
+    LoadMesh("..\\data\\triangle.obj");
+    LoadMesh("..\\data\\plane.obj");
 
 
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
     
-    obj_loaded_file* PlaneMesh = (obj_loaded_file*) asset::Find(asset::type::OBJ, "Plane");
-    u32 CheckerKey = utils::djb2_hash("TGA::Checkered");
-    ecs::render::Load32BitTextureToGpu(CheckerKey, PlaneMesh->MaterialData->Materials[0].MapKd);
+    asset::render_group* PlaneMesh = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "Plane");
+    u32 CheckerKey = utils::djb2_hash("RENDER_GROUP::Checkered");
+    ecs::render::Load32BitTextureToGpu(CheckerKey,  PlaneMesh->Elements[0].Material->MapKd);
 
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
     GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
     u8 WhitePixel[4] = {255,255,255,255};
     void* WhitePixelPtr = PushCopy(GlobalTransientArena, sizeof(WhitePixel), (void*) WhitePixel);
-    obj_bitmap WhitePixelBitmap = {};
+    asset::texture WhitePixelBitmap = {};
+    WhitePixelBitmap.Type = asset::texture_type::DIFFUSE_COLOR;
     WhitePixelBitmap.BPP = 32;
     WhitePixelBitmap.Width = 1;
     WhitePixelBitmap.Height = 1;
-    WhitePixelBitmap.Pixels = WhitePixelPtr;
+    WhitePixelBitmap.Pixels = (bptr) WhitePixelPtr;
     u32 WhitePixelKey = utils::djb2_hash("TGA::WhitePixel");
     ecs::render::Load32BitTextureToGpu(WhitePixelKey, &WhitePixelBitmap);
 

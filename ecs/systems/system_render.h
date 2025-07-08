@@ -190,7 +190,7 @@ namespace data {
   u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr);
   u32 GetMeshHandle(asset::type Type, c8* Name);
 
-  u32 Load32BitTextureToGpu(u32 AssetKey, obj_bitmap* Bitmap);
+  u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture);
   u32 Get32BitTextureHandle(asset::type Type, c8* Name);
 
   u32 FrameBuffer(u32 Index);

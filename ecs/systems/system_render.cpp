@@ -1,4 +1,5 @@
 #include "ecs/systems/system_render.h"
+#include "asset_manager/asset_mapper.h"
 
 
 extern ecs::render::system* GlobalRenderSystem;
@@ -19,14 +20,14 @@ struct overlay_object {
 
 u32 GetMeshHandle(c8* Name)
 {
-  u32 Key = asset::ToKey(asset::type::OBJ, Name);
+  u32 Key = asset::ToKey(asset::type::RENDER_GROUP, Name);
   u32* Handle = (u32*) Find(&GlobalRenderSystem->MeshHandleMap, Key);
   return *Handle;
 }
 
 u32 Get32BitTextureHandle(c8* Name)
 {
-  u32 Key = asset::ToKey(asset::type::TGA, Name);
+  u32 Key = asset::ToKey(asset::type::TEXTURE, Name);
   u32* Handle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, Key);
   return *Handle;
 }
@@ -931,20 +932,29 @@ u32 PushBlitPlaneMesh(system* RenderSystem, render_group* RenderGroup)
       0,1,2,
       2,1,3
     };
-    opengl_vertex PlaneVertex [] = {
-      {{-1.0f, -1.0f, 0.0f},{0,0,0},{0,0}},
-      {{ 1.0f, -1.0f, 0.0f},{0,0,0},{1,0}},
-      {{-1.0f,  1.0f, 0.0f},{0,0,0},{0,1}},
-      {{ 1.0f,  1.0f, 0.0f},{0,0,0},{1,1}},
+    v3 Vertices[] = {
+      {-1.0f, -1.0f, 0.0f},
+      { 1.0f, -1.0f, 0.0f},
+      {-1.0f,  1.0f, 0.0f},
+      { 1.0f,  1.0f, 0.0f}
     };
+    v2 TextureIndex[] = {
+      {0,0},
+      {1,0},
+      {0,1},
+      {1,1}
+    };
+    
+    asset::mesh Mesh = {};
+    Mesh.IndexCount  = ArrayCount(PlaneIndex);
+    Mesh.Indeces     = PlaneIndex;
+    Mesh.VertexCount = ArrayCount(Vertices);
+    Mesh.v           = Vertices;
+    Mesh.vn          = 0;
+    Mesh.vt          = TextureIndex;
 
-    gl_vertex_buffer VertexBuffer = {};
-    VertexBuffer.IndexCount = ArrayCount(PlaneIndex);
-    VertexBuffer.Indeces = PlaneIndex;
-    VertexBuffer.VertexCount = ArrayCount(PlaneVertex);
-    VertexBuffer.VertexData = PlaneVertex;
-
-    StoredVertexBuffer = asset::LoadGLVertexBuffer("BlitPlane", VertexBuffer, &AssetKey);
+    asset::mesh* LoadedMesh  = asset::LoadMesh("BlitPlane", &Mesh);
+    StoredVertexBuffer       = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, LoadedMesh);
   }
 
   // Send BlitPlane to the render-system
@@ -1056,11 +1066,11 @@ u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr) {
   return Handle;
 }
 
-u32 Load32BitTextureToGpu(u32 AssetKey, obj_bitmap* BitMap) {
+u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture) {
   texture_params Params = DefaultColorTextureParams();
   Params.TextureFormat = texture_format::RGBA_U8;
   Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, BitMap->Width, BitMap->Height, Params, BitMap->Pixels);
+  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Texture->Width, Texture->Height, Params, Texture->Pixels);
   SetHandle(&GlobalRenderSystem->TextureHandleMap, AssetKey, Handle);
   return Handle;
 }

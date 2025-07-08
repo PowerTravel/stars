@@ -1,4 +1,5 @@
 #pragma once
+#include "asset_types.h"
 #include "commons/types.h"
 #include "commons/string.h"
 #include "commons/macros.h"
@@ -8,14 +9,11 @@
 struct gl_vertex_buffer;
 struct obj_loaded_file;
 
-namespace asset {
+#define ASSET_MAX_NAME_LENGTH 256
+#define ASSET_MAX_PATH_LENGTH 256
+#define ASSET_MAX_KEY_LENGTH 2048
 
-enum class type {
-  NONE,
-  OBJ, // Points to loaded_obj*.
-  TGA, // obj_bitmap*
-  GL_VERTEX_BUFFER
-};
+namespace asset {
 
 struct manager {
   memory_arena Arena;
@@ -41,7 +39,7 @@ void Free(type Type, u32 Key);
 void Free(type Type, c8* Name);
 
 gl_vertex_buffer* LoadGLVertexBuffer(c8* Name, const gl_vertex_buffer Data, u32* ResultKey = 0);
-obj_loaded_file* LoadObj(c8* Name, c8* Path, u32* ResultKey = 0);
-obj_bitmap* LoadTga(c8* Name, c8* Path, u32* ResultKey = 0);
-
+u32 LoadObj(c8* Path, c8* UniqueName);
+texture* LoadTga(c8* Name, c8* Path, u32* ResultKey = 0);
+mesh* LoadMesh(c8* Name, const mesh* Mesh, u32* ResultKey = 0);
 }
