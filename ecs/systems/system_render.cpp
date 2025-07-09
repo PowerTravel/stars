@@ -739,7 +739,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
           overlay_object* Object = (overlay_object*) Next(&OverlayIt);
 
           r32 Scale = 2*Norm(Object->Position-CamPosition)  * 0.01;
-          PushRenderObjectWithoutEntity(RenderGroup, GetMeshHandle("Sphere"), GlobalState->PhongShadingNoTexProgram, FrameBuffer(data::FRAMEBUFFER_MSAA), ProjectionMatrix, ViewMatrix, LightDirection, LightColor,
+          PushRenderObjectWithoutEntity(RenderGroup, GetMeshHandle("Cube"), GlobalState->PhongShadingNoTexProgram, FrameBuffer(data::FRAMEBUFFER_MSAA), ProjectionMatrix, ViewMatrix, LightDirection, LightColor,
             Object->Position, Object->Rotation, V3(Scale,Scale,Scale),
             GetMaterial(data::material_type::MATERIAL_RED_RUBBER));
         }
