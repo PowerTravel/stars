@@ -38,11 +38,15 @@ namespace asset {
 // Map from obj to gl-mesh, but keep each v/vn/vt separated into their own vectors.
   struct mesh {
     u32 IndexCount;
-    u32* Indeces;
+    u32* vi;
+    u32* vni;
+    u32* vti;
 
-    u32 VertexCount;
+    u32 vCount;
     v3* v;     // Vertices
+    u32 vnCount;
     v3* vn;    // Vertice Normals
+    u32 vtCount;
     v2* vt;    // Texture Vertices
   };
 
@@ -79,12 +83,11 @@ namespace asset {
   // Combines a mesh (a shape), with a material (How its rendered)
   // Does not have a header
   struct render_group_element {
-    mesh* Mesh;
-
     // Obj_groups that share a smoothing group have joined edges that should be smoothe
     // -1 means _no smothing group used_
     s32 SmoothingGroup;
-
+    
+    mesh* Mesh;
     material* Material;
   };
 

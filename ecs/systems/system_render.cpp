@@ -925,10 +925,14 @@ data::font CreateFont(memory_arena* Arena)
 u32 PushBlitPlaneMesh(system* RenderSystem, render_group* RenderGroup)
 {
   // Define and Load Blitplane into asset manager.
-  gl_vertex_buffer* StoredVertexBuffer = 0;
+  gl_vertex_buffer* StoredVertexBuffer = PushStruct(GlobalTransientArena, gl_vertex_buffer);
   u32 AssetKey  = 0;
   {
-    u32 PlaneIndex[] = {
+    u32 VerticeIndex[] = {
+      0,1,2,
+      2,1,3
+    };
+    u32 TextureIndex[] = {
       0,1,2,
       2,1,3
     };
@@ -938,7 +942,7 @@ u32 PushBlitPlaneMesh(system* RenderSystem, render_group* RenderGroup)
       {-1.0f,  1.0f, 0.0f},
       { 1.0f,  1.0f, 0.0f}
     };
-    v2 TextureIndex[] = {
+    v2 TextureVertices[] = {
       {0,0},
       {1,0},
       {0,1},
@@ -946,15 +950,16 @@ u32 PushBlitPlaneMesh(system* RenderSystem, render_group* RenderGroup)
     };
     
     asset::mesh Mesh = {};
-    Mesh.IndexCount  = ArrayCount(PlaneIndex);
-    Mesh.Indeces     = PlaneIndex;
-    Mesh.VertexCount = ArrayCount(Vertices);
+    Mesh.IndexCount  = ArrayCount(VerticeIndex);
+    Mesh.vi          = VerticeIndex;
+    Mesh.vCount      = ArrayCount(Vertices);
     Mesh.v           = Vertices;
-    Mesh.vn          = 0;
-    Mesh.vt          = TextureIndex;
+    Mesh.vti         = TextureIndex;
+    Mesh.vtCount     = ArrayCount(TextureVertices);
+    Mesh.vt          = TextureVertices;
 
     asset::mesh* LoadedMesh  = asset::LoadMesh("BlitPlane", &Mesh);
-    StoredVertexBuffer       = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, LoadedMesh);
+    asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, LoadedMesh, StoredVertexBuffer);
   }
 
   // Send BlitPlane to the render-system

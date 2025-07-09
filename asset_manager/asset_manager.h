@@ -15,6 +15,16 @@ struct obj_loaded_file;
 
 namespace asset {
 
+struct header {
+  type Type;
+  u32 Key;
+  string Name;
+  string FilePath;
+  string KeyString;
+  midx DataSize;
+  void* Data;
+};
+
 struct manager {
   memory_arena Arena;
   linked_memory Memory;
@@ -32,14 +42,18 @@ manager* CreateAssetManager() {
   return Result;
 }
 
-u32 ToKey(type Type, c8* Name);
+header* ToHeader(bptr Asset) {
+  return (header*) RetreatByType(Asset, header);
+}
+u32 ToKey(type Type, c8* UniqueName);
 void* Find(type Type, u32 Key);
 void* Find(type Type, c8* Name);
 void Free(type Type, u32 Key);
 void Free(type Type, c8* Name);
 
 gl_vertex_buffer* LoadGLVertexBuffer(c8* Name, const gl_vertex_buffer Data, u32* ResultKey = 0);
-u32 LoadObj(c8* Path, c8* UniqueName);
-texture* LoadTga(c8* Name, c8* Path, u32* ResultKey = 0);
+u32 LoadObj(c8* Path, c8* UniqueName = 0);
+u32 LoadTga(c8* Path, texture_type Type, c8* UniqueName = 0);
 mesh* LoadMesh(c8* Name, const mesh* Mesh, u32* ResultKey = 0);
+
 }

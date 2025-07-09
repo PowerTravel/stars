@@ -7,34 +7,25 @@ extern memory_arena* GlobalTransientArena;
 
 namespace asset {
 
-struct header {
-  type Type;
-  u32 Key;
-  string Name;
-  string FilePath;
-  string KeyString;
-  midx DataSize;
-  void* Data;
-};
-
-u32 ToKey(type Type, c8* Name)
+u32 ToKey(type Type, c8* UniqueName)
 {
   c8 TempKeyString[ASSET_MAX_KEY_LENGTH] = {};
 
   const c8* TypeString = TypeToString(Type);
   u32 TypeLength = jstr::StringLength(TypeString);
-  u32 NameLength = jstr::StringLength(Name);
+  u32 UniqueNameLength = jstr::StringLength(UniqueName);
   
   string KeyString = {};
-  u32 KeyStringLength = TypeLength + NameLength + 2;
-  u32 FormattedLength = FormatString(TempKeyString, KeyStringLength+1, "%s::%s", TypeString, Name);
+  u32 KeyStringLength = TypeLength + UniqueNameLength + 2;
+  u32 FormattedLength = FormatString(TempKeyString, KeyStringLength+1, "%s::%s", TypeString, UniqueName);
   Assert(FormattedLength <= KeyStringLength);
   u32 Result = utils::djb2_hash(TempKeyString);
   return Result;
 }
 
-header* CreateHeader(type Type, c8* Name, c8* Path, u32 DataSize)
+header* CreateHeader(type Type, c8* UniqueName, c8* Name, c8* Path, u32 DataSize)
 {
+  Assert(UniqueName && *UniqueName != '\0');
   // Layout of any memory allocated in the asset_manager is -> | HEADER | DATA | NAME | PATH | KEY |
   // This way, anyone who has a pointer to DATA can get the header by just rewinding the pointer sizeof(header) bytes.
 
@@ -42,15 +33,18 @@ header* CreateHeader(type Type, c8* Name, c8* Path, u32 DataSize)
   u32 NameSize = (NameLength+1)* sizeof(c8);
   u32 PathLength = jstr::StringLength(Path);
   u32 PathSize = (PathLength+1)* sizeof(c8);
-  
+  u32 UniqueNameLength = jstr::StringLength(UniqueName);
+  u32 UniqueNameSize = (UniqueNameLength+1)* sizeof(c8);
+
   const c8* TypeString = TypeToString(Type);
   u32 TypeLength = jstr::StringLength(TypeString);
-  u32 KeyStringLength = TypeLength + PathLength + NameLength + 4;
+  u32 KeyStringLength = TypeLength + UniqueNameLength + 4;
   u32 KeyStringSize   = (KeyStringLength+1) * sizeof(c8);
 
   u32 HeaderSize = sizeof(header) + NameSize + PathSize + KeyStringLength;
   u32 MemorySize = HeaderSize + DataSize;
   header* Result = (header*) Allocate(&GlobalAssetManager->Memory, MemorySize);
+
   Result->Type = Type;
   Result->DataSize = DataSize;
   Result->Name.Length = NameLength;
@@ -64,120 +58,250 @@ header* CreateHeader(type Type, c8* Name, c8* Path, u32 DataSize)
 
   jstr::CopyStrings(Result->Name.Length, Name, Result->Name.Length+1, Result->Name.String);
   jstr::CopyStrings(Result->FilePath.Length, Path, Result->FilePath.Length+1, Result->FilePath.String);
-  FormatString(Result->KeyString.String, KeyStringSize, "%s::%s::%s", TypeString, Path, Name);
+  FormatString(Result->KeyString.String, KeyStringSize, "%s::%s", TypeString, UniqueName);
 
   Result->Key  = utils::djb2_hash(Result->KeyString.String);
+  Insert(&GlobalAssetManager->Headers, Result->Key, (void*) Result);
+
   return Result;
 }
 
-u32 PushUnique( u8* Array, const u32 ElementCount, const u32 ElementByteSize,
-               u8* NewElement, b32 (*CompareFunction)(const u8* DataA, const u8* DataB))
-{
-  for( u32 i = 0; i < ElementCount; ++i )
-  {
-    if( CompareFunction(NewElement, Array) )
-    {
-      return i;
-    }
-    Array += ElementByteSize;
-  }
-  
-  // If we didn't find the element we push it to the end
-  utils::Copy(ElementByteSize, NewElement, Array);
-  
-  return ElementCount;
-}
-
-midx GetMeshSize(u32 IndexCount, u32 VertexCount, b32 HasNormals, b32 HasTextures) {
-  midx IndexMemSize   = IndexCount * sizeof(u32);
-  midx VerticeMemSize = VertexCount * sizeof(v3);
-  midx NormalMemSize  = BranchlessArithmatic(HasNormals,  VertexCount * sizeof(v3), 0);
-  midx TextureMemSize = BranchlessArithmatic(HasTextures, VertexCount * sizeof(v2), 0);
+midx GetMeshSize(u32 IndexCount, u32 VertexCount, u32 NormalCount, u32 TextureCount) {
+  u32  TypeCount = ((VertexCount>0) + (NormalCount>0) + (TextureCount>0));
+  midx IndexMemSize   = TypeCount * IndexCount * sizeof(u32);
+  midx VerticeMemSize = VertexCount  * sizeof(v3);
+  midx NormalMemSize  = NormalCount  * sizeof(v3);
+  midx TextureMemSize = TextureCount * sizeof(v2);
   midx TotalMeshSize = sizeof(mesh) + IndexMemSize + VerticeMemSize + NormalMemSize + TextureMemSize;
   return TotalMeshSize;
 }
 
-mesh* InitializeMesh(u32 IndexCount, u32 VertexCount, b32 HasNormals, b32 HasTextures, void* Memory) {
-  midx IndexMemSize   = IndexCount * sizeof(u32);
-  midx VerticeMemSize = VertexCount * sizeof(v3);
-  midx NormalMemSize  = BranchlessArithmatic(HasNormals,  VertexCount * sizeof(v3), 0);
-  
+internal inline midx GetMeshSize(const mesh* Mesh) {
+  midx Result = GetMeshSize(Mesh->IndexCount, Mesh->vCount, Mesh->vnCount, Mesh->vtCount);
+  return Result;
+}
+
+
+mesh* InitializeMesh(u32 IndexCount, u32 VertexCount, u32 NormalCount, u32 TextureCount, void* Memory) {
+  Assert(IndexCount);
+  Assert(VertexCount);
+
+  midx IndexMemSize = IndexCount  * sizeof(u32);
+
   mesh* Result = (mesh*) Memory;
   Result->IndexCount = IndexCount;
-  Result->VertexCount = VertexCount;
-  Result->Indeces = (u32*) AdvanceBytePointer(Result, sizeof(mesh));
-  Result->v       = (v3*)  AdvanceBytePointer(Result, sizeof(mesh) + IndexMemSize);
-  if(HasNormals) {
-    Result->vn = (v3*) AdvanceBytePointer(Result, sizeof(mesh) + IndexMemSize + VerticeMemSize);
+
+  bptr MemScan = AdvanceBytePointer(Result, sizeof(mesh));
+  {
+    Result->vCount = VertexCount;
+    Result->vi = (u32*) MemScan;
+    Result->v  = (v3*)  AdvanceBytePointer(Result->vi, IndexMemSize);
+    MemScan = AdvanceBytePointer(Result->v, VertexCount * sizeof(v3));
   }
-  if(HasTextures) {
-    Result->vt = (v2*) AdvanceBytePointer(Result, sizeof(mesh) + IndexMemSize + VerticeMemSize + NormalMemSize);
+
+
+  if(NormalCount) {
+    Result->vnCount = NormalCount;
+    Result->vni = (u32*) MemScan;
+    Result->vn  = (v3*)  AdvanceBytePointer(Result->vni, IndexMemSize);
+    MemScan = AdvanceBytePointer(Result->vn, NormalCount * sizeof(v3));
+  }
+
+  if(TextureCount) {
+    Result->vtCount = TextureCount;
+    Result->vti = (u32*) MemScan;
+    Result->vt = (v2*) AdvanceBytePointer(Result->vti, IndexMemSize);
   }
   return Result;
 }
 
-mesh* CreateMesh( c8* MeshName, c8* MeshPath,
-                  const u32 IndexCount,
-                  const u32* VerticeIndeces, const u32* TextureIndeces, const u32* NormalIndeces,
-                  const v3* VerticeData,     const v2* TextureData,     const v3* NormalData)
+b32 IntCompareFunction(const bptr DataA, const bptr DataB)
 {
-  u32* GLVerticeIndexArray  = PushArray(GlobalTransientArena, 3*IndexCount, u32);
-  u32* GLIndexArray         = PushArray(GlobalTransientArena, IndexCount, u32);
+  u32* A =  (u32*) DataA;
+  u32* B =  (u32*) DataB;
+  return *A == *B;
+}
 
-  u32 VerticeArrayCount = 0;
-  for( u32 i = 0; i < IndexCount; ++i )
+b32 V3CompareFunction(const bptr DataA, const bptr DataB)
+{
+  v3 A =  *((v3*) DataA);
+  v3 B =  *((v3*) DataB);
+  return A == B;
+}
+
+b32 V2CompareFunction(const bptr DataA, const bptr DataB)
+{
+  v2 A =  *((v2*) DataA);
+  v2 B =  *((v2*) DataB);
+  return A == B;
+}
+
+
+u32 PushUnique(bptr Array, const u32 ElementCount, const u32 ElementByteSize,
+               bptr NewElement, b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
+{
+  bptr Scan = Array;
+  for( u32 i = 0; i < ElementCount; ++i )
   {
-    const u32 vidx = VerticeIndeces[i];
-    const u32 tidx = TextureIndeces ? TextureIndeces[i] : 0;
-    const u32 nidx = NormalIndeces  ? NormalIndeces[i]  : 0;
-    u32 NewElement[3] = {vidx, tidx, nidx};
-    u32 Index = PushUnique((u8*)GLVerticeIndexArray, VerticeArrayCount, sizeof(NewElement), (u8*) NewElement,
-                           [](const u8* DataA, const u8* DataB) {
-                             u32* U32A = (u32*) DataA;
-                             const u32 A1 = *(U32A+0);
-                             const u32 A2 = *(U32A+1);
-                             const u32 A3 = *(U32A+2);
-                             u32* U32B = (u32*) DataB;
-                             const u32 B1 = *(U32B+0);
-                             const u32 B2 = *(U32B+1);
-                             const u32 B3 = *(U32B+2);
-                             b32 result = (A1 == B1) && (A2 == B2) && (A3 == B3);
-                             return result;
-                           });
-    if(Index == VerticeArrayCount)
+    if( CompareFunction(NewElement, Scan) )
     {
-      VerticeArrayCount++;
+      return i;
     }
-    
-    GLIndexArray[i] = Index;
+    Scan += ElementByteSize;
   }
   
-  midx TotalMeshSize  = GetMeshSize(IndexCount, VerticeArrayCount, NormalIndeces != 0, TextureIndeces != 0);
-  header* Header      = CreateHeader(type::MESH, MeshName, MeshPath, TotalMeshSize);
-  mesh* Result        = InitializeMesh(IndexCount, VerticeArrayCount, NormalIndeces != 0, TextureIndeces != 0, Header->Data);
+  // If we didn't find the element we push it to the end
+  utils::Copy(ElementByteSize, NewElement, Scan);
   
-  v3* Vertice = Result->v;
-  v3* Normal  = Result->vn;
-  v2* Texture = Result->vt;
-  for( u32 i = 0; i < VerticeArrayCount; ++i )
+  return ElementCount;
+}
+/*
+
+// -Z
+VerticeIndeces = {4 5 6 4 6 7};
+Vertices = {
+  {-1,-1, 1},
+  {-1, 1, 1},
+  { 1, 1, 1},
+  { 1,-1, 1},
+  {-1,-1,-1},
+  {-1, 1,-1},
+  { 1, 1,-1},
+  { 1,-1,-1},
+}
+
+
+UniqueVerticeIndeces = {4,5,6,7}
+UniqueVertices = {
+    {-1,-1,-1},
+    {-1, 1,-1},
+    { 1, 1,-1},
+    { 1,-1,-1},
+}
+
+VerticeIndeceMap = {4,0} {5,1} {6,2} {6,3}
+NewVerticeIndece = {0, 1, 2, 0, 2, 3};
+
+
+/////
+NormalIndeces = {5,5,5,5,5,5}
+Normals = {
   {
-    u32 Index = 3*i;
-    u32 VerticeIndex = GLVerticeIndexArray[Index];
-    *Vertice++ = VerticeData[Index];
-    if(NormalData)
-    {
-      u32 NormalIndex = GLVerticeIndexArray[Index + 2];
-      *Normal++ = NormalData[NormalIndex];
-    }
-    if(TextureData)
-    {
-      u32 TextureIndex = GLVerticeIndexArray[Index + 1];
-      *Texture++ = TextureData[TextureIndex];
-    }
+    { 1,0,0},
+    {-1,0,0},
+    {0, 1,0},
+    {0,-1,0},
+    {0,0, 1},
+    {0,0,-1},
   }
+
+UniqueNormalIndeces = {5}
+UniqueNormals = {0,0,-1},
+NormalMap = {5,0}
+NewNormalIndeces = {0}
+
+
+TextureCount = {0,2,3,0,3,1}
+Texture = {
+  {
+    {0,0},
+    {1,0},
+    {0,1},
+    {1,1}
+  }
+
+UniqueTextureIndeces = {0,2,3,1}
+UniqueTexture = {
+  {
+    {0,0},
+    {0,1},
+    {1,1},
+    {1,0},
+  }
+TextureIndeceMap = {0, 0}, {2, 1}, {3,2}, {1,3}
+NewTextureIndeces = {0,1,2,0,2,3}
+
+*/
+
+struct indexed_array {
+  u32 IndexCount;
+  u32* IndexArray;
+
+  midx ValueSize;
+  u32 ValueCount;
+  bptr ValueArray;
+};
+
+indexed_array IndexedArray(memory_arena* Arena, u32 IndexCount, midx ValueSize, u32 ValueCount)
+{
+  indexed_array Result = {};
+  Result.IndexCount = IndexCount;
+  Result.ValueSize  = ValueSize;
+  Result.ValueCount = ValueCount;
+  Result.IndexArray = PushArray(Arena, IndexCount, u32);
+  Result.ValueArray = (bptr) PushSize(Arena, ValueCount*ValueSize);
   return Result;
 }
 
+
+indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, bptr ValueArray,
+  b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
+{
+  indexed_array Result = IndexedArray(Arena, IndexCount, ValueSize, IndexCount);
+  u32 ValueCount = 0;
+  for (int i = 0; i < IndexCount; ++i)
+  {
+    u32 OldIndex = IndexArray[i];
+    bptr Value = ValueArray + OldIndex*ValueSize;
+    u32 NewIndex = PushUnique(Result.ValueArray, ValueCount, ValueSize, Value, CompareFunction);
+    if(NewIndex == ValueCount)
+    {
+      ValueCount++;
+    }
+    Result.IndexArray[i] = NewIndex;
+  }
+  Result.ValueCount = ValueCount;
+  return Result;
+}
+
+mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
+                  const u32 IndexCount,
+                  const u32* VerticeIndeces, const u32* NormalIndeces, const u32* TextureIndeces,
+                  const v3* VerticeData,     const v3* NormalData,     const v2* TextureData)
+{
+
+  indexed_array VerticeArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, VerticeIndeces, sizeof(v3), (bptr) VerticeData, V3CompareFunction);
+  indexed_array NormalArray = {};
+  if(NormalIndeces)
+  {
+     NormalArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, NormalIndeces, sizeof(v3), (bptr) NormalData, V3CompareFunction);
+  }
+  indexed_array TextureArray = {};
+  if(TextureIndeces)
+  {
+     TextureArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, TextureIndeces, sizeof(v2), (bptr) TextureData, V2CompareFunction);
+  }
+
+  midx TotalMeshSize = GetMeshSize(IndexCount, VerticeArray.ValueCount, NormalArray.ValueCount, TextureArray.ValueCount);
+  header* Header     = CreateHeader(type::MESH, MeshKey, MeshName, MeshPath, TotalMeshSize);
+  mesh* Result       = InitializeMesh(IndexCount, VerticeArray.ValueCount, NormalArray.ValueCount, TextureArray.ValueCount, Header->Data);
+  
+
+  utils::Copy(sizeof(u32)*VerticeArray.IndexCount,             VerticeArray.IndexArray, Result->vi);
+  utils::Copy(VerticeArray.ValueSize*VerticeArray.ValueCount,  VerticeArray.ValueArray, Result->v);
+  if(NormalIndeces)
+  {
+    utils::Copy(sizeof(u32)*NormalArray.IndexCount,             NormalArray.IndexArray, Result->vni);
+    utils::Copy(NormalArray.ValueSize*NormalArray.ValueCount,   NormalArray.ValueArray, Result->vn);
+  }
+  if(TextureIndeces)
+  {
+    utils::Copy(sizeof(u32)*TextureArray.IndexCount,              TextureArray.IndexArray, Result->vti);
+    utils::Copy(TextureArray.ValueSize*TextureArray.ValueCount,   TextureArray.ValueArray, Result->vt);
+  }
+
+  return Result;
+}
 
 string CreateString(const c8* Str, u32 MaxLength) {
   string Result = {};
@@ -274,13 +398,13 @@ void Free(type Type, c8* Name) {
   Free(Type, Key);
 }
 
-texture* CopyObjBitmapToTexture(texture_type Type, obj_bitmap* ObjBitmap)
+texture* CopyObjBitmapToTexture(c8* Key, texture_type Type, obj_bitmap* ObjBitmap)
 {
   if(!ObjBitmap){return 0;};
 
   u32 TextureSizeBytes = sizeof(texture) + ObjBitmap->Width * ObjBitmap->Height * ObjBitmap->BPP / 8.f;
 
-  header* Header = CreateHeader(type::TEXTURE, ObjBitmap->Name, ObjBitmap->Path, TextureSizeBytes);
+  header* Header = CreateHeader(type::TEXTURE, Key, ObjBitmap->Name, ObjBitmap->Path, TextureSizeBytes);
   texture* Result = (texture*) Header->Data;
   Result->Type    = Type;
   Result->BPP     = ObjBitmap->BPP;
@@ -381,13 +505,13 @@ void InitiateMaterial (
   Material->MapKs     = MapKs;
 }
 
-material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl)
+material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 {
   midx MaterialSizeBytes = MaterialSize(ObjMtl->Kd, ObjMtl->Ka, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns, ObjMtl->IlluminationMode);
-  header* Header   = CreateHeader(type::MATERIAL, ObjMtl->Name, Path, MaterialSizeBytes);
-  texture* BumpMap = CopyObjBitmapToTexture(texture_type::BUMP_MAP, ObjMtl->BumpMap);
-  texture* MapKd   = CopyObjBitmapToTexture(texture_type::DIFFUSE_COLOR, ObjMtl->MapKd);
-  texture* MapKs   = CopyObjBitmapToTexture(texture_type::SPECULAR_COLOR, ObjMtl->MapKs);
+  header* Header   = CreateHeader(type::MATERIAL, Key, ObjMtl->Name, Path, MaterialSizeBytes);
+  texture* BumpMap = CopyObjBitmapToTexture(Key, texture_type::BUMP_MAP, ObjMtl->BumpMap);
+  texture* MapKd   = CopyObjBitmapToTexture(Key, texture_type::DIFFUSE_COLOR, ObjMtl->MapKd);
+  texture* MapKs   = CopyObjBitmapToTexture(Key, texture_type::SPECULAR_COLOR, ObjMtl->MapKs);
 
   material* Result = (material*) Header->Data;
   InitiateMaterial(
@@ -424,7 +548,7 @@ material* GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
   return 0;
 }
 
-render_group_element CreateRenderGroupElement(c8* Name, c8* Path, obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
+render_group_element CreateRenderGroupElement(c8* Key, c8* Name, c8* Path, obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
 {  
   render_group_element Result = {};
 
@@ -435,36 +559,45 @@ render_group_element CreateRenderGroupElement(c8* Name, c8* Path, obj_group* Obj
   }
 
   Result.Mesh = CreateMesh(
+      Key,
       ObjGrp->GroupName,
       Path,
       ObjIndeces->Count,
       ObjIndeces->vi,
-      ObjIndeces->ti,
       ObjIndeces->ni,
+      ObjIndeces->ti,
       MeshData->v,
-      MeshData->vt,
-      MeshData->vn);
+      MeshData->vn,
+      MeshData->vt);
 
   Result.Material = GetMaterial(MaterialMap, ObjGrp->Material);
   return Result;
 }
 
 
-c8* CreateDefaultName(c8* Name, u32 Index, u32 MaxCount)
+c8* CreateUniqueKey(c8* Name, u32 Index, u32 MaxCount)
 {
   c8* Result = Name;
-  if(!Name || *Name == '\0')
+  if(MaxCount > 1)
   {
     u32 Length = ASSET_MAX_NAME_LENGTH;
     Result = (c8*) PushArray(GlobalTransientArena, Length, c8);
-    FormatString(Result, Length-1, "%d/%d", Index, MaxCount);
+    FormatString(Result, Length-1, "%s_%d/%d", Name, Index+1, MaxCount);
   }
   return Result;
 }
 
-u32 LoadObj(c8* Path)
+u32 LoadObj(c8* Path, c8* KeyString)
 {
+  Assert(Path && *Path != '\0');
+  if(!KeyString || *KeyString == '\0')
+  {
+    KeyString = Path;
+  }
+
   obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
+
+  
 
   // MATERIAL
   obj_mtl_data* ObjMtlGroup = Obj->MaterialData;
@@ -472,14 +605,15 @@ u32 LoadObj(c8* Path)
   for (int i = 0; i < ObjMtlGroup->MaterialCount; ++i)
   {
     mtl_material* Mtl = ObjMtlGroup->Materials + i;
-    material* Material = CopyObjMtlToMaterial(ObjMtlGroup->Path, Mtl);
+    c8* MtlKey = CreateUniqueKey(KeyString, i, Obj->ObjectCount);
+    material* Material = CopyObjMtlToMaterial(ObjMtlGroup->Path, Mtl, MtlKey);
     MaterialMap.Mtl_Materials[i] = Mtl;
     MaterialMap.Materials[i] = Material;
   }
 
   // RENDER_GROUP
   midx RenderGroupMemSize = sizeof(render_group) + Obj->ObjectCount * sizeof(render_group_element);
-  header* Header = CreateHeader(type::RENDER_GROUP, Obj->ObjectName, Path, RenderGroupMemSize);
+  header* Header = CreateHeader(type::RENDER_GROUP, KeyString, Obj->ObjectName, Path, RenderGroupMemSize);
   render_group* RenderGroup = (render_group*) Header->Data;
   RenderGroup->ElementCount = Obj->ObjectCount;
   RenderGroup->Elements = (render_group_element*) AdvanceBytePointer(RenderGroup, sizeof(render_group));
@@ -489,74 +623,40 @@ u32 LoadObj(c8* Path)
   {
     obj_group* ObjGrp = Obj->ObjectGroups + i;
     c8 MeshNameBuff[ASSET_MAX_NAME_LENGTH] = {};
-    c8* MeshName = CreateDefaultName(ObjGrp->GroupName, i, Obj->ObjectCount);
-    RenderGroup->Elements[i] = CreateRenderGroupElement(MeshName, Path, ObjGrp, Obj->MeshData, &MaterialMap);
+    c8* MeshName = CreateUniqueKey(KeyString, i, Obj->ObjectCount);
+    RenderGroup->Elements[i] = CreateRenderGroupElement(KeyString, MeshName, Path, ObjGrp, Obj->MeshData, &MaterialMap);
   }
 
   return Header->Key;
 }
 
-/*
-
-render_group_element* LoadRenderObject(c8* Name, u32 RenderObjectSize, render_group_element* RenderObject, mesh* Mesh, u32* ResultKey)
-{
-  CreateHeader(type::render_group_element, Name, "N/A", RenderObjectSize);
-
-  utils::Copy(RenderObjeceSize, RenderObject, Mesh);
-}
-
-gl_vertex_buffer* LoadGLVertexBuffer(c8* Name, const gl_vertex_buffer Data, u32* ResultKey)
-{
-  u32 VertexBufferSize = sizeof(gl_vertex_buffer);
-  u32 IndexSize = Data.IndexCount * sizeof(u32);
-  u32 VertexSize = Data.VertexCount * sizeof(opengl_vertex);
-  u32 TotalSize = VertexBufferSize + IndexSize + VertexSize;
-
-  gl_vertex_buffer* VertexBuffer = (gl_vertex_buffer*) Allocate(&GlobalAssetManager->Memory, TotalSize);
-  VertexBuffer->IndexCount = Data.IndexCount;
-  VertexBuffer->Indeces = (u32*) AdvanceBytePointer(VertexBuffer, VertexBufferSize);
-  utils::Copy(IndexSize, Data.Indeces, VertexBuffer->Indeces);
-  VertexBuffer->VertexCount = Data.VertexCount;
-  VertexBuffer->VertexData = (opengl_vertex*) AdvanceBytePointer(VertexBuffer, VertexBufferSize + IndexSize);
-  utils::Copy(VertexSize, Data.VertexData, VertexBuffer->VertexData);
-
-  u32 Key = Load(type::gl_vertex_buffer, Name, "N/A", (void*) VertexBuffer);
-  if(ResultKey)
-  {
-    *ResultKey = Key;
-  }
-  return VertexBuffer;
-}
-
-obj_bitmap* LoadTga(c8* Name, c8* Path, u32* ResultKey)
-{
-  obj_bitmap* Result = LoadTGA(TransientAllocator, Path);
-  u32 Key = Load(type::TGA, Name, Path, (void*) Result);
-  if(ResultKey)
-  {
-    *ResultKey = Key;
-  }
-  return Result; 
-}
-*/
-
-
 void CopyMesh(const mesh* SrcMesh, mesh* DstMesh)
 {
-  Assert(SrcMesh->v && SrcMesh->Indeces && DstMesh->v && DstMesh->Indeces);
+  Assert(SrcMesh->v && SrcMesh->vi && DstMesh->v && DstMesh->vi);
   DstMesh->IndexCount  = SrcMesh->IndexCount;
-  DstMesh->VertexCount = SrcMesh->VertexCount;
-  utils::Copy(SrcMesh->IndexCount * sizeof(u32), SrcMesh->Indeces, DstMesh->Indeces);
-  utils::Copy(SrcMesh->VertexCount * sizeof(v3), SrcMesh->v, DstMesh->v);
-  if(SrcMesh->vn) utils::Copy(SrcMesh->VertexCount * sizeof(v3), SrcMesh->vn, DstMesh->vn);
-  if(SrcMesh->vt) utils::Copy(SrcMesh->VertexCount * sizeof(v2), SrcMesh->vt, DstMesh->vt);
+  DstMesh->vCount = SrcMesh->vCount;
+  utils::Copy(SrcMesh->IndexCount  * sizeof(u32), SrcMesh->vi, DstMesh->vi);
+  utils::Copy(SrcMesh->vCount * sizeof(v3),       SrcMesh->v, DstMesh->v);
+
+
+  if(SrcMesh->vn){
+    DstMesh->vnCount = SrcMesh->vnCount;
+    utils::Copy(SrcMesh->IndexCount * sizeof(u32), SrcMesh->vni, DstMesh->vni);
+    utils::Copy(SrcMesh->vnCount * sizeof(v3),     SrcMesh->vn, DstMesh->vn);
+  }
+  if(SrcMesh->vt){ 
+    DstMesh->vtCount = SrcMesh->vtCount;
+    utils::Copy(SrcMesh->IndexCount * sizeof(u32), SrcMesh->vti, DstMesh->vti);
+    utils::Copy(SrcMesh->vtCount * sizeof(v2), SrcMesh->vt, DstMesh->vt);
+  }
 }
 
-mesh* LoadMesh(c8* Name, const mesh* Mesh, u32* ResultKey)
+
+mesh* LoadMesh(c8* KeyString, const mesh* Mesh, u32* ResultKey)
 {
-  midx MeshSize = GetMeshSize(Mesh->IndexCount, Mesh->VertexCount, Mesh->vn!=0, Mesh->vt!=0);
-  header* Header = CreateHeader(type::MESH, Name, "N/A", MeshSize); // Todo: Fix Key
-  mesh* LoadedMesh = InitializeMesh(Mesh->IndexCount, Mesh->VertexCount, Mesh->vn!=0, Mesh->vt!=0, Header->Data);
+  midx MeshSize = GetMeshSize(Mesh);
+  header* Header = CreateHeader(type::MESH, KeyString, KeyString, "N/A", MeshSize);
+  mesh* LoadedMesh = InitializeMesh(Mesh->IndexCount, Mesh->vCount, Mesh->vnCount, Mesh->vtCount, Header->Data);
   CopyMesh(Mesh, LoadedMesh);
 
   if(ResultKey)
@@ -567,6 +667,17 @@ mesh* LoadMesh(c8* Name, const mesh* Mesh, u32* ResultKey)
 }
 
 gl_vertex_buffer* LoadGLVertexBuffer(c8* Name, const gl_vertex_buffer Data, u32* ResultKey){ return 0; }
-texture* LoadTga(c8* Name, c8* Path, u32* ResultKey){ return 0; }
+
+u32 LoadTga(c8* Path, texture_type Type, c8* UniqueName)
+{
+  obj_bitmap* ObjBitmap = LoadTGA(TransientAllocator, Path);
+  if(UniqueName == 0 || *UniqueName =='\0')
+  {
+    UniqueName = Path;
+  }
+  texture* Texture = CopyObjBitmapToTexture(UniqueName, Type, ObjBitmap);
+  header* Header = (header*) RetreatByType(Texture, header);
+  return Header->Key; 
+}
 
 }
