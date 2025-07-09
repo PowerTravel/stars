@@ -32,10 +32,15 @@ global_variable r32 g_t = 0;
 
 u32 LoadMesh(c8* KeyStr, c8* Path)
 {
+  r32 InitTime = Platform.DEBUGGetTime();
   u32 Key = asset::LoadObj(Path, KeyStr);
   asset::render_group* Grp = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, Key);
+  r32 LoadTime1 = Platform.DEBUGGetTime();
   opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Grp);
   u32 Handle = ecs::render::LoadMeshToGpu(Key, &glBufferData);
+  r32 LoadTime2 = Platform.DEBUGGetTime();
+  //Platform.DEBUGPrint("Loading %s took %f sec\n",KeyStr,  LoadTime1 - InitTime);
+  //Platform.DEBUGPrint("Mapping %s took %f sec\n",KeyStr,  LoadTime2 - LoadTime1);
   return Handle;
 }
 
@@ -979,18 +984,20 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->ColoredSquareOverlayProgram = CreateColoredSquareOverlayProgram(RenderGroup);
     GlobalState->TexturedSquareOverlayProgram = CreateTexturedSquareOverlayProgram(RenderGroup);
 
+    r32 InitTime = Platform.DEBUGGetTime();
     LoadMesh("Cube", "..\\data\\qube.obj");
     LoadMesh("checker_plane_simple", "..\\data\\checker_plane_simple.obj");
+    
     LoadMesh("Sphere", "..\\data\\sphere.obj");
+
     LoadMesh("Cone", "..\\data\\cone.obj");
     LoadMesh("Cylinder", "..\\data\\cylinder.obj");
     LoadMesh("Triangle", "..\\data\\triangle.obj");
     LoadMesh("Plane", "..\\data\\plane.obj");
-
+    Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
-    
     asset::render_group* PlaneMesh = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "checker_plane_simple");
     asset::texture* PlaneTex = PlaneMesh->Elements[0].Material->MapKd;
     asset::header* Header = asset::ToHeader( (bptr) PlaneTex);
@@ -1024,9 +1031,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->DebugRenderCommands->DefaultFrameBuffer = GlobalState->DefaultFrameBuffer;
 */
     GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
-    
     GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, &Input->Keyboard, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
     menu_interface* Interface = GlobalState->World.MenuInterface;
+    /*
     container_node* DefaultWindow = 0;
     {
       menu_tree* WindowsDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Windows");
@@ -1076,6 +1083,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         container_node* EntityWindow = ConnectViaSplitWindow(Interface, DefaultWindow, GlobalState->EntitiesPlugin, 0.3, true, false);
       }
     }
+    
     {
       menu_tree* TestDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Test");
       {
@@ -1090,6 +1098,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ConnectNodeToBack(TestPlugin, EntityContainer);
       }
     }
+    */
     { // Create some entities
       { // Checker Floor
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER);
@@ -1111,8 +1120,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         Render->MeshHandle = ecs::render::GetMeshHandle("Cube");
         Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
-        GlobalState->DebugSquare = PushStruct(GlobalPersistentArena, ecs::entity_id);
-        *GlobalState->DebugSquare = Entity;
+
       }
       
       { // Transparent Cone
@@ -1125,14 +1133,17 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_EMERALD);
       }
       
-      { // Transparent Sphere
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Sphere", ecs::flag::RENDER);
+      { // Transparent Cylinder
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cylinder", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = ecs::render::GetMeshHandle("Sphere");
+        Render->MeshHandle = ecs::render::GetMeshHandle("Cylinder");
         Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_JADE);
+
+        GlobalState->DebugSquare = PushStruct(GlobalPersistentArena, ecs::entity_id);
+        *GlobalState->DebugSquare = Entity;
       }
 
       { // Solid Cone
@@ -1145,6 +1156,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_SILVER);
       }
     }
+    
   }else{
     ecs::render::Begin();
     ResetRenderGroup(RenderCommands->RenderGroup);

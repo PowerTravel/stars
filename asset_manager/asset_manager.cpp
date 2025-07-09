@@ -232,6 +232,34 @@ struct indexed_array {
   bptr ValueArray;
 };
 
+/*
+IndexArray = {4 5 6 4 6 7};
+ValueArray = {
+  {-1,-1, 1},
+  {-1, 1, 1},
+  { 1, 1, 1},
+  { 1,-1, 1},
+  {-1,-1,-1},
+  {-1, 1,-1},
+  { 1, 1,-1},
+  { 1,-1,-1},
+}
+
+IndexTracker = {0 0 0 0 1 2 3 0}
+UniqueIndeces = {0, 1, 2, 0, 2}
+UniqueVertices = {
+    {-1,-1,-1},
+    {-1, 1,-1},
+    { 1, 1,-1},
+    {},
+    {},
+    {},
+    {},
+    {},
+}
+
+*/
+
 indexed_array IndexedArray(memory_arena* Arena, u32 IndexCount, midx ValueSize, u32 ValueCount)
 {
   indexed_array Result = {};
@@ -244,21 +272,26 @@ indexed_array IndexedArray(memory_arena* Arena, u32 IndexCount, midx ValueSize, 
 }
 
 
-indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, bptr ValueArray,
+indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, u32 MaxValueCount, bptr ValueArray,
   b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
 {
-  indexed_array Result = IndexedArray(Arena, IndexCount, ValueSize, IndexCount);
+  indexed_array Result = IndexedArray(Arena, IndexCount, ValueSize, MaxValueCount);
+  u32* IndexTracker = PushArray(Arena, MaxValueCount, u32);
   u32 ValueCount = 0;
   for (int i = 0; i < IndexCount; ++i)
   {
     u32 OldIndex = IndexArray[i];
-    bptr Value = ValueArray + OldIndex*ValueSize;
-    u32 NewIndex = PushUnique(Result.ValueArray, ValueCount, ValueSize, Value, CompareFunction);
-    if(NewIndex == ValueCount)
+
+    if(IndexTracker[OldIndex]==0)
     {
-      ValueCount++;
+      u32 NewIndex = ValueCount;
+      Result.IndexArray[i]   = NewIndex;
+      IndexTracker[OldIndex] = ++ValueCount;
+
+      utils::Copy(ValueSize, ValueArray + ValueSize*OldIndex, Result.ValueArray + ValueSize*NewIndex);
+    }else{
+      Result.IndexArray[i] = IndexTracker[OldIndex] - 1;
     }
-    Result.IndexArray[i] = NewIndex;
   }
   Result.ValueCount = ValueCount;
   return Result;
@@ -267,19 +300,20 @@ indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u
 mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
                   const u32 IndexCount,
                   const u32* VerticeIndeces, const u32* NormalIndeces, const u32* TextureIndeces,
+                  const u32 VerticeCount,    const u32 NormalCount,    const u32 TextureCount,
                   const v3* VerticeData,     const v3* NormalData,     const v2* TextureData)
 {
 
-  indexed_array VerticeArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, VerticeIndeces, sizeof(v3), (bptr) VerticeData, V3CompareFunction);
+  indexed_array VerticeArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, VerticeIndeces, sizeof(v3), VerticeCount, (bptr) VerticeData, V3CompareFunction);
   indexed_array NormalArray = {};
   if(NormalIndeces)
   {
-     NormalArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, NormalIndeces, sizeof(v3), (bptr) NormalData, V3CompareFunction);
+     NormalArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, NormalIndeces, sizeof(v3), NormalCount, (bptr) NormalData, V3CompareFunction);
   }
   indexed_array TextureArray = {};
   if(TextureIndeces)
   {
-     TextureArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, TextureIndeces, sizeof(v2), (bptr) TextureData, V2CompareFunction);
+     TextureArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, TextureIndeces, sizeof(v2), TextureCount, (bptr) TextureData, V2CompareFunction);
   }
 
   midx TotalMeshSize = GetMeshSize(IndexCount, VerticeArray.ValueCount, NormalArray.ValueCount, TextureArray.ValueCount);
@@ -566,6 +600,9 @@ render_group_element CreateRenderGroupElement(c8* Key, c8* Name, c8* Path, obj_g
       ObjIndeces->vi,
       ObjIndeces->ni,
       ObjIndeces->ti,
+      MeshData->nv,
+      MeshData->nvn,
+      MeshData->nvt,
       MeshData->v,
       MeshData->vn,
       MeshData->vt);
