@@ -3,12 +3,10 @@
 #include "platform/jfont.h"
 #include "commons/random.h"
 #include "camera.h"
-//#include "debug_draw.h"
 #include "platform/obj_loader.h"
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
 #include "ecs/systems/system_render.h"
-#include "menu/menu_interface.h"
 #include "menu/color_table.h"
 #include "imgui/imgui.h"
 #include "imgui/application_imgui.h"
@@ -32,8 +30,6 @@ struct function_pool
 struct world {
   ecs::entity_manager* EntityManager;
   ecs::render::system* RenderSystem;
-  menu_interface* MenuInterface;
-  container_node* ScenePlugin;
 };
 
 struct application_state
@@ -69,11 +65,6 @@ struct application_state
   menu::color_table ColorTable;
   world World;
 
-  u32 DebugContainerNodeCount;
-  container_node* DebugContainerNodes[16];
-
-  container_node* EntitiesPlugin;
-
   imgui_context ImguiContext;
   application_imgui ApplicationImgui;
 
@@ -105,10 +96,6 @@ inline menu::color_table* GetColorTable()
   return &GlobalState->ColorTable;
 }
 
-inline menu_interface* GetMenuInterface() {
-  return GlobalState->World.MenuInterface;
-}
-
 inline func_ptr_void* _DeclareFunction(func_ptr_void Function, const c8* Name)
 {
   Assert(GlobalState);
@@ -135,4 +122,3 @@ inline func_ptr_void* _DeclareFunction(func_ptr_void Function, const c8* Name)
 
 #define DeclareFunction(Type, Name) (Type**) _DeclareFunction((func_ptr_void) (&Name), #Name )
 #define CallFunctionPointer(PtrToFunPtr, ... ) (**PtrToFunPtr)(__VA_ARGS__)
-#include "menu/function_pointer_pool.h"

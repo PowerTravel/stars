@@ -16,7 +16,6 @@
 #include "ecs/entity_components.cpp"
 #include "ecs/systems/system_position.cpp"
 #include "ecs/systems/system_render.cpp"
-#include "menu/menu_interface.cpp"
 #include "imgui/imgui.cpp"
 #include "imgui/application_imgui.cpp"
 #include "broad_phase_collision_tree.cpp"
@@ -40,8 +39,8 @@ u32 LoadMesh(c8* KeyStr, c8* Path)
   opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Grp);
   u32 Handle = ecs::render::LoadMeshToGpu(Key, &glBufferData);
   r32 LoadTime2 = Platform.DEBUGGetTime();
-  //Platform.DEBUGPrint("Loading %s took %f sec\n",KeyStr,  LoadTime1 - InitTime);
-  //Platform.DEBUGPrint("Mapping %s took %f sec\n",KeyStr,  LoadTime2 - LoadTime1);
+  Platform.DEBUGPrint("Loading %s took %f sec\n",KeyStr,  LoadTime1 - InitTime);
+  Platform.DEBUGPrint("Mapping %s took %f sec\n",KeyStr,  LoadTime2 - LoadTime1);
   return Handle;
 }
 
@@ -654,25 +653,6 @@ world InitiateWorld(application_render_commands* RenderCommands)
   return Result;
 }
 
-MENU_DRAW(RenderScene)
-{
-  ecs::render::window_size_pixel* Window = &GetRenderSystem()->WindowSize;
-  r32 PixelSize = 1/Window->WindowWidth;
-  rect2f Region = Node->Region;
-  Region.X += PixelSize;
-  Region.Y += PixelSize;
-  ecs::render::SetDrawWindowCanCord(GetRenderSystem(), Region);
-  ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
-}
-//TODO: Super hacky, do better
-//      Maybe make it so that the update function _only_ gets called when the container_node it's attached to has focus
-b32 IsSceneSelected()
-{
-  b32 Result = (IsNodeSelected(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin) && 
-                IsFocusWindow(GlobalState->World.MenuInterface, GetMenu(GlobalState->World.MenuInterface, GlobalState->World.ScenePlugin)));
-  return Result;
-}
-
 void SceneInput(camera* Camera, jwin::device_input* Input)
 {
   { // Keyboard
@@ -894,54 +874,6 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
   }
 }
 
-
-MENU_UPDATE_FUNCTION(SceneTakeInput)// b32 name( menu_interface* Interface, container_node* CallerNode, void* Data )
-{
-  if(IsSceneSelected())
-  {
-    camera* Camera = &GlobalState->Camera;
-    jwin::device_input* Input = (jwin::device_input*) Data;
-    SceneInput(Camera, Input);
-  }
-  return true;
-}
-
-container_node* GetDEBUGSquareNode(menu_region_alignment XAlignment, r32 XSize, menu_region_alignment YAlignment, r32 YSize, umm ColorIndex)
-{
-  container_node* ColorNode = NewContainer(GetMenuInterface(), container_type::None);
-  
-  size_attribute* SizeAttr = (size_attribute*) PushAttribute(GetMenuInterface(), ColorNode, ATTRIBUTE_SIZE);
-  SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, XSize);
-  SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, YSize);
-  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
-  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
-  alignment_attribute* AlignAttr = (alignment_attribute*) PushAttribute(GetMenuInterface(), ColorNode, ATTRIBUTE_ALIGNMENT);
-  AlignAttr->XAlignment = menu_region_alignment::CENTER;
-  AlignAttr->YAlignment = menu_region_alignment::CENTER;
-
-  SetColor(GetMenuInterface(), ColorNode, menu::GetColor(GetColorTable(), ColorIndex));
-
-  return ColorNode;
-}
-
-void SetDEBUGSquareNode(container_node* Node,
-                        menu_size_type XSizeType, r32 XSize, 
-                        menu_size_type YSizeType, r32 YSize, 
-                        menu_region_alignment XAlignment,
-                        menu_region_alignment YAlignment)
-{
- 
-  size_attribute* SizeAttr = (size_attribute*) GetAttributePointer(Node, ATTRIBUTE_SIZE);
-  SizeAttr->Width = ContainerSizeT(XSizeType, XSize);
-  SizeAttr->Height = ContainerSizeT(YSizeType, YSize);
-  SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
-  SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
-  alignment_attribute* AlignAttr = (alignment_attribute*) GetAttributePointer(Node, ATTRIBUTE_ALIGNMENT);
-  AlignAttr->XAlignment = XAlignment;
-  AlignAttr->YAlignment = YAlignment;
-}
-
-
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1026,81 +958,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     LookAt(&GlobalState->Camera, V3(0,0,4), V3(0,0,0));
  
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
-/*
-    GlobalState->DebugRenderCommands = PushStruct(GlobalPersistentArena, debug_application_render_commands);
-    *GlobalState->DebugRenderCommands = DebugApplicationRenderCommands(RenderCommands, &GlobalState->Camera);
-    GlobalState->DebugRenderCommands->MsaaFrameBuffer = ecs::render::FrameBuffer(ecs::render::data::FRAMEBUFFER_MSAA);;
-    GlobalState->DebugRenderCommands->DefaultFrameBuffer = GlobalState->DefaultFrameBuffer;
-*/
-    GlobalState->FunctionPool = PushStruct(GlobalPersistentArena, function_pool);
-    GlobalState->World.MenuInterface = CreateMenuInterface(GlobalPersistentArena, &Input->Keyboard, Megabytes(1), GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio);
-    menu_interface* Interface = GlobalState->World.MenuInterface;
-    /*
-    container_node* DefaultWindow = 0;
-    {
-      menu_tree* WindowsDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Windows");
-      {
-        // Create Scene Window
-        container_node* ScenePlugin = CreatePlugin(Interface, "Scene");
-        AddPlugintoMainMenu(Interface, WindowsDropDownMenu, ScenePlugin);
-
-        container_node* SceneContainer =  NewContainer(Interface);
-        SceneContainer->Functions.Draw = DeclareFunction(menu_draw, RenderScene);
-        PushToUpdateQueue(Interface, SceneContainer, SceneTakeInput, (void*) Input, false);
-        ConnectNodeToBack(ScenePlugin, SceneContainer);
-        GlobalState->World.ScenePlugin = ScenePlugin;
-
-        DefaultWindow = SetDefaultPlugin(Interface, ScenePlugin);
-      }
-      {
-        container_node* EntityContainer =  NewContainer(Interface, container_type::Grid);
-        grid_node* Grid = GetGridNode(EntityContainer);
-        Grid->Col = 1;
-        Grid->Row = 0;
-        Grid->TotalMarginX = 0.0;
-        Grid->TotalMarginY = 0.0;
-        Grid->Stack = true;
-        Grid->StackXAlignment = menu_region_alignment::LEFT;
-        Grid->StackYAlignment = menu_region_alignment::TOP;
-
-        color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
-        BackgroundColor->Color = V4(0.2,0,0,1);
-
-        size_attribute* SizeAttr = (size_attribute*) PushAttribute(Interface, EntityContainer, ATTRIBUTE_SIZE);
-        SizeAttr->Width = ContainerSizeT(menu_size_type::RELATIVE_, 1);
-        SizeAttr->Height = ContainerSizeT(menu_size_type::RELATIVE_, 1);
-        SizeAttr->LeftOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
-        SizeAttr->TopOffset = ContainerSizeT(menu_size_type::ABSOLUTE_, 0.00);
-        //SizeAttr->XAlignment = menu_region_alignment::CENTER;
-        //SizeAttr->YAlignment = menu_region_alignment::CENTER;
-
-        //ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
-        //ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
-        //ConnectNodeToBack(EntityContainer, CreateTextInputNode(Interface));
-
-        GlobalState->EntitiesPlugin = CreatePlugin(Interface, "Entities");
-        AddPlugintoMainMenu(Interface, WindowsDropDownMenu, GlobalState->EntitiesPlugin);
-
-        ConnectNodeToBack(GlobalState->EntitiesPlugin, EntityContainer);
-        container_node* EntityWindow = ConnectViaSplitWindow(Interface, DefaultWindow, GlobalState->EntitiesPlugin, 0.3, true, false);
-      }
-    }
-    
-    {
-      menu_tree* TestDropDownMenu = CreateNewDropDownMenuItem(GlobalState->World.MenuInterface, "Test");
-      {
-        // Create Option Window
-        container_node* EntityContainer =  NewContainer(Interface, container_type::None);
-        color_attribute* BackgroundColor = (color_attribute* ) PushAttribute(Interface, EntityContainer, ATTRIBUTE_COLOR);
-        BackgroundColor->Color = V4(0,0.3,0,1);
-
-        container_node* TestPlugin = CreatePlugin(Interface, "Test2");
-        AddPlugintoMainMenu(Interface, TestDropDownMenu, TestPlugin);
-        
-        ConnectNodeToBack(TestPlugin, EntityContainer);
-      }
-    }
-    */
+   
     { // Create some entities
       { // Checker Floor
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER);
@@ -1174,18 +1032,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
   CreateFrameBuffer(RenderCommands->RenderGroup, ecs::render::FrameBuffer(ecs::render::data::FRAMEBUFFER_DEFAULT),  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
   
-  if(!GlobalState->World.MenuInterface->MenuVisible)
-  {
     if((ImguiNoneSelected() && ImguiIsInactive())|| ImguiIsDragging())
     {
       SceneInput(&GlobalState->Camera, Input);
     }
-  }
+
 
   render_group* RenderGroup = RenderCommands->RenderGroup;
   if(( jwin::Pushed(Input->Keyboard.Key_ENTER) && jwin::Active(Input->Keyboard.Key_LSHIFT) && jwin::Active(Input->Keyboard.Key_LCTRL) ) || Input->ExecutableReloaded)
   {
-    ReinitiatePool();
     Platform.DEBUGPrint("We should reload debug code\n");
     CompileShader(RenderGroup,GlobalState->PhongProgram,
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraView.glsl"),

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "jwin/commons/types.h"
-
+#include "menu/menu_interface.h"
 struct menu_interface;
 struct container_node;
 struct menu_attribute_header;
