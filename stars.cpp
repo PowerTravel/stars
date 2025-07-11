@@ -22,6 +22,7 @@
 #include "broad_phase_collision_tree.cpp"
 #include "asset_manager/asset_manager.cpp"
 #include "mappers/obj_to_gl_mesh.h"
+#include "dynamic_aabb_tree.cpp"
 //#include "dynamic_aabb_tree.cpp"
 
 #include "utils.h"
@@ -944,12 +945,13 @@ void SetDEBUGSquareNode(container_node* Node,
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
-  GlobalState = JwinBeginFrameMemory(application_state);
-  GlobalInput = Input;
-  GlobalImguiContext = &GlobalState->ImguiContext;
+  GlobalState          = JwinBeginFrameMemory(application_state);
+  GlobalInput          = Input;
+  GlobalImguiContext   = &GlobalState->ImguiContext;
   GlobalRenderCommands = RenderCommands;
-  GlobalRenderSystem = GlobalState->World.RenderSystem;
-  GlobalAssetManager = GlobalState->AssetManager;
+  GlobalRenderSystem   = GlobalState->World.RenderSystem;
+  GlobalAssetManager   = GlobalState->AssetManager;
+  GlobalEntityManager  = GlobalState->World.EntityManager;
 
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;

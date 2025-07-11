@@ -1,7 +1,7 @@
 #include "ecs/systems/system_position.h"
 #include "platform/jwin_platform.h"
 
-namespace ecs::position{
+namespace ecs::position {
 
 using namespace component;
 

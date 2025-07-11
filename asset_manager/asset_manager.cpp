@@ -298,6 +298,24 @@ indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u
   return Result;
 }
 
+aabb3f GetAABB(u32 VertexCount, const v3* VerticeArray)
+{
+  v3 MinimumVal = V3(R32Max, R32Max, R32Max);
+  v3 MaximumVal = V3(R32Min, R32Min, R32Min);
+  for (int i = 0; i < VertexCount; ++i)
+  {
+    const v3* Vertex = VerticeArray+i;
+    MinimumVal.X = Minimum(MinimumVal.X, Vertex->X);
+    MinimumVal.Y = Minimum(MinimumVal.Y, Vertex->Y);
+    MinimumVal.Z = Minimum(MinimumVal.Z, Vertex->Z);
+    MaximumVal.X = Maximum(MaximumVal.X, Vertex->X);
+    MaximumVal.Y = Maximum(MaximumVal.Y, Vertex->Y);
+    MaximumVal.Z = Maximum(MaximumVal.Z, Vertex->Z);
+  }
+  aabb3f Result = AABB3f(MinimumVal, MaximumVal);
+  return Result;
+}
+
 mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
                   const u32 IndexCount,
                   const u32* VerticeIndeces, const u32* NormalIndeces, const u32* TextureIndeces,
@@ -309,18 +327,17 @@ mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
   indexed_array NormalArray = {};
   if(NormalIndeces)
   {
-     NormalArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, NormalIndeces, sizeof(v3), NormalCount, (bptr) NormalData, V3CompareFunction);
+    NormalArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, NormalIndeces, sizeof(v3), NormalCount, (bptr) NormalData, V3CompareFunction);
   }
   indexed_array TextureArray = {};
   if(TextureIndeces)
   {
-     TextureArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, TextureIndeces, sizeof(v2), TextureCount, (bptr) TextureData, V2CompareFunction);
+    TextureArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, TextureIndeces, sizeof(v2), TextureCount, (bptr) TextureData, V2CompareFunction);
   }
 
   midx TotalMeshSize = GetMeshSize(IndexCount, VerticeArray.ValueCount, NormalArray.ValueCount, TextureArray.ValueCount);
   header* Header     = CreateHeader(type::MESH, MeshKey, MeshName, MeshPath, TotalMeshSize);
   mesh* Result       = InitializeMesh(IndexCount, VerticeArray.ValueCount, NormalArray.ValueCount, TextureArray.ValueCount, Header->Data);
-  
 
   utils::Copy(sizeof(u32)*VerticeArray.IndexCount,             VerticeArray.IndexArray, Result->vi);
   utils::Copy(VerticeArray.ValueSize*VerticeArray.ValueCount,  VerticeArray.ValueArray, Result->v);
@@ -334,6 +351,8 @@ mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
     utils::Copy(sizeof(u32)*TextureArray.IndexCount,              TextureArray.IndexArray, Result->vti);
     utils::Copy(TextureArray.ValueSize*TextureArray.ValueCount,   TextureArray.ValueArray, Result->vt);
   }
+
+  Result->AABB = GetAABB(VerticeCount, VerticeData);
 
   return Result;
 }

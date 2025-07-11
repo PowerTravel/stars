@@ -80,6 +80,7 @@ struct application_state
   ecs::entity_id* DebugSquare;
 };
 
+global_variable ecs::entity_manager* GlobalEntityManager = 0;
 global_variable application_render_commands* GlobalRenderCommands = 0;
 global_variable application_state* GlobalState = 0;
 global_variable jwin::device_input* GlobalInput = 0;

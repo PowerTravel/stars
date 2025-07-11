@@ -48,6 +48,8 @@ namespace asset {
     v3* vn;    // Vertice Normals
     u32 vtCount;
     v2* vt;    // Texture Vertices
+
+    aabb3f AABB;
   };
 
   enum class texture_type {
