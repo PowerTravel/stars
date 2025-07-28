@@ -15,6 +15,7 @@ namespace render {
 
 namespace data {
 
+
   struct font
   {
     int TextPixelSize;
@@ -35,6 +36,13 @@ namespace data {
   struct overlay_quad {
     v4 Color;
     m4 ModelMatrix; // PixelSpace
+  };
+
+  struct render_object_3d {
+    m4 ModelMatrix;
+    u32 MeshHandle;
+    u32 TextureHandle;
+    u32 MaterialHandle;
   };
 
   struct textured_overlay_quad {
@@ -101,9 +109,9 @@ namespace data {
     data::font Font;
     u32 BlitPlaneHandle;
     u32 FontTextureHandle;
-    chunk_list SolidObjects;
-    chunk_list TransparentObjects;
-    chunk_list OverlayObjects; // Turn off z-buffer and render on top of everything
+    chunk_list SolidObjects;       // render_object_3d
+    chunk_list TransparentObjects; // render_object_3d
+    chunk_list OverlayObjects;     // render_object_3d // Turn off z-buffer and render on top of everything
     data::render_level RenderSentinel;
     rect2f UnitDrawRegion; // UnitCoordinate [0,0,1,1], Percentage of applicationWidth/Height
     window_size_pixel WindowSize;

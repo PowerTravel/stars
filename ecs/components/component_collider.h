@@ -20,16 +20,14 @@ struct component
   mesh Mesh;
 };
 
-component NewComponent(asset::mesh* Mesh)
+void Init(component* Component, asset::mesh* Mesh)
 {
-  component Result = {};
   collider::mesh ColliderMesh = {};
-  Result.Mesh.nvi = Mesh->IndexCount;
-  Result.Mesh.nv  = Mesh->vCount;
-  Result.Mesh.vi  = Mesh->vi;
-  Result.Mesh.v   = Mesh->v;
-  Result.AABB     = Mesh->AABB;
-  return Result;
+  Component->Mesh.nvi = Mesh->IndexCount;
+  Component->Mesh.nv  = Mesh->vCount;
+  Component->Mesh.vi  = Mesh->vi;
+  Component->Mesh.v   = Mesh->v;
+  Component->AABB     = Mesh->AABB;
 }
 
 

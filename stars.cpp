@@ -22,6 +22,7 @@
 #include "asset_manager/asset_manager.cpp"
 #include "mappers/obj_to_gl_mesh.h"
 #include "dynamic_aabb_tree.cpp"
+#include "ecs/components/component_collider.h"
 //#include "dynamic_aabb_tree.cpp"
 
 #include "utils.h"
@@ -897,8 +898,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalAssetManager = GlobalState->AssetManager;
 
     RenderCommands->RenderGroup = InitiateRenderGroup();
-    GlobalState->World = InitiateWorld(RenderCommands);
-    GlobalRenderSystem = GlobalState->World.RenderSystem;
+    GlobalState->World  = InitiateWorld(RenderCommands);
+    GlobalRenderSystem  = GlobalState->World.RenderSystem;
+    GlobalEntityManager = GlobalState->World.EntityManager;
 
 
     ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
@@ -961,7 +963,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
    
     { // Create some entities
       { // Checker Floor
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER | ecs::flag::COLLIDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -970,10 +972,16 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         asset::material* Mat  = (asset::material*) asset::Find(asset::type::MATERIAL, "checker_plane_simple");
         ecs::render::data::material M = { *Mat->Ka, {}, *Mat->Ks, *Mat->Ns};
         Render->Material = M;
+
+        ecs::collider::component* Collider = GetColliderComponent(&Entity);
+        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "checker_plane_simple");
+        ecs::collider::Init(Collider, Mesh);
+
+
       }
 
       { // Transparent Cube
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -981,20 +989,28 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
 
+        ecs::collider::component* Collider = GetColliderComponent(&Entity);
+        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cube");
+        ecs::collider::Init(Collider, Mesh);
+
       }
       
       { // Transparent Cone
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = ecs::render::GetMeshHandle("Cone");
         Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_EMERALD);
+
+        ecs::collider::component* Collider = GetColliderComponent(&Entity);
+        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
+        ecs::collider::Init(Collider, Mesh);
       }
       
       { // Transparent Cylinder
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cylinder", ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cylinder", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
@@ -1002,18 +1018,26 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_JADE);
 
+        ecs::collider::component* Collider = GetColliderComponent(&Entity);
+        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cylinder");
+        ecs::collider::Init(Collider, Mesh);
+
         GlobalState->DebugSquare = PushStruct(GlobalPersistentArena, ecs::entity_id);
         *GlobalState->DebugSquare = Entity;
       }
 
       { // Solid Cone
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER);
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = ecs::render::GetMeshHandle("Cone");
         Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
         Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_SILVER);
+
+        ecs::collider::component* Collider = GetColliderComponent(&Entity);
+        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
+        ecs::collider::Init(Collider, Mesh);
       }
     }
     
@@ -1032,10 +1056,13 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
   CreateFrameBuffer(RenderCommands->RenderGroup, ecs::render::FrameBuffer(ecs::render::data::FRAMEBUFFER_DEFAULT),  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
   
-    if((ImguiNoneSelected() && ImguiIsInactive())|| ImguiIsDragging())
-    {
-      SceneInput(&GlobalState->Camera, Input);
-    }
+  if((ImguiNoneSelected() && ImguiIsInactive())|| ImguiIsDragging())
+  {
+    SceneInput(&GlobalState->Camera, Input);
+  }
+
+  aabb_tree aabbTree = BuildBroadPhaseTree();
+  
 
 
   render_group* RenderGroup = RenderCommands->RenderGroup;
