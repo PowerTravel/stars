@@ -45,6 +45,7 @@ manager* CreateAssetManager() {
 header* ToHeader(bptr Asset) {
   return (header*) RetreatByType(Asset, header);
 }
+
 u32 ToKey(type Type, c8* UniqueName);
 void* Find(type Type, u32 Key);
 void* Find(type Type, c8* Name);

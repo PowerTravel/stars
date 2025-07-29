@@ -67,14 +67,14 @@ namespace asset {
   };
 
   struct material {
-    v4* Kd;
     v4* Ka;
+    v4* Kd;
     v4* Tf;
     v4* Ks;
     v4* Ke;
-    r32* d;
-    r32* Ni;
-    r32* Ns;
+    r32* d;  // Specifies the dissolve for the current material
+    r32* Ni; // Index of refraction
+    r32* Ns; // Specifies the specular exponent for the current material.
 
     r32 BumpMapBM;
     texture* BumpMap;

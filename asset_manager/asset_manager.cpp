@@ -470,8 +470,8 @@ texture* CopyObjBitmapToTexture(c8* Key, texture_type Type, obj_bitmap* ObjBitma
 }
 
 midx MaterialSize(
-    v4* Kd,
     v4* Ka,
+    v4* Kd,
     v4* Tf,
     v4* Ks,
     v4* Ke,
@@ -481,8 +481,8 @@ midx MaterialSize(
     u32* IlluminationMode
   )
 {
-  u32 KdSize = (u32) BranchlessArithmatic(Kd == 0, 0, sizeof(v4));
   u32 KaSize = (u32) BranchlessArithmatic(Ka == 0, 0, sizeof(v4));
+  u32 KdSize = (u32) BranchlessArithmatic(Kd == 0, 0, sizeof(v4));
   u32 TfSize = (u32) BranchlessArithmatic(Tf == 0, 0, sizeof(v4));
   u32 KsSize = (u32) BranchlessArithmatic(Ks == 0, 0, sizeof(v4));
   u32 KeSize = (u32) BranchlessArithmatic(Ke == 0, 0, sizeof(v4));
@@ -494,8 +494,8 @@ midx MaterialSize(
 }
 
 void InitiateMaterial (
-    v4* Kd,
     v4* Ka,
+    v4* Kd,
     v4* Tf,
     v4* Ks,
     v4* Ke,
@@ -510,46 +510,47 @@ void InitiateMaterial (
     material* Material
   )
 {
-  u32 KdSize = BranchlessArithmatic(Kd == 0, 0, sizeof(v4));
   u32 KaSize = BranchlessArithmatic(Ka == 0, 0, sizeof(v4));
+  u32 KdSize = BranchlessArithmatic(Kd == 0, 0, sizeof(v4));
   u32 TfSize = BranchlessArithmatic(Tf == 0, 0, sizeof(v4));
   u32 KsSize = BranchlessArithmatic(Ks == 0, 0, sizeof(v4));
   u32 KeSize = BranchlessArithmatic(Ke == 0, 0, sizeof(v4));
   u32 dSize  = BranchlessArithmatic(d  == 0, 0, sizeof(r32));
   u32 NiSize = BranchlessArithmatic(Ni == 0, 0, sizeof(r32));
   u32 NsSize = BranchlessArithmatic(Ns == 0, 0, sizeof(r32));
-  u32 MaterialSizeBytes = sizeof(material) + KdSize + KaSize + TfSize + KsSize + KeSize + dSize + NiSize + NsSize;
+  u32 MaterialSizeBytes = sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize + NiSize + NsSize;
 
-  if(Kd) {
-    Material->Kd = (v4*)  AdvanceBytePointer(Material, sizeof(material));
-    *Material->Kd = *Kd;
-  }
+  
   if(Ka) {
-    Material->Ka = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KdSize);
+    Material->Ka = (v4*)  AdvanceBytePointer(Material, sizeof(material));
     *Material->Ka = *Ka;
   }
+  if(Kd) {
+    Material->Kd = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KaSize);
+    *Material->Kd = *Kd;
+  }
   if(Tf) {
-    Material->Tf = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KdSize + KaSize);
+    Material->Tf = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize);
     *Material->Tf = *Tf;
   }
   if(Ks) {
-    Material->Ks = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KdSize + KaSize + TfSize);
+    Material->Ks = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize);
     *Material->Ks = *Ks;
   }
   if(Ke) {
-    Material->Ke = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KdSize + KaSize + TfSize + KsSize);
+    Material->Ke = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize + KsSize);
     *Material->Ke = *Ke;
   }
   if(d) {
-    Material->d  = (r32*) AdvanceBytePointer(Material, sizeof(material) + KdSize + KaSize + TfSize + KsSize + KeSize);
+    Material->d  = (r32*) AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize);
     *Material->d = *d;
   }
   if(Ni) {
-    Material->Ni = (r32*) AdvanceBytePointer(Material, sizeof(material) + KdSize + KaSize + TfSize + KsSize + KeSize + dSize);
+    Material->Ni = (r32*) AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize);
     *Material->Ni = *Ni;
   }
   if(Ns) {
-    Material->Ns = (r32*) AdvanceBytePointer(Material, sizeof(material) + KdSize + KaSize + TfSize + KsSize + KeSize + dSize + NiSize);
+    Material->Ns = (r32*) AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize + NiSize);
     *Material->Ns = *Ns;
   }
   
@@ -561,7 +562,7 @@ void InitiateMaterial (
 
 material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 {
-  midx MaterialSizeBytes = MaterialSize(ObjMtl->Kd, ObjMtl->Ka, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns, ObjMtl->IlluminationMode);
+  midx MaterialSizeBytes = MaterialSize(ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns, ObjMtl->IlluminationMode);
   header* Header   = CreateHeader(type::MATERIAL, Key, ObjMtl->Name, Path, MaterialSizeBytes);
   texture* BumpMap = CopyObjBitmapToTexture(Key, texture_type::BUMP_MAP, ObjMtl->BumpMap);
   texture* MapKd   = CopyObjBitmapToTexture(Key, texture_type::DIFFUSE_COLOR, ObjMtl->MapKd);
@@ -569,7 +570,7 @@ material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 
   material* Result = (material*) Header->Data;
   InitiateMaterial(
-    ObjMtl->Kd, ObjMtl->Ka, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns,
+    ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns,
     ObjMtl->BumpMapBM, BumpMap, MapKd, MapKs, ObjMtl->IlluminationMode,
     Result);
 
@@ -653,8 +654,6 @@ u32 LoadObj(c8* Path, c8* KeyString)
   }
 
   obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
-
-  
 
   // MATERIAL
   obj_mtl_data* ObjMtlGroup = Obj->MaterialData;
