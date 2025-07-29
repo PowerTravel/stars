@@ -79,9 +79,6 @@ global_variable imgui_context* GlobalImguiContext = 0;
 global_variable asset::manager* GlobalAssetManager = 0;
 global_variable ecs::render::system* GlobalRenderSystem = 0;
 
-u32 GetMeshHandle(c8* Name);
-u32 GetTextureHandle(c8* Name);
-
 // Global Singleton Getters
 inline ecs::render::system* GetRenderSystem() {
   return GlobalState->World.RenderSystem;

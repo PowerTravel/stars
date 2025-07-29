@@ -204,6 +204,15 @@ opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, render_group * Grou
   return Result;
 }
 
+opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, const mesh * Mesh)
+{ 
+  opengl_buffer_data Result = {};
+  Result.BufferCount = 1;
+  Result.BufferData  = PushStruct(Arena, gl_vertex_buffer);
+  MeshToGlVertexBuffer(Arena, Mesh, Result.BufferData);
+
+  return Result;
+}
 
 
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ecs/components/component_render.h"
 #include "platform/jwin_platform.h"
 #include "platform/jfont.h"
 #include "containers/chunk_list.h"
@@ -194,11 +195,16 @@ namespace data {
 
   // Loading assets to gpu
   u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr);
-  u32 GetMeshHandle(asset::type Type, c8* Name);
+  u32 GetMeshHandle(c8* Name);
+  u32 GetMeshHandle(u32 AssetKey);
 
   u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture);
-  u32 Get32BitTextureHandle(asset::type Type, c8* Name);
+  u32 Get32BitTextureHandle(c8* Name);
+  u32 Get32BitTextureHandle(u32 AssetKey);
 
   u32 FrameBuffer(u32 Index);
+
+
+  void Init(u32 MeshAssetKey, u32 MaterialAssetKey, component* Render);
 }
 }

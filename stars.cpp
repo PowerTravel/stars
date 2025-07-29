@@ -31,6 +31,22 @@
 
 global_variable r32 g_t = 0;
 
+
+
+internal inline void Initiate(asset::mesh* Mesh, asset::material* Material, ecs::render::component* Render)
+{
+  u32 MeshAssetKey = asset::ToHeader( (bptr) Mesh)->Key;
+  u32 MaterialAssetKey = asset::ToHeader( (bptr) Material)->Key;
+  ecs::render::Init(MeshAssetKey, MaterialAssetKey, Render);
+}
+
+internal inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::component* Render)
+{
+  asset::render_group* Grp = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, RenderGroupAssetHandle);
+  Assert(Grp->ElementCount == 1); // We don't support rendering mutliple Elements
+  Initiate(Grp->Elements->Mesh, Grp->Elements->Material, Render);
+}
+
 void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, c8* UniqueName)
 {
   asset::material Material = {};
@@ -87,19 +103,7 @@ void LoadMaterials()
   LoadMaterial(TextureKey, {0.05f,      0.05f,      0.0f,      1.00f}, {0.5f,        0.5f,        0.4f,        1.00f}, {0.7f,         0.7f,         0.04f,       1.00f}, 128 * 0.078125f,     "yellow_rubber");
 }
 
-u32 LoadMesh(c8* KeyStr, c8* Path)
-{
-  r32 InitTime = Platform.DEBUGGetTime();
-  u32 Key = asset::LoadObj(Path, KeyStr);
-  asset::render_group* Grp = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, Key);
-  r32 LoadTime1 = Platform.DEBUGGetTime();
-  opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Grp);
-  u32 Handle = ecs::render::LoadMeshToGpu(Key, &glBufferData);
-  r32 LoadTime2 = Platform.DEBUGGetTime();
-  Platform.DEBUGPrint("Loading %s took %f sec\n",KeyStr,  LoadTime1 - InitTime);
-  Platform.DEBUGPrint("Mapping %s took %f sec\n",KeyStr,  LoadTime2 - LoadTime1);
-  return Handle;
-}
+
 
 u32 Load32BitColorTexture(c8* Name, c8* Path)
 {
@@ -978,15 +982,13 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     LoadMaterials();
     r32 InitTime = Platform.DEBUGGetTime();
-    LoadMesh("Cube", "..\\data\\qube.obj");
-    LoadMesh("checker_plane_simple", "..\\data\\checker_plane_simple.obj");
-    
-    LoadMesh("Sphere", "..\\data\\sphere.obj");
-
-    LoadMesh("Cone", "..\\data\\cone.obj");
-    LoadMesh("Cylinder", "..\\data\\cylinder.obj");
-    LoadMesh("Triangle", "..\\data\\triangle.obj");
-    LoadMesh("Plane", "..\\data\\plane.obj");
+    asset::LoadObj("..\\data\\qube.obj","Cube");
+    asset::LoadObj("..\\data\\checker_plane_simple.obj", "checker_plane_simple");
+    asset::LoadObj("..\\data\\sphere.obj", "Sphere");
+    asset::LoadObj("..\\data\\cone.obj", "Cone");
+    asset::LoadObj("..\\data\\cylinder.obj", "Cylinder");
+    asset::LoadObj("..\\data\\triangle.obj", "Triangle");
+    asset::LoadObj("..\\data\\plane.obj", "Plane");
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
@@ -1023,9 +1025,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER | ecs::flag::COLLIDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
-        ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = ecs::render::GetMeshHandle("checker_plane_simple");
-        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "checker_plane_simple");
+        
+        Initiate(asset::ToKey(asset::type::RENDER_GROUP, "checker_plane_simple"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "checker_plane_simple");
@@ -1038,10 +1039,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = ecs::render::GetMeshHandle("Cube");
-        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "ruby");
-
+        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cube"), asset::ToKey(asset::type::MATERIAL, "ruby"), GetRenderComponent(&Entity));
+        
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cube");
         ecs::collider::Init(Collider, Mesh);
@@ -1052,10 +1051,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = ecs::render::GetMeshHandle("Cone");
-        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "emerald");
-
+        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::MATERIAL, "emerald"), GetRenderComponent(&Entity));
+        
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
         ecs::collider::Init(Collider, Mesh);
@@ -1065,10 +1062,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cylinder", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = ecs::render::GetMeshHandle("Cylinder");
-        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "jade");
-
+        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cylinder"), asset::ToKey(asset::type::MATERIAL, "jade"), GetRenderComponent(&Entity));
+       
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cylinder");
         ecs::collider::Init(Collider, Mesh);
@@ -1081,9 +1076,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::component* Render = GetRenderComponent(&Entity);
-        Render->MeshHandle = ecs::render::GetMeshHandle("Cone");
-        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "silver");
+        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::MATERIAL, "silver"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");

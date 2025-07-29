@@ -16,18 +16,49 @@ struct overlay_object {
   quat Rotation;
 };
 
+u32 GetMeshHandle(u32 AssetKey)
+{
+  u32* Handle = (u32*) Find(&GlobalRenderSystem->MeshHandleMap, AssetKey);
+  u32 Result = 0;
+  if(Handle)
+  {
+    Result = *Handle;
+  }else{
+    asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, AssetKey);
+    Assert(Mesh);
+    opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Mesh);
+    Result = ecs::render::LoadMeshToGpu(AssetKey, &glBufferData);
+  }
+  return Result;
+}
+
 u32 GetMeshHandle(c8* Name)
 {
-  u32 Key = asset::ToKey(asset::type::RENDER_GROUP, Name);
-  u32* Handle = (u32*) Find(&GlobalRenderSystem->MeshHandleMap, Key);
-  return *Handle;
+  u32 AssetKey = asset::ToKey(asset::type::MESH, Name);
+  u32 Handle = GetMeshHandle(AssetKey);
+  return Handle;
+}
+
+u32 Get32BitTextureHandle(u32 AssetKey)
+{
+  u32* Handle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, AssetKey);
+  u32 Result = 0;
+  if(Handle)
+  {
+    Result = *Handle;
+  }else{
+    asset::texture* Texture = (asset::texture*) asset::Find(asset::type::TEXTURE, AssetKey);
+    Result = ecs::render::Load32BitTextureToGpu(AssetKey, Texture);
+  }
+
+  return Result;
 }
 
 u32 Get32BitTextureHandle(c8* Name)
 {
-  u32 Key = asset::ToKey(asset::type::TEXTURE, Name);
-  u32* Handle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, Key);
-  return *Handle;
+  u32 AssetKey = asset::ToKey(asset::type::TEXTURE, Name);
+  u32 Handle = Get32BitTextureHandle(AssetKey);
+  return Handle;
 }
 
 void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas, r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])
@@ -364,8 +395,7 @@ void DrawScene(system* System, ecs::entity_manager* EntityManager)
   while(Next(&EntityIterator))
   {
     component* Component = GetRenderComponent(&EntityIterator);
-    asset::material* Material = (asset::material*) asset::Find(asset::type::MATERIAL, Component->MaterialHandle);
-    if(Material->Ka && Material->Ka->W < 1)
+    if(Component->Ambient.W < 1)
     {
       Push(&System->Arena, TransparentObjects, (bptr) &Component);
     }else{ 
@@ -540,38 +570,17 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   entity_id EntityId = GetEntityIDFromComponent( (bptr) Render );
   ecs::position::component* Position =  GetPositionComponent(&EntityId);
 
-  asset::material* Material = (asset::material*) asset::Find(asset::type::MATERIAL, Render->MaterialHandle);
-
   render_object* Object = PushNewRenderObject(RenderGroup);
   Object->ProgramHandle = Program;
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = Render->MeshHandle;
 
-  if(Material->MapKdHandle)
+  if(Render->DiffuseTextureHandle)
   {
     Object->TextureCount = 1;
-    u32* LoadedTextureHandle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, Material->MapKdHandle);
-    Assert(LoadedTextureHandle);
-    Object->TextureHandles[0] = *LoadedTextureHandle;
+    Object->TextureHandles[0] = Render->DiffuseTextureHandle;
   }
   m4 ModelMat = GetModelMatrix(Position);
-
-  v4 Ambient = {};
-  if(Material->Ka){
-    Ambient = *Material->Ka;
-  }
-  v4 Diffuse = {};
-  if(Material->Kd){
-    Diffuse = *Material->Kd;
-  }
-  v4 Specular = {};
-  if(Material->Ks){
-    Specular = *Material->Ks;
-  }
-  r32 Shininess = {};
-  if(Material->Ns){
-    Shininess = *Material->Ns;
-  }
 
   m4 ModelView = ViewMatrix*ModelMat;
   m4 NormalView = Transpose(RigidInverse(ModelView));
@@ -580,10 +589,10 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Ambient);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Diffuse);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Render->Ambient);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Render->Diffuse);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Render->Specular);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Render->Shininess);
 }
 
 void DEBUGPrintMatrix(m4 Matrix)
@@ -1112,6 +1121,30 @@ u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture) {
   u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Texture->Width, Texture->Height, Params, Texture->Pixels);
   SetHandle(&GlobalRenderSystem->TextureHandleMap, AssetKey, Handle);
   return Handle;
+}
+
+
+void Init(u32 MeshAssetKey, u32 MaterialAssetKey, component* Render)
+{
+  Render->MeshHandle = ecs::render::GetMeshHandle(MeshAssetKey);
+
+  asset::material* Material = (asset::material*) asset::Find(asset::type::MATERIAL, MaterialAssetKey); 
+  if(Material->Ka){
+    Render->Ambient = *Material->Ka;
+  }
+  if(Material->Kd){
+    Render->Diffuse = *Material->Kd;
+  }
+  if(Material->Ks){
+    Render->Specular = *Material->Ks;
+  }
+  if(Material->Ns){
+    Render->Shininess = *Material->Ns;
+  }
+  if(Material->MapKdHandle)
+  {
+    Render->DiffuseTextureHandle = ecs::render::Get32BitTextureHandle(Material->MapKdHandle);
+  }
 }
 
 } // ecs::render

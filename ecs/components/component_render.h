@@ -5,8 +5,15 @@ namespace render {
 
 struct component {
   u32 MeshHandle;
-  u32 MaterialHandle;
+
+  v4 Ambient;
+  v4 Diffuse;
+  v4 Specular;
+  r32 Shininess;
+
+  u32 DiffuseTextureHandle;
 };
+
 
 } // namespace render
 } // namespace ecs
