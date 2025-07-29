@@ -15,7 +15,6 @@ namespace render {
 
 namespace data {
 
-
   struct font
   {
     int TextPixelSize;
@@ -42,7 +41,6 @@ namespace data {
     m4 ModelMatrix;
     u32 MeshHandle;
     u32 TextureHandle;
-    u32 MaterialHandle;
   };
 
   struct textured_overlay_quad {

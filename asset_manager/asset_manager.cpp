@@ -452,24 +452,24 @@ void Free(type Type, c8* Name) {
   Free(Type, Key);
 }
 
-texture* CopyObjBitmapToTexture(c8* Key, texture_type Type, obj_bitmap* ObjBitmap)
+u32 CopyObjBitmapToTexture(c8* Key, texture_type Type, obj_bitmap* ObjBitmap)
 {
   if(!ObjBitmap){return 0;};
 
   u32 TextureSizeBytes = sizeof(texture) + ObjBitmap->Width * ObjBitmap->Height * ObjBitmap->BPP / 8.f;
 
   header* Header = CreateHeader(type::TEXTURE, Key, ObjBitmap->Name, ObjBitmap->Path, TextureSizeBytes);
-  texture* Result = (texture*) Header->Data;
-  Result->Type    = Type;
-  Result->BPP     = ObjBitmap->BPP;
-  Result->Width   = ObjBitmap->Width;
-  Result->Height  = ObjBitmap->Height;
-  Result->Pixels  = AdvanceBytePointer(Result, sizeof(texture));
-  utils::Copy(TextureSizeBytes, ObjBitmap->Pixels, Result->Pixels);
-  return Result;
+  texture* Texture = (texture*) Header->Data;
+  Texture->Type    = Type;
+  Texture->BPP     = ObjBitmap->BPP;
+  Texture->Width   = ObjBitmap->Width;
+  Texture->Height  = ObjBitmap->Height;
+  Texture->Pixels  = AdvanceBytePointer(Texture, sizeof(texture));
+  utils::Copy(TextureSizeBytes, ObjBitmap->Pixels, Texture->Pixels);
+  return Header->Key;
 }
 
-midx MaterialSize(
+internal midx GetMaterialSize(
     v4* Ka,
     v4* Kd,
     v4* Tf,
@@ -477,8 +477,7 @@ midx MaterialSize(
     v4* Ke,
     r32* d,
     r32* Ni,
-    r32* Ns,
-    u32* IlluminationMode
+    r32* Ns
   )
 {
   u32 KaSize = (u32) BranchlessArithmatic(Ka == 0, 0, sizeof(v4));
@@ -493,6 +492,19 @@ midx MaterialSize(
   return MaterialSizeBytes;
 }
 
+internal midx GetMaterialSize(const material* Material){
+  midx Result = GetMaterialSize(
+    Material->Ka,
+    Material->Kd,
+    Material->Tf,
+    Material->Ks,
+    Material->Ke,
+    Material->d,
+    Material->Ni,
+    Material->Ns);
+  return Result;
+}
+
 void InitiateMaterial (
     v4* Ka,
     v4* Kd,
@@ -503,10 +515,9 @@ void InitiateMaterial (
     r32* Ni,
     r32* Ns,
     r32 BumpMapBM,
-    texture* BumpMap,
-    texture* MapKd,
-    texture* MapKs,
-    u32* IlluminationMode, 
+    u32 BumpMapHandle,
+    u32 MapKdHandle,
+    u32 MapKsHandle,
     material* Material
   )
 {
@@ -518,7 +529,6 @@ void InitiateMaterial (
   u32 dSize  = BranchlessArithmatic(d  == 0, 0, sizeof(r32));
   u32 NiSize = BranchlessArithmatic(Ni == 0, 0, sizeof(r32));
   u32 NsSize = BranchlessArithmatic(Ns == 0, 0, sizeof(r32));
-  u32 MaterialSizeBytes = sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize + NiSize + NsSize;
 
   
   if(Ka) {
@@ -555,23 +565,74 @@ void InitiateMaterial (
   }
   
   Material->BumpMapBM = BumpMapBM;
-  Material->BumpMap   = BumpMap;
-  Material->MapKd     = MapKd;
-  Material->MapKs     = MapKs;
+  Material->BumpMapHandle   = BumpMapHandle;
+  Material->MapKdHandle     = MapKdHandle;
+  Material->MapKsHandle     = MapKsHandle;
+}
+
+
+internal void CopyMaterial( const material* Src, material* Dst)
+{
+  u32 KaSize = BranchlessArithmatic(Src->Ka == 0, 0, sizeof(v4));
+  u32 KdSize = BranchlessArithmatic(Src->Kd == 0, 0, sizeof(v4));
+  u32 TfSize = BranchlessArithmatic(Src->Tf == 0, 0, sizeof(v4));
+  u32 KsSize = BranchlessArithmatic(Src->Ks == 0, 0, sizeof(v4));
+  u32 KeSize = BranchlessArithmatic(Src->Ke == 0, 0, sizeof(v4));
+  u32 dSize  = BranchlessArithmatic(Src->d  == 0, 0, sizeof(r32));
+  u32 NiSize = BranchlessArithmatic(Src->Ni == 0, 0, sizeof(r32));
+  u32 NsSize = BranchlessArithmatic(Src->Ns == 0, 0, sizeof(r32));
+  
+  if(Src->Ka) {
+    Dst->Ka = (v4*)  AdvanceBytePointer(Dst, sizeof(material));
+    *Dst->Ka = *Src->Ka;
+  }
+  if(Src->Kd) {
+    Dst->Kd = (v4*)  AdvanceBytePointer(Dst, sizeof(material) + KaSize);
+    *Dst->Kd = *Src->Kd;
+  }
+  if(Src->Tf) {
+    Dst->Tf = (v4*)  AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize);
+    *Dst->Tf = *Src->Tf;
+  }
+  if(Src->Ks) {
+    Dst->Ks = (v4*)  AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize);
+    *Dst->Ks = *Src->Ks;
+  }
+  if(Src->Ke) {
+    Dst->Ke = (v4*)  AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize + KsSize);
+    *Dst->Ke = *Src->Ke;
+  }
+  if(Src->d) {
+    Dst->d = (r32*) AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize);
+    *Dst->d = *Src->d;
+  }
+  if(Src->Ni) {
+    Dst->Ni = (r32*) AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize);
+    *Dst->Ni = *Src->Ni;
+  }
+  if(Src->Ns) {
+    Dst->Ns = (r32*) AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize + NiSize);
+    *Dst->Ns = *Src->Ns;
+  }
+  
+  Dst->BumpMapBM       = Src->BumpMapBM;
+  Dst->BumpMapHandle   = Src->BumpMapHandle;
+  Dst->MapKdHandle     = Src->MapKdHandle;
+  Dst->MapKsHandle     = Src->MapKsHandle;
 }
 
 material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 {
-  midx MaterialSizeBytes = MaterialSize(ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns, ObjMtl->IlluminationMode);
+  midx MaterialSizeBytes = GetMaterialSize(ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns);
   header* Header   = CreateHeader(type::MATERIAL, Key, ObjMtl->Name, Path, MaterialSizeBytes);
-  texture* BumpMap = CopyObjBitmapToTexture(Key, texture_type::BUMP_MAP, ObjMtl->BumpMap);
-  texture* MapKd   = CopyObjBitmapToTexture(Key, texture_type::DIFFUSE_COLOR, ObjMtl->MapKd);
-  texture* MapKs   = CopyObjBitmapToTexture(Key, texture_type::SPECULAR_COLOR, ObjMtl->MapKs);
+  u32 BumpMapHandle = CopyObjBitmapToTexture(Key, texture_type::BUMP_MAP, ObjMtl->BumpMap);
+  u32 MapKdHandle   = CopyObjBitmapToTexture(Key, texture_type::DIFFUSE_COLOR, ObjMtl->MapKd);
+  u32 MapKsHandle   = CopyObjBitmapToTexture(Key, texture_type::SPECULAR_COLOR, ObjMtl->MapKs);
 
   material* Result = (material*) Header->Data;
   InitiateMaterial(
     ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns,
-    ObjMtl->BumpMapBM, BumpMap, MapKd, MapKs, ObjMtl->IlluminationMode,
+    ObjMtl->BumpMapBM, BumpMapHandle, MapKdHandle, MapKsHandle,
     Result);
 
   return Result;
@@ -707,23 +768,6 @@ void CopyMesh(const mesh* SrcMesh, mesh* DstMesh)
   }
 }
 
-
-mesh* LoadMesh(c8* KeyString, const mesh* Mesh, u32* ResultKey)
-{
-  midx MeshSize = GetMeshSize(Mesh);
-  header* Header = CreateHeader(type::MESH, KeyString, KeyString, "N/A", MeshSize);
-  mesh* LoadedMesh = InitializeMesh(Mesh->IndexCount, Mesh->vCount, Mesh->vnCount, Mesh->vtCount, Header->Data);
-  CopyMesh(Mesh, LoadedMesh);
-
-  if(ResultKey)
-  {
-    *ResultKey = Header->Key;
-  }
-  return LoadedMesh;
-}
-
-gl_vertex_buffer* LoadGLVertexBuffer(c8* Name, const gl_vertex_buffer Data, u32* ResultKey){ return 0; }
-
 u32 LoadTga(c8* Path, texture_type Type, c8* UniqueName)
 {
   obj_bitmap* ObjBitmap = LoadTGA(TransientAllocator, Path);
@@ -731,9 +775,51 @@ u32 LoadTga(c8* Path, texture_type Type, c8* UniqueName)
   {
     UniqueName = Path;
   }
-  texture* Texture = CopyObjBitmapToTexture(UniqueName, Type, ObjBitmap);
-  header* Header = (header*) RetreatByType(Texture, header);
-  return Header->Key; 
+  u32 TextureHandle = CopyObjBitmapToTexture(UniqueName, Type, ObjBitmap);
+  return TextureHandle; 
 }
+
+
+mesh* LoadMesh(c8* UniqueName, const mesh* Mesh, u32* ResultKey)
+{
+  midx MeshSize = GetMeshSize(Mesh);
+  header* Header = CreateHeader(type::MESH, UniqueName, UniqueName, "N/A", MeshSize);
+  mesh* Result = InitializeMesh(Mesh->IndexCount, Mesh->vCount, Mesh->vnCount, Mesh->vtCount, Header->Data);
+  CopyMesh(Mesh, Result);
+
+  if(ResultKey)
+  {
+    *ResultKey = Header->Key;
+  }
+  return Result;
+}
+
+texture* LoadTexture(c8* UniqueName, const texture* Texture, u32* ResultKey)
+{
+  midx TextureSize = (Texture->BPP/8) * (Texture->Width) * (Texture->Height);
+  header* Header = CreateHeader(type::TEXTURE, UniqueName, UniqueName, "N/A", TextureSize + sizeof(texture));
+  texture* Result = (texture*) Header->Data;
+  Result->Type = Texture->Type;
+  Result->BPP = Texture->BPP;
+  Result->Width = Texture->Width;
+  Result->Height = Texture->Height;
+  Result->Pixels = AdvanceByType(Result, texture);
+  utils::Copy((Texture->BPP/8) * (Texture->Width) * (Texture->Height), (void*) Texture->Pixels, (void*) Result->Pixels);
+  if(ResultKey)
+  {
+    *ResultKey = Header->Key;
+  }
+  return Result;
+}
+
+material* LoadMaterial(c8* UniqueName, const material* Material, u32* ResultKey)
+{
+  midx MaterialSize = GetMaterialSize(Material);
+  header* Header = CreateHeader(type::MATERIAL, UniqueName, UniqueName, "N/A", MaterialSize);
+  material* Result = (material*) Header->Data;
+  CopyMaterial(Material, Result);
+  return Result;
+}
+
 
 }

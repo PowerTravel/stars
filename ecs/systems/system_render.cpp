@@ -6,8 +6,6 @@ extern ecs::render::system* GlobalRenderSystem;
 
 namespace ecs::render {
 
-
-
 enum class overlay_object_type {
   POSITION
 };
@@ -366,7 +364,8 @@ void DrawScene(system* System, ecs::entity_manager* EntityManager)
   while(Next(&EntityIterator))
   {
     component* Component = GetRenderComponent(&EntityIterator);
-    if(Component->Material.Ambient.W < 1)
+    asset::material* Material = (asset::material*) asset::Find(asset::type::MATERIAL, Component->MaterialHandle);
+    if(Material->Ka && Material->Ka->W < 1)
     {
       Push(&System->Arena, TransparentObjects, (bptr) &Component);
     }else{ 
@@ -466,7 +465,6 @@ u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWei
 
   u32 ReducedHalfSize = ReducedSize / 2 + 1;
 
-  
   r32* Tmp = Previous;
   Previous = Current;
   Current = Tmp;
@@ -491,22 +489,37 @@ u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWei
   return Size;
 }
 
-
 void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
-  v3 LightDirection, v3 LightColor, v3 Pos, quat Rot, v3 Scal, data::material Material)
+  v3 LightDirection, v3 LightColor, v3 Pos, quat Rot, v3 Scal)
 {
   render_object* Object = PushNewRenderObject(RenderGroup);
   Object->ProgramHandle = Program;
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = MeshHandle;
   Object->TextureCount = 0;
-  //Object->TextureHandles[0] = Render->TextureHandle;
 
   m4 Scale = GetScaleMatrix(V4(Scal,1));
   m4 Rotation = GetRotationMatrix(Rot);
   m4 Translation = GetTranslationMatrix(V4(Pos,1));
   m4 ModelMat = Translation*Rotation*Scale;
-  //Rotate( GetAbsoluteRotation(Position), -V4(0,1,0,0), ModelMat );
+
+  asset::material* Material = (asset::material*) asset::Find(asset::type::MATERIAL, asset::ToKey(asset::type::MATERIAL, "red_rubber"));
+  v4 Ambient = {};
+  if(Material->Ka){
+    Ambient = *Material->Ka;
+  }
+  v4 Diffuse = {};
+  if(Material->Kd){
+    Diffuse = *Material->Kd;
+  }
+  v4 Specular = {};
+  if(Material->Ks){
+    Specular = *Material->Ks;
+  }
+  r32 Shininess = {};
+  if(Material->Ns){
+    Shininess = *Material->Ns;
+  }
 
   m4 ModelView = ViewMatrix*ModelMat;
   m4 NormalView = Transpose(RigidInverse(ModelView));
@@ -515,10 +528,10 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u3
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Material.Ambient);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Material.Diffuse);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Material.Specular);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Material.Shininess);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Ambient);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Diffuse);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
 }
 
 void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
@@ -527,15 +540,38 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   entity_id EntityId = GetEntityIDFromComponent( (bptr) Render );
   ecs::position::component* Position =  GetPositionComponent(&EntityId);
 
+  asset::material* Material = (asset::material*) asset::Find(asset::type::MATERIAL, Render->MaterialHandle);
+
   render_object* Object = PushNewRenderObject(RenderGroup);
   Object->ProgramHandle = Program;
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = Render->MeshHandle;
-  Object->TextureCount = 1;
-  Object->TextureHandles[0] = Render->TextureHandle;
 
+  if(Material->MapKdHandle)
+  {
+    Object->TextureCount = 1;
+    u32* LoadedTextureHandle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, Material->MapKdHandle);
+    Assert(LoadedTextureHandle);
+    Object->TextureHandles[0] = *LoadedTextureHandle;
+  }
   m4 ModelMat = GetModelMatrix(Position);
-  //Rotate( GetAbsoluteRotation(Position), -V4(0,1,0,0), ModelMat );
+
+  v4 Ambient = {};
+  if(Material->Ka){
+    Ambient = *Material->Ka;
+  }
+  v4 Diffuse = {};
+  if(Material->Kd){
+    Diffuse = *Material->Kd;
+  }
+  v4 Specular = {};
+  if(Material->Ks){
+    Specular = *Material->Ks;
+  }
+  r32 Shininess = {};
+  if(Material->Ns){
+    Shininess = *Material->Ns;
+  }
 
   m4 ModelView = ViewMatrix*ModelMat;
   m4 NormalView = Transpose(RigidInverse(ModelView));
@@ -544,11 +580,10 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Render->Material.Ambient);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Render->Material.Diffuse);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Render->Material.Specular);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Render->Material.Shininess);
-
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Ambient);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Diffuse);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
 }
 
 void DEBUGPrintMatrix(m4 Matrix)
@@ -740,8 +775,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
 
           r32 Scale = 2*Norm(Object->Position-CamPosition)  * 0.01;
           PushRenderObjectWithoutEntity(RenderGroup, GetMeshHandle("Cube"), GlobalState->PhongShadingNoTexProgram, FrameBuffer(data::FRAMEBUFFER_MSAA), ProjectionMatrix, ViewMatrix, LightDirection, LightColor,
-            Object->Position, Object->Rotation, V3(Scale,Scale,Scale),
-            GetMaterial(data::material_type::MATERIAL_RED_RUBBER));
+            Object->Position, Object->Rotation, V3(Scale,Scale,Scale));
         }
 
         Clear(OverlayObjects);

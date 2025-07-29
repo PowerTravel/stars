@@ -31,6 +31,62 @@
 
 global_variable r32 g_t = 0;
 
+void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, c8* UniqueName)
+{
+  asset::material Material = {};
+  Material.Ka = &Ambient;
+  Material.Kd = &Diffuse;
+  Material.Ks = &Specular;
+  Material.Ns = &Shininess;
+  Material.MapKdHandle = MapKdHandle;
+  asset::LoadMaterial(UniqueName, &Material);
+}
+
+void LoadMaterials()
+{
+  asset::texture WhitePixelBitmap = {};
+  u8 WhitePixel[4] = {255,255,255,255};
+  WhitePixelBitmap.Type = asset::texture_type::DIFFUSE_COLOR;
+  WhitePixelBitmap.BPP = 32;
+  WhitePixelBitmap.Width = 1;
+  WhitePixelBitmap.Height = 1;
+  WhitePixelBitmap.Pixels = (bptr) &WhitePixel;
+
+  u32 TextureKey = 0;
+  asset::LoadTexture("WhitePixel", &WhitePixelBitmap, &TextureKey);
+  ecs::render::Load32BitTextureToGpu(TextureKey, &WhitePixelBitmap);
+
+  LoadMaterial(TextureKey, {0.0215f,    0.1745f,    0.0215f,   0.55f}, {0.07568f,    0.61424f,    0.07568f,    0.55f}, {0.633f,       0.727811f,    0.633f,      0.55f}, 128 * 0.6f,         "emerald");
+  LoadMaterial(TextureKey, {0.135f,     0.2225f,    0.1575f,   0.95f}, {0.54f,       0.89f,       0.63f,       0.95f}, {0.316228f,    0.316228f,    0.316228f,   0.95f}, 128 * 0.1f,         "jade");
+  LoadMaterial(TextureKey, {0.05375f,   0.05f,      0.06625f,  0.82f}, {0.18275f,    0.17f,       0.22525f,    0.82f}, {0.332741f,    0.328634f,    0.346435f,   0.82f}, 128 * 0.3f,         "obsidian");
+  LoadMaterial(TextureKey, {0.25f,      0.20725f,   0.20725f,  1.00f}, {1.0f,        0.829f,      0.829f,      1.00f}, {0.296648f,    0.296648f,    0.296648f,   1.00f}, 128 * 0.088f,       "pearl");
+  LoadMaterial(TextureKey, {0.1745f,    0.01175f,   0.01175f,  0.55f}, {0.61424f,    0.04136f,    0.04136f,    0.55f}, {0.727811f,    0.626959f,    0.626959f,   0.55f}, 128 * 0.6f,         "ruby");
+  LoadMaterial(TextureKey, {0.1f,       0.18725f,   0.1745f,   0.80f}, {0.396f,      0.74151f,    0.69102f,    0.80f}, {0.297254f,    0.30829f,     0.306678f,   0.80f}, 128 * 0.1f,         "turquoise");
+  LoadMaterial(TextureKey, {0.329412f,  0.223529f,  0.027451f, 1.00f}, {0.780392f,   0.568627f,   0.113725f,   1.00f}, {0.992157f,    0.941176f,    0.807843f,   1.00f}, 128 * 0.21794872f,   "brass");
+  LoadMaterial(TextureKey, {0.2125f,    0.1275f,    0.054f,    1.00f}, {0.714f,      0.4284f,     0.18144f,    1.00f}, {0.393548f,    0.271906f,    0.166721f,   1.00f}, 128 * 0.2f,          "bronze");
+  LoadMaterial(TextureKey, {0.105882f, 0.058824f, 0.113725f,   1.00f}, {0.427451f,   0.470588f,   0.541176f,   1.00f}, {0.333333f,    0.333333f,    0.521569f,  1.0f },  9.84615f,            "tin");
+  LoadMaterial(TextureKey, {0.25f,     0.148f,    0.06475f,    1.00f}, {0.4f,        0.2368f,     0.1036f,     1.00f}, {0.774597f,    0.458561f,    0.200621f,  1.0f },  76.8f,               "polished_bronze");
+  LoadMaterial(TextureKey, {0.25f,      0.25f,      0.25f,     1.00f}, {0.4f,        0.4f,        0.4f,        1.00f}, {0.774597f,    0.774597f,    0.774597f,   1.00f}, 128 * 0.6f,          "chrome");
+  LoadMaterial(TextureKey, {0.19125f,   0.0735f,    0.0225f,   1.00f}, {0.7038f,     0.27048f,    0.0828f,     1.00f}, {0.256777f,    0.137622f,    0.086014f,   1.00f}, 128 * 0.1f,          "copper");
+  LoadMaterial(TextureKey, {0.2295f,   0.08825f,  0.0275f,     1.00f}, {0.5508f,     0.2118f,     0.066f,      1.00f}, {0.580594f,    0.223257f,    0.0695701f, 1.0f },  51.2f,               "polished_copper");
+  LoadMaterial(TextureKey, {0.24725f,   0.1995f,    0.0745f,   1.00f}, {0.75164f,    0.60648f,    0.22648f,    1.00f}, {0.628281f,    0.555802f,    0.366065f,   1.00f}, 128 * 0.4f,          "gold");
+  LoadMaterial(TextureKey, {0.24725f,  0.2245f,   0.0645f,     1.00f}, {0.34615f,    0.3143f,     0.0903f,     1.00f}, {0.797357f,    0.723991f,    0.208006f,  1.0f},   83.2f,               "polished_gold");
+  LoadMaterial(TextureKey, {0.19225f,   0.19225f,   0.19225f,  1.00f}, {0.50754f,    0.50754f,    0.50754f,    1.00f}, {0.508273f,    0.508273f,    0.508273f,   1.00f}, 128 * 0.4f,          "silver");
+  LoadMaterial(TextureKey, {0.23125f,  0.23125f,  0.23125f,    1.00f}, {0.2775f,     0.2775f,     0.2775f,     1.00f}, {0.773911f,    0.773911f,    0.773911f,  1.0f },  89.6f,               "polished_silver ");
+  LoadMaterial(TextureKey, {0.0f,       0.0f,       0.0f,      1.00f}, {0.01f,       0.01f,       0.01f,       1.00f}, {0.50f,        0.50f,        0.50f,       1.00f}, 128 * 0.25f,         "black_plastic");
+  LoadMaterial(TextureKey, {0.0f,       0.1f,       0.06f,     1.00f}, {0.0f,        0.50980392f, 0.50980392f, 1.00f}, {0.50196078f,  0.50196078f,  0.50196078f, 1.00f}, 128 * 0.25f,         "cyan_plastic");
+  LoadMaterial(TextureKey, {0.0f,       0.0f,       0.0f,      1.00f}, {0.1f,        0.35f,       0.1f,        1.00f}, {0.45f,        0.55f,        0.45f,       1.00f}, 128 * 0.25f,         "green_plastic");
+  LoadMaterial(TextureKey, {0.0f,       0.0f,       0.0f,      1.00f}, {0.5f,        0.0f,        0.0f,        1.00f}, {0.7f,         0.6f,         0.6f,        1.00f}, 128 * 0.25f,         "red_plastic");
+  LoadMaterial(TextureKey, {0.0f,       0.0f,       0.0f,      1.00f}, {0.55f,       0.55f,       0.55f,       1.00f}, {0.70f,        0.70f,        0.70f,       1.00f}, 128 * 0.25f,         "white_plastic");
+  LoadMaterial(TextureKey, {0.0f,       0.0f,       0.0f,      1.00f}, {0.5f,        0.5f,        0.0f,        1.00f}, {0.60f,        0.60f,        0.50f,       1.00f}, 128 * 0.25f,         "yellow_plastic");
+  LoadMaterial(TextureKey, {0.02f,      0.02f,      0.02f,     1.00f}, {0.01f,       0.01f,       0.01f,       1.00f}, {0.4f,         0.4f,         0.4f,        1.00f}, 128 * 0.078125f,     "black_rubber");
+  LoadMaterial(TextureKey, {0.0f,       0.05f,      0.05f,     1.00f}, {0.4f,        0.5f,        0.5f,        1.00f}, {0.04f,        0.7f,         0.7f,        1.00f}, 128 * 0.078125f,     "cyan_rubber");
+  LoadMaterial(TextureKey, {0.0f,       0.05f,      0.0f,      1.00f}, {0.4f,        0.5f,        0.4f,        1.00f}, {0.04f,        0.7f,         0.04f,       1.00f}, 128 * 0.078125f,     "green_rubber");
+  LoadMaterial(TextureKey, {0.05f,      0.0f,       0.0f,      1.00f}, {0.5f,        0.4f,        0.4f,        1.00f}, {0.7f,         0.04f,        0.04f,       1.00f}, 128 * 0.078125f,     "red_rubber");
+  LoadMaterial(TextureKey, {0.05f,      0.05f,      0.05f,     1.00f}, {0.5f,        0.5f,        0.5f,        1.00f}, {0.7f,         0.7f,         0.7f,        1.00f}, 128 * 0.078125f,     "white_rubber");
+  LoadMaterial(TextureKey, {0.05f,      0.05f,      0.0f,      1.00f}, {0.5f,        0.5f,        0.4f,        1.00f}, {0.7f,         0.7f,         0.04f,       1.00f}, 128 * 0.078125f,     "yellow_rubber");
+}
+
 u32 LoadMesh(c8* KeyStr, c8* Path)
 {
   r32 InitTime = Platform.DEBUGGetTime();
@@ -920,6 +976,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->ColoredSquareOverlayProgram = CreateColoredSquareOverlayProgram(RenderGroup);
     GlobalState->TexturedSquareOverlayProgram = CreateTexturedSquareOverlayProgram(RenderGroup);
 
+    LoadMaterials();
     r32 InitTime = Platform.DEBUGGetTime();
     LoadMesh("Cube", "..\\data\\qube.obj");
     LoadMesh("checker_plane_simple", "..\\data\\checker_plane_simple.obj");
@@ -935,9 +992,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
     asset::render_group* PlaneMesh = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "checker_plane_simple");
-    asset::texture* PlaneTex = PlaneMesh->Elements[0].Material->MapKd;
-    asset::header* Header = asset::ToHeader( (bptr) PlaneTex);
-    ecs::render::Load32BitTextureToGpu(Header->Key, PlaneTex);
+    u32 PlaneTexHandle = PlaneMesh->Elements[0].Material->MapKdHandle;
+    asset::texture* PlaneTex = (asset::texture*) asset::Find(asset::type::MATERIAL, PlaneTexHandle);
+    ecs::render::Load32BitTextureToGpu(PlaneTexHandle, PlaneTex);
 
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
     GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
@@ -968,10 +1025,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = ecs::render::GetMeshHandle("checker_plane_simple");
-        Render->TextureHandle = ecs::render::Get32BitTextureHandle("checker_plane_simple");
-        asset::material* Mat  = (asset::material*) asset::Find(asset::type::MATERIAL, "checker_plane_simple");
-        ecs::render::data::material M = { *Mat->Ka, {}, *Mat->Ks, *Mat->Ns};
-        Render->Material = M;
+        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "checker_plane_simple");
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "checker_plane_simple");
@@ -986,8 +1040,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = ecs::render::GetMeshHandle("Cube");
-        Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
-        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_RUBY);
+        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "ruby");
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cube");
@@ -1001,8 +1054,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = ecs::render::GetMeshHandle("Cone");
-        Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
-        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_EMERALD);
+        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "emerald");
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
@@ -1015,8 +1067,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = ecs::render::GetMeshHandle("Cylinder");
-        Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
-        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_JADE);
+        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "jade");
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cylinder");
@@ -1032,8 +1083,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::component* Render = GetRenderComponent(&Entity);
         Render->MeshHandle = ecs::render::GetMeshHandle("Cone");
-        Render->TextureHandle = ecs::render::Get32BitTextureHandle("WhitePixel");
-        Render->Material = ecs::render::GetMaterial(ecs::render::data::MATERIAL_SILVER);
+        Render->MaterialHandle = asset::ToKey(asset::type::MATERIAL, "silver");
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
