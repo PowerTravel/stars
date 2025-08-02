@@ -264,31 +264,40 @@ inline internal chunk_list* GetOverlayIcon(system* System, data::render_level* R
   return &RenderLevel->OverlayIcon;
 }
   
-inline internal chunk_list* GetSolidObjects(system* System)
+inline internal chunk_list* GetSolidObjects()
 {
-  if(!IsInitiated(&System->SolidObjects))
+  if(!IsInitiated(&GlobalRenderSystem->SolidObjects))
   {
-    System->SolidObjects = NewChunkList(&System->Arena, sizeof(component**), 32);
+    GlobalRenderSystem->SolidObjects = NewChunkList(&GlobalRenderSystem->Arena, sizeof(component**), 32);
   }
-  return &System->SolidObjects;
+  return &GlobalRenderSystem->SolidObjects;
 }
 
-inline internal chunk_list* GetTransparentObjects(system* System)
+inline internal chunk_list* GetTransparentObjects()
 {
-  if(!IsInitiated(&System->TransparentObjects))
+  if(!IsInitiated(&GlobalRenderSystem->TransparentObjects))
   {
-    System->TransparentObjects = NewChunkList(&System->Arena, sizeof(component**), 32);
+    GlobalRenderSystem->TransparentObjects = NewChunkList(&GlobalRenderSystem->Arena, sizeof(component**), 32);
   }
-  return &System->TransparentObjects;
+  return &GlobalRenderSystem->TransparentObjects;
 }
 
-inline internal chunk_list* GetOverlayObjects(system* System)
+inline internal chunk_list* GetOverlayRenders()
 {
-  if(!IsInitiated(&System->OverlayObjects))
+  if(!IsInitiated(&GlobalRenderSystem->OverlayRenders))
   {
-    System->OverlayObjects = NewChunkList(&System->Arena, sizeof(overlay_object), 32);
+    GlobalRenderSystem->OverlayRenders = NewChunkList(&GlobalRenderSystem->Arena, sizeof(data::render_data), 32);
   }
-  return &System->OverlayObjects;
+  return &GlobalRenderSystem->OverlayRenders;
+}
+
+inline internal chunk_list* GetLineObjects()
+{
+  if(!IsInitiated(&GlobalRenderSystem->LineObjects))
+  {
+    GlobalRenderSystem->LineObjects = NewChunkList(&GlobalRenderSystem->Arena, sizeof(data::line_3d), 32);
+  }
+  return &GlobalRenderSystem->LineObjects;
 }
 
 void DrawTextPixelSpace(system* System, v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color)
@@ -360,15 +369,6 @@ void DrawTextCanonicalSpace(system* System, v2 CanonicalPos, r32 PixelSize, utf8
   DrawTextPixelSpace(System, PixelPos, PixelSize, Text, Color);
 }
 
-void DrawOverlayDot3D(system* System, v3 Position)
-{
-  chunk_list* ObjList =  GetOverlayObjects(System);
-  overlay_object Object = {};
-  Object.Type = overlay_object_type::POSITION;
-  Object.Position = Position;
-  Object.Rotation = Quaternion();
-  Push(&System->Arena, ObjList, (bptr) &Object);
-}
 
 void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color)
 {
@@ -387,28 +387,33 @@ void DrawOverlayQuadPixelSpace(system* System, rect2f PixelRect, v4 Color)
   Push(&System->Arena, QuadBuffer, (bptr)&Quad);
 }
 
-void DrawScene(system* System, ecs::entity_manager* EntityManager)
+void DrawRenderObject(component* Component)
 {
-  filtered_entity_iterator EntityIterator = GetComponentsOfType(EntityManager, flag::RENDER);
-  chunk_list* TransparentObjects = GetTransparentObjects(System);
-  chunk_list* SolidObjects = GetSolidObjects(System);
-  while(Next(&EntityIterator))
-  {
-    component* Component = GetRenderComponent(&EntityIterator);
-    if(Component->Ambient.W < 1)
-    {
-      Push(&System->Arena, TransparentObjects, (bptr) &Component);
-    }else{ 
-      Push(&System->Arena, SolidObjects, (bptr) &Component);
-    }
+  if(!Component) return;
 
-    ecs::position::component* Position = GetPositionComponent(&EntityIterator);
-    if(Position)
-    {
-      DrawOverlayDot3D(System, Position->RelativePosition);
-    }
+  if(Component->Ambient.W < 1)
+  {
+    Push(&GlobalRenderSystem->Arena,  GetTransparentObjects(), (bptr) &Component);
+  }else{
+    Push(&GlobalRenderSystem->Arena, GetSolidObjects(), (bptr) &Component);
   }
 }
+/*
+  ecs::position::component* Position = GetPositionComponent(&EntityIterator);
+  if(Position)
+  {
+    DrawOverlayDot3D(System, Position->RelativePosition);
+  }
+*/
+
+
+
+void DrawOverlay3DObject(void* Data, void (*RenderFunction)(m4 ProjectionMatrix, m4 ViewMatrix, void* Data)){
+  data::render_data RenderData = {};
+  RenderData.Data = Data;
+  RenderData.RenderFunction = RenderFunction;
+  Push(&GlobalRenderSystem->Arena, GetOverlayRenders(), (bptr) &RenderData);
+} 
 
 void DrawOverlayQuadCanonicalSpace(system* System, rect2f CanonicalRect, v4 Color)
 {
@@ -684,9 +689,10 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   render_state* DefaultState2 = PushNewState(RenderGroup);
   *DefaultState2 = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
 
-  chunk_list* SolidObjects = GetSolidObjects(RenderSystem);
-  chunk_list* TransparentObjects = GetTransparentObjects(RenderSystem);
-  chunk_list* OverlayObjects = GetOverlayObjects(RenderSystem);
+  chunk_list* SolidObjects = GetSolidObjects();
+  chunk_list* TransparentObjects = GetTransparentObjects();
+  chunk_list* OverlayRenders = GetOverlayRenders();
+  chunk_list* LineObjects = GetLineObjects();
   if(GetBlockCount(SolidObjects) > 0 || GetBlockCount(TransparentObjects) > 0)
   {
 //      render_state* MSAAViewport = PushNewState(RenderGroup);
@@ -702,6 +708,27 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       }
       Clear(SolidObjects);
     }
+
+   { 
+      // Solid Lines
+      u32 LineCount = GetBlockCount(LineObjects);
+      if(LineCount)
+      {
+        render_object* Object = PushNewRenderObject(RenderGroup);
+        Object->ProgramHandle = GlobalState->LineRenderProgram;
+        Object->MeshHandle = RenderSystem->BlitPlaneHandle;
+        Object->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
+        
+        PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->LineRenderProgram, "ProjectionMat"), ProjectionMatrix);
+
+        data::line_3d* Lines = (data::line_3d*) Copy(GlobalTransientArena, LineObjects);
+        
+        PushInstanceData(Object, LineCount, LineCount*sizeof(data::line_3d), (void*) Lines);
+        Clear(LineObjects);
+      }
+
+    }
+
 
     if(GetBlockCount(TransparentObjects) > 0)
     {
@@ -773,21 +800,14 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       ClearMsaaDepthBuffer->TextureIndex = 0;
       ClearMsaaDepthBuffer->Depth = 1;
       
-      if(GetBlockCount(OverlayObjects) > 0)
+      if(GetBlockCount(OverlayRenders) > 0)
       {
-        chunk_list_iterator OverlayIt = BeginIterator(OverlayObjects);
-
-        m4 CamToWorld = RigidInverse(ViewMatrix);
-        v3 CamPosition = V3(Column(CamToWorld,3));
+        chunk_list_iterator OverlayIt = BeginIterator(OverlayRenders);
         while(Valid(&OverlayIt)) {
-          overlay_object* Object = (overlay_object*) Next(&OverlayIt);
-
-          r32 Scale = 2*Norm(Object->Position-CamPosition)  * 0.01;
-          PushRenderObjectWithoutEntity(RenderGroup, GetMeshHandle("Cube"), GlobalState->PhongShadingNoTexProgram, FrameBuffer(data::FRAMEBUFFER_MSAA), ProjectionMatrix, ViewMatrix, LightDirection, LightColor,
-            Object->Position, Object->Rotation, V3(Scale,Scale,Scale));
+          data::render_data* RenderData = (data::render_data*) Next(&OverlayIt);
+          RenderData->RenderFunction(ProjectionMatrix, ViewMatrix, RenderData->Data);
         }
-
-        Clear(OverlayObjects);
+        Clear(OverlayRenders);
       }
     }
 
@@ -1085,7 +1105,7 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
 
   Result->InternalTextures  = CreateInternalTextures(RenderGroup, &Result->WindowSize);
   Result->FrameBuffers      = CreateFrameBuffers(RenderGroup, &Result->WindowSize, Result->InternalTextures);
-  Result->BlitPlaneHandle = PushBlitPlaneMesh(Result, RenderGroup);
+  Result->BlitPlaneHandle   = PushBlitPlaneMesh(Result, RenderGroup);
 
   Result->TempMem = BeginTemporaryMemory(&Result->Arena);
 
@@ -1099,7 +1119,8 @@ void Begin()
   ListInitiate(&GlobalRenderSystem->RenderSentinel);
   GlobalRenderSystem->TransparentObjects = {};
   GlobalRenderSystem->SolidObjects = {};
-  GlobalRenderSystem->OverlayObjects = {};
+  GlobalRenderSystem->OverlayRenders = {};
+  GlobalRenderSystem->LineObjects = {};
 }
 
 internal void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
@@ -1145,6 +1166,35 @@ void Init(u32 MeshAssetKey, u32 MaterialAssetKey, component* Render)
   {
     Render->DiffuseTextureHandle = ecs::render::Get32BitTextureHandle(Material->MapKdHandle);
   }
+}
+
+void DrawLine3D(v3 Start, v3 End, v4 Color, r32 Thickness) {
+  data::line_3d Line = {};
+  Line.P0 = Start;
+  Line.P1 = End;
+  Line.Color = Color;
+  Line.Thickness = Thickness;
+  Push(&GlobalRenderSystem->Arena, GetLineObjects(), (bptr) &Line);
+}
+
+void DrawAABB(aabb3f AABB) {
+  v4 Color = V4(0,1,0,1);
+  r32 Thickness = 1;
+  v3 AABBVertices[8] = {};
+  GetAABBVertices(&AABB, AABBVertices);
+
+  DrawLine3D(AABBVertices[0], AABBVertices[1], Color, Thickness);
+  DrawLine3D(AABBVertices[1], AABBVertices[2], Color, Thickness);
+  DrawLine3D(AABBVertices[2], AABBVertices[3], Color, Thickness);
+  DrawLine3D(AABBVertices[3], AABBVertices[0], Color, Thickness);
+  DrawLine3D(AABBVertices[4], AABBVertices[5], Color, Thickness);
+  DrawLine3D(AABBVertices[5], AABBVertices[6], Color, Thickness);
+  DrawLine3D(AABBVertices[6], AABBVertices[7], Color, Thickness);
+  DrawLine3D(AABBVertices[7], AABBVertices[4], Color, Thickness);
+  DrawLine3D(AABBVertices[0], AABBVertices[4], Color, Thickness);
+  DrawLine3D(AABBVertices[1], AABBVertices[5], Color, Thickness);
+  DrawLine3D(AABBVertices[2], AABBVertices[6], Color, Thickness);
+  DrawLine3D(AABBVertices[3], AABBVertices[7], Color, Thickness);
 }
 
 } // ecs::render

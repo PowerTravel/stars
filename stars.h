@@ -53,6 +53,7 @@ struct application_state
   u32 FontRenterProgram;
   u32 ColoredSquareOverlayProgram;
   u32 TexturedSquareOverlayProgram;
+  u32 LineRenderProgram;
 
 
 

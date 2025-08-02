@@ -272,17 +272,46 @@ indexed_array IndexedArray(memory_arena* Arena, u32 IndexCount, midx ValueSize, 
   return Result;
 }
 
+struct index_tracker {
+  u32 OldIndex;
+  u32 NewIndex;
+};
 
-indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, u32 MaxValueCount, bptr ValueArray,
+index_tracker* Find(u32 TrackerSize, index_tracker* IndexTracker, u32 HashedIndex, u32 OldIndex, u32* Collisions)
+{
+  u32 ArrayIndex = HashedIndex;
+  index_tracker* Element = IndexTracker + ArrayIndex;
+  u32 Coll = 0;
+  while(Element->OldIndex != 0 &&  Element->OldIndex != OldIndex)
+  {
+    ArrayIndex++;
+    if(ArrayIndex >= TrackerSize)
+    {
+      ArrayIndex = 0;
+    }
+    Element = IndexTracker + ArrayIndex;
+    Coll++;
+  }
+  
+  if(Element->OldIndex == 0)
+  {
+    *Collisions = Coll;
+  }
+  // Element is either empty or points to OldIndex;
+  return Element;
+}
+
+
+indexed_array CreateNewIndexedArraySmallValueCount(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, u32 MaxValueCount, bptr ValueArray,
   b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
 {
-  indexed_array Result = IndexedArray(Arena, IndexCount, ValueSize, MaxValueCount);
+  indexed_array Result = IndexedArray(Arena, IndexCount, ValueSize, Minimum(MaxValueCount, IndexCount));
   u32* IndexTracker = PushArray(Arena, MaxValueCount, u32);
+
   u32 ValueCount = 0;
   for (int i = 0; i < IndexCount; ++i)
   {
     u32 OldIndex = IndexArray[i];
-
     if(IndexTracker[OldIndex]==0)
     {
       u32 NewIndex = ValueCount;
@@ -295,6 +324,64 @@ indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u
     }
   }
   Result.ValueCount = ValueCount;
+  return Result;
+}
+
+indexed_array CreateNewIndexedArrayHashedList(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, u32 MaxValueCount, bptr ValueArray,
+  b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
+{
+  indexed_array Result = IndexedArray(Arena, IndexCount, ValueSize, Minimum(MaxValueCount, IndexCount));
+
+  u32 TrackerSize = utils::GetHashListSize(IndexCount,3);
+  index_tracker* IndexTracker = PushArray(Arena, TrackerSize, index_tracker);
+  u32 ValueCount = 0;
+  u32 TotalCollisions = 0;
+  for (int i = 0; i < IndexCount; ++i)
+  {
+    u32 OldIndex = IndexArray[i];
+
+    u32 HashedIndex = utils::Hash(OldIndex) % TrackerSize;
+    u32 Collision = 0;
+    index_tracker* TrackElement = Find(TrackerSize, IndexTracker, HashedIndex, OldIndex, &Collision);
+    TotalCollisions += Collision;
+    if(TrackElement->NewIndex == 0)
+    {
+      u32 NewIndex = ValueCount;
+      Result.IndexArray[i] = NewIndex;
+
+      TrackElement->OldIndex = OldIndex;
+      TrackElement->NewIndex = ++ValueCount;
+
+      utils::Copy(ValueSize, ValueArray + ValueSize*OldIndex, Result.ValueArray + ValueSize*NewIndex);
+    }else{
+      Result.IndexArray[i] = TrackElement->NewIndex - 1;
+    }
+
+  }
+  if(TotalCollisions)
+  {  
+  Platform.DEBUGPrint("--==Collisions==--\n\t%d Collisions\n\t%d Elements\n\t%d ListSize,\n\t%f Collisions/ElementCount\n\t%f Collisions / ElementCount \n", 
+    TotalCollisions, IndexCount, TrackerSize,  (r32)TotalCollisions / (r32) IndexCount,(r32)IndexCount / (r32) TrackerSize);
+  }
+  Result.ValueCount = ValueCount;
+  return Result;
+}
+
+indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, u32 MaxValueCount, bptr ValueArray,
+  b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
+{
+  indexed_array Result = {};
+  #if 0
+  if(MaxValueCount < 2048)
+  {
+    // TODO: Use this one if there are few groups instead
+    Result = CreateNewIndexedArraySmallValueCount(Arena, IndexCount, IndexArray, ValueSize, MaxValueCount, ValueArray, CompareFunction);
+  }else{
+    // TODO: Use this one if there are alot of groups groups
+    Result = CreateNewIndexedArrayHashedList(Arena, IndexCount, IndexArray, ValueSize, MaxValueCount, ValueArray, CompareFunction);
+  }
+  #endif
+  Result = CreateNewIndexedArraySmallValueCount(Arena, IndexCount, IndexArray, ValueSize, MaxValueCount, ValueArray, CompareFunction);
   return Result;
 }
 
@@ -323,12 +410,18 @@ mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
                   const v3* VerticeData,     const v3* NormalData,     const v2* TextureData)
 {
 
-  indexed_array VerticeArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, VerticeIndeces, sizeof(v3), VerticeCount, (bptr) VerticeData, V3CompareFunction);
+  indexed_array VerticeArray = {};
+  if(VerticeIndeces)
+  {
+    VerticeArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, VerticeIndeces, sizeof(v3), VerticeCount, (bptr) VerticeData, V3CompareFunction);
+  }
+
   indexed_array NormalArray = {};
   if(NormalIndeces)
   {
     NormalArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, NormalIndeces, sizeof(v3), NormalCount, (bptr) NormalData, V3CompareFunction);
   }
+
   indexed_array TextureArray = {};
   if(TextureIndeces)
   {
@@ -339,8 +432,11 @@ mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
   header* Header     = CreateHeader(type::MESH, MeshKey, MeshName, MeshPath, TotalMeshSize);
   mesh* Result       = InitializeMesh(IndexCount, VerticeArray.ValueCount, NormalArray.ValueCount, TextureArray.ValueCount, Header->Data);
 
-  utils::Copy(sizeof(u32)*VerticeArray.IndexCount,             VerticeArray.IndexArray, Result->vi);
-  utils::Copy(VerticeArray.ValueSize*VerticeArray.ValueCount,  VerticeArray.ValueArray, Result->v);
+  if(VerticeIndeces)
+  {
+    utils::Copy(sizeof(u32)*VerticeArray.IndexCount,             VerticeArray.IndexArray, Result->vi);
+    utils::Copy(VerticeArray.ValueSize*VerticeArray.ValueCount,  VerticeArray.ValueArray, Result->v);
+  }
   if(NormalIndeces)
   {
     utils::Copy(sizeof(u32)*NormalArray.IndexCount,             NormalArray.IndexArray, Result->vni);
@@ -352,7 +448,7 @@ mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
     utils::Copy(TextureArray.ValueSize*TextureArray.ValueCount,   TextureArray.ValueArray, Result->vt);
   }
 
-  Result->AABB = GetAABB(VerticeCount, VerticeData);
+  Result->AABB = GetAABB(VerticeArray.ValueCount, (v3*) VerticeArray.ValueArray);
 
   return Result;
 }
@@ -732,17 +828,27 @@ u32 LoadObj(c8* Path, c8* KeyString)
   midx RenderGroupMemSize = sizeof(render_group) + Obj->ObjectCount * sizeof(render_group_element);
   header* Header = CreateHeader(type::RENDER_GROUP, KeyString, Obj->ObjectName, Path, RenderGroupMemSize);
   render_group* RenderGroup = (render_group*) Header->Data;
-  RenderGroup->ElementCount = Obj->ObjectCount;
+  
+  u32 ActualElementCount = {};
   RenderGroup->Elements = (render_group_element*) AdvanceBytePointer(RenderGroup, sizeof(render_group));
 
   // RENDER_GROUP_ELEMENT
+  u32 ElementCount = 0;
   for (int i = 0; i < Obj->ObjectCount; ++i)
   {
     obj_group* ObjGrp = Obj->ObjectGroups + i;
-    c8 MeshNameBuff[ASSET_MAX_NAME_LENGTH] = {};
-    c8* MeshName = CreateUniqueKey(KeyString, i, Obj->ObjectCount);
-    RenderGroup->Elements[i] = CreateRenderGroupElement(KeyString, MeshName, Path, ObjGrp, Obj->MeshData, &MaterialMap);
+    if(ObjGrp->Indeces->Count)
+    {
+      // Note: The reason we have to check for ObjGrp->Indeces.Count is because we are not handling splines and surfaces in the obj_loader
+      //       if we see a spline or a surface we create a new empty object group. For now we are fine allocating a bit of extra space 
+      //       but this should be taken care of once we implement surfaces and splines etc.
+      c8 MeshNameBuff[ASSET_MAX_NAME_LENGTH] = {};
+      c8* MeshName = CreateUniqueKey(KeyString, i, Obj->ObjectCount);
+      RenderGroup->Elements[i] = CreateRenderGroupElement(KeyString, MeshName, Path, ObjGrp, Obj->MeshData, &MaterialMap);
+      ElementCount++;
+    }
   }
+  RenderGroup->ElementCount = ElementCount;
 
   return Header->Key;
 }

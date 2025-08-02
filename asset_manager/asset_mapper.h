@@ -7,7 +7,7 @@
 extern memory_arena* GlobalTransientArena;
 
 namespace asset::mapper{
-
+global_variable u32 G_PrimeNumberList[] =  {23, 47, 97, 193, 383, 769, 1531, 3079, 6043};
 
 u32 PushUnique( u8* Array, const u32 ElementCount, const u32 ElementByteSize,
                u8* NewElement, b32 (*CompareFunction)(const u8* DataA, const u8* DataB))
@@ -107,7 +107,7 @@ b32 Exists(u32 ArraySize, tracker_element* TrackerArray, const tracker_element& 
   return false;
 }
 
-global_variable u32 G_PrimeNumberList[] =  {23, 47, 97, 193, 383, 769, 1531, 3079, 6043};
+
 gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
                      const u32  IndexCount,
                      const u32* VerticeIndeces, const u32* NormalIndeces, const u32* TextureIndeces,
@@ -118,15 +118,7 @@ gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
 
 
 
-  u32 TrackerCount = 3*IndexCount;
-  for(u32 i = 0; i < ArrayCount(G_PrimeNumberList); i++)
-  {
-    if(TrackerCount < G_PrimeNumberList[i])
-    {
-      TrackerCount = G_PrimeNumberList[i];
-      break;
-    }
-  }
+  u32 TrackerCount = utils::GetHashListSize(IndexCount, 3);
   tracker_element* TrackerArray  = PushArray(Arena, TrackerCount, tracker_element);
   G_CollisionCount = 0;
   u32 VerticeArrayCount = 0;

@@ -40,6 +40,12 @@ internal inline void Initiate(asset::mesh* Mesh, asset::material* Material, ecs:
   ecs::render::Init(MeshAssetKey, MaterialAssetKey, Render);
 }
 
+internal inline void Initiate(asset::render_group_element* Element, ecs::render::component* Render)
+{
+  Initiate(Element->Mesh, Element->Material, Render);
+  //Initiate(Element->Mesh, (asset::material*) asset::Find(asset::type::MATERIAL, "silver"), Render);
+}
+
 internal inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::component* Render)
 {
   asset::render_group* Grp = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, RenderGroupAssetHandle);
@@ -72,12 +78,12 @@ void LoadMaterials()
   asset::LoadTexture("WhitePixel", &WhitePixelBitmap, &TextureKey);
   ecs::render::Load32BitTextureToGpu(TextureKey, &WhitePixelBitmap);
 
-  LoadMaterial(TextureKey, {0.0215f,    0.1745f,    0.0215f,   0.55f}, {0.07568f,    0.61424f,    0.07568f,    0.55f}, {0.633f,       0.727811f,    0.633f,      0.55f}, 128 * 0.6f,         "emerald");
-  LoadMaterial(TextureKey, {0.135f,     0.2225f,    0.1575f,   0.95f}, {0.54f,       0.89f,       0.63f,       0.95f}, {0.316228f,    0.316228f,    0.316228f,   0.95f}, 128 * 0.1f,         "jade");
-  LoadMaterial(TextureKey, {0.05375f,   0.05f,      0.06625f,  0.82f}, {0.18275f,    0.17f,       0.22525f,    0.82f}, {0.332741f,    0.328634f,    0.346435f,   0.82f}, 128 * 0.3f,         "obsidian");
-  LoadMaterial(TextureKey, {0.25f,      0.20725f,   0.20725f,  1.00f}, {1.0f,        0.829f,      0.829f,      1.00f}, {0.296648f,    0.296648f,    0.296648f,   1.00f}, 128 * 0.088f,       "pearl");
-  LoadMaterial(TextureKey, {0.1745f,    0.01175f,   0.01175f,  0.55f}, {0.61424f,    0.04136f,    0.04136f,    0.55f}, {0.727811f,    0.626959f,    0.626959f,   0.55f}, 128 * 0.6f,         "ruby");
-  LoadMaterial(TextureKey, {0.1f,       0.18725f,   0.1745f,   0.80f}, {0.396f,      0.74151f,    0.69102f,    0.80f}, {0.297254f,    0.30829f,     0.306678f,   0.80f}, 128 * 0.1f,         "turquoise");
+  LoadMaterial(TextureKey, {0.0215f,    0.1745f,    0.0215f,   0.55f}, {0.07568f,    0.61424f,    0.07568f,    0.55f}, {0.633f,       0.727811f,    0.633f,      0.55f}, 128 * 0.6f,          "emerald");
+  LoadMaterial(TextureKey, {0.135f,     0.2225f,    0.1575f,   0.95f}, {0.54f,       0.89f,       0.63f,       0.95f}, {0.316228f,    0.316228f,    0.316228f,   0.95f}, 128 * 0.1f,          "jade");
+  LoadMaterial(TextureKey, {0.05375f,   0.05f,      0.06625f,  0.82f}, {0.18275f,    0.17f,       0.22525f,    0.82f}, {0.332741f,    0.328634f,    0.346435f,   0.82f}, 128 * 0.3f,          "obsidian");
+  LoadMaterial(TextureKey, {0.25f,      0.20725f,   0.20725f,  1.00f}, {1.0f,        0.829f,      0.829f,      1.00f}, {0.296648f,    0.296648f,    0.296648f,   1.00f}, 128 * 0.088f,        "pearl");
+  LoadMaterial(TextureKey, {0.1745f,    0.01175f,   0.01175f,  0.55f}, {0.61424f,    0.04136f,    0.04136f,    0.55f}, {0.727811f,    0.626959f,    0.626959f,   0.55f}, 128 * 0.6f,          "ruby");
+  LoadMaterial(TextureKey, {0.1f,       0.18725f,   0.1745f,   0.80f}, {0.396f,      0.74151f,    0.69102f,    0.80f}, {0.297254f,    0.30829f,     0.306678f,   0.80f}, 128 * 0.1f,          "turquoise");
   LoadMaterial(TextureKey, {0.329412f,  0.223529f,  0.027451f, 1.00f}, {0.780392f,   0.568627f,   0.113725f,   1.00f}, {0.992157f,    0.941176f,    0.807843f,   1.00f}, 128 * 0.21794872f,   "brass");
   LoadMaterial(TextureKey, {0.2125f,    0.1275f,    0.054f,    1.00f}, {0.714f,      0.4284f,     0.18144f,    1.00f}, {0.393548f,    0.271906f,    0.166721f,   1.00f}, 128 * 0.2f,          "bronze");
   LoadMaterial(TextureKey, {0.105882f, 0.058824f, 0.113725f,   1.00f}, {0.427451f,   0.470588f,   0.541176f,   1.00f}, {0.333333f,    0.333333f,    0.521569f,  1.0f },  9.84615f,            "tin");
@@ -103,7 +109,19 @@ void LoadMaterials()
   LoadMaterial(TextureKey, {0.05f,      0.05f,      0.0f,      1.00f}, {0.5f,        0.5f,        0.4f,        1.00f}, {0.7f,         0.7f,         0.04f,       1.00f}, 128 * 0.078125f,     "yellow_rubber");
 }
 
-
+u32 CreateLineRenderProgram(render_group* RenderGroup)
+{
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "SolidLineProgram");
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "ProjectionMat");
+  AddVarying(RenderGroup, UniformType::V3,  ProgramHandle, "P0");
+  AddVarying(RenderGroup, UniformType::V3,  ProgramHandle, "P1");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "Color_in");
+  AddVarying(RenderGroup, UniformType::R32, ProgramHandle, "Thickness");
+  CompileShader(RenderGroup, ProgramHandle,
+      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramFragment.glsl"));
+  return ProgramHandle;
+}
 
 u32 Load32BitColorTexture(c8* Name, c8* Path)
 {
@@ -866,6 +884,10 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
     }
     
     r32 CamSpeed = 0.05;
+    if(jwin::Active(Input->Keyboard.Key_LSHIFT))
+    {
+      CamSpeed = 1;
+    }
     if(jwin::Active(Input->Keyboard.Key_C))
     {
       SetCameraPosition(Camera, V3(0,0,0));
@@ -935,6 +957,143 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
   }
 }
 
+void DrawAllRenderObjects()
+{
+  ecs::filtered_entity_iterator EntityIterator = GetComponentsOfType(GlobalEntityManager, ecs::flag::RENDER);
+  while(Next(&EntityIterator))
+  {
+    ecs::render::component* Component = GetRenderComponent(&EntityIterator);
+    DrawRenderObject(Component);
+  }
+}
+
+struct overlay_doodad {
+  v3 Pos;
+  quat Rot;
+  r32 ScaleFraction;
+};
+
+void DrawDoodad(m4 ProjectionMatrix, m4 ViewMatrix, void* Data)
+{
+  render_object* Object = PushNewRenderObject(GlobalRenderSystem->RenderGroup);
+  Object->ProgramHandle = GlobalState->PhongShadingNoTexProgram;
+  Object->FrameBufferHandle = ecs::render::FrameBuffer(ecs::render::data::FRAMEBUFFER_MSAA);
+  Object->MeshHandle = ecs::render::GetMeshHandle("Cube");
+
+  overlay_doodad* Doodad = (overlay_doodad*) Data;
+ 
+  m4 CamToWorld = RigidInverse(ViewMatrix);
+  v3 CamPosition = V3(Column(CamToWorld,3));  
+  r32 Scale = 2*Norm(Doodad->Pos-CamPosition) * Doodad->ScaleFraction;
+
+  m4 ScaleMat = GetScaleMatrix(V4(Scale, Scale, Scale,1));
+  m4 RotationMat = GetRotationMatrix(Doodad->Rot);
+  m4 TranslationMat = GetTranslationMatrix(V4(Doodad->Pos,1));
+  m4 ModelMat = TranslationMat*RotationMat*ScaleMat;
+
+  m4 ModelView = ViewMatrix*ModelMat;
+  m4 NormalView = Transpose(RigidInverse(ModelView));
+
+  v3 LightPosition = V3(1,1,1);
+  v3 LightDirection = V3(Transpose(RigidInverse(ViewMatrix)) * V4(LightPosition,0));
+
+  v4 Ambient = V4(0.05f,      0.0f,       0.0f,  1.00f);
+  v4 Diffuse = V4(0.5f,        0.4f,      0.4f,  1.00f);
+  v4 Specular = V4(0.7f,         0.04f,   0.04f, 1.00f);
+  r32 Shininess = 128 * 0.078125f;
+  
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "ProjectionMat"),    ProjectionMatrix);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "ModelView"),        ModelView);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "NormalView"),       NormalView);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "LightDirection"),   LightDirection);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "LightColor"),       V3(1,1,1));
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "MaterialAmbient"),  Ambient);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "MaterialDiffuse"),  Diffuse);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "MaterialSpecular"), Specular);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "Shininess"),        Shininess);
+}
+
+
+struct overlay_aabb {
+  aabb3f a;
+  v4 Ambient;
+  v4 Diffuse;
+  v4 Specular;
+  r32 Shininess;
+};
+
+void DrawAABBBoxOutline(m4 ProjectionMatrix, m4 ViewMatrix, void* Data)
+{
+  render_object* Object = PushNewRenderObject(GlobalRenderSystem->RenderGroup);
+  Object->ProgramHandle = GlobalState->PhongShadingNoTexProgram;
+  Object->FrameBufferHandle = ecs::render::FrameBuffer(ecs::render::data::FRAMEBUFFER_MSAA);
+  Object->MeshHandle = ecs::render::GetMeshHandle("Cube");
+
+  overlay_doodad* Doodad = (overlay_doodad*) Data;
+ 
+  m4 CamToWorld = RigidInverse(ViewMatrix);
+  v3 CamPosition = V3(Column(CamToWorld,3));  
+  r32 Scale = 2*Norm(Doodad->Pos-CamPosition) * Doodad->ScaleFraction;
+
+  m4 ScaleMat = GetScaleMatrix(V4(Scale, Scale, Scale,1));
+  m4 RotationMat = GetRotationMatrix(Doodad->Rot);
+  m4 TranslationMat = GetTranslationMatrix(V4(Doodad->Pos,1));
+  m4 ModelMat = TranslationMat*RotationMat*ScaleMat;
+
+  m4 ModelView = ViewMatrix*ModelMat;
+  m4 NormalView = Transpose(RigidInverse(ModelView));
+
+  v3 LightPosition = V3(1,1,1);
+  v3 LightDirection = V3(Transpose(RigidInverse(ViewMatrix)) * V4(LightPosition,0));
+  
+  v4 Ambient = V4(0.05f,      0.0f,       0.0f,  1.00f);
+  v4 Diffuse = V4(0.5f,        0.4f,      0.4f,  1.00f);
+  v4 Specular = V4(0.7f,         0.04f,   0.04f, 1.00f);
+  r32 Shininess = 128 * 0.078125f;
+
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "ProjectionMat"),    ProjectionMatrix);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "ModelView"),        ModelView);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "NormalView"),       NormalView);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "LightDirection"),   LightDirection);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "LightColor"),       V3(1,1,1));
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "MaterialAmbient"),  Ambient);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "MaterialDiffuse"),  Diffuse);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "MaterialSpecular"), Specular);
+  PushUniform(Object, GetUniformHandle(GlobalRenderSystem->RenderGroup, Object->ProgramHandle, "Shininess"),        Shininess);
+}
+
+void DrawOverlayObject(v3 Pos)
+{
+  overlay_doodad* Doodad = PushStruct(GlobalTransientArena, overlay_doodad);
+  Doodad->Pos = Pos;
+  Doodad->Rot = Quaternion();
+  Doodad->ScaleFraction =  0.007;
+  ecs::render::DrawOverlay3DObject((void*) Doodad, DrawDoodad);
+}
+
+void DrawOverlayObjects()
+{
+  ecs::filtered_entity_iterator EntityIterator = GetComponentsOfType(GlobalEntityManager, ecs::flag::POSITION);
+  while(Next(&EntityIterator))
+  {
+    ecs::position::component* Component = GetPositionComponent(&EntityIterator);
+    DrawOverlayObject(Component->RelativePosition);
+  }
+}
+
+void PowerOfTwoMiddles(u32 MaxNum){
+  u32 PowTwo_1 = 2;
+  u32 PowTwo_2 = 4;
+  u32 Mid = (PowTwo_1 + PowTwo_2)/2;
+  while(Mid <= MaxNum)
+  {
+    Platform.DEBUGPrint("%d\n", Mid);
+    PowTwo_1 = PowTwo_2;
+    PowTwo_2 *= 2;
+    Mid = (PowTwo_1 + PowTwo_2)/2;
+  }
+}
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -953,6 +1112,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   if(!GlobalState->Initialized)
   {
+    PowerOfTwoMiddles(1000000000);
     GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
     GlobalState->AssetManager = asset::CreateAssetManager();
     GlobalAssetManager = GlobalState->AssetManager;
@@ -979,6 +1139,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->FontRenterProgram =  CreateFontProgram(RenderGroup);
     GlobalState->ColoredSquareOverlayProgram = CreateColoredSquareOverlayProgram(RenderGroup);
     GlobalState->TexturedSquareOverlayProgram = CreateTexturedSquareOverlayProgram(RenderGroup);
+    GlobalState->LineRenderProgram = CreateLineRenderProgram(RenderGroup);
 
     LoadMaterials();
     r32 InitTime = Platform.DEBUGGetTime();
@@ -989,6 +1150,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     asset::LoadObj("..\\data\\cylinder.obj", "Cylinder");
     asset::LoadObj("..\\data\\triangle.obj", "Triangle");
     asset::LoadObj("..\\data\\plane.obj", "Plane");
+    asset::LoadObj("..\\data\\maquetiiillla.obj", "Test");
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
@@ -1031,8 +1193,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "checker_plane_simple");
         ecs::collider::Init(Collider, Mesh);
-
-
       }
 
       { // Transparent Cube
@@ -1082,6 +1242,38 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
         ecs::collider::Init(Collider, Mesh);
       }
+
+#if 1
+      { // TestBuilding
+        asset::render_group* RenderGroup = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "Test");
+        for (int i = 0; i <  RenderGroup->ElementCount; ++i)
+        //for (int i = 0; i <  5; ++i)
+        {
+          asset::render_group_element* Element = RenderGroup->Elements + i;
+
+          c8 NameBuf[256] = {};
+          FormatString(NameBuf, ArrayCount(NameBuf), "Test_%d", i);
+          ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, NameBuf, ecs::flag::RENDER | ecs::flag::COLLIDER);
+          ecs::position::component* Position = GetPositionComponent(&Entity);
+          ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
+          
+          asset::mesh* Mesh = Element->Mesh;
+          v3 MidPoint = (Mesh->AABB.P0 + Mesh->AABB.P1)*0.5;
+          for (int i = 0; i < Mesh->vCount; ++i)
+          {
+            Mesh->v[i] -= MidPoint;
+          }
+          Mesh->AABB.P0 -= MidPoint;
+          Mesh->AABB.P1 -= MidPoint;
+          Initiate(Element, GetRenderComponent(&Entity));
+          ecs::collider::Init(GetColliderComponent(&Entity), Mesh);
+        }
+        //-1326.18506
+        //18.7000008
+        //62.6960068
+        int a = 10;
+      }
+#endif
     }
     
   }else{
@@ -1148,6 +1340,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     CompileShader(RenderGroup, GlobalState->PhongShadingNoTexProgram,
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongVertexCameraViewNoTex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\PhongFragmentCameraViewNoTex.glsl"));
+    CompileShader(RenderGroup, GlobalState->LineRenderProgram,
+      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramFragment.glsl"));
   }
   
 
@@ -1155,8 +1350,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   
 #define TMP_STRING_SIZE 128
   UpdateViewMatrix(&GlobalState->Camera);
-
-  
 #if 0
   UpdateAndRenderMenuInterface(Input, GetMenuInterface());
 
@@ -1167,13 +1360,16 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 #else
   ecs::render::SetDrawWindow(GetRenderSystem(), Rect2f(0,0,1,1));
-  ecs::render::DrawScene(GetRenderSystem(), GetEntityManager());
-
+  DrawAllRenderObjects();
+  DrawOverlayObjects();
+  ecs::render::DrawLine3D(V3(0,0,0), V3(1,1,1), V4(0,1,0,1), 0.1);
 #endif
+  #if 1
   ecs::render::NewRenderLevel(GetRenderSystem());
   DrawColorList(&GlobalState->ApplicationImgui);
   ecs::render::NewRenderLevel(GetRenderSystem());
   DrawEntityList(&GlobalState->ApplicationImgui);
+  #endif
   ImguiEnd();
   ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
 } 

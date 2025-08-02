@@ -38,10 +38,11 @@ namespace data {
     m4 ModelMatrix; // PixelSpace
   };
 
-  struct render_object_3d {
-    m4 ModelMatrix;
-    u32 MeshHandle;
-    u32 TextureHandle;
+  struct line_3d {
+    v3 P0;
+    v3 P1;
+    v4 Color;
+    r32 Thickness;
   };
 
   struct textured_overlay_quad {
@@ -56,6 +57,11 @@ namespace data {
     chunk_list OverlayIcon;
     render_level* Next;
     render_level* Previous;
+  };
+
+  struct render_data {
+    void (*RenderFunction)(m4 ProjectionMatrix, m4 ViewMatrix, void* Data);
+    void* Data;
   };
 
   enum internal_textures {
@@ -108,9 +114,10 @@ namespace data {
     data::font Font;
     u32 BlitPlaneHandle;
     u32 FontTextureHandle;
-    chunk_list SolidObjects;       // render_object_3d
-    chunk_list TransparentObjects; // render_object_3d
-    chunk_list OverlayObjects;     // render_object_3d // Turn off z-buffer and render on top of everything
+    chunk_list SolidObjects;      
+    chunk_list TransparentObjects;
+    chunk_list OverlayRenders;     // render_data
+    chunk_list LineObjects;
     data::render_level RenderSentinel;
     rect2f UnitDrawRegion; // UnitCoordinate [0,0,1,1], Percentage of applicationWidth/Height
     window_size_pixel WindowSize;
@@ -125,7 +132,7 @@ namespace data {
 
   system* CreateRenderSystem(render_group* RenderGroup, r32 ResolutionWidth, r32 ResolutionHeight, application_render_commands* RenderCommands);
   void Begin();
-  void DrawScene(system* System, ecs::entity_manager* EntityManager);
+  void DrawRenderObject(component* Component);
   void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatrix, m4 ViewMatrix);
   void DrawOverlayText(system* RenderSystem, utf8_byte* Text, u32 X0, u32 Y0, r32 RelativeScale);
 
@@ -170,6 +177,8 @@ namespace data {
   void DrawIconPixelSpace(system* System, rect2f PixelRect,  v4 TextureCoords, v4 Color);
   void DrawIconCanonicalSpace(system* System, rect2f CanonicalRect,  v4 TextureCoords, v4 Color);
 
+  void DrawOverlay3DObject(void* Data, void (*RenderFunction)(m4 ProjectionMatrix, m4 ViewMatrix, void* Data));
+
   // When drawing with DrawTextPixelSpace or DrawTextCanonicalSpace, the position is the line someone would draw on in a note-book.
   // That is letters like 'g' dips under the line. If someone wants to draw text in a rect one maybe don't want the g to go outside the rect
   // Therefore this 'FontDescenOffset' is the offset needed such that the text origin is the lowest dip of the text.
@@ -206,5 +215,10 @@ namespace data {
 
 
   void Init(u32 MeshAssetKey, u32 MaterialAssetKey, component* Render);
+
+
+  // Draw basic shapes
+  void DrawLine3D(v3 Start, v3 End, v4 Color, r32 Thickness);
+  void DrawAABB(aabb3f AABB);
 }
 }
