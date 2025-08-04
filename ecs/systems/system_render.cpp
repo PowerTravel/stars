@@ -1026,23 +1026,25 @@ u32 PushBlitPlaneMesh(system* RenderSystem, render_group* RenderGroup)
   }
 
   // Send BlitPlane to the render-system
-  u32 RenderHandle = 0;
+  u32 IndexHandle = 0;
+  u32 MeshHandle = 0;
   {
     opengl_buffer_data GlBufferData = {};
     GlBufferData.BufferCount = 1;
     GlBufferData.BufferData = StoredVertexBuffer;
-    RenderHandle = PushNewMesh(RenderGroup, GlBufferData);  
+    MeshHandle = PushNewMesh(RenderGroup, StoredVertexBuffer->VertexCount, StoredVertexBuffer->VertexData);  
+    IndexHandle = PushNewMeshIndices(RenderGroup, MeshHandle, StoredVertexBuffer->IndexCount, StoredVertexBuffer->Indeces);
   }
   
 
   // Create a mapping between the render-handle and the asset-handle
   {
     u32* StoredRenderHandle = (u32*) GetNewBlock(GlobalPersistentArena, &RenderSystem->RenderHandles);
-    *StoredRenderHandle = RenderHandle;
+    *StoredRenderHandle = IndexHandle;
     Insert(&RenderSystem->MeshHandleMap, AssetKey, StoredRenderHandle);
   }
 
-  return RenderHandle;
+  return IndexHandle;
 }
 
 u32* CreateInternalTextures(render_group* RenderGroup, window_size_pixel* Window)
@@ -1130,9 +1132,12 @@ internal void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
 }
 
 u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr) {
-  u32 Handle = PushNewMesh(GlobalRenderCommands->RenderGroup, *BufferDataPtr);
-  SetHandle(&GlobalRenderSystem->MeshHandleMap, AssetKey, Handle);
-  return Handle;
+  Assert(BufferDataPtr->BufferCount == 1);
+  gl_vertex_buffer* VertexBuffer = BufferDataPtr->BufferData;
+  u32 MeshHandle = PushNewMesh(GlobalRenderCommands->RenderGroup, VertexBuffer->VertexCount, VertexBuffer->VertexData);
+  u32 IndexHandle = PushNewMeshIndices(GlobalRenderCommands->RenderGroup, MeshHandle, VertexBuffer->IndexCount, VertexBuffer->Indeces);
+  SetHandle(&GlobalRenderSystem->MeshHandleMap, AssetKey, IndexHandle);
+  return IndexHandle;
 }
 
 u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture) {

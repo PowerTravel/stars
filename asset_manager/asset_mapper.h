@@ -6,6 +6,20 @@
 
 extern memory_arena* GlobalTransientArena;
 
+struct gl_vertex_buffer
+{
+  u32 IndexCount;
+  u32* Indeces;
+  u32 VertexCount;
+  opengl_vertex* VertexData;
+};
+
+
+struct opengl_buffer_data{
+  u32 BufferCount;
+  gl_vertex_buffer* BufferData;
+};
+   
 namespace asset::mapper{
 global_variable u32 G_PrimeNumberList[] =  {23, 47, 97, 193, 383, 769, 1531, 3079, 6043};
 
@@ -107,7 +121,6 @@ b32 Exists(u32 ArraySize, tracker_element* TrackerArray, const tracker_element& 
   return false;
 }
 
-
 gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
                      const u32  IndexCount,
                      const u32* VerticeIndeces, const u32* NormalIndeces, const u32* TextureIndeces,
@@ -115,8 +128,6 @@ gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
 {
   u32* GLVerticeIndexArray  = PushArray(Arena, 3*IndexCount, u32);
   u32* GLIndexArray         = PushArray(Arena, IndexCount, u32);
-
-
 
   u32 TrackerCount = utils::GetHashListSize(IndexCount, 3);
   tracker_element* TrackerArray  = PushArray(Arena, TrackerCount, tracker_element);
