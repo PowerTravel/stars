@@ -7,7 +7,7 @@ extern memory_arena* GlobalTransientArena;
 
 namespace asset {
 
-u32 ToKey(type Type, c8* UniqueName)
+u32 ToKey(type Type, const c8* UniqueName)
 {
   c8 TempKeyString[ASSET_MAX_KEY_LENGTH] = {};
 
@@ -23,7 +23,7 @@ u32 ToKey(type Type, c8* UniqueName)
   return Result;
 }
 
-header* CreateHeader(type Type, c8* UniqueName, c8* Name, c8* Path, u32 DataSize)
+header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* Path, u32 DataSize)
 {
   Assert(UniqueName && *UniqueName != '\0');
   // Layout of any memory allocated in the asset_manager is -> | HEADER | DATA | NAME | PATH | KEY |
@@ -403,7 +403,7 @@ aabb3f GetAABB(u32 VertexCount, const v3* VerticeArray)
   return Result;
 }
 
-mesh* CreateMesh( c8* MeshKey, c8* MeshName, c8* MeshPath,
+mesh* CreateMesh( const c8* MeshKey, const c8* MeshName, const c8* MeshPath,
                   const u32 IndexCount,
                   const u32* VerticeIndeces, const u32* NormalIndeces, const u32* TextureIndeces,
                   const u32 VerticeCount,    const u32 NormalCount,    const u32 TextureCount,
@@ -528,7 +528,7 @@ void* Find(type Type, u32 Key) {
   return Result;
 }
 
-void* Find(type Type, c8* Name) {
+void* Find(type Type, const c8* Name) {
   u32 Key = ToKey(Type, Name);
   void* Result = Find(Type, Key);
   return Result;
@@ -548,7 +548,7 @@ void Free(type Type, c8* Name) {
   Free(Type, Key);
 }
 
-u32 CopyObjBitmapToTexture(c8* Key, texture_type Type, obj_bitmap* ObjBitmap)
+internal u32 CopyObjBitmapToTexture(const c8* Key, texture_type Type, const obj_bitmap* ObjBitmap)
 {
   if(!ObjBitmap){return 0;};
 
@@ -760,7 +760,7 @@ material* GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
   return 0;
 }
 
-render_group_element CreateRenderGroupElement(c8* Key, c8* Name, c8* Path, obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
+render_group_element CreateRenderGroupElement(const c8* Key, const c8* Name, const c8* Path, obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
 {  
   render_group_element Result = {};
 
@@ -790,9 +790,9 @@ render_group_element CreateRenderGroupElement(c8* Key, c8* Name, c8* Path, obj_g
 }
 
 
-c8* CreateUniqueKey(c8* Name, u32 Index, u32 MaxCount)
+c8* CreateUniqueKey(const c8* Name, u32 Index, u32 MaxCount)
 {
-  c8* Result = Name;
+  c8* Result = (c8*) Name;
   if(MaxCount > 1)
   {
     u32 Length = ASSET_MAX_NAME_LENGTH;
@@ -802,12 +802,12 @@ c8* CreateUniqueKey(c8* Name, u32 Index, u32 MaxCount)
   return Result;
 }
 
-u32 LoadObj(c8* Path, c8* KeyString)
+u32 LoadObj(const c8* Path, const c8* UniqueName)
 {
   Assert(Path && *Path != '\0');
-  if(!KeyString || *KeyString == '\0')
+  if(!UniqueName || *UniqueName == '\0')
   {
-    KeyString = Path;
+    UniqueName = Path;
   }
 
   obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
@@ -818,7 +818,7 @@ u32 LoadObj(c8* Path, c8* KeyString)
   for (int i = 0; i < ObjMtlGroup->MaterialCount; ++i)
   {
     mtl_material* Mtl = ObjMtlGroup->Materials + i;
-    c8* MtlKey = CreateUniqueKey(KeyString, i, Obj->ObjectCount);
+    c8* MtlKey = CreateUniqueKey(UniqueName, i, Obj->ObjectCount);
     material* Material = CopyObjMtlToMaterial(ObjMtlGroup->Path, Mtl, MtlKey);
     MaterialMap.Mtl_Materials[i] = Mtl;
     MaterialMap.Materials[i] = Material;
@@ -826,7 +826,7 @@ u32 LoadObj(c8* Path, c8* KeyString)
 
   // RENDER_GROUP
   midx RenderGroupMemSize = sizeof(render_group) + Obj->ObjectCount * sizeof(render_group_element);
-  header* Header = CreateHeader(type::RENDER_GROUP, KeyString, Obj->ObjectName, Path, RenderGroupMemSize);
+  header* Header = CreateHeader(type::RENDER_GROUP, UniqueName, Obj->ObjectName, Path, RenderGroupMemSize);
   render_group* RenderGroup = (render_group*) Header->Data;
   
   u32 ActualElementCount = {};
@@ -843,8 +843,8 @@ u32 LoadObj(c8* Path, c8* KeyString)
       //       if we see a spline or a surface we create a new empty object group. For now we are fine allocating a bit of extra space 
       //       but this should be taken care of once we implement surfaces and splines etc.
       c8 MeshNameBuff[ASSET_MAX_NAME_LENGTH] = {};
-      c8* MeshName = CreateUniqueKey(KeyString, i, Obj->ObjectCount);
-      RenderGroup->Elements[i] = CreateRenderGroupElement(KeyString, MeshName, Path, ObjGrp, Obj->MeshData, &MaterialMap);
+      c8* MeshName = CreateUniqueKey(UniqueName, i, Obj->ObjectCount);
+      RenderGroup->Elements[i] = CreateRenderGroupElement(UniqueName, MeshName, Path, ObjGrp, Obj->MeshData, &MaterialMap);
       ElementCount++;
     }
   }
@@ -874,7 +874,7 @@ void CopyMesh(const mesh* SrcMesh, mesh* DstMesh)
   }
 }
 
-u32 LoadTga(c8* Path, texture_type Type, c8* UniqueName)
+u32 LoadTga(const c8* Path, texture_type Type, const c8* UniqueName)
 {
   obj_bitmap* ObjBitmap = LoadTGA(TransientAllocator, Path);
   if(UniqueName == 0 || *UniqueName =='\0')
@@ -886,7 +886,7 @@ u32 LoadTga(c8* Path, texture_type Type, c8* UniqueName)
 }
 
 
-mesh* LoadMesh(c8* UniqueName, const mesh* Mesh, u32* ResultKey)
+mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, u32* ResultKey)
 {
   midx MeshSize = GetMeshSize(Mesh);
   header* Header = CreateHeader(type::MESH, UniqueName, UniqueName, "N/A", MeshSize);
@@ -900,7 +900,7 @@ mesh* LoadMesh(c8* UniqueName, const mesh* Mesh, u32* ResultKey)
   return Result;
 }
 
-texture* LoadTexture(c8* UniqueName, const texture* Texture, u32* ResultKey)
+texture* LoadTexture(const c8* UniqueName, const texture* Texture, u32* ResultKey)
 {
   midx TextureSize = (Texture->BPP/8) * (Texture->Width) * (Texture->Height);
   header* Header = CreateHeader(type::TEXTURE, UniqueName, UniqueName, "N/A", TextureSize + sizeof(texture));
@@ -918,7 +918,7 @@ texture* LoadTexture(c8* UniqueName, const texture* Texture, u32* ResultKey)
   return Result;
 }
 
-material* LoadMaterial(c8* UniqueName, const material* Material, u32* ResultKey)
+material* LoadMaterial(const c8* UniqueName, const material* Material, u32* ResultKey)
 {
   midx MaterialSize = GetMaterialSize(Material);
   header* Header = CreateHeader(type::MATERIAL, UniqueName, UniqueName, "N/A", MaterialSize);

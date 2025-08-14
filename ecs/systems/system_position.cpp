@@ -1,7 +1,8 @@
 #include "ecs/systems/system_position.h"
 #include "platform/jwin_platform.h"
 
-namespace ecs::position {
+namespace ecs { 
+namespace position {
 
 using namespace component;
 
@@ -27,4 +28,5 @@ void UpdatePositions(entity_manager* EntityManager)
   }
 }
 
+}
 }

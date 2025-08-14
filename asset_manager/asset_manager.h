@@ -46,16 +46,16 @@ header* ToHeader(bptr Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
-u32 ToKey(type Type, c8* UniqueName);
+u32 ToKey(type Type, const c8* UniqueName);
 void* Find(type Type, u32 Key);
-void* Find(type Type, c8* Name);
+void* Find(type Type, const c8* Name);
 void Free(type Type, u32 Key);
-void Free(type Type, c8* Name);
+void Free(type Type, const c8* Name);
 
-u32 LoadObj(c8* Path, c8* UniqueName = 0);
-u32 LoadTga(c8* Path, texture_type Type, c8* UniqueName = 0);
+u32 LoadObj(const c8* Path, const c8* UniqueName = 0);
+u32 LoadTga(const c8* Path, texture_type Type, const c8* UniqueName = 0);
 
-mesh* LoadMesh(c8* UniqueName, const mesh* Mesh, u32* ResultKey = 0);
-texture* LoadTexture(c8* UniqueName, const texture* Texture, u32* ResultKey = 0);
-material* LoadMaterial(c8* UniqueName, const material* Material, u32* ResultKey = 0);
+mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, u32* ResultKey = 0);
+texture* LoadTexture(const c8* UniqueName, const texture* Texture, u32* ResultKey = 0);
+material* LoadMaterial(const c8* UniqueName, const material* Material, u32* ResultKey = 0);
 }

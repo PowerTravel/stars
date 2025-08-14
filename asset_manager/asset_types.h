@@ -13,7 +13,7 @@ namespace asset {
   };
 
 
-  c8* TypeToString(type Type)
+  const c8* TypeToString(type Type)
   {
     switch(Type)
     {
@@ -25,7 +25,7 @@ namespace asset {
         INVALID_CODE_PATH
       }
     }
-    return '\0';
+    return "\0";
   }
 
   struct string {

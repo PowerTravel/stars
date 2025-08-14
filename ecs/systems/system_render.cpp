@@ -4,7 +4,8 @@
 
 extern ecs::render::system* GlobalRenderSystem;
 
-namespace ecs::render {
+namespace ecs{
+namespace render {
 
 enum class overlay_object_type {
   POSITION
@@ -32,7 +33,7 @@ u32 GetMeshHandle(u32 AssetKey)
   return Result;
 }
 
-u32 GetMeshHandle(c8* Name)
+u32 GetMeshHandle(const c8* Name)
 {
   u32 AssetKey = asset::ToKey(asset::type::MESH, Name);
   u32 Handle = GetMeshHandle(AssetKey);
@@ -54,7 +55,7 @@ u32 Get32BitTextureHandle(u32 AssetKey)
   return Result;
 }
 
-u32 Get32BitTextureHandle(c8* Name)
+u32 Get32BitTextureHandle(const c8* Name)
 {
   u32 AssetKey = asset::ToKey(asset::type::TEXTURE, Name);
   u32 Handle = Get32BitTextureHandle(AssetKey);
@@ -1202,6 +1203,6 @@ void DrawAABB(aabb3f AABB) {
   DrawLine3D(AABBVertices[3], AABBVertices[7], Color, Thickness);
 }
 
-} // ecs::render
-
+} // render
+} // ecs
 

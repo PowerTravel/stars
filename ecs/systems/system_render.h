@@ -204,11 +204,11 @@ namespace data {
 
   // Loading assets to gpu
   u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr);
-  u32 GetMeshHandle(c8* Name);
+  u32 GetMeshHandle(const c8* Name);
   u32 GetMeshHandle(u32 AssetKey);
 
   u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture);
-  u32 Get32BitTextureHandle(c8* Name);
+  u32 Get32BitTextureHandle(const c8* Name);
   u32 Get32BitTextureHandle(u32 AssetKey);
 
   u32 FrameBuffer(u32 Index);

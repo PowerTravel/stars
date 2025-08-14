@@ -20,7 +20,8 @@ struct opengl_buffer_data{
   gl_vertex_buffer* BufferData;
 };
    
-namespace asset::mapper{
+namespace asset {
+namespace mapper{
 global_variable u32 G_PrimeNumberList[] =  {23, 47, 97, 193, 383, 769, 1531, 3079, 6043};
 
 u32 PushUnique( u8* Array, const u32 ElementCount, const u32 ElementByteSize,
@@ -218,4 +219,5 @@ opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, const mesh * Mesh)
 }
 
 
+}
 }

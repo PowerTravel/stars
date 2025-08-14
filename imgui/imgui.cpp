@@ -734,7 +734,7 @@ b32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect
   return ImguiIsActive(Id);
 }
 
-utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, c8* Text, c8* Suffix = "...")
+utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, const c8* Text, const c8* Suffix = "...")
 {
   size_t ByteSize = jstr::StringLength(Text) + jstr::StringLength(Suffix) + 1;
   utf8_string_buffer Buff = CreateTempStringBuffer(ByteSize);

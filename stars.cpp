@@ -58,7 +58,7 @@ internal inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::component
   Initiate(Grp->Elements->Mesh, Grp->Elements->Material, Render);
 }
 
-void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, c8* UniqueName)
+void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, const c8* UniqueName)
 {
   asset::material Material = {};
   Material.Ka = &Ambient;
@@ -128,7 +128,7 @@ u32 CreateLineRenderProgram(render_group* RenderGroup)
   return ProgramHandle;
 }
 
-u32 Load32BitColorTexture(c8* Name, c8* Path)
+u32 Load32BitColorTexture(const c8* Name, const c8* Path)
 {
   u32 Key = asset::LoadTga(Path, asset::texture_type::DIFFUSE_COLOR, Name);
   asset::texture* Texture = (asset::texture*) asset::Find(asset::type::TEXTURE, Key);
@@ -1189,7 +1189,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
    
     { // Create some entities
-      #if 0
+      #if 1
       { // Checker Floor
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER | ecs::flag::COLLIDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1250,7 +1250,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::Init(Collider, Mesh);
       }
       #endif
-#if 1
+#if 0
       { // TestBuilding
         asset::render_group* RenderGroup = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "Test");
         for (int i = 0; i <  RenderGroup->ElementCount; ++i)

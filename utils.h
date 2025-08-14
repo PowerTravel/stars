@@ -1,6 +1,6 @@
 #pragma once
 
-char** LoadFileFromDisk(char* CodePath)
+char** LoadFileFromDisk(const char* CodePath)
 {
   char** Result = 0; 
   debug_read_file_result Shader = Platform.DEBUGPlatformReadEntireFile(CodePath);
