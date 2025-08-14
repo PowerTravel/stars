@@ -42,7 +42,12 @@ internal inline void Initiate(asset::mesh* Mesh, asset::material* Material, ecs:
 
 internal inline void Initiate(asset::render_group_element* Element, ecs::render::component* Render)
 {
-  Initiate(Element->Mesh, Element->Material, Render);
+  if(Element->Material)
+  {
+    Initiate(Element->Mesh, Element->Material, Render);
+  }else{
+    Initiate(Element->Mesh, (asset::material*) asset::Find(asset::type::MATERIAL, "silver"), Render);
+  }
   //Initiate(Element->Mesh, (asset::material*) asset::Find(asset::type::MATERIAL, "silver"), Render);
 }
 
@@ -1150,7 +1155,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     asset::LoadObj("..\\data\\cylinder.obj", "Cylinder");
     asset::LoadObj("..\\data\\triangle.obj", "Triangle");
     asset::LoadObj("..\\data\\plane.obj", "Plane");
-    asset::LoadObj("..\\data\\maquetiiillla.obj", "Test");
+    asset::LoadObj("C:\\Users\\jh\\Desktop\\Donut\\Donut_grouping.obj", "Test");
+    asset::LoadObj("..\\data\\maquetiiillla.obj", "Test2");
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
@@ -1183,6 +1189,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
    
     { // Create some entities
+      #if 0
       { // Checker Floor
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER | ecs::flag::COLLIDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1242,7 +1249,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
         ecs::collider::Init(Collider, Mesh);
       }
-
+      #endif
 #if 1
       { // TestBuilding
         asset::render_group* RenderGroup = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "Test");
@@ -1250,28 +1257,29 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         //for (int i = 0; i <  5; ++i)
         {
           asset::render_group_element* Element = RenderGroup->Elements + i;
-
-          c8 NameBuf[256] = {};
-          FormatString(NameBuf, ArrayCount(NameBuf), "Test_%d", i);
-          ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, NameBuf, ecs::flag::RENDER | ecs::flag::COLLIDER);
-          ecs::position::component* Position = GetPositionComponent(&Entity);
-          ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
-          
-          asset::mesh* Mesh = Element->Mesh;
-          v3 MidPoint = (Mesh->AABB.P0 + Mesh->AABB.P1)*0.5;
-          for (int i = 0; i < Mesh->vCount; ++i)
+          if(Element->Mesh)
           {
-            Mesh->v[i] -= MidPoint;
+
+            c8 NameBuf[256] = {};
+            FormatString(NameBuf, ArrayCount(NameBuf), "Test_%d", i);
+            ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, NameBuf, ecs::flag::RENDER);
+            ecs::position::component* Position = GetPositionComponent(&Entity);
+            ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
+            Initiate(Element, GetRenderComponent(&Entity));
+
+            /*
+            asset::mesh* Mesh = Element->Mesh;
+            v3 MidPoint = (Mesh->AABB.P0 + Mesh->AABB.P1)*0.5;
+            for (int i = 0; i < Mesh->vCount; ++i)
+            {
+              Mesh->v[i] -= MidPoint;
+            }
+            Mesh->AABB.P0 -= MidPoint;
+            Mesh->AABB.P1 -= MidPoint;
+            ecs::collider::Init(GetColliderComponent(&Entity), Mesh);
+            */
           }
-          Mesh->AABB.P0 -= MidPoint;
-          Mesh->AABB.P1 -= MidPoint;
-          Initiate(Element, GetRenderComponent(&Entity));
-          ecs::collider::Init(GetColliderComponent(&Entity), Mesh);
         }
-        //-1326.18506
-        //18.7000008
-        //62.6960068
-        int a = 10;
       }
 #endif
     }
@@ -1283,10 +1291,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   //Platform.DEBUGPrint("%d, %d, %d\n", Square->EntityID, Square->ChunkListIndex, GetBlockCount(&GlobalState->World.EntityManager->EntityList));
 
+/*
   ecs::position::component* Position = GetPositionComponent(GlobalState->DebugSquare);
   //ecs::position::Set(Position, Position->RelativePosition, RotateQuaternion(0, V3(1,0,0)));
   ecs::position::Set(Position, Position->RelativePosition, QuaternionMultiplication(Position->RelativeRotation, RotateQuaternion(0.01, V3(0,1,0))), Position->Scale);
-
+*/
   ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
   CreateFrameBuffer(RenderCommands->RenderGroup, ecs::render::FrameBuffer(ecs::render::data::FRAMEBUFFER_DEFAULT),  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
