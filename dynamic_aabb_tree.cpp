@@ -1,14 +1,14 @@
 #include "dynamic_aabb_tree.h"
 #include "ecs/components/component_collider.h"
 
-inline internal bool
+inline file_local bool
 IsLeaf( aabb_tree_node* Node )
 {
   b32 Result = IsValid(&Node->EntityID);
   return Result;
 }
 
-inline internal midx
+inline file_local midx
 Size(aabb_tree_node** Base,
      aabb_tree_node** Head)
 {
@@ -16,7 +16,7 @@ Size(aabb_tree_node** Base,
   return (Head - Base);
 }
 
-inline internal aabb_tree_node**
+inline file_local aabb_tree_node**
 Push(aabb_tree_node** Head,
      aabb_tree_node*  Node)
 {
@@ -25,14 +25,14 @@ Push(aabb_tree_node** Head,
   return Head;
 }
 
-inline internal aabb_tree_node**
+inline file_local aabb_tree_node**
 Pop(aabb_tree_node** Head)
 {
   --Head;
   return Head;
 }
 
-inline internal aabb_tree_node**
+inline file_local aabb_tree_node**
 Push2(aabb_tree_node** Head,
       aabb_tree_node*  Node)
 {
@@ -41,14 +41,14 @@ Push2(aabb_tree_node** Head,
   return Head;
 }
 
-inline internal aabb_tree_node**
+inline file_local aabb_tree_node**
 Pop2(aabb_tree_node** Head)
 {
   Head-=2;
   return Head;
 }
 
-inline internal aabb_tree_node*
+inline file_local aabb_tree_node*
 Get(aabb_tree_node** Head)
 {
   return *Head;
@@ -204,7 +204,7 @@ broad_phase_result_stack* GetCollisionPairs( aabb_tree* Tree, u32* ResultStackSi
   return ResultHead;
 }
 
-internal aabb_tree_node**
+file_local aabb_tree_node**
 GetLeastVolumeincreaseBranch(aabb_tree_node* Parent,  aabb3f* LeafAABB)
 {
   r32 PreLeftVolume   = GetSize(&Parent->Left->AABB);

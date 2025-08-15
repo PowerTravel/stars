@@ -1,6 +1,6 @@
 #include "menu_attributes.h"
 
-inline internal u32
+inline file_local u32
 GetAttributeSize(u32 Attributes)
 {
   return GetAttributeSize((container_attribute)Attributes);
@@ -31,7 +31,7 @@ void * PushAttribute(menu_interface* Interface, container_node* Node, container_
   return Result;
 }
 
-internal u32
+file_local u32
 GetAttributeBatchSize(container_attribute Attri)
 {
   u32 Result = 0;

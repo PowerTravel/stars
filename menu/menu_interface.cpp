@@ -585,7 +585,7 @@ void SortHotLeafs(u32 OldHotLeafCount,   container_node** OldHotLeafs,
   *ExistingCount = NrExisting;
 }
 
-internal void UpdateHotLeafs(menu_interface* Interface, menu_tree* Menu)
+file_local void UpdateHotLeafs(menu_interface* Interface, menu_tree* Menu)
 {
   SCOPED_TRANSIENT_ARENA;
 
@@ -644,7 +644,7 @@ menu_tree* CreateNewRootContainer(menu_interface* Interface, container_node* Bas
   return Root;
 }
 
-internal void GetInput(jwin::device_input* DeviceInput, menu_interface* Interface)
+file_local void GetInput(jwin::device_input* DeviceInput, menu_interface* Interface)
 {
   Interface->PreviousMousePos = Interface->MousePos;
   Interface->MousePos = V2(DeviceInput->Mouse.X, DeviceInput->Mouse.Y);
@@ -699,7 +699,7 @@ void UpdateFocusWindow(menu_interface* Interface)
   }
 }
 
-internal void SetSelectedNode(menu_interface* Interface, container_node * Node)
+file_local void SetSelectedNode(menu_interface* Interface, container_node * Node)
 {
   if(Node && Interface->SelectedNode != Node)
   {

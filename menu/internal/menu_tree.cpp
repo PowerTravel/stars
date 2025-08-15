@@ -76,7 +76,7 @@ void TreeSensus( menu_tree* Menu )
   Menu->Depth = Pair.b;
 }
 
-inline internal menu_tree* GetNextSpawningWindow(menu_interface* Interface)
+inline file_local menu_tree* GetNextSpawningWindow(menu_interface* Interface)
 { 
   menu_tree* Result = 0;
   menu_tree* SpawningMenu = Interface->MenuSentinel.Next;

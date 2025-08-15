@@ -238,7 +238,7 @@ data::render_level* GetBotRenderLevel(system* System)
   return System->RenderSentinel.Next;
 }
 
-inline internal chunk_list* GetOverlayText(system* System, data::render_level* RenderLevel)
+inline file_local chunk_list* GetOverlayText(system* System, data::render_level* RenderLevel)
 {
   if(!IsInitiated(&RenderLevel->OverlayText))
   {
@@ -247,7 +247,7 @@ inline internal chunk_list* GetOverlayText(system* System, data::render_level* R
   return &RenderLevel->OverlayText;
 }
 
-inline internal chunk_list* GetOverlayQuads(system* System, data::render_level* RenderLevel)
+inline file_local chunk_list* GetOverlayQuads(system* System, data::render_level* RenderLevel)
 {
   if(!IsInitiated(&RenderLevel->OverlayQuads))
   {
@@ -256,7 +256,7 @@ inline internal chunk_list* GetOverlayQuads(system* System, data::render_level* 
   return &RenderLevel->OverlayQuads;
 }
 
-inline internal chunk_list* GetOverlayIcon(system* System, data::render_level* RenderLevel)
+inline file_local chunk_list* GetOverlayIcon(system* System, data::render_level* RenderLevel)
 {
   if(!IsInitiated(&RenderLevel->OverlayIcon))
   {
@@ -265,7 +265,7 @@ inline internal chunk_list* GetOverlayIcon(system* System, data::render_level* R
   return &RenderLevel->OverlayIcon;
 }
   
-inline internal chunk_list* GetSolidObjects()
+inline file_local chunk_list* GetSolidObjects()
 {
   if(!IsInitiated(&GlobalRenderSystem->SolidObjects))
   {
@@ -274,7 +274,7 @@ inline internal chunk_list* GetSolidObjects()
   return &GlobalRenderSystem->SolidObjects;
 }
 
-inline internal chunk_list* GetTransparentObjects()
+inline file_local chunk_list* GetTransparentObjects()
 {
   if(!IsInitiated(&GlobalRenderSystem->TransparentObjects))
   {
@@ -283,7 +283,7 @@ inline internal chunk_list* GetTransparentObjects()
   return &GlobalRenderSystem->TransparentObjects;
 }
 
-inline internal chunk_list* GetOverlayRenders()
+inline file_local chunk_list* GetOverlayRenders()
 {
   if(!IsInitiated(&GlobalRenderSystem->OverlayRenders))
   {
@@ -292,7 +292,7 @@ inline internal chunk_list* GetOverlayRenders()
   return &GlobalRenderSystem->OverlayRenders;
 }
 
-inline internal chunk_list* GetLineObjects()
+inline file_local chunk_list* GetLineObjects()
 {
   if(!IsInitiated(&GlobalRenderSystem->LineObjects))
   {
@@ -1126,7 +1126,7 @@ void Begin()
   GlobalRenderSystem->LineObjects = {};
 }
 
-internal void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
+file_local void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
   u32* HandleMem = (u32*) GetNewBlock(GlobalPersistentArena, &GlobalRenderSystem->RenderHandles);
   *HandleMem = Handle;
   Insert(HandleTree, Key, (void*) HandleMem);

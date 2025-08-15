@@ -47,7 +47,7 @@ struct component_list
 };
 
 
-internal inline b32
+file_local inline b32
 IndexOfLeastSignificantSetBit( bitmask32 EntityFlags, u32* Index )
 {
   bit_scan_result BitScan = FindLeastSignificantSetBit( EntityFlags );
@@ -55,21 +55,21 @@ IndexOfLeastSignificantSetBit( bitmask32 EntityFlags, u32* Index )
   return BitScan.Found;
 }
 
-internal inline u32 IndexOfLeastSignificantSetBit( bitmask32 EntityFlags )
+file_local inline u32 IndexOfLeastSignificantSetBit( bitmask32 EntityFlags )
 {
   bit_scan_result BitScan = FindLeastSignificantSetBit( EntityFlags );
   Assert(BitScan.Found);
   return BitScan.Index;
 }
 
-internal inline entity* GetEntityFromID(entity_manager* EM, entity_id* EntityID) 
+file_local inline entity* GetEntityFromID(entity_manager* EM, entity_id* EntityID) 
 { 
   entity* Entity = (entity*)  GetBlockIfItExists(&EM->EntityList, EntityID->ChunkListIndex);
   Assert(Entity->ID.EntityID == EntityID->EntityID);
   return Entity;
 }
 
-internal entity_component_link*
+file_local entity_component_link*
 AllocateNewComponents(entity_manager* EM, entity* Entity, bitmask32 NewComponentFlags)
 {
   u32 SetBitCount = GetSetBitCount(NewComponentFlags);
@@ -105,7 +105,7 @@ AllocateNewComponents(entity_manager* EM, entity* Entity, bitmask32 NewComponent
   return LinkHead;
 }
 
-internal entity_component_link*
+file_local entity_component_link*
 MergeMaps(entity_component_link* OldComponentMapBase, entity_component_link* NewComponentMapBase)
 {
   Assert(NewComponentMapBase);
@@ -163,7 +163,7 @@ MergeMaps(entity_component_link* OldComponentMapBase, entity_component_link* New
   return ResultMapBase;
 }
 
-internal void CreateAndInsertNewComponents(entity_manager* EM, entity* Entity, bitmask32 NewComponentFlags)
+file_local void CreateAndInsertNewComponents(entity_manager* EM, entity* Entity, bitmask32 NewComponentFlags)
 {
   // Make sure NewComponentFlags is _not_ in the entity already
   Assert((Entity->ComponentFlags & NewComponentFlags) == 0 );
@@ -175,7 +175,7 @@ internal void CreateAndInsertNewComponents(entity_manager* EM, entity* Entity, b
   Entity->ComponentFlags = Entity->ComponentFlags | NewComponentFlags;
 }
 
-internal bitmask32 GetTotalRequirements(entity_manager* EM, bitmask32 ComponentFlags)
+file_local bitmask32 GetTotalRequirements(entity_manager* EM, bitmask32 ComponentFlags)
 {
   bitmask32 SummedFlags = ComponentFlags;
   u32 ComponentIndex = 0;
@@ -219,7 +219,7 @@ u32 GetIndexOfBitInComponentMap(bitmask32 BitToEnumerate, bitmask32 BitMaskOfMap
   return 0;
 }
 
-internal inline entity_component_link*
+file_local inline entity_component_link*
 GetEntityComponentLink( entity* Entity, bitmask32 ComponentFlag )
 {
   u32 ComponentIndex = GetIndexOfBitInComponentMap(ComponentFlag, Entity->ComponentFlags);
@@ -234,7 +234,7 @@ GetEntityComponentLink( entity* Entity, bitmask32 ComponentFlag )
   return EntityComponentMap;
 }
 
-internal bptr GetComponent(entity_manager* EM, entity* Entity, u32 ComponentFlag)
+file_local bptr GetComponent(entity_manager* EM, entity* Entity, u32 ComponentFlag)
 {
   if( !(Entity->ComponentFlags & ComponentFlag) )
   {
@@ -249,7 +249,7 @@ internal bptr GetComponent(entity_manager* EM, entity* Entity, u32 ComponentFlag
   return Result;
 }
 
-internal component_list*
+file_local component_list*
 GetListWithLowestCount(entity_manager* EM, bitmask32 ComponentFlags)
 {
   component_list* ListWithLowestCount = 0;
@@ -270,7 +270,7 @@ GetListWithLowestCount(entity_manager* EM, bitmask32 ComponentFlags)
   return ListWithLowestCount;
 }
 
-internal inline b32
+file_local inline b32
 DoesEntityHoldAllComponents(entity* Entity, bitmask32 Flags)
 {
   b32 Result = (Entity->ComponentFlags & Flags) == Flags;
@@ -524,14 +524,14 @@ void GetEntitiesHoldingTypes(entity_manager* EM, bitmask32 ComponentFlags, entit
   }
 }
 
-internal inline component_list* GetComponentList(entity_manager* EM, bitmask32 ComponentFlag)
+file_local inline component_list* GetComponentList(entity_manager* EM, bitmask32 ComponentFlag)
 {
   u32 ComponentListIndex = IndexOfLeastSignificantSetBit(ComponentFlag);
   component_list* ComponentList = EM->ComponentTypeVector + ComponentListIndex;
   return ComponentList;
 }
 
-internal inline component_list* GetComponentList(entity_manager* EM, entity_component_link* ComponentLink)
+file_local inline component_list* GetComponentList(entity_manager* EM, entity_component_link* ComponentLink)
 {
   component_list* ComponentList = GetComponentList(EM, ComponentLink->Component->Type);
   return ComponentList;

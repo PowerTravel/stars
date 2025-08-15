@@ -212,7 +212,7 @@ void DisconnectNode(container_node* Node)
   Node->PreviousSibling = 0;
 }
 
-internal void FreeUpdateFunction(menu_interface* Interface, update_function_arguments* Args)
+file_local void FreeUpdateFunction(menu_interface* Interface, update_function_arguments* Args)
 {
   if(Args->FreeDataWhenComplete && Args->Data)
   {
@@ -222,7 +222,7 @@ internal void FreeUpdateFunction(menu_interface* Interface, update_function_argu
   *Args = {};
 }
 
-internal void CancelAllUpdateFunctions(menu_interface* Interface, container_node* Node )
+file_local void CancelAllUpdateFunctions(menu_interface* Interface, container_node* Node )
 {
   for(u32 i = 0; i < ArrayCount(Interface->UpdateQueue); ++i)
   {

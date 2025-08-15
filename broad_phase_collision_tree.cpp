@@ -3,13 +3,13 @@
 
 namespace broadphase {
 
-inline internal b32
+inline file_local b32
 IsLeaf( node* Node )
 {
   return !(Node->Left || Node->Right);
 }
 
-inline internal midx
+inline file_local midx
 Size(node** Base,
      node** Head)
 {
@@ -17,7 +17,7 @@ Size(node** Base,
   return (Head - Base);
 }
 
-inline internal node**
+inline file_local node**
 Push2(node** Head,
       node*  Node)
 {
@@ -26,21 +26,21 @@ Push2(node** Head,
   return Head;
 }
 
-inline internal node**
+inline file_local node**
 Pop2(node** Head)
 {
   Head-=2;
   return Head;
 }
 
-inline internal node*
+inline file_local node*
 Get(node** Head)
 {
   return *Head;
 }
 
 
-internal node**
+file_local node**
 GetLeastVolumeincreaseBranch(node* Parent,  aabb3f* LeafAABB)
 {
   r32 PreLeftVolume   = GetVolume(&Parent->Left->AABB);

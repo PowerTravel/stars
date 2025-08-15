@@ -14,7 +14,7 @@ menu_functions GetGridFunctions()
   return Result;
 }
 
-internal void SetChildWidthsAndHeights(u32 NumCols, r32* ResultColWidths, r32 CellWidth, u32 NumRows, r32* ResultRowHeights, r32 CellHeight, container_node* FirstChild)
+file_local void SetChildWidthsAndHeights(u32 NumCols, r32* ResultColWidths, r32 CellWidth, u32 NumRows, r32* ResultRowHeights, r32 CellHeight, container_node* FirstChild)
 {
   container_node* Child = FirstChild;
   for (u32 j = 0; j < NumCols; ++j)
@@ -55,7 +55,7 @@ internal void SetChildWidthsAndHeights(u32 NumCols, r32* ResultColWidths, r32 Ce
   }
 }
 
-internal r32 GetVectorSum(u32 Count, r32* NumVec)
+file_local r32 GetVectorSum(u32 Count, r32* NumVec)
 {
   r32 Result = 0;
   for (int i = 0; i < Count; ++i)
@@ -65,7 +65,7 @@ internal r32 GetVectorSum(u32 Count, r32* NumVec)
   return Result;
 }
 
-internal void SetChildXAndYRelativePosition(u32 NumCols, r32* CellWidths, r32 TotalWidth, u32 NumRows, r32* CellHeights, r32 TotalHeight, container_node* FirstChild)
+file_local void SetChildXAndYRelativePosition(u32 NumCols, r32* CellWidths, r32 TotalWidth, u32 NumRows, r32* CellHeights, r32 TotalHeight, container_node* FirstChild)
 {
   container_node* Child = FirstChild;
   r32 XCol = 0;
@@ -103,7 +103,7 @@ internal void SetChildXAndYRelativePosition(u32 NumCols, r32* CellWidths, r32 To
   }
 }
 
-internal void SetChildXAndYAbsolutePosition(u32 ColCount, u32 RowCount, r32 TotalWidth, r32 TotalHeight, grid_node* GridNode, rect2f ParentRegion, container_node* FirstChild)
+file_local void SetChildXAndYAbsolutePosition(u32 ColCount, u32 RowCount, r32 TotalWidth, r32 TotalHeight, grid_node* GridNode, rect2f ParentRegion, container_node* FirstChild)
 {
   r32 XOffset = 0;
   r32 YOffset = 0;

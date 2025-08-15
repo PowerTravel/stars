@@ -33,14 +33,14 @@ global_variable r32 g_t = 0;
 
 
 
-internal inline void Initiate(asset::mesh* Mesh, asset::material* Material, ecs::render::component* Render)
+file_local inline void Initiate(asset::mesh* Mesh, asset::material* Material, ecs::render::component* Render)
 {
   u32 MeshAssetKey = asset::ToHeader( (bptr) Mesh)->Key;
   u32 MaterialAssetKey = asset::ToHeader( (bptr) Material)->Key;
   ecs::render::Init(MeshAssetKey, MaterialAssetKey, Render);
 }
 
-internal inline void Initiate(asset::render_group_element* Element, ecs::render::component* Render)
+file_local inline void Initiate(asset::render_group_element* Element, ecs::render::component* Render)
 {
   if(Element->Material)
   {
@@ -51,7 +51,7 @@ internal inline void Initiate(asset::render_group_element* Element, ecs::render:
   //Initiate(Element->Mesh, (asset::material*) asset::Find(asset::type::MATERIAL, "silver"), Render);
 }
 
-internal inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::component* Render)
+file_local inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::component* Render)
 {
   asset::render_group* Grp = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, RenderGroupAssetHandle);
   Assert(Grp->ElementCount == 1); // We don't support rendering mutliple Elements
@@ -1155,8 +1155,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     asset::LoadObj("..\\data\\cylinder.obj", "Cylinder");
     asset::LoadObj("..\\data\\triangle.obj", "Triangle");
     asset::LoadObj("..\\data\\plane.obj", "Plane");
-    asset::LoadObj("C:\\Users\\jh\\Desktop\\Donut\\Donut_grouping.obj", "Test");
-    asset::LoadObj("..\\data\\maquetiiillla.obj", "Test2");
+//    asset::LoadObj("..\\data\\maquetiiillla.obj", "Test2");
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
@@ -1252,6 +1251,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       #endif
 #if 0
       { // TestBuilding
+        asset::LoadObj("C:\\Users\\jh\\Desktop\\Donut\\Donut_grouping.obj", "Test");
         asset::render_group* RenderGroup = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "Test");
         for (int i = 0; i <  RenderGroup->ElementCount; ++i)
         //for (int i = 0; i <  5; ++i)
@@ -1353,7 +1353,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramVertex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramFragment.glsl"));
   }
-  
+
+
 
   ecs::position::UpdatePositions(GetEntityManager());
   

@@ -76,7 +76,7 @@ midx GetMeshSize(u32 IndexCount, u32 VertexCount, u32 NormalCount, u32 TextureCo
   return TotalMeshSize;
 }
 
-internal inline midx GetMeshSize(const mesh* Mesh) {
+file_local inline midx GetMeshSize(const mesh* Mesh) {
   midx Result = GetMeshSize(Mesh->IndexCount, Mesh->vCount, Mesh->vnCount, Mesh->vtCount);
   return Result;
 }
@@ -548,7 +548,7 @@ void Free(type Type, c8* Name) {
   Free(Type, Key);
 }
 
-internal u32 CopyObjBitmapToTexture(const c8* Key, texture_type Type, const obj_bitmap* ObjBitmap)
+file_local u32 CopyObjBitmapToTexture(const c8* Key, texture_type Type, const obj_bitmap* ObjBitmap)
 {
   if(!ObjBitmap){return 0;};
 
@@ -565,7 +565,7 @@ internal u32 CopyObjBitmapToTexture(const c8* Key, texture_type Type, const obj_
   return Header->Key;
 }
 
-internal midx GetMaterialSize(
+file_local midx GetMaterialSize(
     v4* Ka,
     v4* Kd,
     v4* Tf,
@@ -588,7 +588,7 @@ internal midx GetMaterialSize(
   return MaterialSizeBytes;
 }
 
-internal midx GetMaterialSize(const material* Material){
+file_local midx GetMaterialSize(const material* Material){
   midx Result = GetMaterialSize(
     Material->Ka,
     Material->Kd,
@@ -667,7 +667,7 @@ void InitiateMaterial (
 }
 
 
-internal void CopyMaterial( const material* Src, material* Dst)
+file_local void CopyMaterial( const material* Src, material* Dst)
 {
   u32 KaSize = BranchlessArithmatic(Src->Ka == 0, 0, sizeof(v4));
   u32 KdSize = BranchlessArithmatic(Src->Kd == 0, 0, sizeof(v4));

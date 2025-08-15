@@ -286,7 +286,7 @@ void ToggleMaximizeWindow(menu_interface* Interface, menu_tree* Menu, container_
   }
 }
 
-internal rect2f GetMinimumRootWindowSize(root_border_collection* BorderCollection, r32 MinimumRegionWidth, r32 MinimumRegionHeight)
+file_local rect2f GetMinimumRootWindowSize(root_border_collection* BorderCollection, r32 MinimumRegionWidth, r32 MinimumRegionHeight)
 {
   rect2f Result = {};
   Result.X = GetBorderNode(BorderCollection->Left)->Position  + MinimumRegionWidth*0.5;
