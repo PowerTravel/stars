@@ -1,4 +1,14 @@
 #pragma once
+
+#include "externals\json.hpp"
+//#include <algorithm>
+//#include <cassert>
+#include <iostream>
+#include <fstream>
+//#include <iterator>
+//#include <ranges>
+
+
 #include "platform/jwin_platform.h"
 #include "platform/jfont.h"
 #include "commons/random.h"

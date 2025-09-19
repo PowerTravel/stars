@@ -24,6 +24,8 @@
 #include "dynamic_aabb_tree.cpp"
 #include "ecs/components/component_collider.h"
 //#include "dynamic_aabb_tree.cpp"
+//#include "externals\json_fwd.hpp"
+#include "gltf_loader.hpp"
 
 #include "utils.h"
 
@@ -1180,6 +1182,39 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ecs::render::Load32BitTextureToGpu(WhitePixelKey, &WhitePixelBitmap);
 
     GlobalState->Initialized = true;
+
+    {
+
+      debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile("C:\\Users\\jh\\Desktop\\box.gltf");
+
+
+      gltf::Load("C:\\Users\\jh\\Desktop", "box.gltf",
+        [](const char* Path, size_t* Size){
+          debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile(Path);
+          *Size = ReadResult.ContentSize;
+          return ReadResult.Contents;
+        },
+        [](void* FileDataToFree){
+          Platform.DEBUGPlatformFreeFileMemory(FileDataToFree);
+        },
+        [](size_t ByteSize){
+          return PushSize(GlobalPersistentArena, ByteSize);
+        },
+        [](size_t ByteSize){
+          return PushSize(GlobalTransientArena, ByteSize);
+        });
+
+      nlohmann::json data1 = nlohmann::json::parse( (const char*) ReadResult.Contents);
+      Platform.DEBUGPlatformFreeFileMemory(ReadResult.Contents);
+
+      std::ifstream f("C:\\Users\\jh\\Desktop\\box.gltf");
+      nlohmann::json data2 = nlohmann::json::parse(f);
+
+      for (auto& element : data1) {
+        Platform.DEBUGPrint("%s\n", element.dump().c_str());
+      }
+    }
+
 
     GlobalState->Camera = {};
     InitiateCamera(&GlobalState->Camera, 70, GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio, 0.1);

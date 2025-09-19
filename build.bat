@@ -31,7 +31,7 @@ echo WAITING FOR PDB > lock.tmp
 cl  %CommonCompilerFlags% %CPP20% -DTRANSLATION_UNIT_INDEX=0 %ApplicationSrcMainFile%  -Fm%OutputFileName%.map -MTd -LD /link -incremental:no -opt:ref  %CommonLinkerFlags% -PDB:%OutputFileName%_%random%.pdb -EXPORT:ApplicationUpdateAndRender 
 set LastError=%ERRORLEVEL%
 del lock.tmp
-cl  %CommonCompilerFlags% %CPP20% -DTRANSLATION_UNIT_INDEX=1  ..\jwin\win32\win32_main.cpp -Fmwin32_main.map /link %CommonLinkerFlags% 
+REM cl  %CommonCompilerFlags% %CPP20% -DTRANSLATION_UNIT_INDEX=1  ..\jwin\win32\win32_main.cpp -Fmwin32_main.map /link %CommonLinkerFlags% 
 
 ..\jwin\ctime\ctime -end jwin_main.ctm %LastError%
 popd
