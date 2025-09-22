@@ -23,6 +23,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       return PushSize(GlobalTransientArena, ByteSize);
     };
 
+    #define GltfNewBlock(MemoryAllocator, Size) (uint8_t*) MemoryAllocator(Size)
     #define GltfNewStruct(MemoryAllocator, Type) (Type*) MemoryAllocator(sizeof(Type))
     #define GltfNewArray(MemoryAllocator, Count, Type) (Type*) MemoryAllocator(sizeof(Type)*(Count))
 
@@ -265,7 +266,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
 
     size_t LoadedSize;
-    void* LoadedData;
+    uint8_t* LoadedData;
 
   };
 
@@ -1160,22 +1161,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     return Result;
   }
-/*
-  int AccessorTypeToMemSize(raw_accessor::type Type)
-  {
-    switch(Type)
-    {
-      case raw_accessor::type::SCALAR: return 1;  break;
-      case raw_accessor::type::VEC2:   return 2;  break;
-      case raw_accessor::type::VEC3:   return 3;  break;
-      case raw_accessor::type::VEC4:   return 4;  break;
-      case raw_accessor::type::MAT2:   return 4;  break;
-      case raw_accessor::type::MAT3:   return 9;  break;
-      case raw_accessor::type::MAT4:   return 16; break;
-    }
-    return 0;
-  }
-*/
 
   raw_accessor::sparse::indices JsonToSparseIndices(const nlohmann::json& j, gltf_memory_allocator Alloc)
   {
@@ -1428,18 +1413,16 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   
 
   struct mesh{
+
     struct primitive {
-      u32 IndexCount;
+      int IndexCount;
+      int* Indeces;
 
-      u32* vi;
-      u32* vni;
-      u32* vti;
-
-      u32 vCount;
+      int vCount;
       v3* v;     // Vertices
-      u32 vnCount;
+      int vnCount;
       v3* vn;    // Vertice Normals
-      u32 vtCount;
+      int vtCount;
       v2* vt;    // Texture Vertices
     };
 
@@ -1462,15 +1445,262 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     scene* Scenes;
   };
 
+  size_t AccessorComponentSize(raw_accessor::component_type ComponentType)
+  {
+    switch(ComponentType)
+    {
+      case raw_accessor::component_type::BYTE: 
+      case raw_accessor::component_type::UNSIGNED_BYTE:
+        return 1;
+      case raw_accessor::component_type::SHORT: 
+      case raw_accessor::component_type::UNSIGNED_SHORT: 
+        return 2;
+      case raw_accessor::component_type::UNSIGNED_INT:
+      case raw_accessor::component_type::FLOAT: 
+        return 4;
+    }
+
+    Platform.DEBUGPrint("Error: Unknown raw_accessor::component_type found %d", (int) ComponentType);
+    INVALID_CODE_PATH;
+    return 0;
+  }
+
+  size_t AccessorComponentCount(raw_accessor::type Type)
+  {
+    switch(Type)
+    {
+      case raw_accessor::type::SCALAR: return 1;  break;
+      case raw_accessor::type::VEC2:   return 2;  break;
+      case raw_accessor::type::VEC3:   return 3;  break;
+      case raw_accessor::type::VEC4:   return 4;  break;
+      case raw_accessor::type::MAT2:   return 4;  break;
+      case raw_accessor::type::MAT3:   return 9;  break;
+      case raw_accessor::type::MAT4:   return 16; break;
+    }
+
+    Platform.DEBUGPrint("Error: Unknown raw_accessor::type found %d", (int) Type);
+    INVALID_CODE_PATH;
+    return 0;
+  }
+
+  size_t AccessorElementSize( raw_accessor* RawAccessor) {
+    size_t ComponentSize = AccessorComponentSize(RawAccessor->ComponentType);
+    size_t TypeSize = AccessorComponentCount(RawAccessor->Type);
+    size_t Result = ComponentSize * TypeSize;
+    return Result;
+  }
+
+/*
+  struct buffer_data_result {
+    size_t Count;
+    size_t ElementSizeBytes;
+    void* Data;
+  };
+
+  buffer_data_result ExtractData(raw_accessor* RawAccessor, raw_buffer_view* RawBufferView, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
+  {
+    buffer_data_result Result = {};
+    
+  }
+*/
+  struct buffer_extract_result
+  {
+    size_t Count;
+    size_t ComponentSize;
+    size_t ComponentCount;
+    uint8_t* DataBytes;
+  };
+
+  buffer_extract_result Extract(size_t ElementCount, size_t ComponentCount, 
+                   size_t SrcComponentSize, size_t SrcStride, uint8_t* Src,
+                   size_t DstComponentSize, uint8_t* Dst)
+  {
+    uint8_t* DstData = Dst;
+    uint8_t* SrcData = Src;
+
+    size_t DstStride = DstComponentSize*ComponentCount;
+    
+    const size_t SrcElementSize = ComponentCount * SrcComponentSize;
+    const size_t DstElementSize = ComponentCount * DstComponentSize;
+    
+    for (int i = 0; i < ElementCount; ++i) {
+
+      uint8_t* DstElement = DstData;
+      uint8_t* SrcElement = SrcData;
+
+      for (int j = 0; j < ComponentCount; ++j) {
+        uint8_t* DstComponent = DstElement;
+        uint8_t* SrcComponent = SrcElement;
+        for (int k = 0; k < SrcComponentSize; ++k) {
+          DstComponent[k] = SrcComponent[k];
+        }
+        DstElement += DstComponentSize;
+        SrcElement += SrcComponentSize;
+      }
+      DstData += DstStride;
+      SrcData += SrcStride;
+    }
+
+    buffer_extract_result Result = {};
+    Result.Count = ElementCount;
+    Result.ComponentSize = DstComponentSize;
+    Result.ComponentCount = ComponentCount;
+    Result.DataBytes = Dst;
+    return Result;
+  }
+
+
+  buffer_extract_result Extract(raw_accessor* RawAccessor, raw_buffer_view* RawBufferView, raw_buffer* RawBuffer, gltf_memory_allocator* Alloc)
+  { 
+    uint8_t* Src = RawBuffer->LoadedData + RawBufferView->ByteOffset;
+    
+    size_t ElementCount = RawAccessor->Count;
+    size_t ComponentCount = AccessorComponentCount(RawAccessor->Type);
+
+    size_t SrcComponentSize = AccessorComponentSize(RawAccessor->ComponentType);
+    size_t SrcStride = RawBufferView->ByteStride ? *RawBufferView->ByteStride : ComponentCount * SrcComponentSize;
+
+    buffer_extract_result Result = Extract(ElementCount, ComponentCount,
+      SrcComponentSize, SrcStride, Src,
+      sizeof(float), GltfNewBlock(Alloc, ElementCount * ComponentCount * SrcComponentSize) );
+
+    return Result;
+  }
+
+  buffer_extract_result Extract(size_t AccessorIndex, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
+  {
+    raw_accessor*    RawAccessor   = &RawAccessors[AccessorIndex];
+  
+    // The following fields are optional:
+    // But I have no idea in what cases they may appear
+    // These asserts are here to catch those cases if we come across them.
+    Assert(RawAccessor->BufferView);
+    // Sparse storage is not yet supported. If we come across it, implement it then.
+    // This assert is here to catch thos cases if we come across them.
+    Assert(!RawAccessor->Sparse);
+
+    raw_buffer_view* RawBufferView = &RawBufferViews[*RawAccessor->BufferView];
+    raw_buffer*      RawBuffer     = RawBuffers + RawBufferViews->Buffer;
+    buffer_extract_result Result   = Extract(RawAccessor, RawBufferView, RawBuffer, Alloc);
+    return Result;
+  }
+
+  mesh::primitive ToPrimitive(raw_primitive* RawPrimitive, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
+  {
+    mesh::primitive Result = {};
+    // Note: When indices property is not defined, the number of vertex indices to render is defined by count of
+    //       attribute accessors (with the implied values from range [0..count)); when indices property is
+    //       defined, the number of vertex indices to render is defined by count of accessor referred to by
+    //       indices. In either case, the number of vertex indices MUST be valid for the topology type used:
+
+    u32* Indeces = 0;
+    if(RawPrimitive->Indices)
+    { 
+      buffer_extract_result ExtractRestult = Extract(*RawPrimitive->Indices, RawAccessors, RawBufferViews, RawBuffers, Alloc);
+      Result.IndexCount = ExtractRestult.Count;
+      Result.Indeces = (int*) ExtractRestult.DataBytes;
+    }
+
+    for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
+    {
+      raw_attribute* RawAttribute = &RawPrimitive->Attributes[i];
+      buffer_extract_result ExtractRestult = Extract(RawAttribute->Index, RawAccessors, RawBufferViews, RawBuffers, Alloc);
+      switch(RawAttribute->Type)
+      {
+        case raw_attribute::type::ERROR: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type ERROR\n");
+        }break;
+        case raw_attribute::type::POSITION: {
+          // Min and max values _must_ exist for position attributes.
+          //Assert(RawAccessor->Min);
+          //Assert(RawAccessor->Max);
+          //Assert(RawAccessor->Type == raw_accessor::type::VEC3);
+
+          Assert(ExtractRestult.ComponentSize == 4);
+          Assert(ExtractRestult.ComponentCount == 3);
+          Result.vCount = ExtractRestult.Count;
+          Result.v = (v3*) ExtractRestult.DataBytes;
+
+        }break;
+        case raw_attribute::type::NORMAL: {
+
+          Assert(ExtractRestult.ComponentSize == 4);
+          Assert(ExtractRestult.ComponentCount == 3);
+          Result.vnCount = ExtractRestult.Count;
+          Result.vn = (v3*) ExtractRestult.DataBytes;
+
+        }break;
+        case raw_attribute::type::TANGENT: {
+
+        }break;
+        case raw_attribute::type::TEXCOORD_0: {
+          
+          Assert(ExtractRestult.ComponentSize == 4);
+          Assert(ExtractRestult.ComponentCount == 2);
+          Result.vtCount = ExtractRestult.Count;
+          Result.vt = (v2*) ExtractRestult.DataBytes;
+        }break;
+        case raw_attribute::type::TEXCOORD_1: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_1\n");
+        }break;
+        case raw_attribute::type::TEXCOORD_2: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_2\n");
+        }break;
+        case raw_attribute::type::TEXCOORD_3: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_3\n");
+        }break;
+        case raw_attribute::type::COLOR_0: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_0\n");
+        }break;
+        case raw_attribute::type::COLOR_1: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_1\n");
+        }break;
+        case raw_attribute::type::COLOR_2: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_2\n");
+        }break;
+        case raw_attribute::type::COLOR_3: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_3\n");
+        }break;
+        case raw_attribute::type::JOINTS_0: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_0\n");
+        }break;
+        case raw_attribute::type::JOINTS_1: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_1\n");
+        }break;
+        case raw_attribute::type::JOINTS_2: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_2\n");
+        }break;
+        case raw_attribute::type::JOINTS_3: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_3\n");
+        }break;
+        case raw_attribute::type::WEIGHTS_0: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_0\n");
+        }break;
+        case raw_attribute::type::WEIGHTS_1: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_1\n");
+        }break;
+        case raw_attribute::type::WEIGHTS_2: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_2\n");
+        }break;
+        case raw_attribute::type::WEIGHTS_3: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_3\n");
+        }break;
+      }
+    }
+    return Result;
+  }
 
   mesh ToMesh(raw_mesh* RawMesh, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
   {
     mesh Result = {};
 
     Assert(RawMesh->PrimitiveCount > 0); // Required
+    Result.PrimitiveCount = RawMesh->PrimitiveCount;
+    Result.Primitives = GltfNewArray(Alloc, Result.PrimitiveCount, mesh::primitive);
     for (int i = 0; i < RawMesh->PrimitiveCount; ++i)
     {
-      raw_primitive
+      raw_primitive* RawPrimitive = RawMesh->Primitives + i;
+      Result.Primitives[i] = ToPrimitive(RawPrimitive, RawAccessors, RawBufferViews, RawBuffers, Alloc);
     }
 
     return Result;
@@ -1605,7 +1835,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
           cmn::PushBack(BinPath, FolderPath);
           cmn::PushBack(BinPath, "\\");
           cmn::PushBack(BinPath, RawBuffer->Uri);
-          RawBuffer->LoadedData = ReadFile(BinPath.data, &RawBuffer->LoadedSize);
+          RawBuffer->LoadedData = (uint8_t*) ReadFile(BinPath.data, &RawBuffer->LoadedSize);
           Assert(RawBuffer->LoadedSize == RawBuffer->ByteLength);
         }else{
           // We have a buffer without file name.
@@ -1616,6 +1846,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       }
 
     }
+
+    FreeFile(GltfData);
 
     for (int i = 0; i < RawMeshCount; ++i)
     {
@@ -1630,7 +1862,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         FreeFile(RawBuffers[i].LoadedData);
       }
     }
-    FreeFile(GltfData);
+    
     return 0;
   }
 
