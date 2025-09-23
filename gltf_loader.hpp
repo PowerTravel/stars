@@ -1403,14 +1403,10 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-
-
   struct scene {
     cmn::string Name;
     node* SceneRoot;
   };
-
-  
 
   struct mesh{
 
@@ -1490,19 +1486,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-/*
-  struct buffer_data_result {
-    size_t Count;
-    size_t ElementSizeBytes;
-    void* Data;
-  };
-
-  buffer_data_result ExtractData(raw_accessor* RawAccessor, raw_buffer_view* RawBufferView, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
-  {
-    buffer_data_result Result = {};
-    
-  }
-*/
   struct buffer_extract_result
   {
     size_t Count;
@@ -1560,9 +1543,11 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     size_t SrcComponentSize = AccessorComponentSize(RawAccessor->ComponentType);
     size_t SrcStride = RawBufferView->ByteStride ? *RawBufferView->ByteStride : ComponentCount * SrcComponentSize;
 
+    size_t DstComponentSize = sizeof(float);
+
     buffer_extract_result Result = Extract(ElementCount, ComponentCount,
       SrcComponentSize, SrcStride, Src,
-      sizeof(float), GltfNewBlock(Alloc, ElementCount * ComponentCount * SrcComponentSize) );
+      DstComponentSize, GltfNewBlock(Alloc, ElementCount * ComponentCount * DstComponentSize) );
 
     return Result;
   }
@@ -1595,7 +1580,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     u32* Indeces = 0;
     if(RawPrimitive->Indices)
-    { 
+    {
       buffer_extract_result ExtractRestult = Extract(*RawPrimitive->Indices, RawAccessors, RawBufferViews, RawBuffers, Alloc);
       Result.IndexCount = ExtractRestult.Count;
       Result.Indeces = (int*) ExtractRestult.DataBytes;
@@ -1849,9 +1834,10 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     FreeFile(GltfData);
 
+    mesh* Meshes = GltfNewArray(PersistentAllocator, RawMeshCount, mesh);
     for (int i = 0; i < RawMeshCount; ++i)
     {
-      mesh Mesh = ToMesh(&RawMeshes[i], RawAccessors, RawBufferViews, RawBuffers, TmpAllocator);
+      Meshes[i] = ToMesh(&RawMeshes[i], RawAccessors, RawBufferViews, RawBuffers, PersistentAllocator);
     }
 
 
