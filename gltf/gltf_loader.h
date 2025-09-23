@@ -14,6 +14,15 @@ typedef GLTF_READ_ENTIRE_FILE( gltf_read_entire_file );
 #define GLTF_FREE_FILE_MEMORY(name) void name( void* Memory )
 typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
+  enum class primitive_mode {
+    POINTS, // 0 
+    LINES, // 1 
+    LINE_LOOP, // 2 
+    LINE_STRIP, // 3 
+    TRIANGLES, // 4 
+    TRIANGLE_STRIP, // 5 
+    TRIANGLE_FAN, // 6 
+  };
 
   namespace internal{
     GLTF_MEMORY_ALLOCATOR(TransientAllocator){
@@ -66,16 +75,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
   struct raw_primitive {
 
-    enum class mode {
-      POINTS, // 0 
-      LINES, // 1 
-      LINE_LOOP, // 2 
-      LINE_STRIP, // 3 
-      TRIANGLES, // 4 
-      TRIANGLE_STRIP, // 5 
-      TRIANGLE_FAN, // 6 
-    };
-
     // Key: attributes
     // Required: Yes
     // Note: A plain JSON object, where each key corresponds to a mesh attribute semantic and each value is the index of the accessor containing attribute’s data.
@@ -95,7 +94,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     // Key: mode
     // Required: No, default 4 (TRIANGLES)
     // Note: The topology type of primitives to render.
-    mode Mode;
+    primitive_mode Mode;
     
     // Not implemented:
     
@@ -944,14 +943,14 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     }
 
 
-    Result.Mode = raw_primitive::mode::TRIANGLES;
+    Result.Mode = primitive_mode::TRIANGLES;
     if(j.contains("mode"))
     {
-      Result.Mode = (raw_primitive::mode) j.at("mode").get<int>();
-      if(Result.Mode != raw_primitive::mode::TRIANGLES)
+      Result.Mode = (primitive_mode) j.at("mode").get<int>();
+      if(Result.Mode != primitive_mode::TRIANGLES)
       {
         Platform.DEBUGPrint("Note: Primitive mode is %d which is different from %d (TRIANGLES). Unless handles will break rendering.\n",
-          (int) Result.Mode, raw_primitive::mode::TRIANGLES);
+          (int) Result.Mode, primitive_mode::TRIANGLES);
       }
     }
 
@@ -959,6 +958,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     if(j.contains("targets"))
     {
       Platform.DEBUGPrint("Warn: Encountered unsupported value 'mesh.primitive.targets'\n");
+      Assert(0);
     }
 
     return Result;
@@ -1407,6 +1407,11 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     node* SceneRoot;
   };
 
+  struct material 
+  {
+    
+  };
+
   struct mesh{
 
     struct primitive {
@@ -1422,10 +1427,16 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
       v3 vMin;
       v3 vMax;
+
+      primitive_mode Mode;
+    
+      material Material;      
     };
 
     int PrimitiveCount;
     primitive* Primitives;
+
+    cmn::string Name;
   };
 
   struct document {
@@ -1535,8 +1546,19 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   }
 
 
-  buffer_extract_result Extract(raw_accessor* RawAccessor, raw_buffer_view* RawBufferView, raw_buffer* RawBuffer, gltf_memory_allocator* Alloc)
-  { 
+  buffer_extract_result Extract(raw_accessor* RawAccessor, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
+  {
+    // The following fields are optional:
+    // But I have no idea in what cases they may appear
+    // These asserts are here to catch those cases if we come across them.
+    Assert(RawAccessor->BufferView);
+    // Sparse storage is not yet supported. If we come across it, implement it then.
+    // This assert is here to catch thos cases if we come across them.
+    Assert(!RawAccessor->Sparse);
+
+    raw_buffer_view* RawBufferView = &RawBufferViews[*RawAccessor->BufferView];
+    raw_buffer*      RawBuffer     = RawBuffers + RawBufferViews->Buffer;
+
     uint8_t* Src = RawBuffer->LoadedData + RawBufferView->ByteOffset;
     
     size_t ElementCount = RawAccessor->Count;
@@ -1554,25 +1576,23 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-  buffer_extract_result Extract(size_t AccessorIndex, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
+  void ExtractVertexBoundingBox(mesh::primitive* Primitive, raw_accessor* RawAccessor)
   {
-    raw_accessor*    RawAccessor   = &RawAccessors[AccessorIndex];
-  
-    // The following fields are optional:
-    // But I have no idea in what cases they may appear
-    // These asserts are here to catch those cases if we come across them.
-    Assert(RawAccessor->BufferView);
-    // Sparse storage is not yet supported. If we come across it, implement it then.
-    // This assert is here to catch thos cases if we come across them.
-    Assert(!RawAccessor->Sparse);
+    size_t SrcComponentSize = AccessorComponentSize(RawAccessor->ComponentType);
 
-    raw_buffer_view* RawBufferView = &RawBufferViews[*RawAccessor->BufferView];
-    raw_buffer*      RawBuffer     = RawBuffers + RawBufferViews->Buffer;
-    buffer_extract_result Result   = Extract(RawAccessor, RawBufferView, RawBuffer, Alloc);
-    return Result;
+    Assert(RawAccessor->MinCount == 3);
+    Extract(RawAccessor->MinCount, 1, SrcComponentSize, SrcComponentSize, (uint8_t*) RawAccessor->Min, sizeof(float), (uint8_t*) Primitive->vMin.E);
+    
+    Assert(RawAccessor->MaxCount == 3);
+    Extract(RawAccessor->MaxCount, 1, SrcComponentSize, SrcComponentSize, (uint8_t*) RawAccessor->Max, sizeof(float), (uint8_t*) Primitive->vMax.E);
   }
 
-  mesh::primitive ToPrimitive(raw_primitive* RawPrimitive, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
+  material ToMaterial(raw_material* RawMaterial, gltf_memory_allocator Alloc)
+  {
+    return {};
+  }
+
+  mesh::primitive ToPrimitive(raw_primitive* RawPrimitive, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, raw_material* RawMaterials, gltf_memory_allocator* Alloc)
   {
     mesh::primitive Result = {};
     // Note: When indices property is not defined, the number of vertex indices to render is defined by count of
@@ -1583,7 +1603,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     u32* Indeces = 0;
     if(RawPrimitive->Indices)
     {
-      buffer_extract_result ExtractRestult = Extract(*RawPrimitive->Indices, RawAccessors, RawBufferViews, RawBuffers, Alloc);
+      raw_accessor* RawAccessor = &RawAccessors[*RawPrimitive->Indices];
+      buffer_extract_result ExtractRestult = Extract(RawAccessor, RawBufferViews, RawBuffers, Alloc);
       Result.IndexCount = ExtractRestult.Count;
       Result.Indeces = (int*) ExtractRestult.DataBytes;
     }
@@ -1591,7 +1612,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
     {
       raw_attribute* RawAttribute = &RawPrimitive->Attributes[i];
-      buffer_extract_result ExtractRestult = Extract(RawAttribute->Index, RawAccessors, RawBufferViews, RawBuffers, Alloc);
+      raw_accessor* RawAccessor = &RawAccessors[RawAttribute->Index];
+      buffer_extract_result ExtractRestult = Extract(RawAccessor, RawBufferViews, RawBuffers, Alloc);
       switch(RawAttribute->Type)
       {
         case raw_attribute::type::ERROR: {
@@ -1601,12 +1623,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         case raw_attribute::type::POSITION: {
           Assert(ExtractRestult.ComponentSize == 4);
           Assert(ExtractRestult.ComponentCount == 3);
-          // Min and max values _must_ exist for position attributes.
-          Assert(RawAccessor->MinCount == 3);
-          Assert(RawAccessor->MaxCount == 3);
 
-          Result->vMin = V3(RawAccessor->Min[0],RawAccessor->Min[1],RawAccessor->Min[2]);
-          Result->vMax = V3(RawAccessor->Max[0],RawAccessor->Max[1],RawAccessor->Max[2]);
+          ExtractVertexBoundingBox(&Result, RawAccessor);
           Result.vCount = ExtractRestult.Count;
           Result.v = (v3*) ExtractRestult.DataBytes;
         }break;
@@ -1691,10 +1709,14 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         }break;
       }
     }
+
+
+    Result.Material = ToMaterial(&RawMaterials[*RawPrimitive->Material], Alloc);
+
     return Result;
   }
 
-  mesh ToMesh(raw_mesh* RawMesh, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, gltf_memory_allocator* Alloc)
+  mesh ToMesh(raw_mesh* RawMesh, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, raw_material* RawMaterials, gltf_memory_allocator* Alloc)
   {
     mesh Result = {};
 
@@ -1704,7 +1726,11 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     for (int i = 0; i < RawMesh->PrimitiveCount; ++i)
     {
       raw_primitive* RawPrimitive = RawMesh->Primitives + i;
-      Result.Primitives[i] = ToPrimitive(RawPrimitive, RawAccessors, RawBufferViews, RawBuffers, Alloc);
+      Result.Primitives[i] = ToPrimitive(RawPrimitive, RawAccessors, RawBufferViews, RawBuffers, RawMaterials, Alloc);
+    }
+
+    if(!cmn::IsEmpty(RawMesh->Name)){
+      Result.Name = cmn::Copy(RawMesh->Name, Alloc);
     }
 
     return Result;
@@ -1747,7 +1773,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       }
     }
 
-
     int RawNodeCount = 0;
     raw_node* RawNodes = 0;
     if(GltfJson.contains("nodes"))
@@ -1761,7 +1786,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         RawNodes[i++] = JsonToRawNode(JsonNode, TmpAllocator);
       }
     }
-
 
     int RawMeshCount = 0;
     raw_mesh* RawMeshes = 0;
@@ -1778,16 +1802,16 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     }
 
     int RawMaterialCount = 0;
-    raw_material* RawMaterial = 0;
+    raw_material* RawMaterials = 0;
     if(GltfJson.contains("materials"))
     {
       nlohmann::json JsonMaterials = GltfJson.at("materials");
       RawMaterialCount = JsonMaterials.size();
-      RawMaterial = GltfNewArray(TmpAllocator, RawMaterialCount, raw_material);
+      RawMaterials = GltfNewArray(TmpAllocator, RawMaterialCount, raw_material);
       int i = 0;
       for(nlohmann::json& JsonMaterial : JsonMaterials)
       {
-        RawMaterial[i++] = JsonToRawMaterial(JsonMaterial, TmpAllocator);
+        RawMaterials[i++] = JsonToRawMaterial(JsonMaterial, TmpAllocator);
       }
     }
 
@@ -1856,7 +1880,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     mesh* Meshes = GltfNewArray(PersistentAllocator, RawMeshCount, mesh);
     for (int i = 0; i < RawMeshCount; ++i)
     {
-      Meshes[i] = ToMesh(&RawMeshes[i], RawAccessors, RawBufferViews, RawBuffers, PersistentAllocator);
+      Meshes[i] = ToMesh(&RawMeshes[i], RawAccessors, RawBufferViews, RawBuffers, RawMaterials, PersistentAllocator);
     }
 
 
