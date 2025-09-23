@@ -25,7 +25,7 @@
 #include "ecs/components/component_collider.h"
 //#include "dynamic_aabb_tree.cpp"
 //#include "externals\json_fwd.hpp"
-#include "gltf_loader.hpp"
+#include "gltf/gltf_loader.h"
 
 #include "utils.h"
 

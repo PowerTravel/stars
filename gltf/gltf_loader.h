@@ -653,8 +653,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   }
 */
 
-  size_t JsonToArray(const nlohmann::json& j, void** Array, raw_accessor::component_type ComponentType, gltf_memory_allocator* Alloc) {
-
+  size_t JsonToArray(const nlohmann::json& j, void** Array, raw_accessor::component_type ComponentType, gltf_memory_allocator* Alloc)
+  {
     switch(ComponentType)
     {
       case raw_accessor::component_type::BYTE: return JsonToByteArray(j, (char**) Array, Alloc); break;
@@ -664,7 +664,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       case raw_accessor::component_type::UNSIGNED_INT: return JsonToUnsignedIntArray(j, (unsigned int**) Array, Alloc); break;
       case raw_accessor::component_type::FLOAT: return JsonToFloatArray(j, (float**) Array, Alloc); break;
     }
-
     return 0;
   }
 
@@ -1420,6 +1419,9 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       v3* vn;    // Vertice Normals
       int vtCount;
       v2* vt;    // Texture Vertices
+
+      v3 vMin;
+      v3 vMax;
     };
 
     int PrimitiveCount;
@@ -1594,18 +1596,19 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       {
         case raw_attribute::type::ERROR: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type ERROR\n");
+          Assert(0);
         }break;
         case raw_attribute::type::POSITION: {
-          // Min and max values _must_ exist for position attributes.
-          //Assert(RawAccessor->Min);
-          //Assert(RawAccessor->Max);
-          //Assert(RawAccessor->Type == raw_accessor::type::VEC3);
-
           Assert(ExtractRestult.ComponentSize == 4);
           Assert(ExtractRestult.ComponentCount == 3);
+          // Min and max values _must_ exist for position attributes.
+          Assert(RawAccessor->MinCount == 3);
+          Assert(RawAccessor->MaxCount == 3);
+
+          Result->vMin = V3(RawAccessor->Min[0],RawAccessor->Min[1],RawAccessor->Min[2]);
+          Result->vMax = V3(RawAccessor->Max[0],RawAccessor->Max[1],RawAccessor->Max[2]);
           Result.vCount = ExtractRestult.Count;
           Result.v = (v3*) ExtractRestult.DataBytes;
-
         }break;
         case raw_attribute::type::NORMAL: {
 
@@ -1616,7 +1619,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
         }break;
         case raw_attribute::type::TANGENT: {
-
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TANGENT\n");
+          Assert(0);
         }break;
         case raw_attribute::type::TEXCOORD_0: {
           
@@ -1627,48 +1631,63 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         }break;
         case raw_attribute::type::TEXCOORD_1: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_1\n");
+          Assert(0);
         }break;
         case raw_attribute::type::TEXCOORD_2: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_2\n");
+          Assert(0);
         }break;
         case raw_attribute::type::TEXCOORD_3: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_3\n");
+          Assert(0);
         }break;
         case raw_attribute::type::COLOR_0: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_0\n");
+          Assert(0);
         }break;
         case raw_attribute::type::COLOR_1: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_1\n");
+          Assert(0);
         }break;
         case raw_attribute::type::COLOR_2: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_2\n");
+          Assert(0);
         }break;
         case raw_attribute::type::COLOR_3: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_3\n");
+          Assert(0);
         }break;
         case raw_attribute::type::JOINTS_0: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_0\n");
+          Assert(0);
         }break;
         case raw_attribute::type::JOINTS_1: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_1\n");
+          Assert(0);
         }break;
         case raw_attribute::type::JOINTS_2: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_2\n");
+          Assert(0);
         }break;
         case raw_attribute::type::JOINTS_3: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_3\n");
+          Assert(0);
         }break;
         case raw_attribute::type::WEIGHTS_0: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_0\n");
+          Assert(0);
         }break;
         case raw_attribute::type::WEIGHTS_1: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_1\n");
+          Assert(0);
         }break;
         case raw_attribute::type::WEIGHTS_2: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_2\n");
+          Assert(0);
         }break;
         case raw_attribute::type::WEIGHTS_3: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_3\n");
+          Assert(0);
         }break;
       }
     }
