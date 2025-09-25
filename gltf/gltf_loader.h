@@ -1,3 +1,4 @@
+
 #pragma once
 #include "externals/json.hpp"
 #include "commons/jstring.h"
@@ -426,7 +427,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     // key: texCoord
     // Required: No, default 0
-    // Note: The index of the texture
+    // Note: The set index of texture’s TEXCOORD attribute used for texture coordinate mapping.
     int TexCoord;
 
     // Not implemented:
@@ -442,7 +443,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     // key: texCoord
     // Required: No, default 0
-    // Note: The index of the texture
+    // Note: The set index of texture’s TEXCOORD attribute used for texture coordinate mapping.
     int TexCoord;
 
     // key: strength
@@ -462,7 +463,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     // key: texCoord
     // Required: No, default 0
-    // Note: The index of the texture
+    // Note: The set index of texture’s TEXCOORD attribute used for texture coordinate mapping.
     int TexCoord;
 
     // key: scale
@@ -490,12 +491,12 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     // key: metallicFactor
     // Required: No, default 1
     // Note: The factor for the metalness of the material.
-    int MetallicFactor;
+    float MetallicFactor;
 
     // key: roughnessFactor
     // Required: No, default 1
     // Note: The factor for the roughness of the material.
-    int RoughnessFactor;
+    float RoughnessFactor;
 
     // key: metallicRoughnessTexture
     // Required: No
@@ -1407,9 +1408,50 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     node* SceneRoot;
   };
 
+  struct texture {
+    size_t Height;
+    size_t Width;
+    size_t BitsPerPixels; // 8, 16, 24, 32
+    void* Pixels;
+  };
+
+  struct texture_info {
+    texture Texture;
+    int TexCoord;
+  };
+
   struct material 
   {
-    
+    struct pbr_metallic_roughness
+    {
+      v4 BaseColorFactor;
+      texture_info* BaseColorTexture;
+      float MetallicFactor;
+      float RoughnessFactor;
+      texture_info* MetallicRoughnessTexture;
+    };
+
+    struct occlusion_texture_info {
+      texture Texture;
+      int TexCoord;
+      float Strength;
+    };
+
+    struct normal_texture_info {
+      texture Texture;
+      int TexCoord;
+      float Scale;
+    };
+
+    cmn::string Name;
+    pbr_metallic_roughness* PbrMetallicRoughness;
+    normal_texture_info* NormalTexture;
+    occlusion_texture_info* OcclusionTexture;
+    texture_info* EmissiveTexture;
+    v3 EmissiveFactor;
+    cmn::string AlphaMode;
+    float AlphaCutoff;
+    bool DoubleSided;
   };
 
   struct mesh{
@@ -1587,12 +1629,47 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     Extract(RawAccessor->MaxCount, 1, SrcComponentSize, SrcComponentSize, (uint8_t*) RawAccessor->Max, sizeof(float), (uint8_t*) Primitive->vMax.E);
   }
 
-  material ToMaterial(raw_material* RawMaterial, gltf_memory_allocator Alloc)
-  {
-    return {};
+  material::pbr_metallic_roughness* ToRawPbrMetallicRoughness(raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf_memory_allocator Alloc){
+    
+    Assert(!RawPbrMetallicRoughness->BaseColorTexture);
+    Assert(!RawPbrMetallicRoughness->MetallicRoughnessTexture);
+
+    material::pbr_metallic_roughness* Result = GltfNewStruct(Alloc, material::pbr_metallic_roughness);
+    
+    Result->BaseColorFactor = RawPbrMetallicRoughness->BaseColorFactor;
+    Result->MetallicFactor  = RawPbrMetallicRoughness->MetallicFactor;
+    Result->RoughnessFactor = RawPbrMetallicRoughness->RoughnessFactor;
+
+    return Result;
   }
 
-  mesh::primitive ToPrimitive(raw_primitive* RawPrimitive, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, raw_material* RawMaterials, gltf_memory_allocator* Alloc)
+  material ToMaterial(raw_material* RawMaterial, gltf_memory_allocator Alloc)
+  {
+    material Result = {};
+
+    // Note: Handle more material properties as they become needed.
+    Assert(!RawMaterial->NormalTexture);
+    Assert(!RawMaterial->OcclusionTexture);
+    Assert(!RawMaterial->EmissiveTexture);
+
+    if(!cmn::IsEmpty(RawMaterial->Name)){
+      Result.Name = cmn::Copy(RawMaterial->Name, Alloc);
+    }
+
+    if(RawMaterial->PbrMetallicRoughness) {
+      Result.PbrMetallicRoughness = ToRawPbrMetallicRoughness(RawMaterial->PbrMetallicRoughness, Alloc);
+    }
+
+    if(!cmn::IsEmpty(RawMaterial->AlphaMode)){
+      Result.AlphaMode = cmn::Copy(RawMaterial->AlphaMode, Alloc);
+    }
+    Result.DoubleSided = RawMaterial->DoubleSided;
+    Result.AlphaCutoff = RawMaterial->AlphaCutoff;
+    Result.EmissiveFactor = RawMaterial->EmissiveFactor;
+    return Result;
+  }
+
+  mesh::primitive ToPrimitive(raw_primitive* RawPrimitive, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, material* Materials, gltf_memory_allocator* Alloc)
   {
     mesh::primitive Result = {};
     // Note: When indices property is not defined, the number of vertex indices to render is defined by count of
@@ -1710,13 +1787,12 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       }
     }
 
-
-    Result.Material = ToMaterial(&RawMaterials[*RawPrimitive->Material], Alloc);
+    Result.Material = Materials[*RawPrimitive->Material];
 
     return Result;
   }
 
-  mesh ToMesh(raw_mesh* RawMesh, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, raw_material* RawMaterials, gltf_memory_allocator* Alloc)
+  mesh ToMesh(raw_mesh* RawMesh, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, material* Materials, gltf_memory_allocator* Alloc)
   {
     mesh Result = {};
 
@@ -1726,7 +1802,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     for (int i = 0; i < RawMesh->PrimitiveCount; ++i)
     {
       raw_primitive* RawPrimitive = RawMesh->Primitives + i;
-      Result.Primitives[i] = ToPrimitive(RawPrimitive, RawAccessors, RawBufferViews, RawBuffers, RawMaterials, Alloc);
+      Result.Primitives[i] = ToPrimitive(RawPrimitive, RawAccessors, RawBufferViews, RawBuffers, Materials, Alloc);
     }
 
     if(!cmn::IsEmpty(RawMesh->Name)){
@@ -1877,10 +1953,17 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     FreeFile(GltfData);
 
+
+    material* Materials = GltfNewArray(PersistentAllocator, RawMaterialCount, material);
+    for (int i = 0; i < RawMaterialCount; ++i)
+    {
+      Materials[i] = ToMaterial(&RawMaterials[i], PersistentAllocator);
+    }
+
     mesh* Meshes = GltfNewArray(PersistentAllocator, RawMeshCount, mesh);
     for (int i = 0; i < RawMeshCount; ++i)
     {
-      Meshes[i] = ToMesh(&RawMeshes[i], RawAccessors, RawBufferViews, RawBuffers, RawMaterials, PersistentAllocator);
+      Meshes[i] = ToMesh(&RawMeshes[i], RawAccessors, RawBufferViews, RawBuffers, Materials, PersistentAllocator);
     }
 
 
