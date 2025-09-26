@@ -560,6 +560,37 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     bool DoubleSided;
   };
 
+  struct raw_scene {
+    cmn::string Name;
+    int NodeCount;
+    int* Nodes;
+
+    // Extensions, Extras omitted
+  };
+
+
+
+  struct raw_gltf_data {
+    int DefaultSceneIndex;
+    size_t RawSceneCount;
+    raw_scene* RawScenes;
+    size_t RawNodeCount;
+    raw_node* RawNodes;
+    size_t RawMeshCount;
+    raw_mesh* RawMeshes;
+    size_t RawMaterialCount;
+    raw_material* RawMaterials;
+    size_t RawAccessorsCount;
+    raw_accessor* RawAccessors;
+    size_t BufferViewCount;
+    raw_buffer_view* RawBufferViews;
+    size_t BufferCount;
+    raw_buffer* RawBuffers;
+  };
+
+
+
+
   struct node {
 
     cmn::string Name;
@@ -1371,14 +1402,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   }
 
 
-  struct raw_scene {
-    cmn::string Name;
-    int NodeCount;
-    int* Nodes;
-
-    // Extensions, Extras omitted
-  };
-
+  
 
   raw_scene JsonToRawScene(nlohmann::json& j, gltf_memory_allocator* Alloc)
   {
@@ -1669,7 +1693,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-  mesh::primitive ToPrimitive(raw_primitive* RawPrimitive, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, material* Materials, gltf_memory_allocator* Alloc)
+  mesh::primitive ToPrimitive(raw_primitive* RawPrimitive, raw_gltf_data* RawGltfData, material* Materials, gltf_memory_allocator* Alloc)
   {
     mesh::primitive Result = {};
     // Note: When indices property is not defined, the number of vertex indices to render is defined by count of
@@ -1680,8 +1704,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     u32* Indeces = 0;
     if(RawPrimitive->Indices)
     {
-      raw_accessor* RawAccessor = &RawAccessors[*RawPrimitive->Indices];
-      buffer_extract_result ExtractRestult = Extract(RawAccessor, RawBufferViews, RawBuffers, Alloc);
+      raw_accessor* RawAccessor = &RawGltfData->RawAccessors[*RawPrimitive->Indices];
+      buffer_extract_result ExtractRestult = Extract(RawAccessor, RawGltfData->RawBufferViews, RawGltfData->RawBuffers, Alloc);
       Result.IndexCount = ExtractRestult.Count;
       Result.Indeces = (int*) ExtractRestult.DataBytes;
     }
@@ -1689,8 +1713,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
     {
       raw_attribute* RawAttribute = &RawPrimitive->Attributes[i];
-      raw_accessor* RawAccessor = &RawAccessors[RawAttribute->Index];
-      buffer_extract_result ExtractRestult = Extract(RawAccessor, RawBufferViews, RawBuffers, Alloc);
+      raw_accessor* RawAccessor = &RawGltfData->RawAccessors[RawAttribute->Index];
+      buffer_extract_result ExtractRestult = Extract(RawAccessor, RawGltfData->RawBufferViews, RawGltfData->RawBuffers, Alloc);
       switch(RawAttribute->Type)
       {
         case raw_attribute::type::ERROR: {
@@ -1792,17 +1816,18 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-  mesh ToMesh(raw_mesh* RawMesh, raw_accessor* RawAccessors, raw_buffer_view* RawBufferViews, raw_buffer* RawBuffers, material* Materials, gltf_memory_allocator* Alloc)
+  mesh ToMesh(size_t RawMeshIndex, raw_gltf_data* RawGltfData, material* Materials, gltf_memory_allocator* Alloc)
   {
-    mesh Result = {};
-
+    raw_mesh* RawMesh = &RawGltfData->RawMeshes[RawMeshIndex];
     Assert(RawMesh->PrimitiveCount > 0); // Required
+    
+    mesh Result = {};
     Result.PrimitiveCount = RawMesh->PrimitiveCount;
     Result.Primitives = GltfNewArray(Alloc, Result.PrimitiveCount, mesh::primitive);
-    for (int i = 0; i < RawMesh->PrimitiveCount; ++i)
+    for (int i = 0; i < Result.PrimitiveCount; ++i)
     {
       raw_primitive* RawPrimitive = RawMesh->Primitives + i;
-      Result.Primitives[i] = ToPrimitive(RawPrimitive, RawAccessors, RawBufferViews, RawBuffers, Materials, Alloc);
+      Result.Primitives[i] = ToPrimitive(RawPrimitive, RawGltfData, Materials, Alloc);
     }
 
     if(!cmn::IsEmpty(RawMesh->Name)){
@@ -1812,8 +1837,12 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
+
   scene* Load(const char* FolderPath, const char* FileName, gltf_read_entire_file ReadFile, gltf_free_file_memory FreeFile, gltf_memory_allocator* PersistentAllocator, gltf_memory_allocator* TmpAllocator)
   {
+
+    raw_gltf_data RawGltfData = {};
+
     char Buff[256] = {};
     cmn::string GltfFIlePath = cmn::String(ArrayCount(Buff), Buff);
     cmn::PushBack(GltfFIlePath, FolderPath);
@@ -1821,117 +1850,104 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     cmn::PushBack(GltfFIlePath, FileName);
     
     size_t DataSize = 0;
-    void* GltfData = ReadFile(GltfFIlePath.data, &DataSize);
+    void* GltfFile = ReadFile(GltfFIlePath.data, &DataSize);
 
-    nlohmann::json GltfJson = nlohmann::json::parse( (const char*) GltfData);
+    nlohmann::json GltfJson = nlohmann::json::parse( (const char*) GltfFile);
 
     nlohmann::json JsonVersion = GltfJson.at("asset").at("version");
     cmn::string version = JsonToString(JsonVersion, internal::TransientAllocator);
     Assert(cmn::Equals(version, "2.0"));
 
-    int SceneIndex = -1;
+
+    RawGltfData.DefaultSceneIndex = -1;
     if(GltfJson.contains("scene"))
     {
-      SceneIndex = GltfJson.at("scene").get<int>();
+      RawGltfData.DefaultSceneIndex = GltfJson.at("scene").get<int>();
     }
 
-    int RawSceneCount = 0;
-    raw_scene* RawScenes = 0;
     if(GltfJson.contains("scenes"))
     {
       nlohmann::json JsonScenes = GltfJson.at("scenes");
-      RawSceneCount = JsonScenes.size();
-      RawScenes = GltfNewArray(TmpAllocator,  RawSceneCount, raw_scene);
+      RawGltfData.RawSceneCount = JsonScenes.size();
+      RawGltfData.RawScenes = GltfNewArray(TmpAllocator,  RawGltfData.RawSceneCount, raw_scene);
       int i = 0;
       for(nlohmann::json& JsonScene : JsonScenes)
       {
-        RawScenes[i++] = JsonToRawScene(JsonScene, TmpAllocator);
+        RawGltfData.RawScenes[i++] = JsonToRawScene(JsonScene, TmpAllocator);
       }
     }
 
-    int RawNodeCount = 0;
-    raw_node* RawNodes = 0;
     if(GltfJson.contains("nodes"))
     {
       nlohmann::json JsonNodes = GltfJson.at("nodes");
-      RawNodeCount = JsonNodes.size();
-      RawNodes = GltfNewArray(TmpAllocator, RawNodeCount, raw_node);
+      RawGltfData.RawNodeCount = JsonNodes.size();
+      RawGltfData.RawNodes = GltfNewArray(TmpAllocator, RawGltfData.RawNodeCount, raw_node);
       int i = 0;
       for(nlohmann::json& JsonNode : JsonNodes)
       {
-        RawNodes[i++] = JsonToRawNode(JsonNode, TmpAllocator);
+        RawGltfData.RawNodes[i++] = JsonToRawNode(JsonNode, TmpAllocator);
       }
     }
 
-    int RawMeshCount = 0;
-    raw_mesh* RawMeshes = 0;
     if(GltfJson.contains("meshes"))
     {
       nlohmann::json JsonMeshes = GltfJson.at("meshes");
-      RawMeshCount = JsonMeshes.size();
-      RawMeshes = GltfNewArray(TmpAllocator, RawMeshCount, raw_mesh);
+      RawGltfData.RawMeshCount = JsonMeshes.size();
+      RawGltfData.RawMeshes = GltfNewArray(TmpAllocator, RawGltfData.RawMeshCount, raw_mesh);
       int i = 0;
       for(nlohmann::json& JsonMesh : JsonMeshes)
       {
-        RawMeshes[i++] = JsonToRawMesh(JsonMesh, TmpAllocator);
+        RawGltfData.RawMeshes[i++] = JsonToRawMesh(JsonMesh, TmpAllocator);
       }
     }
 
-    int RawMaterialCount = 0;
-    raw_material* RawMaterials = 0;
     if(GltfJson.contains("materials"))
     {
       nlohmann::json JsonMaterials = GltfJson.at("materials");
-      RawMaterialCount = JsonMaterials.size();
-      RawMaterials = GltfNewArray(TmpAllocator, RawMaterialCount, raw_material);
+      RawGltfData.RawMaterialCount = JsonMaterials.size();
+      RawGltfData.RawMaterials = GltfNewArray(TmpAllocator, RawGltfData.RawMaterialCount, raw_material);
       int i = 0;
       for(nlohmann::json& JsonMaterial : JsonMaterials)
       {
-        RawMaterials[i++] = JsonToRawMaterial(JsonMaterial, TmpAllocator);
+        RawGltfData.RawMaterials[i++] = JsonToRawMaterial(JsonMaterial, TmpAllocator);
       }
     }
 
-    int RawAccessorsCount = 0;
-    raw_accessor* RawAccessors = 0;
     if(GltfJson.contains("accessors"))
     {
       nlohmann::json JsonAccessors = GltfJson.at("accessors");
-      RawAccessorsCount = JsonAccessors.size();
-      RawAccessors = GltfNewArray(TmpAllocator, RawAccessorsCount, raw_accessor);
+      RawGltfData.RawAccessorsCount = JsonAccessors.size();
+      RawGltfData.RawAccessors = GltfNewArray(TmpAllocator, RawGltfData.RawAccessorsCount, raw_accessor);
       int i = 0;
       for(nlohmann::json& JsonAccessors : JsonAccessors)
       {
-        RawAccessors[i++] = JsonToRawAccessor(JsonAccessors, TmpAllocator);
+        RawGltfData.RawAccessors[i++] = JsonToRawAccessor(JsonAccessors, TmpAllocator);
       }
     }
 
-    int BufferViewCount = 0;
-    raw_buffer_view* RawBufferViews = 0;
     if(GltfJson.contains("bufferViews"))
     {
       nlohmann::json JsonBufferViews = GltfJson.at("bufferViews");
-      BufferViewCount = JsonBufferViews.size();
-      RawBufferViews = GltfNewArray(TmpAllocator, BufferViewCount, raw_buffer_view);
+      RawGltfData.BufferViewCount = JsonBufferViews.size();
+      RawGltfData.RawBufferViews = GltfNewArray(TmpAllocator, RawGltfData.BufferViewCount, raw_buffer_view);
       int i = 0;
       for(const nlohmann::json& JsonBufferView : JsonBufferViews)
       {
-        RawBufferViews[i++] = JsonToRawBufferView(JsonBufferView, TmpAllocator);
+        RawGltfData.RawBufferViews[i++] = JsonToRawBufferView(JsonBufferView, TmpAllocator);
       }
     }
 
-    int BufferCount = 0;
-    raw_buffer* RawBuffers = 0;
     if(GltfJson.contains("buffers"))
     {
       nlohmann::json JsonBuffers = GltfJson.at("buffers");
-      BufferCount = JsonBuffers.size();
-      RawBuffers = GltfNewArray(TmpAllocator, BufferCount, raw_buffer);
+      RawGltfData.BufferCount = JsonBuffers.size();
+      RawGltfData.RawBuffers = GltfNewArray(TmpAllocator, RawGltfData.BufferCount, raw_buffer);
       int i = 0;
       for(nlohmann::json& JsonBuffer : JsonBuffers)
       {
-        raw_buffer* RawBuffer = RawBuffers + i++;
+        raw_buffer* RawBuffer = &RawGltfData.RawBuffers[i++];
+
         *RawBuffer = JsonToRawBuffer(JsonBuffer, TmpAllocator);
-        
         if(!cmn::IsEmpty(RawBuffer->Uri))
         {
           char BinaryPathBuffer[256] = {};
@@ -1948,30 +1964,40 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
           INVALID_CODE_PATH
         }
       }
-
     }
 
-    FreeFile(GltfData);
+    FreeFile(GltfFile);
 
 
-    material* Materials = GltfNewArray(PersistentAllocator, RawMaterialCount, material);
-    for (int i = 0; i < RawMaterialCount; ++i)
+
+
+    size_t MaterialCount = RawGltfData.RawMaterialCount;
+    material* Materials = GltfNewArray(PersistentAllocator, MaterialCount, material);
+    for (int i = 0; i < MaterialCount; ++i)
     {
-      Materials[i] = ToMaterial(&RawMaterials[i], PersistentAllocator);
+      Materials[i] = ToMaterial(&RawGltfData.RawMaterials[i], PersistentAllocator);
     }
 
-    mesh* Meshes = GltfNewArray(PersistentAllocator, RawMeshCount, mesh);
-    for (int i = 0; i < RawMeshCount; ++i)
+    size_t MeshCount = RawGltfData.RawMeshCount;
+    mesh* Meshes = GltfNewArray(PersistentAllocator, MeshCount, mesh);
+    for (int i = 0; i < MeshCount; ++i)
     {
-      Meshes[i] = ToMesh(&RawMeshes[i], RawAccessors, RawBufferViews, RawBuffers, Materials, PersistentAllocator);
+      Meshes[i] = ToMesh(i, &RawGltfData, Materials, PersistentAllocator);
+    }
+
+    size_t NodeCount = RawGltfData.RawNodeCount;
+    node* RootNodes = GltfNewArray(PersistentAllocator, NodeCount, node);
+    for (int i = 0; i < NodeCount; ++i)
+    {
+      /* code */
     }
 
 
-    for (int i = 0; i < BufferCount; ++i)
+    for (int i = 0; i < RawGltfData.BufferCount; ++i)
     {
-      if(RawBuffers[i].LoadedData)
+      if(RawGltfData.RawBuffers[i].LoadedData)
       {
-        FreeFile(RawBuffers[i].LoadedData);
+        FreeFile(RawGltfData.RawBuffers[i].LoadedData);
       }
     }
     
