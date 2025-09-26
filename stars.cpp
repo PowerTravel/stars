@@ -1188,7 +1188,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile("C:\\Users\\jh\\Desktop\\box.gltf");
 
 
-      gltf::Load("C:\\Users\\jh\\Desktop", "box.gltf",
+      gltf::document Document = gltf::Load("C:\\Users\\jh\\Desktop", "box.gltf",
         [](const char* Path, size_t* Size){
           debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile(Path);
           *Size = ReadResult.ContentSize;
@@ -1203,16 +1203,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         [](size_t ByteSize){
           return PushSize(GlobalTransientArena, ByteSize);
         });
-
-      nlohmann::json data1 = nlohmann::json::parse( (const char*) ReadResult.Contents);
-      Platform.DEBUGPlatformFreeFileMemory(ReadResult.Contents);
-
-      std::ifstream f("C:\\Users\\jh\\Desktop\\box.gltf");
-      nlohmann::json data2 = nlohmann::json::parse(f);
-
-      for (auto& element : data1) {
-        Platform.DEBUGPrint("%s\n", element.dump().c_str());
-      }
     }
 
 

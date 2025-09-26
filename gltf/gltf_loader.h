@@ -1526,7 +1526,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     };
   };
 
-
   struct node {
 
     cmn::string Name;
@@ -1544,7 +1543,23 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
   struct scene {
     cmn::string Name;
-    node* SceneRoot;
+
+    int RootCount;
+    node** RootNodes;
+  };
+
+  struct document {
+    int ActiveScene;
+
+    int SceneCount;
+    scene* Scenes;
+
+    int MeshCount;
+    mesh* Meshes;
+
+    int MaterialCount;
+    material* Materials;
+
   };
 
   size_t AccessorComponentSize(raw_accessor::component_type ComponentType)
@@ -1964,7 +1979,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   // Note: The node hierarchy make up a set of disjoin strict trees which means they are free of cycles and each node must have zero or one parent node.
   //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
   //       I'm assuming this means each child node only appears once.
-  node* ToNodes(raw_gltf_data* RawGltfData, mesh* Meshes, gltf_memory_allocator PersistentAllocator, gltf_memory_allocator TemporaryAllocator)
+  scene* ToScenes(raw_gltf_data* RawGltfData, mesh* Meshes, gltf_memory_allocator PersistentAllocator, gltf_memory_allocator TemporaryAllocator)
   {
     node* Nodes = GltfNewArray(PersistentAllocator, RawGltfData->RawNodeCount, node);
     raw_node* RawNodes = RawGltfData->RawNodes;
@@ -1980,14 +1995,24 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     Queue.Queue = GltfNewArray(TemporaryAllocator, Queue.TotCount, int);
     
 
+    scene* Result = GltfNewArray(PersistentAllocator,RawGltfData->RawSceneCount, scene);
     for (int i = 0; i < RawGltfData->RawSceneCount; ++i)
     {
       Assert(IsEmpty(Queue));
 
+      scene* Scene = &Result[i];
       raw_scene* RawScene = &RawGltfData->RawScenes[i];
+
+      Scene->Name = cmn::Copy(RawScene->Name, PersistentAllocator);
+
+      Scene->RootCount = RawScene->NodeCount;
+      Scene->RootNodes = GltfNewArray(PersistentAllocator, Scene->RootCount, node*);
       for (int j = 0; j < RawScene->NodeCount; ++j)
       { 
         int RootNodeIndex = RawScene->Nodes[j];
+
+        Scene->RootNodes[i] = &Nodes[RootNodeIndex];
+
         Push(Queue, RootNodeIndex);
         while(!IsEmpty(Queue))
         {
@@ -2003,10 +2028,10 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       }
     }
 
-    return Nodes;
+    return Result;
   }
 
-  scene* Load(const char* FolderPath, const char* FileName, gltf_read_entire_file ReadFile, gltf_free_file_memory FreeFile, gltf_memory_allocator* PersistentAllocator, gltf_memory_allocator* TmpAllocator)
+  document Load(const char* FolderPath, const char* FileName, gltf_read_entire_file ReadFile, gltf_free_file_memory FreeFile, gltf_memory_allocator* PersistentAllocator, gltf_memory_allocator* TmpAllocator)
   {
 
     raw_gltf_data RawGltfData = {};
@@ -2137,25 +2162,24 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     FreeFile(GltfFile);
 
 
+    document Result = {};
 
-
-    size_t MaterialCount = RawGltfData.RawMaterialCount;
-    material* Materials = GltfNewArray(PersistentAllocator, MaterialCount, material);
-    for (int i = 0; i < MaterialCount; ++i)
+    Result.MaterialCount = RawGltfData.RawMaterialCount;
+    Result.Materials = GltfNewArray(PersistentAllocator, Result.MaterialCount, material);
+    for (int i = 0; i < Result.MaterialCount; ++i)
     {
-      Materials[i] = ToMaterial(&RawGltfData.RawMaterials[i], PersistentAllocator);
+      Result.Materials[i] = ToMaterial(&RawGltfData.RawMaterials[i], PersistentAllocator);
     }
 
-    size_t MeshCount = RawGltfData.RawMeshCount;
-    mesh* Meshes = GltfNewArray(PersistentAllocator, MeshCount, mesh);
-    for (int i = 0; i < MeshCount; ++i)
+    Result.MeshCount = RawGltfData.RawMeshCount;
+    Result.Meshes = GltfNewArray(PersistentAllocator, Result.MeshCount, mesh);
+    for (int i = 0; i < Result.MeshCount; ++i)
     {
-      Meshes[i] = ToMesh(i, &RawGltfData, Materials, PersistentAllocator);
+      Result.Meshes[i] = ToMesh(i, &RawGltfData, Result.Materials, PersistentAllocator);
     }
 
-    size_t NodeCount = RawGltfData.RawNodeCount;
-    node* Nodes = ToNodes(&RawGltfData, Meshes, PersistentAllocator, TmpAllocator);
-
+    Result.SceneCount = RawGltfData.RawSceneCount;
+    Result.Scenes = ToScenes(&RawGltfData, Result.Meshes, PersistentAllocator, TmpAllocator);
 
     for (int i = 0; i < RawGltfData.BufferCount; ++i)
     {
@@ -2165,7 +2189,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       }
     }
     
-    return 0;
+    return Result;
   }
 
 }
