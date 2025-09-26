@@ -39,11 +39,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
   }
 
-  struct trs {
-    v3 t;     // Translation
-    quat r;   // Rotation
-    v3 s;     // Scale
-  };
 
   struct raw_attribute {
 
@@ -134,49 +129,49 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   };
 
   struct raw_node {
-    // key:
-    // Reqiuired:
-    // Note:
 
-    // key: camera
-    // Required: No
-    // Note: The index of the camera referenced by this node.
-    // int Camera;
+    enum class transformation_type {
+      NONE,
+      MATRIX,
+      TRS
+    };
+
 
     // key: children
-    // Reqiuired: No
-    // Note: The indices of this node’s children.
-    // int ChildCount;
-    // int* Children;
+    // Reqiuired:
+    // Note: The indices of this node’s children. If key exist they must have at least one child.
+    int ChildCount;
+    int* Children;
 
-    // key: skin
-    // Reqiuired: No
-    // Note: The index of the skin referenced by this node.
-    // int Skin;
+    transformation_type TransformationType;
 
     // key: matrix
     // Reqiuired: No default [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]
     // Note: 16 A floating-point 4x4 transformation matrix stored in column-major order.
+    //       A node may have _either_ a Matrix or any combination of Rotation, Translation, Scale
     m4 Matrix;
 
     // key: mesh
     // Reqiuired: No
     // Note: The index of the mesh in this node
-    int Mesh;
+    int* Mesh;
 
     // key: rotation
     // Reqiuired: No, default [0,0,0,1]
     // Note: A floating-point 4x4 transformation matrix stored in column-major order.
+    //       A node may have _either_ a Matrix or any combination of Rotation, Translation, Scale
     quat Rotation;
 
     // key: scale
     // Reqiuired: No, default [1,1,1]
     // Note: The node’s non-uniform scale, given as the scaling factors along the x, y, and z axes.
+    //       A node may have _either_ a Matrix or any combination of Rotation, Translation, Scale
     v3 Scale;
 
     // key: translation
     // Reqiuired: No, default [0,0,0]
     // Note: The node’s translation along the x, y, and z axes.
+    //       A node may have _either_ a Matrix or any combination of Rotation, Translation, Scale
     v3 Translation;
 
     // key: weights
@@ -185,6 +180,17 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     //       When defined, mesh MUST also be defined.
     int WeightCount;
     int* Weights;
+
+    // key: skin
+    // Reqiuired: No
+    // Note: The index of the skin referenced by this node.
+    //       When the node contains skin, all mesh.primitives MUST contain JOINTS_0 and WEIGHTS_0 attributes.
+    int* Skin;
+
+    // key: camera
+    // Required: No
+    // Note: The index of the camera referenced by this node.
+    int* Camera;
 
     // key: name
     // Required: No [1]
@@ -588,28 +594,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     raw_buffer* RawBuffers;
   };
 
-
-
-
-  struct node {
-
-    cmn::string Name;
-
-    union {
-      m4 Matrix;
-      trs Trs;
-    };
-
-    void* Camera; // Not used atm
-
-    //mesh* Mesh;
-
-    node* Parent;
-    node* FirstChild;
-    node* NextSibling;
-    node* PreviousSibling;
-  };
-
   size_t JsonToIntArray(const nlohmann::json& j, int** Array, gltf_memory_allocator* Alloc)
   {
     size_t Count = j.size();
@@ -759,35 +743,49 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   {
     raw_node Result = {};
 
-    if(j.contains("camera"))
-    {
-      Platform.DEBUGPrint("WARN: raw_node contains camera. No parser yet written. Ignoring.\n");
-    }
     if(j.contains("children"))
     {
-      Platform.DEBUGPrint("WARN: raw_node contains children. No parser yet written. Ignoring.\n");
+      const nlohmann::json JsonChildren = j.at("children");
+      Result.ChildCount = JsonToIntArray(JsonChildren, &Result.Children, Alloc);
     }
+
+    if(j.contains("camera"))
+    {
+      Result.Camera = GltfNewStruct(Alloc,int);
+      *Result.Camera = j.at("camera").get<int>();
+      Platform.DEBUGPrint("WARN: raw_node contains camera. No parser yet written. Ignoring.\n");
+      Assert(0);
+    }
+
     if(j.contains("skin"))
     {
+      Result.Skin = GltfNewStruct(Alloc,int);
+      *Result.Skin = j.at("skin").get<int>();
       Platform.DEBUGPrint("WARN: raw_node contains Skin. No parser yet written. Ignoring.\n");
+      Assert(0);
     }
 
     if(j.contains("matrix"))
     {
+      Assert(!j.contains("rotation"));
+      Assert(!j.contains("scale"));
+      Assert(!j.contains("translation"));
       Result.Matrix = JsonToM4(j.at("matrix"));
+      Result.TransformationType = raw_node::transformation_type::MATRIX;
     }else{
       Result.Matrix = M4Identity();
     }
 
     if(j.contains("mesh"))
     {
-      Result.Mesh = j.at("mesh").get<int>();
-    }else{
-      Result.Mesh = -1;
+      Result.Mesh = GltfNewStruct(Alloc,int);
+      *Result.Mesh = j.at("mesh").get<int>();
     }
 
     if(j.contains("rotation"))
     {
+      Assert(!j.contains("matrix"));
+      Result.TransformationType = raw_node::transformation_type::TRS;
       Result.Rotation = JsonToQuaternion(j.at("rotation"));
     }else{
       Result.Rotation =  Quaternion();
@@ -795,6 +793,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     if(j.contains("scale"))
     {
+      Assert(!j.contains("matrix"));
+      Result.TransformationType = raw_node::transformation_type::TRS;
       Result.Scale = JsonToV3(j.at("scale"));
     }else{
       Result.Scale = V3(1,1,1);
@@ -802,6 +802,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     if(j.contains("translation"))
     {
+      Assert(!j.contains("matrix"));
+      Result.TransformationType = raw_node::transformation_type::TRS;
       Result.Translation = JsonToV3(j.at("translation"));
     }else{
       Result.Translation = V3(0,0,0);
@@ -811,6 +813,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     {
       Platform.DEBUGPrint("WARN: raw_node contains weights. No parser yet written. Ignoring.\n");
       Assert(j.contains("mesh")); // Mesh is required if weights is set.
+      Assert(0);
     }
 
     if(j.contains("name"))
@@ -822,10 +825,12 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     if(j.contains("extensions"))
     {
       Platform.DEBUGPrint("WARN: raw_node contains extensions. No parser yet written. Ignoring.\n");
+      Assert(0);
     }
     if(j.contains("extras"))
     {
       Platform.DEBUGPrint("WARN: raw_node contains extras. No parser yet written. Ignoring.\n");
+      Assert(0);
     }
 
     return Result;
@@ -1427,10 +1432,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-  struct scene {
-    cmn::string Name;
-    node* SceneRoot;
-  };
 
   struct texture {
     size_t Height;
@@ -1505,19 +1506,45 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     cmn::string Name;
   };
 
-  struct document {
-    size_t MeshCount;
-//    mesh* Meshes;
+  struct trs {
+    v3 t;     // Translation
+    quat r;   // Rotation
+    v3 s;     // Scale
+  };
 
-    size_t MaterialCount;
-  //  material* Materials;
+  struct transformation {
+    enum class type {
+      NONE,
+      MATRIX,
+      TRS
+    };
 
-    size_t NodeCount;
-    node* Nodes;
+    type Type;
+    union {
+      trs TRS;
+      m4 Matrix;
+    };
+  };
 
-    size_t SceneCount;
-    s32 ActiveScene; // -1 means no scene is active;
-    scene* Scenes;
+
+  struct node {
+
+    cmn::string Name;
+
+    transformation Transofmation;
+
+    mesh* Mesh;
+
+    int ChildCount;
+    node* Parent;
+    node* FirstChild;
+    node* NextSibling;
+    node* PreviousSibling;
+  };
+
+  struct scene {
+    cmn::string Name;
+    node* SceneRoot;
   };
 
   size_t AccessorComponentSize(raw_accessor::component_type ComponentType)
@@ -1830,13 +1857,154 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       Result.Primitives[i] = ToPrimitive(RawPrimitive, RawGltfData, Materials, Alloc);
     }
 
-    if(!cmn::IsEmpty(RawMesh->Name)){
-      Result.Name = cmn::Copy(RawMesh->Name, Alloc);
+    
+    Result.Name = cmn::Copy(RawMesh->Name, Alloc);
+  
+
+    return Result;
+  }
+
+  node ToNode(raw_node* RawNode, mesh* Meshes, gltf_memory_allocator Alloc)
+  {
+    node Result = {};
+    Result.Name = cmn::Copy(RawNode->Name, Alloc);
+
+    switch(RawNode->TransformationType){
+      case raw_node::transformation_type::NONE:{
+        Result.Transofmation.Type = transformation::type::NONE;
+      }break;
+      case raw_node::transformation_type::TRS:{
+        Result.Transofmation.Type = transformation::type::TRS;
+        Result.Transofmation.TRS.t = RawNode->Translation;
+        Result.Transofmation.TRS.r = RawNode->Rotation;
+        Result.Transofmation.TRS.s = RawNode->Scale;
+      }break;
+      case raw_node::transformation_type::MATRIX:{
+        Result.Transofmation.Type = transformation::type::MATRIX;
+        Result.Transofmation.Matrix = RawNode->Matrix;
+      }break;
+    }
+
+    if(RawNode->Mesh){
+      Result.Mesh = &Meshes[*RawNode->Mesh];
     }
 
     return Result;
   }
 
+  void ConnectChildren(int ParentIndex, raw_node* RawNodes, node* Nodes)
+  {
+    raw_node* RawParent = &RawNodes[ParentIndex];
+    int ChildCount = RawParent->ChildCount;
+    if(ChildCount == 0) return;
+    int* ChildIndeces = RawParent->Children;
+
+    node* Parent = &Nodes[ParentIndex];
+    Parent->ChildCount = ChildCount;
+
+    if (ChildCount == 1) {
+      int FirstChildIndex = ChildIndeces[0];
+      Parent->FirstChild = &Nodes[FirstChildIndex];
+      Parent->FirstChild->Parent = Parent;
+    } else {
+      int FirstChildIndex = ChildIndeces[0];
+      Parent->FirstChild = &Nodes[FirstChildIndex];
+      for (int i = 0; i < ChildCount; ++i)
+      {
+        int ChildIndex = ChildIndeces[i];
+        node* Child = &Nodes[ChildIndex];
+        Child->Parent = Parent;
+    
+        if(i < ChildCount-1)
+        {
+          int NextSiblingIndex = ChildIndeces[i+1];
+          Child->NextSibling = &Nodes[NextSiblingIndex];
+          Child->NextSibling->PreviousSibling = Child;  
+        }
+      }
+    }
+  }
+
+
+  struct node_queue {
+    size_t Count;
+    size_t TotCount;
+    int* Queue;
+  };
+
+  node_queue NodeQueue(size_t Size, gltf_memory_allocator Alloc)
+  {
+    node_queue Result = {}; 
+    Result.Count = 0;
+    Result.TotCount = Size; 
+    Result.Queue = GltfNewArray(Alloc, Size, int);
+    return Result;
+  }
+
+  bool IsEmpty(node_queue& Queue)
+  {
+    bool Result = Queue.Count == 0;
+    return Result;
+  }
+
+  void Push(node_queue& Queue, int Value)
+  {
+    Queue.Queue[Queue.Count++] = Value;
+  }
+
+  int Pop(node_queue& Queue)
+  {
+    Assert(Queue.Count > 0);
+    if(Queue.Count == 0) return 0;
+    int Result = Queue.Queue[--Queue.Count];
+    Queue.Queue[Queue.Count+1] = 0;
+    return Result;
+  }
+
+  // Note: The node hierarchy make up a set of disjoin strict trees which means they are free of cycles and each node must have zero or one parent node.
+  //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
+  //       I'm assuming this means each child node only appears once.
+  node* ToNodes(raw_gltf_data* RawGltfData, mesh* Meshes, gltf_memory_allocator PersistentAllocator, gltf_memory_allocator TemporaryAllocator)
+  {
+    node* Nodes = GltfNewArray(PersistentAllocator, RawGltfData->RawNodeCount, node);
+    raw_node* RawNodes = RawGltfData->RawNodes;
+
+    for (int i = 0; i < RawGltfData->RawNodeCount; ++i)
+    {
+      Nodes[i] = ToNode(&RawNodes[i], Meshes, PersistentAllocator);
+    }
+
+    node_queue Queue = {}; 
+    Queue.Count = 0;
+    Queue.TotCount = RawGltfData->RawNodeCount; 
+    Queue.Queue = GltfNewArray(TemporaryAllocator, Queue.TotCount, int);
+    
+
+    for (int i = 0; i < RawGltfData->RawSceneCount; ++i)
+    {
+      Assert(IsEmpty(Queue));
+
+      raw_scene* RawScene = &RawGltfData->RawScenes[i];
+      for (int j = 0; j < RawScene->NodeCount; ++j)
+      { 
+        int RootNodeIndex = RawScene->Nodes[j];
+        Push(Queue, RootNodeIndex);
+        while(!IsEmpty(Queue))
+        {
+          int ParentNodeIndex = Pop(Queue);
+          ConnectChildren(ParentNodeIndex, RawNodes, Nodes);
+
+          raw_node* RawNode = &RawNodes[ParentNodeIndex];
+          for (int i = 0; i < RawNode->ChildCount; ++i)
+          {
+            Push(Queue, RawNode->Children[i]);
+          }
+        }
+      }
+    }
+
+    return Nodes;
+  }
 
   scene* Load(const char* FolderPath, const char* FileName, gltf_read_entire_file ReadFile, gltf_free_file_memory FreeFile, gltf_memory_allocator* PersistentAllocator, gltf_memory_allocator* TmpAllocator)
   {
@@ -1986,11 +2154,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     }
 
     size_t NodeCount = RawGltfData.RawNodeCount;
-    node* RootNodes = GltfNewArray(PersistentAllocator, NodeCount, node);
-    for (int i = 0; i < NodeCount; ++i)
-    {
-      /* code */
-    }
+    node* Nodes = ToNodes(&RawGltfData, Meshes, PersistentAllocator, TmpAllocator);
 
 
     for (int i = 0; i < RawGltfData.BufferCount; ++i)
