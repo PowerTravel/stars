@@ -15,7 +15,7 @@
 #include "imgui/imgui.h"
 #include "imgui/application_imgui.h"
 #include "asset_manager/asset_manager.h"
-typedef void(*func_ptr_void)(void);
+typedef void(*func_ptr_void)(void); 
 
 #define DEBUGPrintRect(Rect) Platform.DEBUGPrint("%1.2f,%1.2f,%1.2f,%1.2f\n",(Rect).X, (Rect).Y ,(Rect).W, (Rect).H);
 

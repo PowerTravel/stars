@@ -1187,8 +1187,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
       debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile("C:\\Users\\jh\\Desktop\\box.gltf");
 
-
-      gltf::document Document = gltf::Load("C:\\Users\\jh\\Desktop", "box.gltf",
+#if 0
+      char BoxPath[] = "C:\\Users\\jh\\Desktop";
+      char BoxName[] = "box.gltf";
+#else
+      char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF";
+      char BoxName[] = "BoxTextured.gltf";
+#endif
+      gltf::document Document = gltf::Load(BoxPath, BoxName,
         [](const char* Path, size_t* Size){
           debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile(Path);
           *Size = ReadResult.ContentSize;
@@ -1203,6 +1209,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         [](size_t ByteSize){
           return PushSize(GlobalTransientArena, ByteSize);
         });
+
     }
 
 

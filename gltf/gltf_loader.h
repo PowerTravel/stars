@@ -2,6 +2,9 @@
 #pragma once
 #include "externals/json.hpp"
 #include "commons/jstring.h"
+#define STBI_ONLY_PNG
+#define STB_IMAGE_IMPLEMENTATION
+#include "externals/stb_image.h"
 
 namespace gltf {
 
@@ -425,6 +428,121 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     // key: extras     (not required)
   };
 
+  struct raw_texture {
+
+    // key: sampler
+    // Required: No
+    // Note: The index of the sampler used by this texture. When undefined, a sampler with repeat wrapping and auto filtering SHOULD be used.
+    int* Sampler;
+
+    // key: source
+    // Required: No
+    // Note: The index of the image used by this texture. When undefined, an extension or other mechanism SHOULD
+    //       supply an alternate texture source, otherwise behavior is undefined.
+    int* Source;
+
+    // key: name
+    // Required: No
+    // Note: The user-defined name of this object.
+    cmn::string Name;
+
+    // Not implemented:
+    // key: extensions (not required)
+    // key: extras     (not required)
+  };
+
+  struct raw_image{
+    enum class mime_type {
+      NONE,
+      IMAGE_JPEG, // "image/jpeg"
+      IMAGE_PNG   // "image/png"
+    };
+
+    static const char MIME_TYPE_JPEG[];
+    static const char MIME_TYPE_PNG[];
+
+    // key: uri
+    // Required: No
+    // Note: The URI (or IRI) of the image.
+    cmn::string Uri;
+
+    // key: mimeType
+    // Required: No
+    // Note: The image’s media type. This field MUST be defined when bufferView is defined.
+    //       Allowed values: "image/jpeg", "image/png";
+    mime_type MimeType;
+
+
+    // key: bufferView
+    // Required: No
+    // Note: The index of the bufferView that contains the image. This field MUST NOT be defined when uri is defined.
+    int* BufferView;
+
+    // key: name
+    // Required: No
+    // Note: The user-defined name of this object.
+    cmn::string Name;
+
+    // Not implemented:
+    // key: extensions (not required)
+    // key: extras     (not required)
+
+
+    size_t LoadedSize;
+    uint8_t* LoadedData;
+  };
+
+  const char raw_image::MIME_TYPE_JPEG[] = "image/jpeg";
+  const char raw_image::MIME_TYPE_PNG[]  = "image/png";
+
+  // Texture sampler properties for filtering and wrapping modes
+  struct raw_sampler {
+
+    enum class filter {
+      NONE = 0,
+      NEAREST = 9728,
+      LINEAR = 9729,
+      NEAREST_MIPMAP_NEAREST = 9984,
+      LINEAR_MIPMAP_NEAREST = 9985,
+      NEAREST_MIPMAP_LINEAR = 9986,
+      LINEAR_MIPMAP_LINEAR = 9987
+    };
+
+    enum class wrap {
+      CLAMP_TO_EDGE = 33071,
+      MIRRORED_REPEAT = 33648,
+      REPEAT = 10497 // (Default)
+    };
+    // key: magFilter
+    // Required: No
+    // Note: Magnification filter.
+    filter MagFilter;
+
+    // key: minFilter
+    // Required: No
+    // Note: Minification filter.
+    filter MinFilter;
+    
+    // key: wrapS 
+    // Required: No, default: 10497 (REPEAT)
+    // Note: S (U) wrapping mode.
+    wrap WrapS;
+    
+    // key: wrapT 
+    // Required: No, default: 10497 (REPEAT)
+    // Note: T (V) wrapping mode.
+    wrap WrapT;
+
+    // key: name
+    // Required: No
+    // Note: The user-defined name of this object.
+    cmn::string Name;
+
+    // Not implemented:
+    // key: extensions (not required)
+    // key: extras     (not required)
+  };
+
   struct raw_texture_info{
     // key: index
     // Required: Yes
@@ -592,6 +710,12 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     raw_buffer_view* RawBufferViews;
     size_t BufferCount;
     raw_buffer* RawBuffers;
+    size_t RawSamplerCount;
+    raw_sampler* RawSamplers;
+    size_t RawImageCount;
+    raw_image* RawImages;
+    size_t RawTextureCount;
+    raw_texture* RawTextures;
   };
 
   size_t JsonToIntArray(const nlohmann::json& j, int** Array, gltf_memory_allocator* Alloc)
@@ -1407,9 +1531,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   }
 
 
-  
-
-  raw_scene JsonToRawScene(nlohmann::json& j, gltf_memory_allocator* Alloc)
+  raw_scene JsonToRawScene(const nlohmann::json& j, gltf_memory_allocator* Alloc)
   {
     Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
     Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
@@ -1430,6 +1552,127 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     }
 
     return Result;
+  }
+
+  raw_sampler JsonToRawSampler(const nlohmann::json& j, gltf_memory_allocator Alloc)
+  {
+
+    raw_sampler Result = {};
+
+    Result.MagFilter = raw_sampler::filter::NONE;
+    if(j.contains("magFilter")){
+      Result.MagFilter = (raw_sampler::filter) j.at("magFilter").get<int>();;
+      Assert(Result.MagFilter == raw_sampler::filter::NEAREST || 
+             Result.MagFilter == raw_sampler::filter::LINEAR);
+    }
+
+    Result.MinFilter = raw_sampler::filter::NONE;
+    if(j.contains("minFilter")){
+      Result.MinFilter = (raw_sampler::filter) j.at("minFilter").get<int>();
+      Assert(Result.MinFilter == raw_sampler::filter::NEAREST ||
+             Result.MinFilter == raw_sampler::filter::LINEAR ||
+             Result.MinFilter == raw_sampler::filter::NEAREST_MIPMAP_NEAREST ||
+             Result.MinFilter == raw_sampler::filter::LINEAR_MIPMAP_NEAREST ||
+             Result.MinFilter == raw_sampler::filter::NEAREST_MIPMAP_LINEAR ||
+             Result.MinFilter == raw_sampler::filter::LINEAR_MIPMAP_LINEAR);
+    }
+
+    Result.WrapS = raw_sampler::wrap::REPEAT;
+    if(j.contains("wrapS")){
+      Result.WrapS = (raw_sampler::wrap) j.at("wrapS").get<int>();
+      Assert(Result.WrapS == raw_sampler::wrap::CLAMP_TO_EDGE ||
+             Result.WrapS == raw_sampler::wrap::MIRRORED_REPEAT ||
+             Result.WrapS == raw_sampler::wrap::REPEAT);
+    }
+    
+    Result.WrapT = raw_sampler::wrap::REPEAT;
+    if(j.contains("wrapT")){
+      Result.WrapT = (raw_sampler::wrap) j.at("wrapT").get<int>();;
+      Assert(Result.WrapT == raw_sampler::wrap::CLAMP_TO_EDGE ||
+             Result.WrapT == raw_sampler::wrap::MIRRORED_REPEAT ||
+             Result.WrapT == raw_sampler::wrap::REPEAT);
+    }
+
+    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
+    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+
+    if(j.contains("name"))
+    {
+      Result.Name = JsonToString(j.at("name"), Alloc);
+    }
+    return Result;  
+  }
+
+  raw_image JsonToRawImage(const nlohmann::json& j, gltf_memory_allocator Alloc)
+  {
+    raw_image Result = {};
+
+
+    if(j.contains("uri"))
+    {
+      Result.Uri = JsonToString(j.at("uri"), Alloc);
+      Assert(!j.contains("bufferView")); // Cannot be defined if uri is defined
+    }
+    
+    Result.MimeType = raw_image::mime_type::NONE;
+    if(j.contains("mimeType"))
+    {
+      cmn::string MimeTypeStr = JsonToString(j.at("mimeType"), Alloc);
+      if(cmn::Equals(MimeTypeStr, raw_image::MIME_TYPE_PNG))
+      {
+        Result.MimeType = raw_image::mime_type::IMAGE_PNG;
+      }else if(cmn::Equals(MimeTypeStr, raw_image::MIME_TYPE_JPEG)){
+        Result.MimeType = raw_image::mime_type::IMAGE_JPEG;
+      }
+    }
+
+    if(j.contains("bufferView"))
+    {
+      Result.BufferView = GltfNewStruct(Alloc, int);
+      *Result.BufferView = j.at("bufferView").get<int>();
+      Assert(j.contains("mimeType")); // Note MimeType must be defined if bufferView is defined.
+      Assert(!j.contains("uri"));     // Note uri must _NOT_ be defined if bufferView is defined.
+    }
+
+    if(j.contains("name"))
+    {
+      Result.Name = JsonToString(j.at("name"), Alloc);
+    }
+
+    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
+    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+
+    return Result;  
+  }
+
+
+  raw_texture JsonToRawTexture(const nlohmann::json& j, gltf_memory_allocator Alloc)
+  {
+    raw_texture Result = {};
+
+    // Note: When undefined, a sampler with repeat wrapping and auto filtering SHOULD be used.
+    if(j.contains("sampler")){
+      Result.Sampler = GltfNewStruct(Alloc, int);
+      *Result.Sampler = j.at("sampler").get<int>();
+    }
+
+    // key: source
+    // Required: No
+    // Note: The index of the image used by this texture. When undefined, an extension or other mechanism SHOULD
+    //       supply an alternate texture source, otherwise behavior is undefined.
+    if(j.contains("sampler")){
+      Result.Source = GltfNewStruct(Alloc, int);
+      *Result.Source = j.at("sampler").get<int>();
+    }
+    
+    if(j.contains("name"))
+    {
+      Result.Name = JsonToString(j.at("name"), Alloc);
+    }
+
+    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
+    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    return Result;  
   }
 
 
@@ -2052,6 +2295,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     Assert(cmn::Equals(version, "2.0"));
 
 
+
+
     RawGltfData.DefaultSceneIndex = -1;
     if(GltfJson.contains("scene"))
     {
@@ -2060,83 +2305,83 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     if(GltfJson.contains("scenes"))
     {
-      nlohmann::json JsonScenes = GltfJson.at("scenes");
-      RawGltfData.RawSceneCount = JsonScenes.size();
+      nlohmann::json JsonList = GltfJson.at("scenes");
+      RawGltfData.RawSceneCount = JsonList.size();
       RawGltfData.RawScenes = GltfNewArray(TmpAllocator,  RawGltfData.RawSceneCount, raw_scene);
       int i = 0;
-      for(nlohmann::json& JsonScene : JsonScenes)
+      for(nlohmann::json& JsonListElement : JsonList)
       {
-        RawGltfData.RawScenes[i++] = JsonToRawScene(JsonScene, TmpAllocator);
+        RawGltfData.RawScenes[i++] = JsonToRawScene(JsonListElement, TmpAllocator);
       }
     }
 
     if(GltfJson.contains("nodes"))
     {
-      nlohmann::json JsonNodes = GltfJson.at("nodes");
-      RawGltfData.RawNodeCount = JsonNodes.size();
+      nlohmann::json JsonList = GltfJson.at("nodes");
+      RawGltfData.RawNodeCount = JsonList.size();
       RawGltfData.RawNodes = GltfNewArray(TmpAllocator, RawGltfData.RawNodeCount, raw_node);
       int i = 0;
-      for(nlohmann::json& JsonNode : JsonNodes)
+      for(nlohmann::json& JsonListElement : JsonList)
       {
-        RawGltfData.RawNodes[i++] = JsonToRawNode(JsonNode, TmpAllocator);
+        RawGltfData.RawNodes[i++] = JsonToRawNode(JsonListElement, TmpAllocator);
       }
     }
 
     if(GltfJson.contains("meshes"))
     {
-      nlohmann::json JsonMeshes = GltfJson.at("meshes");
-      RawGltfData.RawMeshCount = JsonMeshes.size();
+      nlohmann::json JsonList = GltfJson.at("meshes");
+      RawGltfData.RawMeshCount = JsonList.size();
       RawGltfData.RawMeshes = GltfNewArray(TmpAllocator, RawGltfData.RawMeshCount, raw_mesh);
       int i = 0;
-      for(nlohmann::json& JsonMesh : JsonMeshes)
+      for(nlohmann::json& JsonListElement : JsonList)
       {
-        RawGltfData.RawMeshes[i++] = JsonToRawMesh(JsonMesh, TmpAllocator);
+        RawGltfData.RawMeshes[i++] = JsonToRawMesh(JsonListElement, TmpAllocator);
       }
     }
 
     if(GltfJson.contains("materials"))
     {
-      nlohmann::json JsonMaterials = GltfJson.at("materials");
-      RawGltfData.RawMaterialCount = JsonMaterials.size();
+      nlohmann::json JsonList = GltfJson.at("materials");
+      RawGltfData.RawMaterialCount = JsonList.size();
       RawGltfData.RawMaterials = GltfNewArray(TmpAllocator, RawGltfData.RawMaterialCount, raw_material);
       int i = 0;
-      for(nlohmann::json& JsonMaterial : JsonMaterials)
+      for(nlohmann::json& JsonListElement : JsonList)
       {
-        RawGltfData.RawMaterials[i++] = JsonToRawMaterial(JsonMaterial, TmpAllocator);
+        RawGltfData.RawMaterials[i++] = JsonToRawMaterial(JsonListElement, TmpAllocator);
       }
     }
 
     if(GltfJson.contains("accessors"))
     {
-      nlohmann::json JsonAccessors = GltfJson.at("accessors");
-      RawGltfData.RawAccessorsCount = JsonAccessors.size();
+      nlohmann::json JsonList = GltfJson.at("accessors");
+      RawGltfData.RawAccessorsCount = JsonList.size();
       RawGltfData.RawAccessors = GltfNewArray(TmpAllocator, RawGltfData.RawAccessorsCount, raw_accessor);
       int i = 0;
-      for(nlohmann::json& JsonAccessors : JsonAccessors)
+      for(nlohmann::json& JsonListElement : JsonList)
       {
-        RawGltfData.RawAccessors[i++] = JsonToRawAccessor(JsonAccessors, TmpAllocator);
+        RawGltfData.RawAccessors[i++] = JsonToRawAccessor(JsonListElement, TmpAllocator);
       }
     }
 
     if(GltfJson.contains("bufferViews"))
     {
-      nlohmann::json JsonBufferViews = GltfJson.at("bufferViews");
-      RawGltfData.BufferViewCount = JsonBufferViews.size();
+      nlohmann::json JsonList = GltfJson.at("bufferViews");
+      RawGltfData.BufferViewCount = JsonList.size();
       RawGltfData.RawBufferViews = GltfNewArray(TmpAllocator, RawGltfData.BufferViewCount, raw_buffer_view);
       int i = 0;
-      for(const nlohmann::json& JsonBufferView : JsonBufferViews)
+      for(const nlohmann::json& JsonListElement : JsonList)
       {
-        RawGltfData.RawBufferViews[i++] = JsonToRawBufferView(JsonBufferView, TmpAllocator);
+        RawGltfData.RawBufferViews[i++] = JsonToRawBufferView(JsonListElement, TmpAllocator);
       }
     }
 
     if(GltfJson.contains("buffers"))
     {
-      nlohmann::json JsonBuffers = GltfJson.at("buffers");
-      RawGltfData.BufferCount = JsonBuffers.size();
+      nlohmann::json JsonList = GltfJson.at("buffers");
+      RawGltfData.BufferCount = JsonList.size();
       RawGltfData.RawBuffers = GltfNewArray(TmpAllocator, RawGltfData.BufferCount, raw_buffer);
       int i = 0;
-      for(nlohmann::json& JsonBuffer : JsonBuffers)
+      for(nlohmann::json& JsonBuffer : JsonList)
       {
         raw_buffer* RawBuffer = &RawGltfData.RawBuffers[i++];
 
@@ -2158,6 +2403,59 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         }
       }
     }
+
+    if(GltfJson.contains("samplers"))
+    {
+      nlohmann::json JsonList = GltfJson.at("samplers");
+      RawGltfData.RawSamplerCount = JsonList.size();
+      RawGltfData.RawSamplers = GltfNewArray(TmpAllocator, RawGltfData.BufferCount, raw_sampler);
+      int i = 0;
+      for(const nlohmann::json& JsonListElement : JsonList)
+      {
+        RawGltfData.RawSamplers[i++] = JsonToRawSampler(JsonListElement, TmpAllocator);
+      }
+    }
+    
+    if(GltfJson.contains("images"))
+    {
+      nlohmann::json JsonList = GltfJson.at("images");
+      RawGltfData.RawImageCount = JsonList.size();
+      RawGltfData.RawImages = GltfNewArray(TmpAllocator, RawGltfData.RawImageCount, raw_image);
+      int i = 0;
+      for(nlohmann::json& JsonBuffer : JsonList)
+      {
+        raw_image* RawImage = &RawGltfData.RawImages[i++];
+
+        *RawImage = JsonToRawImage(JsonBuffer, TmpAllocator);
+        if(!cmn::IsEmpty(RawImage->Uri))
+        {
+          char ImagePath[256] = {};
+          cmn::string BinPath = cmn::String(ArrayCount(ImagePath), ImagePath);
+          cmn::PushBack(BinPath, FolderPath);
+          cmn::PushBack(BinPath, "\\");
+          cmn::PushBack(BinPath, RawImage->Uri);
+          RawImage->LoadedData = (uint8_t*) ReadFile(BinPath.data, &RawImage->LoadedSize);
+        }else{
+          // We have a buffer without file name.
+          // File name is not required.
+          // This is only so we can catch that if it happens and see how to deal with it then.
+          INVALID_CODE_PATH
+        }
+      }
+    }
+
+    if(GltfJson.contains("textures"))
+    {
+      nlohmann::json JsonList = GltfJson.at("textures");
+      RawGltfData.RawTextureCount = JsonList.size();
+      RawGltfData.RawTextures = GltfNewArray(TmpAllocator, RawGltfData.RawTextureCount, raw_texture);
+      int i = 0;
+      for(const nlohmann::json& JsonListElement : JsonList)
+      {
+        RawGltfData.RawTextures[i++] = JsonToRawTexture(JsonListElement, TmpAllocator);
+      }
+    }
+
 
     FreeFile(GltfFile);
 
