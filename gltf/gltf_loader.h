@@ -3,8 +3,11 @@
 #include "externals/json.hpp"
 #include "commons/jstring.h"
 #define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
 #define STB_IMAGE_IMPLEMENTATION
+#define STBI_NO_FAILURE_STRINGS
 #include "externals/stb_image.h"
+
 
 namespace gltf {
 
@@ -1632,6 +1635,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       *Result.BufferView = j.at("bufferView").get<int>();
       Assert(j.contains("mimeType")); // Note MimeType must be defined if bufferView is defined.
       Assert(!j.contains("uri"));     // Note uri must _NOT_ be defined if bufferView is defined.
+      Assert(0); // Don't know how to handle images baked into a bufferview. Break here and handle it when you chance upon it.
     }
 
     if(j.contains("name"))
@@ -1676,16 +1680,56 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   }
 
 
+  struct sampler {
+    enum class filter {
+      NEAREST,
+      LINEAR,
+      NEAREST_MIPMAP_NEAREST,
+      LINEAR_MIPMAP_NEAREST,
+      NEAREST_MIPMAP_LINEAR,
+      LINEAR_MIPMAP_LINEAR
+    };
+
+    enum class wrap {
+      CLAMP_TO_EDGE,
+      MIRRORED_REPEAT,
+      REPEAT,
+    };
+
+    filter MagFilter;
+    filter MinFilter;
+    wrap WrapS;
+    wrap WrapT;
+    cmn::string Name;
+  };
+
+  struct image {
+
+    enum {
+      Channel_Grey = 1,
+      Channel_GreyAlpha = 2,
+      Channel_RGB = 3,
+      Channel_RGBA = 4
+    };
+
+    int Height;
+    int Width;
+    int Channels;
+    uint8_t* Pixels;
+    cmn::string Name;
+    cmn::string Uri;
+  };
+
   struct texture {
-    size_t Height;
-    size_t Width;
-    size_t BitsPerPixels; // 8, 16, 24, 32
-    void* Pixels;
+    sampler* Sampler;
+    image* Image;
+    cmn::string Name;
   };
 
   struct texture_info {
     texture Texture;
     int TexCoord;
+    cmn::string Name;
   };
 
   struct material 
@@ -1700,18 +1744,17 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     };
 
     struct occlusion_texture_info {
-      texture Texture;
+      texture* Texture;
       int TexCoord;
       float Strength;
     };
 
     struct normal_texture_info {
-      texture Texture;
+      texture* Texture;
       int TexCoord;
       float Scale;
     };
 
-    cmn::string Name;
     pbr_metallic_roughness* PbrMetallicRoughness;
     normal_texture_info* NormalTexture;
     occlusion_texture_info* OcclusionTexture;
@@ -1720,6 +1763,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     cmn::string AlphaMode;
     float AlphaCutoff;
     bool DoubleSided;
+    cmn::string Name;
   };
 
   struct mesh{
@@ -1796,6 +1840,15 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     int SceneCount;
     scene* Scenes;
+
+    int ImageCount;
+    image* Images;
+
+    int SamplerCount;
+    sampler* Samplers;
+
+    int TextureCount;
+    texture* Textures;
 
     int MeshCount;
     mesh* Meshes;
@@ -2274,6 +2327,78 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
+  void Copy(size_t ByteCount, uint8_t* Src, uint8_t* Dst)
+  {
+    uint8_t* SrcScan = (uint8_t*) Src;
+    uint8_t* DstScan = (uint8_t*) Dst;
+    while (ByteCount--) { *DstScan++ = *SrcScan++;}
+  }
+
+  image ToImage(raw_image* Raw, gltf_memory_allocator Alloc )
+  { 
+    image Result = {};
+    Result.Uri  = cmn::Copy(Raw->Uri, Alloc);
+    Result.Name = cmn::Copy(Raw->Name, Alloc);
+    unsigned char* ImageData = stbi_load_from_memory(Raw->LoadedData, Raw->LoadedSize, &Result.Width, &Result.Height, &Result.Channels, STBI_default);
+    size_t ImageByteSize = Result.Width * Result.Height * Result.Channels;
+    Result.Pixels = GltfNewBlock(Alloc,ImageByteSize);
+    Copy(ImageByteSize, (uint8_t*) ImageData, (uint8_t*) Result.Pixels);
+    stbi_image_free(ImageData);
+    return Result;  
+  }
+
+  sampler::filter FromRaw(raw_sampler::filter Raw)
+  {
+    sampler::filter Result = sampler::filter::NEAREST;
+    switch(Raw)
+    {
+      case raw_sampler::filter::NONE: Result = sampler::filter::NEAREST; break;
+      case raw_sampler::filter::NEAREST: Result = sampler::filter::NEAREST; break;
+      case raw_sampler::filter::LINEAR: Result = sampler::filter::LINEAR; break;
+      case raw_sampler::filter::NEAREST_MIPMAP_NEAREST: Result = sampler::filter::NEAREST_MIPMAP_NEAREST; break;
+      case raw_sampler::filter::LINEAR_MIPMAP_NEAREST: Result = sampler::filter::LINEAR_MIPMAP_NEAREST; break;
+      case raw_sampler::filter::NEAREST_MIPMAP_LINEAR: Result = sampler::filter::NEAREST_MIPMAP_LINEAR; break;
+      case raw_sampler::filter::LINEAR_MIPMAP_LINEAR: Result = sampler::filter::LINEAR_MIPMAP_LINEAR; break;
+    }
+    return Result;
+  }
+
+  sampler::wrap FromRaw(raw_sampler::wrap Raw)
+  {
+    sampler::wrap Result = sampler::wrap::REPEAT;
+    switch(Raw)
+    {
+      case raw_sampler::wrap::CLAMP_TO_EDGE: Result = sampler::wrap::CLAMP_TO_EDGE; break;
+      case raw_sampler::wrap::MIRRORED_REPEAT: Result = sampler::wrap::MIRRORED_REPEAT; break;
+      case raw_sampler::wrap::REPEAT: Result = sampler::wrap::REPEAT; break;
+    }
+    return Result;
+  }
+
+  sampler ToSampler(raw_sampler* Raw, gltf_memory_allocator Alloc )
+  {
+    sampler Result = {};
+    Result.MagFilter = FromRaw(Raw->MagFilter);
+    Result.MinFilter = FromRaw(Raw->MinFilter);
+    Result.WrapS = FromRaw(Raw->WrapS);
+    Result.WrapT = FromRaw(Raw->WrapT);
+    Result.Name = cmn::Copy(Raw->Name, Alloc);
+    return Result;  
+  }
+  texture ToTexture(raw_texture* Raw, sampler* Samplers, image* Images, gltf_memory_allocator Alloc )
+  {
+    texture Result = {};
+    if(Raw->Sampler) {
+      Result.Sampler = &Samplers[*Raw->Sampler];
+    }
+    if(Raw->Source) {
+      Result.Image = &Images[*Raw->Source];
+    }
+    Result.Name = cmn::Copy(Raw->Name, Alloc);
+
+    return Result;  
+  }
+
   document Load(const char* FolderPath, const char* FileName, gltf_read_entire_file ReadFile, gltf_free_file_memory FreeFile, gltf_memory_allocator* PersistentAllocator, gltf_memory_allocator* TmpAllocator)
   {
 
@@ -2461,6 +2586,27 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
 
     document Result = {};
+
+    Result.ImageCount = RawGltfData.RawImageCount;
+    Result.Images = GltfNewArray(PersistentAllocator, Result.ImageCount, image);
+    for (int i = 0; i < Result.ImageCount; ++i)
+    {
+      Result.Images[i] = ToImage(&RawGltfData.RawImages[i], PersistentAllocator);
+    }
+
+    Result.SamplerCount = RawGltfData.RawSamplerCount;
+    Result.Samplers = GltfNewArray(PersistentAllocator, Result.SamplerCount, sampler);
+    for (int i = 0; i < Result.SamplerCount; ++i)
+    {
+      Result.Samplers[i] = ToSampler(&RawGltfData.RawSamplers[i], PersistentAllocator);
+    }
+
+    Result.TextureCount = RawGltfData.RawTextureCount;
+    Result.Textures = GltfNewArray(PersistentAllocator, Result.TextureCount, texture);
+    for (int i = 0; i < Result.TextureCount; ++i)
+    {
+      Result.Textures[i] = ToTexture(&RawGltfData.RawTextures[i], Result.Samplers, Result.Images, PersistentAllocator);
+    }
 
     Result.MaterialCount = RawGltfData.RawMaterialCount;
     Result.Materials = GltfNewArray(PersistentAllocator, Result.MaterialCount, material);
