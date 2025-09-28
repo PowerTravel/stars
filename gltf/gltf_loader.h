@@ -48,30 +48,23 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
   struct raw_attribute {
 
-    enum class type {
-      ERROR,
-      POSITION,    /* VEC3      - float - Unitless XYZ vertex positions */
-      NORMAL,      /* VEC3      - float - Normalized XYZ vertex normals 29 */
-      TANGENT,     /* VEC4      - float - XYZW vertex tangents where the XYZ portion is normalized, and the W component is a sign value (- 1 or +1) indicating handedness of the tangent basis */
-      TEXCOORD_0,  /* VEC2      - float - unsigned byte normalized, unsigned short normalized, - ST texture coordinates */
-      TEXCOORD_1,
-      TEXCOORD_2,
-      TEXCOORD_3,
-      COLOR_0,      /* VEC3 VEC4 - float unsigned byte normalized, unsigned short normalized - RGB or RGBA vertex color linear multiplier */
-      COLOR_1,
-      COLOR_2,
-      COLOR_3,
-      JOINTS_0,     /* VEC4      - unsigned byte, unsigned short, - See Skinned Mesh Attributes */
-      JOINTS_1,
-      JOINTS_2,
-      JOINTS_3,
-      WEIGHTS_0,    /* VEC4      - float unsigned byte normalized, unsigned short normalized - See Skinned Mesh Attributes */
-      WEIGHTS_1,
-      WEIGHTS_2,
-      WEIGHTS_3, 
+    struct attribute_type{
+    
+      enum class type {
+        ERROR,
+        POSITION,   /* VEC3      - float - Unitless XYZ vertex positions */
+        NORMAL,     /* VEC3      - float - Normalized XYZ vertex normals 29 */
+        TANGENT,    /* VEC4      - float - XYZW vertex tangents where the XYZ portion is normalized, and the W component is a sign value (- 1 or +1) indicating handedness of the tangent basis */
+        TEXCOORD ,  /* VEC2      - float - unsigned byte normalized, unsigned short normalized, - ST texture coordinates */
+        COLOR,      /* VEC3 VEC4 - float unsigned byte normalized, unsigned short normalized - RGB or RGBA vertex color linear multiplier */
+        JOINTS,     /* VEC4      - unsigned byte, unsigned short, - See Skinned Mesh Attributes */
+        WEIGHTS,    /* VEC4      - float unsigned byte normalized, unsigned short normalized - See Skinned Mesh Attributes */
+      };
+      int Index;
+      type Type;
     };
 
-    type Type;
+    attribute_type Type;
     int Index;
   };
 
@@ -963,114 +956,53 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-  raw_attribute::type ToAttributeType( const char* Type ){
+  raw_attribute::attribute_type ToAttributeType( const char* Type ){
+    raw_attribute::attribute_type Result = {};
     if(jstr::Equals("POSITION", Type))
     {
-      return raw_attribute::type::POSITION;
+      Result.Index = 0;
+      Result.Type = raw_attribute::attribute_type::type::POSITION;
     }
     else if(jstr::Equals("NORMAL", Type))
     {
-      return raw_attribute::type::NORMAL;
+      Result.Index = 0;
+      Result.Type = raw_attribute::attribute_type::type::NORMAL;
     }
     else if(jstr::Equals("TANGENT", Type))
     {
-      return raw_attribute::type::TANGENT;
+      Result.Index = 0;
+      Result.Type = raw_attribute::attribute_type::type::TANGENT;
     }
     else if(jstr::BeginsWith("TEXCOORD_", Type))
     {
       const char* Num = Type + 9;
-      if(jstr::Equals("0", Num))
-      {
-        return raw_attribute::type::TEXCOORD_0;   
-      }
-      else if(jstr::Equals("1", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with TEXCOORD_1 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::TEXCOORD_1;   
-      }
-      else if(jstr::Equals("2", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with TEXCOORD_2 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::TEXCOORD_2;   
-      }
-      else if(jstr::Equals("3", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with TEXCOORD_3 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::TEXCOORD_3;   
-      }
+      Result.Index = cmn::Stoi(Num);
+      Result.Type = Result.Type = raw_attribute::attribute_type::type::TEXCOORD;
     }
     else if(jstr::Equals("COLOR_", Type))
     {
       const char* Num = Type + 6;
-      if(jstr::Equals("0", Num))
-      {
-        return raw_attribute::type::COLOR_0;
-      }
-      else if (jstr::Equals("1", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with COLOR_1 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::COLOR_1;
-      }
-      else if (jstr::Equals("2", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with COLOR_2 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::COLOR_2;
-      }
-      else if (jstr::Equals("3", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with COLOR_3 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::COLOR_3;
-      }
+      Result.Index = cmn::Stoi(Num);
+      Result.Type = Result.Type = raw_attribute::attribute_type::type::COLOR;
     }
     else if(jstr::Equals("JOINTS_", Type))
     {
       const char* Num = Type + 7;
-      if(jstr::Equals("0", Num))
-      {
-        return raw_attribute::type::JOINTS_0;
-      }
-      else if (jstr::Equals("1", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with JOINTS_1 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::JOINTS_1;
-      }
-      else if (jstr::Equals("2", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with JOINTS_2 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::JOINTS_2;
-      }
-      else if (jstr::Equals("3", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with JOINTS_3 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::JOINTS_3;
-      }
+      Result.Index = cmn::Stoi(Num);
+      Result.Type = Result.Type = raw_attribute::attribute_type::type::JOINTS;
     }
     else if(jstr::Equals("WEIGHTS_", Type))
     {
       const char* Num = Type + 8;
-      if(jstr::Equals("0", Num))
-      {
-        return raw_attribute::type::WEIGHTS_0;
-      }
-      else if (jstr::Equals("1", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with WEIGHTS_1 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::WEIGHTS_1;
-      }
-      else if (jstr::Equals("2", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with WEIGHTS_2 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::WEIGHTS_2;
-      }
-      else if (jstr::Equals("3", Num))
-      {
-        Platform.DEBUGPrint("Note: Loading gltf file with WEIGHTS_3 (No idea when several sets are used: Investigate)\n");
-        return raw_attribute::type::WEIGHTS_3;
-      }
+      Result.Index = cmn::Stoi(Num);
+      Result.Type = Result.Type = raw_attribute::attribute_type::type::WEIGHTS;
+    }else{
+      Platform.DEBUGPrint("Note: Loading gltf file with type: '%s' which is not supported or expected.\n", Type);
+      Result.Index = 0;
+      Result.Type = Result.Type = raw_attribute::attribute_type::type::ERROR;
     }
-
-    Platform.DEBUGPrint("Note: Loading gltf file with type: '%s' which is not supported or expected.\n", Type);
-    return raw_attribute::type::ERROR;
+    
+    return Result;
   }
 
   raw_attribute RawAttribute(const char* Key, int Value)
@@ -1727,9 +1659,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   };
 
   struct texture_info {
-    texture Texture;
+    texture* Texture;
     int TexCoord;
-    cmn::string Name;
   };
 
   struct material 
@@ -1776,8 +1707,10 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       v3* v;     // Vertices
       int vnCount;
       v3* vn;    // Vertice Normals
-      int vtCount;
-      v2* vt;    // Texture Vertices
+
+      int vtSetCount;
+      int* vtCount;
+      v2** vt;    // Texture Vertices
 
       v3 vMin;
       v3 vMax;
@@ -1991,13 +1924,27 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     Extract(RawAccessor->MaxCount, 1, SrcComponentSize, SrcComponentSize, (uint8_t*) RawAccessor->Max, sizeof(float), (uint8_t*) Primitive->vMax.E);
   }
 
-  material::pbr_metallic_roughness* ToRawPbrMetallicRoughness(raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf_memory_allocator Alloc){
+  texture_info FromRaw(raw_texture_info* Raw)
+  {
+    // For now we can only handle one set of texture coordinates.
+    // Change this if we ever see more of them.
+    Assert(Raw->TexCoord == 0);
+    return {};
+  }
+
+  material::pbr_metallic_roughness* ToRawPbrMetallicRoughness(raw_pbr_metallic_roughness* RawPbrMetallicRoughness, texture* Textures, gltf_memory_allocator Alloc){
     
-    Assert(!RawPbrMetallicRoughness->BaseColorTexture);
     Assert(!RawPbrMetallicRoughness->MetallicRoughnessTexture);
 
     material::pbr_metallic_roughness* Result = GltfNewStruct(Alloc, material::pbr_metallic_roughness);
     
+    if(RawPbrMetallicRoughness->BaseColorTexture)
+    {
+      Result->BaseColorTexture = GltfNewStruct(Alloc, texture_info);
+      Result->BaseColorTexture->Texture = &Textures[RawPbrMetallicRoughness->BaseColorTexture->Index];
+      Result->BaseColorTexture->TexCoord = RawPbrMetallicRoughness->BaseColorTexture->TexCoord;  
+    }
+
     Result->BaseColorFactor = RawPbrMetallicRoughness->BaseColorFactor;
     Result->MetallicFactor  = RawPbrMetallicRoughness->MetallicFactor;
     Result->RoughnessFactor = RawPbrMetallicRoughness->RoughnessFactor;
@@ -2005,7 +1952,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-  material ToMaterial(raw_material* RawMaterial, gltf_memory_allocator Alloc)
+  material ToMaterial(raw_material* RawMaterial, texture* Textures, gltf_memory_allocator Alloc)
   {
     material Result = {};
 
@@ -2019,7 +1966,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     }
 
     if(RawMaterial->PbrMetallicRoughness) {
-      Result.PbrMetallicRoughness = ToRawPbrMetallicRoughness(RawMaterial->PbrMetallicRoughness, Alloc);
+      Result.PbrMetallicRoughness = ToRawPbrMetallicRoughness(RawMaterial->PbrMetallicRoughness, Textures, Alloc);
     }
 
     if(!cmn::IsEmpty(RawMaterial->AlphaMode)){
@@ -2048,18 +1995,59 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       Result.Indeces = (int*) ExtractRestult.DataBytes;
     }
 
+    int TextureCoordinateCount = 0;
+    int ColorCount = 0;
+    int JointsCount = 0;
+    int WeightsCount = 0;
+    for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
+    {
+      raw_attribute* RawAttribute = &RawPrimitive->Attributes[i];
+      raw_attribute::attribute_type AttributeType = RawAttribute->Type;
+      switch(AttributeType.Type)
+      {
+        case raw_attribute::attribute_type::type::TEXCOORD: {
+          if(TextureCoordinateCount < AttributeType.Index+1) {
+            TextureCoordinateCount = AttributeType.Index+1;
+          }
+        } break;
+        case raw_attribute::attribute_type::type::COLOR: {
+          if(ColorCount < AttributeType.Index+1) {
+            ColorCount = AttributeType.Index+1;
+          }
+        }break;
+        case raw_attribute::attribute_type::type::JOINTS: {
+          if(JointsCount < AttributeType.Index+1) {
+            JointsCount = AttributeType.Index+1;
+          }
+        }break;
+        case raw_attribute::attribute_type::type::WEIGHTS: {
+          if(WeightsCount < AttributeType.Index+1) {
+            WeightsCount = AttributeType.Index+1;
+          }
+        }break;
+      }
+    }
+    Assert(ColorCount==0);
+    Assert(JointsCount==0);
+    Assert(WeightsCount==0);
+
+    Result.vtSetCount = TextureCoordinateCount;
+    Result.vtCount    = GltfNewArray(Alloc, Result.vtSetCount, int);
+    Result.vt         = GltfNewArray(Alloc, Result.vtSetCount, v2*);
+
     for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
     {
       raw_attribute* RawAttribute = &RawPrimitive->Attributes[i];
       raw_accessor* RawAccessor = &RawGltfData->RawAccessors[RawAttribute->Index];
+      raw_attribute::attribute_type AttributeType = RawAttribute->Type;
       buffer_extract_result ExtractRestult = Extract(RawAccessor, RawGltfData->RawBufferViews, RawGltfData->RawBuffers, Alloc);
-      switch(RawAttribute->Type)
+      switch(AttributeType.Type)
       {
-        case raw_attribute::type::ERROR: {
+        case raw_attribute::attribute_type::type::ERROR: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type ERROR\n");
           Assert(0);
         }break;
-        case raw_attribute::type::POSITION: {
+        case raw_attribute::attribute_type::type::POSITION: {
           Assert(ExtractRestult.ComponentSize == 4);
           Assert(ExtractRestult.ComponentCount == 3);
 
@@ -2067,83 +2055,33 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
           Result.vCount = ExtractRestult.Count;
           Result.v = (v3*) ExtractRestult.DataBytes;
         }break;
-        case raw_attribute::type::NORMAL: {
-
+        case raw_attribute::attribute_type::type::NORMAL: {
           Assert(ExtractRestult.ComponentSize == 4);
           Assert(ExtractRestult.ComponentCount == 3);
           Result.vnCount = ExtractRestult.Count;
           Result.vn = (v3*) ExtractRestult.DataBytes;
-
         }break;
-        case raw_attribute::type::TANGENT: {
+        case raw_attribute::attribute_type::type::TANGENT: {
           Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TANGENT\n");
           Assert(0);
         }break;
-        case raw_attribute::type::TEXCOORD_0: {
+        case raw_attribute::attribute_type::type::TEXCOORD: {
           
           Assert(ExtractRestult.ComponentSize == 4);
           Assert(ExtractRestult.ComponentCount == 2);
-          Result.vtCount = ExtractRestult.Count;
-          Result.vt = (v2*) ExtractRestult.DataBytes;
+          Result.vtCount[AttributeType.Index] = ExtractRestult.Count;
+          Result.vt[AttributeType.Index] = (v2*) ExtractRestult.DataBytes;
         }break;
-        case raw_attribute::type::TEXCOORD_1: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_1\n");
+        case raw_attribute::attribute_type::type::COLOR: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR\n");
           Assert(0);
         }break;
-        case raw_attribute::type::TEXCOORD_2: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_2\n");
+        case raw_attribute::attribute_type::type::JOINTS: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS\n");
           Assert(0);
         }break;
-        case raw_attribute::type::TEXCOORD_3: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TEXCOORD_3\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::COLOR_0: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_0\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::COLOR_1: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_1\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::COLOR_2: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_2\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::COLOR_3: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR_3\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::JOINTS_0: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_0\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::JOINTS_1: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_1\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::JOINTS_2: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_2\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::JOINTS_3: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS_3\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::WEIGHTS_0: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_0\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::WEIGHTS_1: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_1\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::WEIGHTS_2: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_2\n");
-          Assert(0);
-        }break;
-        case raw_attribute::type::WEIGHTS_3: {
-          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS_3\n");
+        case raw_attribute::attribute_type::type::WEIGHTS: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS\n");
           Assert(0);
         }break;
       }
@@ -2581,9 +2519,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       }
     }
 
-
     FreeFile(GltfFile);
-
 
     document Result = {};
 
@@ -2612,7 +2548,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     Result.Materials = GltfNewArray(PersistentAllocator, Result.MaterialCount, material);
     for (int i = 0; i < Result.MaterialCount; ++i)
     {
-      Result.Materials[i] = ToMaterial(&RawGltfData.RawMaterials[i], PersistentAllocator);
+      Result.Materials[i] = ToMaterial(&RawGltfData.RawMaterials[i], Result.Textures, PersistentAllocator);
     }
 
     Result.MeshCount = RawGltfData.RawMeshCount;
