@@ -15,11 +15,11 @@ namespace component {
 namespace flag{
   enum component_type
   {
-    NONE      = 0,
-    POSITION  = 1<<0,
-    COLLIDER  = 1<<1,
-    RENDER    = 1<<2,
-    END       = 1<<3
+    NONE         = 0,
+    POSITION     = 1<<0,
+    COLLIDER     = 1<<1,
+    RENDER       = 1<<2,
+    END       = 1<<4
   };
 }
 

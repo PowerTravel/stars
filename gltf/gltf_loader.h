@@ -8,7 +8,6 @@
 #define STBI_NO_FAILURE_STRINGS
 #include "externals/stb_image.h"
 
-
 namespace gltf {
 
 #define GLTF_MEMORY_ALLOCATOR(name) void* name(size_t ByteSize)
@@ -1697,7 +1696,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     cmn::string Name;
   };
 
-  struct mesh{
+  struct mesh {
 
     struct primitive {
       int IndexCount;
@@ -2210,7 +2209,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-  // Note: The node hierarchy make up a set of disjoin strict trees which means they are free of cycles and each node must have zero or one parent node.
+  // Note: The node hierarchy make up a set of disjoint strict trees which means they are free of cycles and each node must have zero or one parent node.
   //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
   //       I'm assuming this means each child node only appears once.
   scene* ToScenes(raw_gltf_data* RawGltfData, mesh* Meshes, gltf_memory_allocator PersistentAllocator, gltf_memory_allocator TemporaryAllocator)
@@ -2242,7 +2241,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       Scene->RootCount = RawScene->NodeCount;
       Scene->RootNodes = GltfNewArray(PersistentAllocator, Scene->RootCount, node*);
       for (int j = 0; j < RawScene->NodeCount; ++j)
-      { 
+      {
         int RootNodeIndex = RawScene->Nodes[j];
 
         Scene->RootNodes[i] = &Nodes[RootNodeIndex];
@@ -2356,9 +2355,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     nlohmann::json JsonVersion = GltfJson.at("asset").at("version");
     cmn::string version = JsonToString(JsonVersion, internal::TransientAllocator);
     Assert(cmn::Equals(version, "2.0"));
-
-
-
 
     RawGltfData.DefaultSceneIndex = -1;
     if(GltfJson.contains("scene"))

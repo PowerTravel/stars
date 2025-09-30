@@ -5,6 +5,7 @@ namespace render {
 
 struct component {
   u32 MeshHandle;
+  u32 MaterialHandle;
 
   v4 Ambient;
   v4 Diffuse;

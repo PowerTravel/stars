@@ -26,6 +26,7 @@
 //#include "dynamic_aabb_tree.cpp"
 //#include "externals\json_fwd.hpp"
 #include "gltf/gltf_loader.h"
+#include "gltf/gltf_mapper.h"
 
 #include "utils.h"
 
@@ -1209,8 +1210,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         [](size_t ByteSize){
           return PushSize(GlobalTransientArena, ByteSize);
         });
-
     }
+
+
 
 
     GlobalState->Camera = {};

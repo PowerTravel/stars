@@ -99,4 +99,142 @@ namespace asset {
     render_group_element* Elements;
   };
 
+  namespace gltf_tmp {
+
+    typedef int image_id;
+    typedef int mesh_id;
+    typedef int pbr_material_id;
+  
+
+    struct image // image_id
+    {
+      enum {
+        Channel_Grey = 1,
+        Channel_GreyAlpha = 2,
+        Channel_RGB = 3,
+        Channel_RGBA = 4
+      };
+
+      int Height;
+      int Width;
+      int Channels;
+      uint8_t* Pixels;
+    };
+
+    // A mesh primitive mesh
+    struct mesh // mesh_id (Can be OBJ as well)
+    {
+      enum class topology {
+        POINTS,
+        LINES,
+        LINE_LOOP,
+        LINE_STRIP,
+        TRIANGLES,
+        TRIANGLE_STRIP,
+        TRIANGLE_FAN
+      };
+
+      int IndexCount;
+      int* Indeces;
+
+      int VertexCount;
+      v3* Vertex;     // Vertices
+      int VertexNormalCount;
+      v3* VertexNormal;    // Vertice Normals
+
+      int TextureVertexSetCount;
+      int* TextureVertexCounts;
+      v2** TextureVertices;    // Texture Vertices
+
+      topology Topology;
+
+      aabb3f AABB;
+    };
+
+
+    // Things needed for pbr-rendering
+    struct pbr_material //  pbr_material_id
+    {
+      // Maps a Image and info on how to display it 
+      struct texture {
+        enum class filter {
+          NEAREST,
+          LINEAR,
+          NEAREST_MIPMAP_NEAREST,
+          LINEAR_MIPMAP_NEAREST,
+          NEAREST_MIPMAP_LINEAR,
+          LINEAR_MIPMAP_LINEAR
+        };
+
+        enum class wrap {
+          CLAMP_TO_EDGE,
+          MIRRORED_REPEAT,
+          REPEAT,
+        };
+
+        image_id Image; // required
+        int TexCoord;   // required - References the mesh the material is attached to
+        filter MagFilter;
+        filter MinFilter;
+        wrap WrapS;
+        wrap WrapT;
+      };
+
+      struct metallic_roughness
+      {
+        v4 BaseColorFactor;
+        texture* BaseColorTexture;
+        float MetallicFactor;
+        float RoughnessFactor;
+        texture* MetallicRoughnessTexture;
+      };
+
+      struct occlusion_texture {
+        texture Texture;
+        float Strength;
+      };
+
+      struct normal_texture {
+        texture Texture;
+        float Scale;
+      };
+
+      metallic_roughness* MetallicRoughness;
+      normal_texture* NormalTexture;
+      occlusion_texture* OcclusionTexture;
+      texture* EmissiveTexture;
+      v3 EmissiveFactor;
+      cmn::string AlphaMode;
+      float AlphaCutoff;
+      bool DoubleSided;
+    };
+
+    struct render_asset { // render_asset_id
+      
+      struct mesh_info {
+        mesh_id Mesh;
+        pbr_material_id Material;
+      };
+
+      struct node {
+
+        size_t ChildCount;
+        node* Parent;
+        node* NextSibling;
+        node* PreviousSibling;
+        node* FirstChild;
+
+        bool HasMesh;
+        mesh_info MeshInfo;
+
+        bool HasTransform;
+        m4 Transform;
+      };
+
+      size_t NodeCount;
+      node* Nodes;
+      node* Root;
+    };
+  } // namespace gltf_tmp
+
 }
