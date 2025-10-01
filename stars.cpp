@@ -1203,12 +1203,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         },
         [](void* FileDataToFree){
           Platform.DEBUGPlatformFreeFileMemory(FileDataToFree);
-        },
-        [](size_t ByteSize){
-          return PushSize(GlobalPersistentArena, ByteSize);
-        },
-        [](size_t ByteSize){
-          return PushSize(GlobalTransientArena, ByteSize);
         });
     }
 
