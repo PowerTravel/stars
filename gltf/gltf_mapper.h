@@ -6,6 +6,18 @@
 namespace asset {
 namespace gltf_tmp {
 
+
+  cmn::string GetUniqueName(const char* Prefix, size_t Size, char* Memory)
+  {
+    static int UniqueIndex = 0;
+    cmn::string Result = cmn::String(Size, Memory);
+    cmn::PushBack(Result, Prefix);
+    char NumBuf[32] = {};
+    cmn::Itoa(UniqueIndex++, ArrayCount(NumBuf), NumBuf);
+    cmn::PushBack(Result, NumBuf);
+    return Result;
+  }
+
   struct node_queue {
 
     struct pair {
@@ -17,8 +29,6 @@ namespace gltf_tmp {
     size_t TotCount;
     pair* Queue;
   };
-
-  
 
   node_queue NodeQueue(size_t Size)
   {
@@ -248,6 +258,218 @@ namespace gltf_tmp {
     return Result;  
   }
 
+#if 0
+
+
+
+
+  pbr_material::texture ToTexture(int RawSamplerIndex, gltf::raw_gltf_data* RawData, image* Images)
+  {
+    pbr_material::texture Result = {};
+    Result.MagFilter = FromRaw(Raw->MagFilter);
+    Result.MinFilter = FromRaw(Raw->MinFilter);
+    Result.WrapS = FromRaw(Raw->WrapS);
+    Result.WrapT = FromRaw(Raw->WrapT);
+
+    return Result;  
+  }
+
+  gltf_tmp::pbr_material::pbr_metallic_roughness ToRawPbrMetallicRoughness(gltf::raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf::raw_gltf_data* RawData, image* Images)
+  {
+    // Note: Handle more material properties as they become needed.
+    Assert(!RawPbrMetallicRoughness->MetallicRoughnessTexture);
+
+    gltf_tmp::pbr_material::pbr_metallic_roughness Result = {};
+    
+    if(RawPbrMetallicRoughness->BaseColorTexture)
+    {
+      gltf::raw_texture_info* BaseColorTexture = RawPbrMetallicRoughness->BaseColorTexture; 
+      if(BaseColorTexture->Sampler)
+      {
+
+      }else{
+
+      }
+      // Note: The index of the image used by this texture. When undefined, an extension or other mechanism SHOULD
+      //       supply an alternate texture source, otherwise behavior is undefined.
+      //       Since we don't support any extension atm, this is a required field.
+      Assert(BaseColorTexture->Source);
+      image* Image = Images[*BaseColorTexture->Source];
+
+
+      RawData->Textures[*RawPbrMetallicRoughness->BaseColorTexture];
+
+      Resukt.HasBaseColorTexture = true;
+      gltf_tmp::pbr_material::texture Texture = {};
+
+      Result.BaseColorTexture->Texture = &Textures[RawPbrMetallicRoughness->BaseColorTexture->Index];
+      Result.BaseColorTexture->TexCoord = RawPbrMetallicRoughness->BaseColorTexture->TexCoord;  
+    }
+
+    Result->BaseColorFactor = RawPbrMetallicRoughness->BaseColorFactor;
+    Result->MetallicFactor  = RawPbrMetallicRoughness->MetallicFactor;
+    Result->RoughnessFactor = RawPbrMetallicRoughness->RoughnessFactor;
+
+    return Result;
+  }
+
+  material ToMaterial(int RawMaterialIndex, gltf::raw_gltf_data* RawData, image* Images)
+  {
+    material Result = {};
+
+    gltf::raw_material* RawMaterial = RawData->RawMaterials[RawMaterialIndex];
+
+    // Note: Handle more material properties as they become needed.
+    Assert(!RawMaterial->NormalTexture);
+    Assert(!RawMaterial->OcclusionTexture);
+    Assert(!RawMaterial->EmissiveTexture);
+
+    if(RawMaterial->PbrMetallicRoughness) {
+      Result.HasPbrMetallicRoughness = true;
+      Result.PbrMetallicRoughness = ToRawPbrMetallicRoughness(RawMaterial->PbrMetallicRoughness, RawData, Images);
+    }
+
+    if(!cmn::IsEmpty(RawMaterial->AlphaMode)){
+      Result.AlphaMode = cmn::Copy(RawMaterial->AlphaMode);
+    }
+    Result.DoubleSided = RawMaterial->DoubleSided;
+    Result.AlphaCutoff = RawMaterial->AlphaCutoff;
+    Result.EmissiveFactor = RawMaterial->EmissiveFactor;
+    return Result;
+  }
+
+#endif
+
+  pbr_material::texture::filter MapFilter(gltf::raw_sampler::filter Raw)
+  {
+    pbr_material::texture::filter Result = pbr_material::texture::filter::NEAREST;
+    switch(Raw)
+    {
+      case gltf::raw_sampler::filter::NEAREST:                Result = pbr_material::texture::filter::NEAREST; break;
+      case gltf::raw_sampler::filter::LINEAR:                 Result = pbr_material::texture::filter::LINEAR; break;
+      case gltf::raw_sampler::filter::NEAREST_MIPMAP_NEAREST: Result = pbr_material::texture::filter::NEAREST_MIPMAP_NEAREST; break;
+      case gltf::raw_sampler::filter::LINEAR_MIPMAP_NEAREST:  Result = pbr_material::texture::filter::LINEAR_MIPMAP_NEAREST; break;
+      case gltf::raw_sampler::filter::NEAREST_MIPMAP_LINEAR:  Result = pbr_material::texture::filter::NEAREST_MIPMAP_LINEAR; break;
+      case gltf::raw_sampler::filter::LINEAR_MIPMAP_LINEAR:   Result = pbr_material::texture::filter::LINEAR_MIPMAP_LINEAR; break;
+    }
+    return Result;
+  }
+
+  pbr_material::texture::wrap MapWrap(gltf::raw_sampler::wrap Raw)
+  {
+    pbr_material::texture::wrap Result = pbr_material::texture::wrap::REPEAT;
+    switch(Raw)
+    {
+      case gltf::raw_sampler::wrap::CLAMP_TO_EDGE:   Result = pbr_material::texture::wrap::CLAMP_TO_EDGE; break;
+      case gltf::raw_sampler::wrap::MIRRORED_REPEAT: Result = pbr_material::texture::wrap::MIRRORED_REPEAT; break;
+      case gltf::raw_sampler::wrap::REPEAT:          Result = pbr_material::texture::wrap::REPEAT; break;
+    }
+    return Result;
+  }
+
+  gltf_tmp::pbr_material::texture MapTexture(gltf::raw_texture_info* BaseColorTexture, gltf::raw_gltf_data* RawGltfData, image** Images) {
+    gltf_tmp::pbr_material::texture Result = {};
+
+    gltf::raw_texture* RawTexture = &RawGltfData->RawTextures[BaseColorTexture->Index];
+
+    if(RawTexture->Sampler)
+    {
+      gltf::raw_sampler* RawSampler = &RawGltfData->RawSamplers[*RawTexture->Sampler];
+      Result.MagFilter = MapFilter(RawSampler->MagFilter);
+      Result.MinFilter = MapFilter(RawSampler->MinFilter);
+      Result.WrapS = MapWrap(RawSampler->WrapS);
+      Result.WrapT = MapWrap(RawSampler->WrapT);
+    }else{
+      Result.MagFilter = pbr_material::texture::filter::NEAREST;
+      Result.MinFilter = pbr_material::texture::filter::NEAREST;
+      Result.WrapS = pbr_material::texture::wrap::REPEAT;
+      Result.WrapT = pbr_material::texture::wrap::REPEAT;  
+    }
+
+    Assert(RawTexture->Source);
+    Result.Image = Images[*RawTexture->Source];
+    Result.TexCoord = BaseColorTexture->TexCoord;
+
+    return Result;
+  };
+
+  gltf_tmp::pbr_material::metallic_roughness MapMetallicRoughness(gltf::raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf::raw_gltf_data* RawGltfData, image** Images) {
+    gltf_tmp::pbr_material::metallic_roughness Result = {};
+
+    Result.BaseColorFactor = RawPbrMetallicRoughness->BaseColorFactor;
+
+    if(RawPbrMetallicRoughness->BaseColorTexture)
+    {
+      Result.HasBaseColorTexture = true;
+      Result.BaseColorTexture = MapTexture(RawPbrMetallicRoughness->BaseColorTexture, RawGltfData, Images);
+    }
+
+    Result.MetallicFactor = RawPbrMetallicRoughness->MetallicFactor; 
+    Result.RoughnessFactor = RawPbrMetallicRoughness->RoughnessFactor; 
+
+    if(RawPbrMetallicRoughness->MetallicRoughnessTexture)
+    {
+      Result.HasMetallicRoughnessTexture = true;
+      Result.MetallicRoughnessTexture = MapTexture(RawPbrMetallicRoughness->MetallicRoughnessTexture, RawGltfData, Images);
+    }
+
+    return Result;
+  }
+
+  gltf_tmp::pbr_material::normal_texture MapNormalTexture() {
+    gltf_tmp::pbr_material::normal_texture Result = {};
+
+    // Implement if we hit this
+    Assert(0);
+    return Result;
+  };
+
+  gltf_tmp::pbr_material::occlusion_texture MapOcclusionTexture() {
+    gltf_tmp::pbr_material::occlusion_texture Result = {};
+    // Implement if we hit this
+    Assert(0);
+    return Result;
+  };
+
+
+  gltf_tmp::pbr_material MapMaterial(gltf::raw_material* RawMaterial, gltf::raw_gltf_data* RawGltfData, image** Images)
+  {
+    gltf_tmp::pbr_material Result = {};
+
+    if(RawMaterial->PbrMetallicRoughness)
+    {
+      Result.HasMetallicRoughness = true;
+      Result.MetallicRoughness = MapMetallicRoughness(RawMaterial->PbrMetallicRoughness, RawGltfData, Images);
+    }
+
+    if(RawMaterial->NormalTexture)
+    {
+      Result.HasNormalTexture = true;
+      Result.NormalTexture = MapNormalTexture();
+    }
+
+    if(RawMaterial->OcclusionTexture)
+    {
+      Result.HasOcclusionTexture = true;
+      Result.OcclusionTexture = MapOcclusionTexture();
+    }
+
+    if(RawMaterial->EmissiveTexture)
+    {
+      Result.HasEmissiveTexture = true;
+      Result.EmissiveTexture = MapTexture(RawMaterial->EmissiveTexture, RawGltfData, Images);
+    }
+
+    Result.EmissiveFactor = RawMaterial->EmissiveFactor;
+    if(!cmn::IsEmpty(RawMaterial->AlphaMode)){
+      Result.AlphaMode = cmn::Copy(RawMaterial->AlphaMode);
+    }
+    Result.AlphaCutoff = RawMaterial->AlphaCutoff;
+    Result.DoubleSided = RawMaterial->DoubleSided;
+
+    return Result;
+  }
+
   render_asset LoadToAssetManager(gltf::raw_gltf_data* RawGltfData) {
     render_asset Result = {};
 
@@ -259,6 +481,25 @@ namespace gltf_tmp {
       image TmpImage = Map(RawImage);
       LoadedImagesTracker[i]  = asset::LoadImage(RawImage.Uri.data, RawImage.Name.data, RawImage.Uri.data, &TmpImage);
     }
+
+    size_t LoadedMaterialCount = RawGltfData->RawImageCount;
+    gltf_tmp::pbr_material** LoadedMaterialTracker = JwinAllocArray(LoadedImageCount, gltf_tmp::pbr_material*);
+    for (int i = 0; i < RawGltfData->RawImageCount; ++i)
+    {
+      gltf::raw_material* RawMaterial = &RawGltfData->RawMaterials[i];
+      gltf_tmp::pbr_material TmpMaterial = MapMaterial(RawMaterial, RawGltfData, LoadedImagesTracker);
+
+      char NameBuf[256] = {};
+      cmn::string Name = {};
+      if(cmn::IsEmpty(RawMaterial->Name))
+      {
+        Name = GetUniqueName("MATERIAL_", sizeof(NameBuf), NameBuf);
+      }else{
+        Name = RawMaterial->Name;
+      }
+      //gltf_tmp::pbr_material* LoadPbrMaterial(const c8* UniqueName, const gltf_tmp::pbr_material* Image, u32* ResultKey = 0)
+      LoadedMaterialTracker[i]  = asset::LoadPbrMaterial(Name.data, &TmpMaterial);
+    }
     
 
 
@@ -268,6 +509,7 @@ namespace gltf_tmp {
 
 ////
 
+    JwinFreeMemory(LoadedMaterialTracker);
     JwinFreeMemory(LoadedImagesTracker);
 
 /*

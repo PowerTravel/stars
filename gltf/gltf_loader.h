@@ -474,7 +474,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
   // Texture sampler properties for filtering and wrapping modes
   struct raw_sampler {
-
     enum class filter {
       NONE = 0,
       NEAREST = 9728,

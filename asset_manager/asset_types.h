@@ -138,6 +138,7 @@ namespace asset {
 
 
     // Things needed for pbr-rendering
+    // Asset Type
     struct pbr_material //  pbr_material_id
     {
       // Maps a Image and info on how to display it 
@@ -158,7 +159,7 @@ namespace asset {
         };
 
         image* Image; // required
-        int TexCoord;   // required - References the mesh the material is attached to
+        int TexCoord; // required - References the mesh the material is attached to
         filter MagFilter;
         filter MinFilter;
         wrap WrapS;
@@ -168,10 +169,12 @@ namespace asset {
       struct metallic_roughness
       {
         v4 BaseColorFactor;
-        texture* BaseColorTexture;
+        bool HasBaseColorTexture;
+        texture BaseColorTexture;
         float MetallicFactor;
         float RoughnessFactor;
-        texture* MetallicRoughnessTexture;
+        bool HasMetallicRoughnessTexture;
+        texture MetallicRoughnessTexture;
       };
 
       struct occlusion_texture {
@@ -184,10 +187,18 @@ namespace asset {
         float Scale;
       };
 
-      metallic_roughness* MetallicRoughness;
-      normal_texture* NormalTexture;
-      occlusion_texture* OcclusionTexture;
-      texture* EmissiveTexture;
+      bool HasMetallicRoughness;
+      metallic_roughness MetallicRoughness;
+
+      bool HasNormalTexture;
+      normal_texture NormalTexture;
+
+      bool HasOcclusionTexture;
+      occlusion_texture OcclusionTexture;
+
+      bool HasEmissiveTexture;
+      texture EmissiveTexture;
+
       v3 EmissiveFactor;
       cmn::string AlphaMode;
       float AlphaCutoff;
