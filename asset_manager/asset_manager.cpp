@@ -23,26 +23,25 @@ u32 ToKey(type Type, const c8* UniqueName)
   return Result;
 }
 
-header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* Path, u32 DataSize)
-{
+header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* Path, midx DataSize) {
   Assert(UniqueName && *UniqueName != '\0');
   // Layout of any memory allocated in the asset_manager is -> | HEADER | DATA | NAME | PATH | KEY |
   // This way, anyone who has a pointer to DATA can get the header by just rewinding the pointer sizeof(header) bytes.
 
-  u32 NameLength = jstr::StringLength(Name);
-  u32 NameSize = (NameLength+1)* sizeof(c8);
-  u32 PathLength = jstr::StringLength(Path);
-  u32 PathSize = (PathLength+1)* sizeof(c8);
-  u32 UniqueNameLength = jstr::StringLength(UniqueName);
-  u32 UniqueNameSize = (UniqueNameLength+1)* sizeof(c8);
+  midx NameLength = jstr::StringLength(Name);
+  midx NameSize = (NameLength+1)* sizeof(c8);
+  midx PathLength = jstr::StringLength(Path);
+  midx PathSize = (PathLength+1)* sizeof(c8);
+  midx UniqueNameLength = jstr::StringLength(UniqueName);
+  midx UniqueNameSize = (UniqueNameLength+1)* sizeof(c8);
 
   const c8* TypeString = TypeToString(Type);
-  u32 TypeLength = jstr::StringLength(TypeString);
-  u32 KeyStringLength = TypeLength + UniqueNameLength + 4;
-  u32 KeyStringSize   = (KeyStringLength+1) * sizeof(c8);
+  midx TypeLength = jstr::StringLength(TypeString);
+  midx KeyStringLength = TypeLength + UniqueNameLength + 4;
+  midx KeyStringSize   = (KeyStringLength+1) * sizeof(c8);
 
-  u32 HeaderSize = sizeof(header) + NameSize + PathSize + KeyStringLength;
-  u32 MemorySize = HeaderSize + DataSize;
+  midx HeaderSize = sizeof(header) + NameSize + PathSize + KeyStringLength;
+  midx MemorySize = HeaderSize + DataSize;
   header* Result = (header*) Allocate(&GlobalAssetManager->Memory, MemorySize);
 
   Result->Type = Type;
@@ -554,7 +553,7 @@ file_local u32 CopyObjBitmapToTexture(const c8* Key, texture_type Type, const ob
 
   u32 TextureSizeBytes = sizeof(texture) + ObjBitmap->Width * ObjBitmap->Height * ObjBitmap->BPP / 8.f;
 
-  header* Header = CreateHeader(type::TEXTURE, Key, ObjBitmap->Name, ObjBitmap->Path, TextureSizeBytes);
+  header* Header   = CreateHeader(type::TEXTURE, Key, ObjBitmap->Name, ObjBitmap->Path, TextureSizeBytes);
   texture* Texture = (texture*) Header->Data;
   Texture->Type    = Type;
   Texture->BPP     = ObjBitmap->BPP;
@@ -861,12 +860,12 @@ void CopyMesh(const mesh* SrcMesh, mesh* DstMesh)
   utils::Copy(SrcMesh->IndexCount  * sizeof(u32), SrcMesh->vi, DstMesh->vi);
   utils::Copy(SrcMesh->vCount * sizeof(v3),       SrcMesh->v, DstMesh->v);
 
-
   if(SrcMesh->vn){
     DstMesh->vnCount = SrcMesh->vnCount;
     utils::Copy(SrcMesh->IndexCount * sizeof(u32), SrcMesh->vni, DstMesh->vni);
     utils::Copy(SrcMesh->vnCount * sizeof(v3),     SrcMesh->vn, DstMesh->vn);
   }
+
   if(SrcMesh->vt){ 
     DstMesh->vtCount = SrcMesh->vtCount;
     utils::Copy(SrcMesh->IndexCount * sizeof(u32), SrcMesh->vti, DstMesh->vti);
@@ -927,5 +926,23 @@ material* LoadMaterial(const c8* UniqueName, const material* Material, u32* Resu
   return Result;
 }
 
+
+/// Gltf Loaders
+gltf_tmp::image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const gltf_tmp::image* Image, u32* ResultKey){
+
+  midx ImageSize = (Image->Channels) * (Image->Width) * (Image->Height);
+  header* Header = CreateHeader(type::IMAGE, UniqueName, Name, Path, ImageSize + sizeof(gltf_tmp::image));
+  gltf_tmp::image* Result = (gltf_tmp::image*) Header->Data;
+  Result->Channels = Image->Channels;
+  Result->Width    = Image->Width;
+  Result->Height   = Image->Height;
+  Result->Pixels   = AdvanceByType(Result, gltf_tmp::image);
+  utils::Copy(ImageSize, (void*) Image->Pixels, (void*) Result->Pixels);
+  if(ResultKey)
+  {
+    *ResultKey = Header->Key;
+  }
+  return Result;
+}
 
 }

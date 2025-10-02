@@ -1,6 +1,7 @@
 #pragma once
 
 #include "commons/types.h"
+#include "commons/jstring.h"
 
 namespace asset {
 
@@ -9,7 +10,8 @@ namespace asset {
     MESH,
     TEXTURE,
     MATERIAL,
-    RENDER_GROUP
+    RENDER_GROUP,
+    IMAGE
   };
 
 
@@ -21,6 +23,7 @@ namespace asset {
       case type::TEXTURE: return "TEXTURE";
       case type::MATERIAL: return "MATERIAL";
       case type::RENDER_GROUP: return "RENDER_GROUP";
+      case type::IMAGE: return "IMAGE";
       default: {
         INVALID_CODE_PATH
       }
@@ -172,7 +175,7 @@ namespace asset {
           REPEAT,
         };
 
-        image_id Image; // required
+        image* Image; // required
         int TexCoord;   // required - References the mesh the material is attached to
         filter MagFilter;
         filter MinFilter;
@@ -212,8 +215,8 @@ namespace asset {
     struct render_asset { // render_asset_id
       
       struct mesh_info {
-        mesh_id Mesh;
-        pbr_material_id Material;
+        mesh* Mesh;
+        pbr_material* Material;
       };
 
       struct node {
@@ -224,8 +227,8 @@ namespace asset {
         node* PreviousSibling;
         node* FirstChild;
 
-        bool HasMesh;
-        mesh_info MeshInfo;
+        size_t MeshCount;
+        mesh_info* MeshInfos;
 
         bool HasTransform;
         m4 Transform;

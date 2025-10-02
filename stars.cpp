@@ -1195,7 +1195,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF";
       char BoxName[] = "BoxTextured.gltf";
 #endif
-      gltf::document Document = gltf::Load(BoxPath, BoxName,
+      gltf::raw_gltf_data Gltf = gltf::Load(BoxPath, BoxName,
         [](const char* Path, size_t* Size){
           debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile(Path);
           *Size = ReadResult.ContentSize;
@@ -1204,7 +1204,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         [](void* FileDataToFree){
           Platform.DEBUGPlatformFreeFileMemory(FileDataToFree);
         });
+
+      asset::gltf_tmp::LoadToAssetManager(&Gltf);
+
+      gltf::Free(&Gltf);
     }
+
 
 
 

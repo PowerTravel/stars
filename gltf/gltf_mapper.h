@@ -1,37 +1,10 @@
 #pragma once
 #include "../asset_manager/asset_types.h"
 #include "gltf_loader.h"
-
-#ifndef JWIN_ALLOC_FUNCTIONS
-#define JWIN_ALLOC_FUNCTIONS
-#include <cstdlib>
-#define ALLOC_MEMORY(size) malloc(size)
-#define FREE_MEMORY(ResultFromAlloc) free(ResultFromAlloc)
-#endif
-
+#include "commons/memory.h"
 
 namespace asset {
 namespace gltf_tmp {
-
-  void Zero(size_t Size, void* Mem)
-  {
-    uint8_t* Scan = (uint8_t*) Mem;
-    while(Size--)
-    {
-      *Scan++ = 0;
-    }
-  }
-
-  void* _AllocSize(size_t Size){
-    void* Result = ALLOC_MEMORY(Size);
-    Zero(Size, Result);
-    return Result;
-  }
-
-  #define AllocSize(Size) _AllocSize(Size)
-  #define AllocStruct(Type) (Type*) _AllocSize(sizeof(Type))
-  #define AllocArray(Count, Type) (Type*) _AllocSize((Count)*sizeof(Type))
-  #define FreeMemory(ResultFromAlloc) FREE_MEMORY(ResultFromAlloc)
 
   struct node_queue {
 
@@ -52,12 +25,12 @@ namespace gltf_tmp {
     node_queue Result = {}; 
     Result.Count = 0;
     Result.TotCount = Size;
-    Result.Queue = AllocArray(Size, node_queue::pair);
+    Result.Queue = JwinAllocArray(Size, node_queue::pair);
     return Result;
   }
   void DeleteNodeQueue(node_queue& Queue)
   {
-    FreeMemory(Queue.Queue);
+    JwinFreeMemory(Queue.Queue);
   }
 
   bool IsEmpty(node_queue& Queue)
@@ -93,9 +66,13 @@ namespace gltf_tmp {
 //          and we can convert them to entities-components later if we want.
 
   // MeshIDMap has same order as meshes in the raw_gltf_data, but the values are in the asset manager.
-  render_asset::node ConvertPayload(gltf::raw_node* RawNode, mesh_id* MeshIDMap)
+
+  // This function is broken. each raw_mesh has a set of mesh_primitives. Our type for mesh is mesh_info which has an array of mesh(_primitive) + material pair.
+  render_asset::node ConvertPayload(gltf::raw_node* RawNode, mesh_id* MeshIdMap )
   {
     render_asset::node Result = {};
+
+#if 0
     switch(RawNode->TransformationType){
       case gltf::raw_node::transformation_type::NONE: {
         Result.Transform = M4Identity();
@@ -111,9 +88,14 @@ namespace gltf_tmp {
     if(RawNode->Mesh)
     {
       Result.HasMesh = true;
-      Result.MeshInfo.Mesh = MeshIDMap[*RawNode->Mesh];
+      for (int i = 0; i < RawNode->Mesh->PrimitiveCount; ++i)
+      {
+        
+      }
+      Result.MeshInfo.Mesh = &MeshMap[*RawNode->Mesh];
+      Result.MeshInfo.PbrMaterial = &MeshMap[*RawNode->Material];
     }
-
+#endif
     return Result;
   }
 
@@ -132,7 +114,7 @@ namespace gltf_tmp {
 
   size_t GetRootNodeCount(size_t RawSceneCount, gltf::raw_scene* RawScenes, size_t TotalNodeCount, int** UniqueRootNodes)
   {
-    int* UniqueRootNodeTracker = AllocArray(TotalNodeCount, int);
+    int* UniqueRootNodeTracker = JwinAllocArray(TotalNodeCount, int);
 
     size_t UniqueRootNodeCount = 0;
     for (int SceneIndex = 0; SceneIndex < RawSceneCount; ++SceneIndex)
@@ -148,14 +130,14 @@ namespace gltf_tmp {
       }
     }
     
-    int* Result = AllocArray(UniqueRootNodeCount, int);
+    int* Result = JwinAllocArray(UniqueRootNodeCount, int);
     for (int i = 0; i < UniqueRootNodeCount; ++i)
     {
       Result[i] = UniqueRootNodeTracker[i]-1;
       Assert(Result[i]>=0);
     }
 
-    FreeMemory(UniqueRootNodeTracker);
+    JwinFreeMemory(UniqueRootNodeTracker);
     *UniqueRootNodes = Result;
     return UniqueRootNodeCount;
   }
@@ -184,7 +166,7 @@ namespace gltf_tmp {
   {
     render_asset Result = {};
     Result.NodeCount = GetNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
-    Result.Nodes = AllocArray(Result.NodeCount, render_asset::node);
+    Result.Nodes = JwinAllocArray(Result.NodeCount, render_asset::node);
     Result.Root = Result.Nodes;
 
     int NodeArrayIndex = 0;
@@ -233,7 +215,7 @@ namespace gltf_tmp {
     int* UniqueRootNodes = 0;
     size_t UniqueRootNodeCount = GetRootNodeCount(GltfData->RawSceneCount, GltfData->RawScenes, GltfData->RawNodeCount, &UniqueRootNodes);
 
-    render_asset* Result = AllocArray(UniqueRootNodeCount, render_asset);
+    render_asset* Result = JwinAllocArray(UniqueRootNodeCount, render_asset);
     for (int i = 0; i < UniqueRootNodeCount; ++i)
     {
       int UniqueRootNodeIndex = UniqueRootNodes[i];
@@ -243,48 +225,91 @@ namespace gltf_tmp {
       *RenderAsset = ConvertTree(UniqueRootNodeIndex, GltfData->RawNodeCount, GltfData->RawNodes, MeshIDMap);
     }
 
-    FreeMemory(UniqueRootNodes);
+    JwinFreeMemory(UniqueRootNodes);
 
     return Result;
   }
 
 
-  render_asset Map(gltf::raw_gltf_data* GltfData) {
+  void Copy(size_t ByteCount, uint8_t* Src, uint8_t* Dst)
+  {
+    uint8_t* SrcScan = (uint8_t*) Src;
+    uint8_t* DstScan = (uint8_t*) Dst;
+    while (ByteCount--) { *DstScan++ = *SrcScan++;}
+  }
+
+  gltf_tmp::image Map(const gltf::raw_image& Raw)
+  { 
+    gltf_tmp::image Result = {};
+    Result.Width    = Raw.Width;
+    Result.Height   = Raw.Height;
+    Result.Channels = Raw.Channels;
+    Result.Pixels   = Raw.Pixels;
+    return Result;  
+  }
+
+  render_asset LoadToAssetManager(gltf::raw_gltf_data* RawGltfData) {
     render_asset Result = {};
 
+    size_t LoadedImageCount = RawGltfData->RawImageCount;
+    gltf_tmp::image** LoadedImagesTracker = JwinAllocArray(LoadedImageCount, gltf_tmp::image*);
+    for (int i = 0; i < RawGltfData->RawImageCount; ++i)
+    {
+      gltf::raw_image& RawImage = RawGltfData->RawImages[i];
+      gltf_tmp::image TmpImage = Map(RawImage);
+      LoadedImagesTracker[i]  = asset::LoadImage(RawImage.Uri.data, RawImage.Name.data, RawImage.Uri.data, &TmpImage);
+    }
+    
 
+
+////
+
+
+
+////
+
+    JwinFreeMemory(LoadedImagesTracker);
+
+/*
+    Result.ImageCount = RawGltfData.RawImageCount;
+    Result.Images = JwinAllocArray( Result.ImageCount, image);
+    for (int i = 0; i < Result.ImageCount; ++i)
+    {
+      Result.Images[i] = ToImage(&RawGltfData.RawImages[i], PersistentAllocator);
+    }
+*/
 #if 0
 
     Result.ImageCount = RawGltfData.RawImageCount;
-    Result.Images = AllocArray( Result.ImageCount, image);
+    Result.Images = JwinAllocArray( Result.ImageCount, image);
     for (int i = 0; i < Result.ImageCount; ++i)
     {
       Result.Images[i] = ToImage(&RawGltfData.RawImages[i], PersistentAllocator);
     }
 
     Result.SamplerCount = RawGltfData.RawSamplerCount;
-    Result.Samplers = AllocArray( Result.SamplerCount, sampler);
+    Result.Samplers = JwinAllocArray( Result.SamplerCount, sampler);
     for (int i = 0; i < Result.SamplerCount; ++i)
     {
       Result.Samplers[i] = ToSampler(&RawGltfData.RawSamplers[i], PersistentAllocator);
     }
 
     Result.TextureCount = RawGltfData.RawTextureCount;
-    Result.Textures = AllocArray( Result.TextureCount, texture);
+    Result.Textures = JwinAllocArray( Result.TextureCount, texture);
     for (int i = 0; i < Result.TextureCount; ++i)
     {
       Result.Textures[i] = ToTexture(&RawGltfData.RawTextures[i], Result.Samplers, Result.Images, PersistentAllocator);
     }
 
     Result.MaterialCount = RawGltfData.RawMaterialCount;
-    Result.Materials = AllocArray( Result.MaterialCount, material);
+    Result.Materials = JwinAllocArray( Result.MaterialCount, material);
     for (int i = 0; i < Result.MaterialCount; ++i)
     {
       Result.Materials[i] = ToMaterial(&RawGltfData.RawMaterials[i], Result.Textures, PersistentAllocator);
     }
 
     Result.MeshCount = RawGltfData.RawMeshCount;
-    Result.Meshes = AllocArray( Result.MeshCount, mesh);
+    Result.Meshes = JwinAllocArray( Result.MeshCount, mesh);
     for (int i = 0; i < Result.MeshCount; ++i)
     {
       Result.Meshes[i] = ToMesh(i, &RawGltfData, Result.Materials, PersistentAllocator);

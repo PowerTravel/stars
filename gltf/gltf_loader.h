@@ -449,7 +449,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     //       Allowed values: "image/jpeg", "image/png";
     mime_type MimeType;
 
-
     // key: bufferView
     // Required: No
     // Note: The index of the bufferView that contains the image. This field MUST NOT be defined when uri is defined.
@@ -463,7 +462,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
-
 
     int Channels;
     int Width;
@@ -2255,7 +2253,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     while (ByteCount--) { *DstScan++ = *SrcScan++;}
   }
 
-  image ToImage(raw_image* Raw )
+  image ToImage(raw_image* Raw)
   { 
     image Result = {};
     Result.Uri  = cmn::Copy(Raw->Uri);
@@ -2321,7 +2319,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;  
   }
 
-  document Load(const char* FolderPath, const char* FileName, gltf_read_entire_file ReadFile, gltf_free_file_memory FreeFile)
+  raw_gltf_data Load(const char* FolderPath, const char* FileName, gltf_read_entire_file ReadFile, gltf_free_file_memory FreeFile)
   {
 
     raw_gltf_data RawGltfData = {};
@@ -2546,6 +2544,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     Result.SceneCount = RawGltfData.RawSceneCount;
     Result.Scenes = ToScenes(&RawGltfData, Result.Meshes);
+    
 
     for (int i = 0; i < RawGltfData.BufferCount; ++i)
     {
@@ -2554,8 +2553,14 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         FreeFile(RawGltfData.RawBuffers[i].LoadedData);
       }
     }
+
+    return RawGltfData;
+  }
+
+
+  void Free(raw_gltf_data* RawGltfData)
+  {
     
-    return Result;
   }
 
 }
