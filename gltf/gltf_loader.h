@@ -2477,7 +2477,15 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
           cmn::PushBack(ImagePath, FolderPath);
           cmn::PushBack(ImagePath, "\\");
           cmn::PushBack(ImagePath, RawImage->Uri);
+          
+          #if 0
           unsigned char* ImageData = stbi_load(ImagePath.data, &RawImage->Width, &RawImage->Height, &RawImage->Channels, STBI_default);
+          #else
+          int DesiredChannels = STBI_rgb_alpha; // Regardless of image type, today we only support RGBA images.
+          int NativeChannels = 0; // Unused
+          unsigned char* ImageData = stbi_load(ImagePath.data, &RawImage->Width, &RawImage->Height, &NativeChannels, DesiredChannels);
+          RawImage->Channels = STBI_rgb_alpha;
+          #endif
           size_t ImageByteSize = RawImage->Width * RawImage->Height * RawImage->Channels;
           RawImage->Pixels = (uint8_t*) JwinAllocSize(ImageByteSize);
           Copy(ImageByteSize, (uint8_t*) ImageData, (uint8_t*) RawImage->Pixels);

@@ -84,6 +84,7 @@ void LoadMaterials()
 
   u32 TextureKey = 0;
   asset::LoadTexture("WhitePixel", &WhitePixelBitmap, &TextureKey);
+  
   ecs::render::Load32BitTextureToGpu(TextureKey, &WhitePixelBitmap);
 
   LoadMaterial(TextureKey, {0.0215f,    0.1745f,    0.0215f,   0.55f}, {0.07568f,    0.61424f,    0.07568f,    0.55f}, {0.633f,       0.727811f,    0.633f,      0.55f}, 128 * 0.6f,          "emerald");

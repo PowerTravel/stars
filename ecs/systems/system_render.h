@@ -211,6 +211,8 @@ namespace data {
   u32 Get32BitTextureHandle(const c8* Name);
   u32 Get32BitTextureHandle(u32 AssetKey);
 
+  u32 LoadImageToGpu(u32 AssetKey, asset::gltf_tmp::image* Image);
+
   u32 FrameBuffer(u32 Index);
 
 

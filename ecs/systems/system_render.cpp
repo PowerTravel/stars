@@ -1150,6 +1150,16 @@ u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture) {
   return Handle;
 }
 
+u32 LoadImageToGpu(u32 AssetKey, asset::gltf_tmp::image* Image) {
+  Assert(Image->Channels == 4);
+  texture_params Params = DefaultColorTextureParams();
+  Params.TextureFormat = texture_format::RGBA_U8;
+  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, Params, Image->Pixels);
+  SetHandle(&GlobalRenderSystem->TextureHandleMap, AssetKey, Handle);
+  return Handle;
+}
+
 
 void Init(u32 MeshAssetKey, u32 MaterialAssetKey, component* Render)
 {

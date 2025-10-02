@@ -11,7 +11,8 @@ namespace asset {
     TEXTURE,
     MATERIAL,
     RENDER_GROUP,
-    IMAGE
+    IMAGE,
+    PBR_MATERIAL
   };
 
 
@@ -24,6 +25,7 @@ namespace asset {
       case type::MATERIAL: return "MATERIAL";
       case type::RENDER_GROUP: return "RENDER_GROUP";
       case type::IMAGE: return "IMAGE";
+      case type::PBR_MATERIAL: return "PBR_MATERIAL";
       default: {
         INVALID_CODE_PATH
       }
