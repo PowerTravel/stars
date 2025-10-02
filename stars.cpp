@@ -76,7 +76,7 @@ void LoadMaterials()
 {
   u8 WhitePixel[4] = {255,255,255,255};
   void* WhitePixelPtr = PushCopy(GlobalTransientArena, sizeof(WhitePixel), (void*) WhitePixel);
-  asset::gltf_tmp::image WhitePixelBitmap = {};
+  asset::image WhitePixelBitmap = {};
   WhitePixelBitmap.Channels = 4;
   WhitePixelBitmap.Width = 1;
   WhitePixelBitmap.Height = 1;
@@ -133,9 +133,9 @@ u32 CreateLineRenderProgram(render_group* RenderGroup)
 
 u32 Load32BitColorTexture(const c8* Name, const c8* Path)
 {
-  u32 Key = asset::LoadTga(Path, asset::texture_type::DIFFUSE_COLOR, Name);
-  asset::texture* Texture = (asset::texture*) asset::Find(asset::type::TEXTURE, Key);
-  u32 Handle = ecs::render::Load32BitTextureToGpu(Key, Texture);
+  u32 Key = asset::LoadTga(Path, Name);
+  asset::image* Image = (asset::image*) asset::Find(asset::type::IMAGE, Key);
+  u32 Handle = ecs::render::LoadImageToGpu(Key, Image);
   return Handle;
 }
 
@@ -1165,8 +1165,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
     asset::render_group* PlaneMesh = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "checker_plane_simple");
     u32 PlaneTexHandle = PlaneMesh->Elements[0].Material->MapKdHandle;
-    asset::texture* PlaneTex = (asset::texture*) asset::Find(asset::type::MATERIAL, PlaneTexHandle);
-    ecs::render::Load32BitTextureToGpu(PlaneTexHandle, PlaneTex);
+    asset::image* PlaneTex = (asset::image*) asset::Find(asset::type::IMAGE, PlaneTexHandle);
+    ecs::render::LoadImageToGpu(PlaneTexHandle, PlaneTex);
 
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
     GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);

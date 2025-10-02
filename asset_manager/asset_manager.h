@@ -55,14 +55,13 @@ void Free(type Type, u32 Key);
 void Free(type Type, const c8* Name);
 
 u32 LoadObj(const c8* Path, const c8* UniqueName = 0);
-u32 LoadTga(const c8* Path, texture_type Type, const c8* UniqueName = 0);
+u32 LoadTga(const c8* Path, const c8* UniqueName = 0);
 
 mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, u32* ResultKey = 0);
-texture* LoadTexture(const c8* UniqueName, const texture* Texture, u32* ResultKey = 0);
 material* LoadMaterial(const c8* UniqueName, const material* Material, u32* ResultKey = 0);
 
 ///  New loaders for gltf
-gltf_tmp::image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const gltf_tmp::image* Image, u32* ResultKey = 0);
+image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, u32* ResultKey = 0);
 gltf_tmp::pbr_material* LoadPbrMaterial(const c8* UniqueName, const gltf_tmp::pbr_material* Image, u32* ResultKey = 0)
 {
   return 0;

@@ -238,9 +238,9 @@ namespace gltf_tmp {
     while (ByteCount--) { *DstScan++ = *SrcScan++;}
   }
 
-  gltf_tmp::image Map(const gltf::raw_image& Raw)
+  image Map(const gltf::raw_image& Raw)
   { 
-    gltf_tmp::image Result = {};
+    image Result = {};
     Result.Width    = Raw.Width;
     Result.Height   = Raw.Height;
     Result.Channels = Raw.Channels;
@@ -252,11 +252,11 @@ namespace gltf_tmp {
     render_asset Result = {};
 
     size_t LoadedImageCount = RawGltfData->RawImageCount;
-    gltf_tmp::image** LoadedImagesTracker = JwinAllocArray(LoadedImageCount, gltf_tmp::image*);
+    image** LoadedImagesTracker = JwinAllocArray(LoadedImageCount, image*);
     for (int i = 0; i < RawGltfData->RawImageCount; ++i)
     {
       gltf::raw_image& RawImage = RawGltfData->RawImages[i];
-      gltf_tmp::image TmpImage = Map(RawImage);
+      image TmpImage = Map(RawImage);
       LoadedImagesTracker[i]  = asset::LoadImage(RawImage.Uri.data, RawImage.Name.data, RawImage.Uri.data, &TmpImage);
     }
     

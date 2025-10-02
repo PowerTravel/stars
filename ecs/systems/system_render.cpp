@@ -48,8 +48,8 @@ u32 Get32BitTextureHandle(u32 AssetKey)
   {
     Result = *Handle;
   }else{
-    asset::texture* Texture = (asset::texture*) asset::Find(asset::type::TEXTURE, AssetKey);
-    Result = ecs::render::Load32BitTextureToGpu(AssetKey, Texture);
+    asset::image* Texture = (asset::image*) asset::Find(asset::type::IMAGE, AssetKey);
+    Result = ecs::render::LoadImageToGpu(AssetKey, Texture);
   }
 
   return Result;
@@ -57,7 +57,7 @@ u32 Get32BitTextureHandle(u32 AssetKey)
 
 u32 Get32BitTextureHandle(const c8* Name)
 {
-  u32 AssetKey = asset::ToKey(asset::type::TEXTURE, Name);
+  u32 AssetKey = asset::ToKey(asset::type::IMAGE, Name);
   u32 Handle = Get32BitTextureHandle(AssetKey);
   return Handle;
 }
@@ -1141,16 +1141,7 @@ u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr) {
   return IndexHandle;
 }
 
-u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture) {
-  texture_params Params = DefaultColorTextureParams();
-  Params.TextureFormat = texture_format::RGBA_U8;
-  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Texture->Width, Texture->Height, Params, Texture->Pixels);
-  SetHandle(&GlobalRenderSystem->TextureHandleMap, AssetKey, Handle);
-  return Handle;
-}
-
-u32 LoadImageToGpu(u32 AssetKey, asset::gltf_tmp::image* Image) {
+u32 LoadImageToGpu(u32 AssetKey, asset::image* Image) {
   Assert(Image->Channels == 4);
   texture_params Params = DefaultColorTextureParams();
   Params.TextureFormat = texture_format::RGBA_U8;

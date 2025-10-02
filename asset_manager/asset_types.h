@@ -7,11 +7,10 @@ namespace asset {
 
   enum class type {
     NONE,
+    IMAGE,
     MESH,
-    TEXTURE,
     MATERIAL,
     RENDER_GROUP,
-    IMAGE,
     PBR_MATERIAL
   };
 
@@ -20,11 +19,10 @@ namespace asset {
   {
     switch(Type)
     {
+      case type::IMAGE: return "IMAGE";
       case type::MESH: return "MESH";
-      case type::TEXTURE: return "TEXTURE";
       case type::MATERIAL: return "MATERIAL";
       case type::RENDER_GROUP: return "RENDER_GROUP";
-      case type::IMAGE: return "IMAGE";
       case type::PBR_MATERIAL: return "PBR_MATERIAL";
       default: {
         INVALID_CODE_PATH
@@ -54,20 +52,6 @@ namespace asset {
     v2* vt;    // Texture Vertices
 
     aabb3f AABB;
-  };
-
-  enum class texture_type {
-    DIFFUSE_COLOR,
-    SPECULAR_COLOR,
-    BUMP_MAP
-  };
-
-  struct texture {
-    texture_type Type;
-    u32 BPP; // Bits Per pixel 8,16,24,32
-    u32 Width;
-    u32 Height;
-    bptr Pixels;
   };
 
   struct material {
@@ -104,27 +88,23 @@ namespace asset {
     render_group_element* Elements;
   };
 
+
+
+  // Basic Asset Type
+  struct image
+  {
+    int Height;
+    int Width;
+    int Channels;
+    uint8_t* Pixels;
+  };
+
+
   namespace gltf_tmp {
 
-    typedef int image_id;
     typedef int mesh_id;
     typedef int pbr_material_id;
   
-
-    struct image // image_id
-    {
-      enum {
-        Channel_Grey = 1,
-        Channel_GreyAlpha = 2,
-        Channel_RGB = 3,
-        Channel_RGBA = 4
-      };
-
-      int Height;
-      int Width;
-      int Channels;
-      uint8_t* Pixels;
-    };
 
     // A mesh primitive mesh
     struct mesh // mesh_id (Can be OBJ as well)

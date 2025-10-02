@@ -547,20 +547,20 @@ void Free(type Type, c8* Name) {
   Free(Type, Key);
 }
 
-file_local u32 CopyObjBitmapToTexture(const c8* Key, texture_type Type, const obj_bitmap* ObjBitmap)
+file_local u32 CopyObjBitmapToTexture(const c8* Key, const obj_bitmap* ObjBitmap)
 {
   if(!ObjBitmap){return 0;};
 
-  u32 TextureSizeBytes = sizeof(texture) + ObjBitmap->Width * ObjBitmap->Height * ObjBitmap->BPP / 8.f;
+  Assert(ObjBitmap->BPP == 32);
+  u32 ImageSizeBytes = sizeof(image) + ObjBitmap->Width * ObjBitmap->Height * ObjBitmap->BPP / 8.f;
 
-  header* Header   = CreateHeader(type::TEXTURE, Key, ObjBitmap->Name, ObjBitmap->Path, TextureSizeBytes);
-  texture* Texture = (texture*) Header->Data;
-  Texture->Type    = Type;
-  Texture->BPP     = ObjBitmap->BPP;
-  Texture->Width   = ObjBitmap->Width;
-  Texture->Height  = ObjBitmap->Height;
-  Texture->Pixels  = AdvanceBytePointer(Texture, sizeof(texture));
-  utils::Copy(TextureSizeBytes, ObjBitmap->Pixels, Texture->Pixels);
+  header* Header   = CreateHeader(type::IMAGE, Key, ObjBitmap->Name, ObjBitmap->Path, ImageSizeBytes);
+  image* Image = (image*) Header->Data;
+  Image->Channels = 4;
+  Image->Width    = ObjBitmap->Width;
+  Image->Height   = ObjBitmap->Height;
+  Image->Pixels   = AdvanceBytePointer(Image, sizeof(image));
+  utils::Copy(ImageSizeBytes, ObjBitmap->Pixels, Image->Pixels);
   return Header->Key;
 }
 
@@ -720,9 +720,9 @@ material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 {
   midx MaterialSizeBytes = GetMaterialSize(ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns);
   header* Header   = CreateHeader(type::MATERIAL, Key, ObjMtl->Name, Path, MaterialSizeBytes);
-  u32 BumpMapHandle = CopyObjBitmapToTexture(Key, texture_type::BUMP_MAP, ObjMtl->BumpMap);
-  u32 MapKdHandle   = CopyObjBitmapToTexture(Key, texture_type::DIFFUSE_COLOR, ObjMtl->MapKd);
-  u32 MapKsHandle   = CopyObjBitmapToTexture(Key, texture_type::SPECULAR_COLOR, ObjMtl->MapKs);
+  u32 BumpMapHandle = CopyObjBitmapToTexture(Key, ObjMtl->BumpMap);
+  u32 MapKdHandle   = CopyObjBitmapToTexture(Key, ObjMtl->MapKd);
+  u32 MapKsHandle   = CopyObjBitmapToTexture(Key, ObjMtl->MapKs);
 
   material* Result = (material*) Header->Data;
   InitiateMaterial(
@@ -873,14 +873,14 @@ void CopyMesh(const mesh* SrcMesh, mesh* DstMesh)
   }
 }
 
-u32 LoadTga(const c8* Path, texture_type Type, const c8* UniqueName)
+u32 LoadTga(const c8* Path, const c8* UniqueName)
 {
   obj_bitmap* ObjBitmap = LoadTGA(TransientAllocator, Path);
   if(UniqueName == 0 || *UniqueName =='\0')
   {
     UniqueName = Path;
   }
-  u32 TextureHandle = CopyObjBitmapToTexture(UniqueName, Type, ObjBitmap);
+  u32 TextureHandle = CopyObjBitmapToTexture(UniqueName, ObjBitmap);
   return TextureHandle; 
 }
 
@@ -899,24 +899,6 @@ mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, u32* ResultKey)
   return Result;
 }
 
-texture* LoadTexture(const c8* UniqueName, const texture* Texture, u32* ResultKey)
-{
-  midx TextureSize = (Texture->BPP/8) * (Texture->Width) * (Texture->Height);
-  header* Header = CreateHeader(type::TEXTURE, UniqueName, UniqueName, "N/A", TextureSize + sizeof(texture));
-  texture* Result = (texture*) Header->Data;
-  Result->Type = Texture->Type;
-  Result->BPP = Texture->BPP;
-  Result->Width = Texture->Width;
-  Result->Height = Texture->Height;
-  Result->Pixels = AdvanceByType(Result, texture);
-  utils::Copy((Texture->BPP/8) * (Texture->Width) * (Texture->Height), (void*) Texture->Pixels, (void*) Result->Pixels);
-  if(ResultKey)
-  {
-    *ResultKey = Header->Key;
-  }
-  return Result;
-}
-
 material* LoadMaterial(const c8* UniqueName, const material* Material, u32* ResultKey)
 {
   midx MaterialSize = GetMaterialSize(Material);
@@ -928,15 +910,15 @@ material* LoadMaterial(const c8* UniqueName, const material* Material, u32* Resu
 
 
 /// Gltf Loaders
-gltf_tmp::image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const gltf_tmp::image* Image, u32* ResultKey){
+image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, u32* ResultKey){
 
   midx ImageSize = (Image->Channels) * (Image->Width) * (Image->Height);
-  header* Header = CreateHeader(type::IMAGE, UniqueName, Name, Path, ImageSize + sizeof(gltf_tmp::image));
-  gltf_tmp::image* Result = (gltf_tmp::image*) Header->Data;
+  header* Header = CreateHeader(type::IMAGE, UniqueName, Name, Path, ImageSize + sizeof(image));
+  image* Result = (image*) Header->Data;
   Result->Channels = Image->Channels;
   Result->Width    = Image->Width;
   Result->Height   = Image->Height;
-  Result->Pixels   = AdvanceByType(Result, gltf_tmp::image);
+  Result->Pixels   = AdvanceByType(Result, image);
   utils::Copy(ImageSize, (void*) Image->Pixels, (void*) Result->Pixels);
   if(ResultKey)
   {

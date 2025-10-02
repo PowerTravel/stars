@@ -207,11 +207,10 @@ namespace data {
   u32 GetMeshHandle(const c8* Name);
   u32 GetMeshHandle(u32 AssetKey);
 
-  u32 Load32BitTextureToGpu(u32 AssetKey, asset::texture* Texture);
   u32 Get32BitTextureHandle(const c8* Name);
   u32 Get32BitTextureHandle(u32 AssetKey);
 
-  u32 LoadImageToGpu(u32 AssetKey, asset::gltf_tmp::image* Image);
+  u32 LoadImageToGpu(u32 AssetKey, asset::image* Image);
 
   u32 FrameBuffer(u32 Index);
 
