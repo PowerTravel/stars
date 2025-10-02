@@ -36,7 +36,7 @@ global_variable r32 g_t = 0;
 
 
 
-file_local inline void Initiate(asset::mesh* Mesh, asset::material* Material, ecs::render::component* Render)
+file_local inline void Initiate(asset::mesh* Mesh, asset::phong_material* Material, ecs::render::component* Render)
 {
   u32 MeshAssetKey = asset::ToHeader( (bptr) Mesh)->Key;
   u32 MaterialAssetKey = asset::ToHeader( (bptr) Material)->Key;
@@ -49,9 +49,9 @@ file_local inline void Initiate(asset::render_group_element* Element, ecs::rende
   {
     Initiate(Element->Mesh, Element->Material, Render);
   }else{
-    Initiate(Element->Mesh, (asset::material*) asset::Find(asset::type::MATERIAL, "silver"), Render);
+    Initiate(Element->Mesh, (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, "silver"), Render);
   }
-  //Initiate(Element->Mesh, (asset::material*) asset::Find(asset::type::MATERIAL, "silver"), Render);
+  //Initiate(Element->Mesh, (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, "silver"), Render);
 }
 
 file_local inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::component* Render)
@@ -63,7 +63,7 @@ file_local inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::compone
 
 void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, const c8* UniqueName)
 {
-  asset::material Material = {};
+  asset::phong_material Material = {};
   Material.Ka = &Ambient;
   Material.Kd = &Diffuse;
   Material.Ks = &Specular;
@@ -1229,7 +1229,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cube"), asset::ToKey(asset::type::MATERIAL, "ruby"), GetRenderComponent(&Entity));
+        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cube"), asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
         
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cube");
@@ -1241,7 +1241,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::MATERIAL, "emerald"), GetRenderComponent(&Entity));
+        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::PHONG_MATERIAL, "emerald"), GetRenderComponent(&Entity));
         
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
@@ -1252,7 +1252,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cylinder", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cylinder"), asset::ToKey(asset::type::MATERIAL, "jade"), GetRenderComponent(&Entity));
+        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cylinder"), asset::ToKey(asset::type::PHONG_MATERIAL, "jade"), GetRenderComponent(&Entity));
        
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cylinder");
@@ -1266,7 +1266,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::MATERIAL, "silver"), GetRenderComponent(&Entity));
+        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::PHONG_MATERIAL, "silver"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");

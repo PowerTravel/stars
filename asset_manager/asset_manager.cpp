@@ -486,7 +486,7 @@ void FreeAsset(header* Header)
       // LoadGLVertexBuffer allocates the whole mesh as a contious block
       FreeMemory(&GlobalAssetManager->Memory, Header);
     }
-    case type::MATERIAL: {
+    case type::PHONG_MATERIAL: {
       // LoadGLVertexBuffer allocates the whole mesh as a contious block
       FreeMemory(&GlobalAssetManager->Memory, Header);
     }
@@ -500,9 +500,9 @@ void FreeAsset(header* Header)
         FreeAsset(MeshHeader);
 
         header* MaterialHeader = (header*) RetreatByType(Element->Material, header);
-        if(MaterialHeader->Type == type::MATERIAL)
+        if(MaterialHeader->Type == type::PHONG_MATERIAL)
         {
-          // If several elements point to the same material, this should ensure we only free a material once.
+          // If several elements point to the same phong_material, this should ensure we only free a phong_material once.
           FreeAsset(MaterialHeader);
         }
 
@@ -583,11 +583,11 @@ file_local midx GetMaterialSize(
   u32 dSize  = (u32) BranchlessArithmatic(d  == 0, 0, sizeof(r32));
   u32 NiSize = (u32) BranchlessArithmatic(Ni == 0, 0, sizeof(r32));
   u32 NsSize = (u32) BranchlessArithmatic(Ns == 0, 0, sizeof(r32));
-  u32 MaterialSizeBytes = sizeof(material) + KdSize + KaSize + TfSize + KsSize + KeSize + dSize + NiSize + NsSize;
+  u32 MaterialSizeBytes = sizeof(phong_material) + KdSize + KaSize + TfSize + KsSize + KeSize + dSize + NiSize + NsSize;
   return MaterialSizeBytes;
 }
 
-file_local midx GetMaterialSize(const material* Material){
+file_local midx GetMaterialSize(const phong_material* Material){
   midx Result = GetMaterialSize(
     Material->Ka,
     Material->Kd,
@@ -613,7 +613,7 @@ void InitiateMaterial (
     u32 BumpMapHandle,
     u32 MapKdHandle,
     u32 MapKsHandle,
-    material* Material
+    phong_material* Material
   )
 {
   u32 KaSize = BranchlessArithmatic(Ka == 0, 0, sizeof(v4));
@@ -627,35 +627,35 @@ void InitiateMaterial (
 
   
   if(Ka) {
-    Material->Ka = (v4*)  AdvanceBytePointer(Material, sizeof(material));
+    Material->Ka = (v4*)  AdvanceBytePointer(Material, sizeof(phong_material));
     *Material->Ka = *Ka;
   }
   if(Kd) {
-    Material->Kd = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KaSize);
+    Material->Kd = (v4*)  AdvanceBytePointer(Material, sizeof(phong_material) + KaSize);
     *Material->Kd = *Kd;
   }
   if(Tf) {
-    Material->Tf = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize);
+    Material->Tf = (v4*)  AdvanceBytePointer(Material, sizeof(phong_material) + KaSize + KdSize);
     *Material->Tf = *Tf;
   }
   if(Ks) {
-    Material->Ks = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize);
+    Material->Ks = (v4*)  AdvanceBytePointer(Material, sizeof(phong_material) + KaSize + KdSize + TfSize);
     *Material->Ks = *Ks;
   }
   if(Ke) {
-    Material->Ke = (v4*)  AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize + KsSize);
+    Material->Ke = (v4*)  AdvanceBytePointer(Material, sizeof(phong_material) + KaSize + KdSize + TfSize + KsSize);
     *Material->Ke = *Ke;
   }
   if(d) {
-    Material->d  = (r32*) AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize);
+    Material->d  = (r32*) AdvanceBytePointer(Material, sizeof(phong_material) + KaSize + KdSize + TfSize + KsSize + KeSize);
     *Material->d = *d;
   }
   if(Ni) {
-    Material->Ni = (r32*) AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize);
+    Material->Ni = (r32*) AdvanceBytePointer(Material, sizeof(phong_material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize);
     *Material->Ni = *Ni;
   }
   if(Ns) {
-    Material->Ns = (r32*) AdvanceBytePointer(Material, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize + NiSize);
+    Material->Ns = (r32*) AdvanceBytePointer(Material, sizeof(phong_material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize + NiSize);
     *Material->Ns = *Ns;
   }
   
@@ -666,7 +666,7 @@ void InitiateMaterial (
 }
 
 
-file_local void CopyMaterial( const material* Src, material* Dst)
+file_local void CopyMaterial( const phong_material* Src, phong_material* Dst)
 {
   u32 KaSize = BranchlessArithmatic(Src->Ka == 0, 0, sizeof(v4));
   u32 KdSize = BranchlessArithmatic(Src->Kd == 0, 0, sizeof(v4));
@@ -678,35 +678,35 @@ file_local void CopyMaterial( const material* Src, material* Dst)
   u32 NsSize = BranchlessArithmatic(Src->Ns == 0, 0, sizeof(r32));
   
   if(Src->Ka) {
-    Dst->Ka = (v4*)  AdvanceBytePointer(Dst, sizeof(material));
+    Dst->Ka = (v4*)  AdvanceBytePointer(Dst, sizeof(phong_material));
     *Dst->Ka = *Src->Ka;
   }
   if(Src->Kd) {
-    Dst->Kd = (v4*)  AdvanceBytePointer(Dst, sizeof(material) + KaSize);
+    Dst->Kd = (v4*)  AdvanceBytePointer(Dst, sizeof(phong_material) + KaSize);
     *Dst->Kd = *Src->Kd;
   }
   if(Src->Tf) {
-    Dst->Tf = (v4*)  AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize);
+    Dst->Tf = (v4*)  AdvanceBytePointer(Dst, sizeof(phong_material) + KaSize + KdSize);
     *Dst->Tf = *Src->Tf;
   }
   if(Src->Ks) {
-    Dst->Ks = (v4*)  AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize);
+    Dst->Ks = (v4*)  AdvanceBytePointer(Dst, sizeof(phong_material) + KaSize + KdSize + TfSize);
     *Dst->Ks = *Src->Ks;
   }
   if(Src->Ke) {
-    Dst->Ke = (v4*)  AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize + KsSize);
+    Dst->Ke = (v4*)  AdvanceBytePointer(Dst, sizeof(phong_material) + KaSize + KdSize + TfSize + KsSize);
     *Dst->Ke = *Src->Ke;
   }
   if(Src->d) {
-    Dst->d = (r32*) AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize);
+    Dst->d = (r32*) AdvanceBytePointer(Dst, sizeof(phong_material) + KaSize + KdSize + TfSize + KsSize + KeSize);
     *Dst->d = *Src->d;
   }
   if(Src->Ni) {
-    Dst->Ni = (r32*) AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize);
+    Dst->Ni = (r32*) AdvanceBytePointer(Dst, sizeof(phong_material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize);
     *Dst->Ni = *Src->Ni;
   }
   if(Src->Ns) {
-    Dst->Ns = (r32*) AdvanceBytePointer(Dst, sizeof(material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize + NiSize);
+    Dst->Ns = (r32*) AdvanceBytePointer(Dst, sizeof(phong_material) + KaSize + KdSize + TfSize + KsSize + KeSize + dSize + NiSize);
     *Dst->Ns = *Src->Ns;
   }
   
@@ -716,15 +716,15 @@ file_local void CopyMaterial( const material* Src, material* Dst)
   Dst->MapKsHandle     = Src->MapKsHandle;
 }
 
-material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
+phong_material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 {
   midx MaterialSizeBytes = GetMaterialSize(ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns);
-  header* Header   = CreateHeader(type::MATERIAL, Key, ObjMtl->Name, Path, MaterialSizeBytes);
+  header* Header   = CreateHeader(type::PHONG_MATERIAL, Key, ObjMtl->Name, Path, MaterialSizeBytes);
   u32 BumpMapHandle = CopyObjBitmapToTexture(Key, ObjMtl->BumpMap);
   u32 MapKdHandle   = CopyObjBitmapToTexture(Key, ObjMtl->MapKd);
   u32 MapKsHandle   = CopyObjBitmapToTexture(Key, ObjMtl->MapKs);
 
-  material* Result = (material*) Header->Data;
+  phong_material* Result = (phong_material*) Header->Data;
   InitiateMaterial(
     ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns,
     ObjMtl->BumpMapBM, BumpMapHandle, MapKdHandle, MapKsHandle,
@@ -735,7 +735,7 @@ material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 
 struct material_map {
   u32 MaterialCount;
-  material** Materials;
+  phong_material** Materials;
   mtl_material** Mtl_Materials;
 };
 
@@ -743,12 +743,12 @@ material_map CreateMaterialMap(u32 MaterialCount)
 {
   material_map Result = {};
   Result.MaterialCount = MaterialCount;
-  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, material*);
+  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, phong_material*);
   Result.Mtl_Materials = PushArray(GlobalTransientArena, MaterialCount, mtl_material*);
   return Result;
 }
 
-material* GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
+phong_material* GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
   for (int i = 0; i < MaterialMap->MaterialCount; ++i)
   {
     if(Mtl == MaterialMap->Mtl_Materials[i])
@@ -818,7 +818,7 @@ u32 LoadObj(const c8* Path, const c8* UniqueName)
   {
     mtl_material* Mtl = ObjMtlGroup->Materials + i;
     c8* MtlKey = CreateUniqueKey(UniqueName, i, Obj->ObjectCount);
-    material* Material = CopyObjMtlToMaterial(ObjMtlGroup->Path, Mtl, MtlKey);
+    phong_material* Material = CopyObjMtlToMaterial(ObjMtlGroup->Path, Mtl, MtlKey);
     MaterialMap.Mtl_Materials[i] = Mtl;
     MaterialMap.Materials[i] = Material;
   }
@@ -899,11 +899,11 @@ mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, u32* ResultKey)
   return Result;
 }
 
-material* LoadMaterial(const c8* UniqueName, const material* Material, u32* ResultKey)
+phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Material, u32* ResultKey)
 {
   midx MaterialSize = GetMaterialSize(Material);
-  header* Header = CreateHeader(type::MATERIAL, UniqueName, UniqueName, "N/A", MaterialSize);
-  material* Result = (material*) Header->Data;
+  header* Header = CreateHeader(type::PHONG_MATERIAL, UniqueName, UniqueName, "N/A", MaterialSize);
+  phong_material* Result = (phong_material*) Header->Data;
   CopyMaterial(Material, Result);
   return Result;
 }

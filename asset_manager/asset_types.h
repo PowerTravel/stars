@@ -9,8 +9,8 @@ namespace asset {
     NONE,
     IMAGE,
     MESH,
-    MATERIAL,
     RENDER_GROUP,
+    PHONG_MATERIAL,
     PBR_MATERIAL
   };
 
@@ -21,8 +21,8 @@ namespace asset {
     {
       case type::IMAGE: return "IMAGE";
       case type::MESH: return "MESH";
-      case type::MATERIAL: return "MATERIAL";
       case type::RENDER_GROUP: return "RENDER_GROUP";
+      case type::PHONG_MATERIAL: return "PHONG_MATERIAL";
       case type::PBR_MATERIAL: return "PBR_MATERIAL";
       default: {
         INVALID_CODE_PATH
@@ -54,7 +54,7 @@ namespace asset {
     aabb3f AABB;
   };
 
-  struct material {
+  struct phong_material {
     v4*  Ka;
     v4*  Kd;
     v4*  Tf;
@@ -78,7 +78,7 @@ namespace asset {
     s32 SmoothingGroup;
 
     mesh* Mesh;
-    material* Material;
+    phong_material* Material;
   };
 
   // A collection of shapes and materials that makes up an object.

@@ -539,7 +539,7 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u3
   m4 Translation = GetTranslationMatrix(V4(Pos,1));
   m4 ModelMat = Translation*Rotation*Scale;
 
-  asset::material* Material = (asset::material*) asset::Find(asset::type::MATERIAL, asset::ToKey(asset::type::MATERIAL, "red_rubber"));
+  asset::phong_material* Material = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, asset::ToKey(asset::type::PHONG_MATERIAL, "red_rubber"));
   v4 Ambient = {};
   if(Material->Ka){
     Ambient = *Material->Ka;
@@ -1156,7 +1156,7 @@ void Init(u32 MeshAssetKey, u32 MaterialAssetKey, component* Render)
 {
   Render->MeshHandle = ecs::render::GetMeshHandle(MeshAssetKey);
 
-  asset::material* Material = (asset::material*) asset::Find(asset::type::MATERIAL, MaterialAssetKey); 
+  asset::phong_material* Material = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, MaterialAssetKey); 
   if(Material->Ka){
     Render->Ambient = *Material->Ka;
   }
