@@ -74,18 +74,17 @@ void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shin
 
 void LoadMaterials()
 {
-  asset::texture WhitePixelBitmap = {};
   u8 WhitePixel[4] = {255,255,255,255};
-  WhitePixelBitmap.Type = asset::texture_type::DIFFUSE_COLOR;
-  WhitePixelBitmap.BPP = 32;
+  void* WhitePixelPtr = PushCopy(GlobalTransientArena, sizeof(WhitePixel), (void*) WhitePixel);
+  asset::gltf_tmp::image WhitePixelBitmap = {};
+  WhitePixelBitmap.Channels = 4;
   WhitePixelBitmap.Width = 1;
   WhitePixelBitmap.Height = 1;
-  WhitePixelBitmap.Pixels = (bptr) &WhitePixel;
-
+  WhitePixelBitmap.Pixels = (bptr) WhitePixelPtr;
   u32 TextureKey = 0;
-  asset::LoadTexture("WhitePixel", &WhitePixelBitmap, &TextureKey);
-  
-  ecs::render::Load32BitTextureToGpu(TextureKey, &WhitePixelBitmap);
+  asset::LoadImage("WhitePixel", "N/A", "N/A", &WhitePixelBitmap, &TextureKey);
+  ecs::render::LoadImageToGpu(TextureKey, &WhitePixelBitmap);
+
 
   LoadMaterial(TextureKey, {0.0215f,    0.1745f,    0.0215f,   0.55f}, {0.07568f,    0.61424f,    0.07568f,    0.55f}, {0.633f,       0.727811f,    0.633f,      0.55f}, 128 * 0.6f,          "emerald");
   LoadMaterial(TextureKey, {0.135f,     0.2225f,    0.1575f,   0.95f}, {0.54f,       0.89f,       0.63f,       0.95f}, {0.316228f,    0.316228f,    0.316228f,   0.95f}, 128 * 0.1f,          "jade");
@@ -1172,16 +1171,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
     GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
-    u8 WhitePixel[4] = {255,255,255,255};
-    void* WhitePixelPtr = PushCopy(GlobalTransientArena, sizeof(WhitePixel), (void*) WhitePixel);
-    asset::texture WhitePixelBitmap = {};
-    WhitePixelBitmap.Type = asset::texture_type::DIFFUSE_COLOR;
-    WhitePixelBitmap.BPP = 32;
-    WhitePixelBitmap.Width = 1;
-    WhitePixelBitmap.Height = 1;
-    WhitePixelBitmap.Pixels = (bptr) WhitePixelPtr;
-    u32 WhitePixelKey = utils::djb2_hash("TEXTURE::WhitePixel");
-    ecs::render::Load32BitTextureToGpu(WhitePixelKey, &WhitePixelBitmap);
+
 
     GlobalState->Initialized = true;
 
