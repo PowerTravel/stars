@@ -62,5 +62,5 @@ phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Materia
 
 ///  New loaders for gltf
 image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, u32* ResultKey = 0);
-gltf_tmp::pbr_material* LoadPbrMaterial(const c8* UniqueName, const gltf_tmp::pbr_material* Image, u32* ResultKey = 0);
+pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, u32* ResultKey = 0);
 }

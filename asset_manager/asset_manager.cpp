@@ -927,10 +927,10 @@ image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const ima
   return Result;
 }
 
-gltf_tmp::pbr_material* LoadPbrMaterial(const c8* UniqueName, const gltf_tmp::pbr_material* PbrMaterial, u32* ResultKey)
+pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* PbrMaterial, u32* ResultKey)
 {
-  header* Header = CreateHeader(type::PBR_MATERIAL, UniqueName, UniqueName, "N/A", sizeof(gltf_tmp::pbr_material));
-  gltf_tmp::pbr_material* Result = (gltf_tmp::pbr_material*) Header->Data;
+  header* Header = CreateHeader(type::PBR_MATERIAL, UniqueName, UniqueName, "N/A", sizeof(pbr_material));
+  pbr_material* Result = (pbr_material*) Header->Data;
   *Result = *PbrMaterial;
   if(ResultKey)
   {
