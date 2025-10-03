@@ -258,88 +258,6 @@ namespace gltf_tmp {
     return Result;  
   }
 
-#if 0
-
-
-
-
-  texture ToTexture(int RawSamplerIndex, gltf::raw_gltf_data* RawData, image* Images)
-  {
-    texture Result = {};
-    Result.MagFilter = FromRaw(Raw->MagFilter);
-    Result.MinFilter = FromRaw(Raw->MinFilter);
-    Result.WrapS = FromRaw(Raw->WrapS);
-    Result.WrapT = FromRaw(Raw->WrapT);
-
-    return Result;  
-  }
-
-  pbr_material::pbr_metallic_roughness ToRawPbrMetallicRoughness(gltf::raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf::raw_gltf_data* RawData, image* Images)
-  {
-    // Note: Handle more material properties as they become needed.
-    Assert(!RawPbrMetallicRoughness->MetallicRoughnessTexture);
-
-    pbr_material::pbr_metallic_roughness Result = {};
-    
-    if(RawPbrMetallicRoughness->BaseColorTexture)
-    {
-      gltf::raw_texture_info* BaseColorTexture = RawPbrMetallicRoughness->BaseColorTexture; 
-      if(BaseColorTexture->Sampler)
-      {
-
-      }else{
-
-      }
-      // Note: The index of the image used by this texture. When undefined, an extension or other mechanism SHOULD
-      //       supply an alternate texture source, otherwise behavior is undefined.
-      //       Since we don't support any extension atm, this is a required field.
-      Assert(BaseColorTexture->Source);
-      image* Image = Images[*BaseColorTexture->Source];
-
-
-      RawData->Textures[*RawPbrMetallicRoughness->BaseColorTexture];
-
-      Resukt.HasBaseColorTexture = true;
-      texture Texture = {};
-
-      Result.BaseColorTexture->Texture = &Textures[RawPbrMetallicRoughness->BaseColorTexture->Index];
-      Result.BaseColorTexture->TexCoord = RawPbrMetallicRoughness->BaseColorTexture->TexCoord;  
-    }
-
-    Result->BaseColorFactor = RawPbrMetallicRoughness->BaseColorFactor;
-    Result->MetallicFactor  = RawPbrMetallicRoughness->MetallicFactor;
-    Result->RoughnessFactor = RawPbrMetallicRoughness->RoughnessFactor;
-
-    return Result;
-  }
-
-  material ToMaterial(int RawMaterialIndex, gltf::raw_gltf_data* RawData, image* Images)
-  {
-    material Result = {};
-
-    gltf::raw_material* RawMaterial = RawData->RawMaterials[RawMaterialIndex];
-
-    // Note: Handle more material properties as they become needed.
-    Assert(!RawMaterial->NormalTexture);
-    Assert(!RawMaterial->OcclusionTexture);
-    Assert(!RawMaterial->EmissiveTexture);
-
-    if(RawMaterial->PbrMetallicRoughness) {
-      Result.HasPbrMetallicRoughness = true;
-      Result.PbrMetallicRoughness = ToRawPbrMetallicRoughness(RawMaterial->PbrMetallicRoughness, RawData, Images);
-    }
-
-    if(!cmn::IsEmpty(RawMaterial->AlphaMode)){
-      Result.AlphaMode = cmn::Copy(RawMaterial->AlphaMode);
-    }
-    Result.DoubleSided = RawMaterial->DoubleSided;
-    Result.AlphaCutoff = RawMaterial->AlphaCutoff;
-    Result.EmissiveFactor = RawMaterial->EmissiveFactor;
-    return Result;
-  }
-
-#endif
-
   texture::filter MapFilter(gltf::raw_sampler::filter Raw)
   {
     texture::filter Result = texture::filter::NEAREST;
@@ -497,7 +415,7 @@ namespace gltf_tmp {
       }else{
         Name = RawMaterial->Name;
       }
-      //pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, u32* ResultKey = 0)
+      
       LoadedMaterialTracker[i]  = asset::LoadPbrMaterial(Name.data, &TmpMaterial);
     }
     
@@ -512,14 +430,6 @@ namespace gltf_tmp {
     JwinFreeMemory(LoadedMaterialTracker);
     JwinFreeMemory(LoadedImagesTracker);
 
-/*
-    Result.ImageCount = RawGltfData.RawImageCount;
-    Result.Images = JwinAllocArray( Result.ImageCount, image);
-    for (int i = 0; i < Result.ImageCount; ++i)
-    {
-      Result.Images[i] = ToImage(&RawGltfData.RawImages[i], PersistentAllocator);
-    }
-*/
 #if 0
 
     Result.ImageCount = RawGltfData.RawImageCount;
