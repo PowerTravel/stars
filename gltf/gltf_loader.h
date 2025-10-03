@@ -84,6 +84,27 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     // key: extras     (not required)
   };
 
+  struct extracted_primitive {
+    int IndexCount;
+    int* Indeces;
+
+    int vCount;
+    v3* v;     // Vertices
+    int vnCount;
+    v3* vn;    // Vertice Normals
+
+    int vtSetCount;
+    int* vtCount;
+    v2** vt;    // Texture Vertices
+
+    v3 vMin;
+    v3 vMax;
+
+    primitive_mode Mode;
+  
+    int* MaterialIndex;
+  };
+
   struct raw_mesh {
 
     // key: primitives
@@ -106,6 +127,9 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+
+    size_t ExtractedPrimitiveCount;
+    extracted_primitive* ExtractedPrimitives;
   };
 
   struct raw_node {
@@ -1677,6 +1701,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     cmn::string Name;
   };
 
+
   struct mesh {
 
     struct primitive {
@@ -1893,6 +1918,17 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
+  void ExtractVertexBoundingBox(extracted_primitive* Primitive, raw_accessor* RawAccessor)
+  {
+    size_t SrcComponentSize = AccessorComponentSize(RawAccessor->ComponentType);
+
+    Assert(RawAccessor->MinCount == 3);
+    Extract(RawAccessor->MinCount, 1, SrcComponentSize, SrcComponentSize, (uint8_t*) RawAccessor->Min, sizeof(float), (uint8_t*) Primitive->vMin.E);
+    
+    Assert(RawAccessor->MaxCount == 3);
+    Extract(RawAccessor->MaxCount, 1, SrcComponentSize, SrcComponentSize, (uint8_t*) RawAccessor->Max, sizeof(float), (uint8_t*) Primitive->vMax.E);
+  }
+
   void ExtractVertexBoundingBox(mesh::primitive* Primitive, raw_accessor* RawAccessor)
   {
     size_t SrcComponentSize = AccessorComponentSize(RawAccessor->ComponentType);
@@ -1956,6 +1992,132 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     Result.AlphaCutoff = RawMaterial->AlphaCutoff;
     Result.EmissiveFactor = RawMaterial->EmissiveFactor;
     return Result;
+  }
+
+
+  extracted_primitive ToPrimitive(raw_primitive* RawPrimitive, raw_gltf_data* RawGltfData)
+  {
+    extracted_primitive Result = {};
+    // Note: When indices property is not defined, the number of vertex indices to render is defined by count of
+    //       attribute accessors (with the implied values from range [0..count)); when indices property is
+    //       defined, the number of vertex indices to render is defined by count of accessor referred to by
+    //       indices. In either case, the number of vertex indices MUST be valid for the topology type used:
+
+    u32* Indeces = 0;
+    if(RawPrimitive->Indices)
+    {
+      raw_accessor* RawAccessor = &RawGltfData->RawAccessors[*RawPrimitive->Indices];
+      buffer_extract_result ExtractRestult = Extract(RawAccessor, RawGltfData->RawBufferViews, RawGltfData->RawBuffers);
+      Result.IndexCount = ExtractRestult.Count;
+      Result.Indeces = (int*) ExtractRestult.DataBytes;
+    }
+
+    int TextureCoordinateCount = 0;
+    int ColorCount = 0;
+    int JointsCount = 0;
+    int WeightsCount = 0;
+    for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
+    {
+      raw_attribute* RawAttribute = &RawPrimitive->Attributes[i];
+      raw_attribute::attribute_type AttributeType = RawAttribute->Type;
+      switch(AttributeType.Type)
+      {
+        case raw_attribute::attribute_type::type::TEXCOORD: {
+          if(TextureCoordinateCount < AttributeType.Index+1) {
+            TextureCoordinateCount = AttributeType.Index+1;
+          }
+        } break;
+        case raw_attribute::attribute_type::type::COLOR: {
+          if(ColorCount < AttributeType.Index+1) {
+            ColorCount = AttributeType.Index+1;
+          }
+        }break;
+        case raw_attribute::attribute_type::type::JOINTS: {
+          if(JointsCount < AttributeType.Index+1) {
+            JointsCount = AttributeType.Index+1;
+          }
+        }break;
+        case raw_attribute::attribute_type::type::WEIGHTS: {
+          if(WeightsCount < AttributeType.Index+1) {
+            WeightsCount = AttributeType.Index+1;
+          }
+        }break;
+      }
+    }
+    Assert(ColorCount==0);
+    Assert(JointsCount==0);
+    Assert(WeightsCount==0);
+
+    Result.vtSetCount = TextureCoordinateCount;
+    Result.vtCount    = JwinAllocArray(Result.vtSetCount, int);
+    Result.vt         = JwinAllocArray(Result.vtSetCount, v2*);
+
+    for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
+    {
+      raw_attribute* RawAttribute = &RawPrimitive->Attributes[i];
+      raw_accessor* RawAccessor = &RawGltfData->RawAccessors[RawAttribute->Index];
+      raw_attribute::attribute_type AttributeType = RawAttribute->Type;
+      buffer_extract_result ExtractRestult = Extract(RawAccessor, RawGltfData->RawBufferViews, RawGltfData->RawBuffers);
+      switch(AttributeType.Type)
+      {
+        case raw_attribute::attribute_type::type::ERROR: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type ERROR\n");
+          Assert(0);
+        }break;
+        case raw_attribute::attribute_type::type::POSITION: {
+          Assert(ExtractRestult.ComponentSize == 4);
+          Assert(ExtractRestult.ComponentCount == 3);
+
+          ExtractVertexBoundingBox(&Result, RawAccessor);
+          Result.vCount = ExtractRestult.Count;
+          Result.v = (v3*) ExtractRestult.DataBytes;
+        }break;
+        case raw_attribute::attribute_type::type::NORMAL: {
+          Assert(ExtractRestult.ComponentSize == 4);
+          Assert(ExtractRestult.ComponentCount == 3);
+          Result.vnCount = ExtractRestult.Count;
+          Result.vn = (v3*) ExtractRestult.DataBytes;
+        }break;
+        case raw_attribute::attribute_type::type::TANGENT: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type TANGENT\n");
+          Assert(0);
+        }break;
+        case raw_attribute::attribute_type::type::TEXCOORD: {
+          
+          Assert(ExtractRestult.ComponentSize == 4);
+          Assert(ExtractRestult.ComponentCount == 2);
+          Result.vtCount[AttributeType.Index] = ExtractRestult.Count;
+          Result.vt[AttributeType.Index] = (v2*) ExtractRestult.DataBytes;
+        }break;
+        case raw_attribute::attribute_type::type::COLOR: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type COLOR\n");
+          Assert(0);
+        }break;
+        case raw_attribute::attribute_type::type::JOINTS: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type JOINTS\n");
+          Assert(0);
+        }break;
+        case raw_attribute::attribute_type::type::WEIGHTS: {
+          Platform.DEBUGPrint("Warn: GltfLoader found unhandled attribute type WEIGHTS\n");
+          Assert(0);
+        }break;
+      }
+    }
+
+
+    Result.MaterialIndex = RawPrimitive->Material;
+
+    return Result;
+  }
+
+  void ExtractPrimitives(raw_mesh* RawMesh, raw_gltf_data* RawGltfData)
+  {
+    RawMesh->ExtractedPrimitiveCount = RawMesh->PrimitiveCount;
+    RawMesh->ExtractedPrimitives = JwinAllocArray(RawMesh->ExtractedPrimitiveCount, extracted_primitive);
+    for (int i = 0; i < RawMesh->PrimitiveCount; ++i)
+    {
+      RawMesh->ExtractedPrimitives[i] = ToPrimitive(RawMesh->Primitives, RawGltfData);
+    }
   }
 
   mesh::primitive ToPrimitive(raw_primitive* RawPrimitive, raw_gltf_data* RawGltfData, material* Materials)
@@ -2508,6 +2670,11 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       {
         RawGltfData.RawTextures[i++] = JsonToRawTexture(JsonListElement);
       }
+    }
+
+    for (int i = 0; i < RawGltfData.RawMeshCount; ++i)
+    {
+      ExtractPrimitives(RawGltfData.RawMeshes, &RawGltfData);
     }
 
     FreeFile(GltfFile);

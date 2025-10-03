@@ -388,6 +388,43 @@ namespace gltf_tmp {
     return Result;
   }
 
+  asset::gltf_tmp::mesh::topology ModeToTopology(gltf::primitive_mode Mode)
+  {  
+    switch(Mode)
+    {
+      case gltf::primitive_mode::POINTS: return asset::gltf_tmp::mesh::topology::POINTS;
+      case gltf::primitive_mode::LINES: return asset::gltf_tmp::mesh::topology::LINES;
+      case gltf::primitive_mode::LINE_LOOP: return asset::gltf_tmp::mesh::topology::LINE_LOOP;
+      case gltf::primitive_mode::LINE_STRIP: return asset::gltf_tmp::mesh::topology::LINE_STRIP;
+      case gltf::primitive_mode::TRIANGLES: return asset::gltf_tmp::mesh::topology::TRIANGLES;
+      case gltf::primitive_mode::TRIANGLE_STRIP: return asset::gltf_tmp::mesh::topology::TRIANGLE_STRIP;
+      case gltf::primitive_mode::TRIANGLE_FAN: return asset::gltf_tmp::mesh::topology::TRIANGLE_FAN;
+    };
+    return asset::gltf_tmp::mesh::topology::TRIANGLES;
+  }
+
+  gltf_tmp::mesh* LoadMeshToAssetManager(gltf::extracted_primitive* GltfPrimitive) {
+
+    gltf_tmp::mesh Mesh = {};
+    Mesh.IndexCount = GltfPrimitive->IndexCount;
+    Mesh.Indeces = GltfPrimitive->Indeces;
+    Mesh.VertexCount = GltfPrimitive->vCount;
+    Mesh.Vertex = GltfPrimitive->v;
+    Mesh.VertexNormalCount = GltfPrimitive->vnCount;
+    Mesh.VertexNormal = GltfPrimitive->vn;
+    Mesh.TextureVertexSetCount = GltfPrimitive->vtSetCount;
+    Mesh.TextureVertexCounts = GltfPrimitive->vtCount;
+    Mesh.TextureVertices = GltfPrimitive->vt;
+    Mesh.Topology = ModeToTopology(GltfPrimitive->Mode);
+    Mesh.AABB = AABB3f(GltfPrimitive->vMin,GltfPrimitive->vMax);
+    u32 ResultKey = 0;
+    asset::gltf_tmp::mesh* Result = asset::LoadMesh2("N/A", &Mesh, &ResultKey);
+
+    return Result;
+  }
+
+
+
   render_tree LoadToAssetManager(gltf::raw_gltf_data* RawGltfData) {
     render_tree Result = {};
 
@@ -421,19 +458,28 @@ namespace gltf_tmp {
     
 
 ////
-    size_t LoadedMeshCount = RawGltfData->RawMeshCount;
-    mesh** LoadedMeshTracker = JwinAllocArray(LoadedImageCount, mesh*);
-    for (int i = 0; i < LoadedMeshCount; ++i)
+    for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
     {
-      /* code */
+      gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
+
+      size_t MeshInfoCount = RawMesh->PrimitiveCount;
+      gltf_tmp::render_tree::mesh_info* MeshInfos = JwinAllocArray(MeshInfoCount, gltf_tmp::render_tree::mesh_info);
+      for (int j = 0; j < MeshInfoCount; ++j)
+      {
+        gltf::extracted_primitive* GltfPrimitive = &RawMesh->ExtractedPrimitives[j];
+        gltf_tmp::render_tree::mesh_info* MeshInfo = &MeshInfos[j];
+        MeshInfo->Mesh = LoadMeshToAssetManager(GltfPrimitive);
+        if(GltfPrimitive->MaterialIndex)
+        {
+          MeshInfo->Material = LoadedMaterialTracker[*GltfPrimitive->MaterialIndex];
+        }
+      }
     }
 
 
 
 
 ////
-
-    JwinFreeMemory(LoadedMeshTracker);
     JwinFreeMemory(LoadedMaterialTracker);
     JwinFreeMemory(LoadedImagesTracker);
 
