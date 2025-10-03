@@ -1697,7 +1697,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
       primitive_mode Mode;
     
-      material Material;      
+      material Material;
     };
 
     int PrimitiveCount;

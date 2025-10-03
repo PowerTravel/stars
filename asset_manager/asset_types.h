@@ -37,7 +37,7 @@ namespace asset {
   };
 
 
-// Map from obj to gl-mesh, but keep each v/vn/vt separated into their own vectors.
+  // Basic Asset Type
   struct mesh {
     u32 IndexCount;
     u32* vi;
@@ -217,7 +217,7 @@ namespace asset {
       aabb3f AABB;
     };
 
-    struct render_asset { // render_asset_id
+    struct render_tree { // render_asset_id
       
       struct mesh_info {
         mesh* Mesh;

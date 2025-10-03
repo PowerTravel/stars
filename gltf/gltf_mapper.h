@@ -70,7 +70,7 @@ namespace gltf_tmp {
 //
 //    Each  raw_image, raw_mesh_primitive and raw_material will be converted and loaded into the asset_manager.
 //
-//    Each scene will create a separate render_asset. Render asset is a tree-structure with transformations and mesh-material pairs.
+//    Each scene will create a separate render_tree. Render asset is a tree-structure with transformations and mesh-material pairs.
 //
 //  Reason: Im unsure if I want the tree-structure to be made up of entities or if they are internal to the render asset, so we keep it internal for now
 //          and we can convert them to entities-components later if we want.
@@ -78,9 +78,9 @@ namespace gltf_tmp {
   // MeshIDMap has same order as meshes in the raw_gltf_data, but the values are in the asset manager.
 
   // This function is broken. each raw_mesh has a set of mesh_primitives. Our type for mesh is mesh_info which has an array of mesh(_primitive) + material pair.
-  render_asset::node ConvertPayload(gltf::raw_node* RawNode, mesh_id* MeshIdMap )
+  render_tree::node ConvertPayload(gltf::raw_node* RawNode, mesh_id* MeshIdMap )
   {
-    render_asset::node Result = {};
+    render_tree::node Result = {};
 
 #if 0
     switch(RawNode->TransformationType){
@@ -172,17 +172,17 @@ namespace gltf_tmp {
     return Result;
   }
 
-  render_asset ConvertTree(int RootNodeIndex, size_t RawNodeCount, gltf::raw_node* RawNodes, mesh_id* MeshIDMap)
+  render_tree ConvertTree(int RootNodeIndex, size_t RawNodeCount, gltf::raw_node* RawNodes, mesh_id* MeshIDMap)
   {
-    render_asset Result = {};
+    render_tree Result = {};
     Result.NodeCount = GetNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
-    Result.Nodes = JwinAllocArray(Result.NodeCount, render_asset::node);
+    Result.Nodes = JwinAllocArray(Result.NodeCount, render_tree::node);
     Result.Root = Result.Nodes;
 
     int NodeArrayIndex = 0;
     node_queue Queue = NodeQueue(Result.NodeCount);
 
-    render_asset::node* RootNode = &Result.Nodes[NodeArrayIndex];
+    render_tree::node* RootNode = &Result.Nodes[NodeArrayIndex];
     gltf::raw_node* RawRootNode = &RawNodes[RootNodeIndex];
     *RootNode = ConvertPayload(RawRootNode, MeshIDMap);
     Push(Queue, RootNodeIndex, NodeArrayIndex++);
@@ -191,7 +191,7 @@ namespace gltf_tmp {
     {
       node_queue::pair NodeIndexPair = Pop(Queue);
       gltf::raw_node* RawNode = &RawNodes[NodeIndexPair.RawNodeIndex];
-      render_asset::node* ParentNode = &Result.Nodes[NodeIndexPair.NodeIndex];
+      render_tree::node* ParentNode = &Result.Nodes[NodeIndexPair.NodeIndex];
       ParentNode->ChildCount = RawNode->ChildCount;
       for (int i = 0; i < RawNode->ChildCount; ++i)
       {
@@ -199,7 +199,7 @@ namespace gltf_tmp {
         gltf::raw_node* RawChildNode = &RawNodes[RawChildIndex];
 
         int ChildIndex = NodeArrayIndex++;
-        render_asset::node* ChildNode = &Result.Nodes[ChildIndex];
+        render_tree::node* ChildNode = &Result.Nodes[ChildIndex];
 
         *ChildNode = ConvertPayload(RawChildNode, MeshIDMap);
         ChildNode->Parent = ParentNode;
@@ -220,18 +220,18 @@ namespace gltf_tmp {
     return Result;
   }
 
-  render_asset* ToRenderAssets(gltf::raw_gltf_data* GltfData, gltf::raw_scene* RawScene, mesh_id* MeshIDMap, mesh_id* MaterialIDMap)
+  render_tree* ToRenderAssets(gltf::raw_gltf_data* GltfData, gltf::raw_scene* RawScene, mesh_id* MeshIDMap, mesh_id* MaterialIDMap)
   {
     int* UniqueRootNodes = 0;
     size_t UniqueRootNodeCount = GetRootNodeCount(GltfData->RawSceneCount, GltfData->RawScenes, GltfData->RawNodeCount, &UniqueRootNodes);
 
-    render_asset* Result = JwinAllocArray(UniqueRootNodeCount, render_asset);
+    render_tree* Result = JwinAllocArray(UniqueRootNodeCount, render_tree);
     for (int i = 0; i < UniqueRootNodeCount; ++i)
     {
       int UniqueRootNodeIndex = UniqueRootNodes[i];
       gltf::raw_node* RawRoot = &GltfData->RawNodes[UniqueRootNodeIndex];
 
-      render_asset* RenderAsset = &Result[i];
+      render_tree* RenderAsset = &Result[i];
       *RenderAsset = ConvertTree(UniqueRootNodeIndex, GltfData->RawNodeCount, GltfData->RawNodes, MeshIDMap);
     }
 
@@ -388,8 +388,8 @@ namespace gltf_tmp {
     return Result;
   }
 
-  render_asset LoadToAssetManager(gltf::raw_gltf_data* RawGltfData) {
-    render_asset Result = {};
+  render_tree LoadToAssetManager(gltf::raw_gltf_data* RawGltfData) {
+    render_tree Result = {};
 
     size_t LoadedImageCount = RawGltfData->RawImageCount;
     image** LoadedImagesTracker = JwinAllocArray(LoadedImageCount, image*);
@@ -415,18 +415,25 @@ namespace gltf_tmp {
       }else{
         Name = RawMaterial->Name;
       }
-      
+
       LoadedMaterialTracker[i]  = asset::LoadPbrMaterial(Name.data, &TmpMaterial);
     }
     
 
+////
+    size_t LoadedMeshCount = RawGltfData->RawMeshCount;
+    mesh** LoadedMeshTracker = JwinAllocArray(LoadedImageCount, mesh*);
+    for (int i = 0; i < LoadedMeshCount; ++i)
+    {
+      /* code */
+    }
+
+
+
 
 ////
 
-
-
-////
-
+    JwinFreeMemory(LoadedMeshTracker);
     JwinFreeMemory(LoadedMaterialTracker);
     JwinFreeMemory(LoadedImagesTracker);
 
