@@ -1169,9 +1169,10 @@ void Init(u32 MeshAssetKey, u32 MaterialAssetKey, component* Render)
   if(Material->Ns){
     Render->Shininess = *Material->Ns;
   }
-  if(Material->MapKdHandle)
+  if(Material->HasDiffuseTexture)
   {
-    Render->DiffuseTextureHandle = ecs::render::Get32BitTextureHandle(Material->MapKdHandle);
+    u32 Handle = ToHeader(Material->DiffuseTexture.Image)->Key;
+    Render->DiffuseTextureHandle = ecs::render::Get32BitTextureHandle(Handle);
   }
 }
 

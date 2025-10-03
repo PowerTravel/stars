@@ -44,7 +44,19 @@ manager* CreateAssetManager() {
 
 header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* Path, midx DataSize);
 
-header* ToHeader(bptr Asset) {
+header* ToHeader(mesh* Asset) {
+  return (header*) RetreatByType(Asset, header);
+}
+
+header* ToHeader(image* Asset) {
+  return (header*) RetreatByType(Asset, header);
+}
+
+header* ToHeader(pbr_material* Asset) {
+  return (header*) RetreatByType(Asset, header);
+}
+
+header* ToHeader(phong_material* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 

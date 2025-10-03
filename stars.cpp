@@ -38,8 +38,8 @@ global_variable r32 g_t = 0;
 
 file_local inline void Initiate(asset::mesh* Mesh, asset::phong_material* Material, ecs::render::component* Render)
 {
-  u32 MeshAssetKey = asset::ToHeader( (bptr) Mesh)->Key;
-  u32 MaterialAssetKey = asset::ToHeader( (bptr) Material)->Key;
+  u32 MeshAssetKey     = asset::ToHeader(Mesh)->Key;
+  u32 MaterialAssetKey = asset::ToHeader(Material)->Key;
   ecs::render::Init(MeshAssetKey, MaterialAssetKey, Render);
 }
 
@@ -68,7 +68,12 @@ void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shin
   Material.Kd = &Diffuse;
   Material.Ks = &Specular;
   Material.Ns = &Shininess;
-  Material.MapKdHandle = MapKdHandle;
+
+  asset::image* Image = (asset::image*) asset::Find(asset::type::IMAGE, MapKdHandle);
+  Assert(Image);
+
+  Material.HasDiffuseTexture = true;
+  Material.DiffuseTexture = asset::DefaultTexture(Image);
   asset::LoadMaterial(UniqueName, &Material);
 }
 
@@ -1164,8 +1169,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
     asset::render_group* PlaneMesh = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "checker_plane_simple");
-    u32 PlaneTexHandle = PlaneMesh->Elements[0].Material->MapKdHandle;
-    asset::image* PlaneTex = (asset::image*) asset::Find(asset::type::IMAGE, PlaneTexHandle);
+    asset::image* PlaneTex = PlaneMesh->Elements[0].Material->DiffuseTexture.Image;
+    u32 PlaneTexHandle = ToHeader(PlaneTex)->Key;
     ecs::render::LoadImageToGpu(PlaneTexHandle, PlaneTex);
 
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);

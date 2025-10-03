@@ -660,9 +660,27 @@ void InitiateMaterial (
   }
   
   Material->BumpMapBM = BumpMapBM;
-  Material->BumpMapHandle   = BumpMapHandle;
-  Material->MapKdHandle     = MapKdHandle;
-  Material->MapKsHandle     = MapKsHandle;
+  if(BumpMapHandle)
+  {
+    image* Image = (image*) Find(type::IMAGE, BumpMapHandle);
+    Assert(Image);
+    Material->HasBumpMap = true;
+    Material->BumpMap = DefaultTexture(Image);
+  }
+  if(MapKdHandle)
+  {
+    image* Image = (image*) Find(type::IMAGE, MapKdHandle);
+    Assert(Image);
+    Material->HasDiffuseTexture = true;
+    Material->DiffuseTexture = DefaultTexture(Image);
+  }
+  if(MapKsHandle)
+  {
+    image* Image = (image*) Find(type::IMAGE, MapKsHandle);
+    Assert(Image);
+    Material->HasSpecularTexture = true;
+    Material->SpecularTexture = DefaultTexture(Image);
+  }
 }
 
 
@@ -710,10 +728,13 @@ file_local void CopyMaterial( const phong_material* Src, phong_material* Dst)
     *Dst->Ns = *Src->Ns;
   }
   
-  Dst->BumpMapBM       = Src->BumpMapBM;
-  Dst->BumpMapHandle   = Src->BumpMapHandle;
-  Dst->MapKdHandle     = Src->MapKdHandle;
-  Dst->MapKsHandle     = Src->MapKsHandle;
+  Dst->BumpMapBM  = Src->BumpMapBM;
+  Dst->HasBumpMap = Src->HasBumpMap;
+  Dst->BumpMap    = Src->BumpMap;
+  Dst->HasDiffuseTexture = Src->HasDiffuseTexture;
+  Dst->DiffuseTexture    = Src->DiffuseTexture;
+  Dst->HasSpecularTexture = Src->HasSpecularTexture;
+  Dst->SpecularTexture = Src->SpecularTexture;
 }
 
 phong_material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)

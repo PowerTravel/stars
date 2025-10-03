@@ -54,41 +54,6 @@ namespace asset {
     aabb3f AABB;
   };
 
-  struct phong_material {
-    v4*  Ka;
-    v4*  Kd;
-    v4*  Tf;
-    v4*  Ks;
-    v4*  Ke;
-    r32* d;  // Specifies the dissolve for the current material
-    r32* Ni; // Index of refraction
-    r32* Ns; // Specifies the specular exponent for the current material.
-
-    r32 BumpMapBM;
-    u32 BumpMapHandle;
-    u32 MapKdHandle;
-    u32 MapKsHandle;
-  };
-
-  // Combines a mesh (a shape), with a material (How its rendered)
-  // Does not have a header
-  struct render_group_element {
-    // Obj_groups that share a smoothing group have joined edges that should be smoothe
-    // -1 means _no smothing group used_
-    s32 SmoothingGroup;
-
-    mesh* Mesh;
-    phong_material* Material;
-  };
-
-  // A collection of shapes and materials that makes up an object.
-  // A render object can reference this render_group.
-  struct render_group {
-    u32 ElementCount;
-    render_group_element* Elements;
-  };
-
-
   // Basic Asset Type
   struct image
   {
@@ -98,7 +63,7 @@ namespace asset {
     uint8_t* Pixels;
   };
 
- // Maps a Image and info on how to display it 
+  // __Not__ asset type
   struct texture {
     enum class filter {
       NEAREST,
@@ -131,13 +96,51 @@ namespace asset {
     Result.MinFilter = texture::filter::NEAREST;
     Result.WrapS = texture::wrap::REPEAT;
     Result.WrapT = texture::wrap::REPEAT;
+    Result.Image = Image;
     return Result;
   }
+
+  struct phong_material {
+    v4*  Ka;
+    v4*  Kd;
+    v4*  Tf;
+    v4*  Ks;
+    v4*  Ke;
+    r32* d;  // Specifies the dissolve for the current material
+    r32* Ni; // Index of refraction
+    r32* Ns; // Specifies the specular exponent for the current material.
+
+    r32 BumpMapBM;
+    b32 HasBumpMap;
+    texture BumpMap;
+    b32 HasDiffuseTexture;
+    texture DiffuseTexture;
+    b32 HasSpecularTexture;
+    texture SpecularTexture;
+  };
+
+  // Combines a mesh (a shape), with a material (How its rendered)
+  // Does not have a header
+  struct render_group_element {
+    // Obj_groups that share a smoothing group have joined edges that should be smoothe
+    // -1 means _no smothing group used_
+    s32 SmoothingGroup;
+
+    mesh* Mesh;
+    phong_material* Material;
+  };
+
+  // A collection of shapes and materials that makes up an object.
+  // A render object can reference this render_group.
+  struct render_group {
+    u32 ElementCount;
+    render_group_element* Elements;
+  };
 
 
   // Things needed for pbr-rendering
   // Asset Type
-  struct pbr_material //  pbr_material_id
+  struct pbr_material
   {
     struct metallic_roughness
     {
