@@ -1,5 +1,5 @@
 #include "ecs/systems/system_render.h"
-#include "asset_manager/asset_mapper.h"
+#include "asset_manager/gl_mapper.h"
 
 
 extern ecs::render::system* GlobalRenderSystem;

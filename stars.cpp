@@ -26,7 +26,7 @@
 //#include "dynamic_aabb_tree.cpp"
 //#include "externals\json_fwd.hpp"
 #include "gltf/gltf_loader.h"
-#include "gltf/gltf_mapper.h"
+#include "asset_manager/gltf_mapper.h"
 
 #include "utils.h"
 
