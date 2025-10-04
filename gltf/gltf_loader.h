@@ -85,16 +85,16 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
   };
 
   struct extracted_primitive {
+    // All attribute accessors for a given primitive MUST have the same count. When indices property is
+    // not defined, attribute accessors' count indicates the number of vertices to render; when indices
+    // property is defined, it indicates the upper (exclusive) bound on the index values in the indices
+    // accessor, i.e., all index values MUST be less than attribute accessors' count
     int IndexCount;
     int* Indeces;
-
     int vCount;
-    v3* v;     // Vertices
-    int vnCount;
-    v3* vn;    // Vertice Normals
-
+    v3* v;      // Vertices
+    v3* vn;     // Vertice Normals
     int vtSetCount;
-    int* vtCount;
     v2** vt;    // Texture Vertices
 
     v3 vMin;
@@ -2048,8 +2048,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     Assert(JointsCount==0);
     Assert(WeightsCount==0);
 
+
     Result.vtSetCount = TextureCoordinateCount;
-    Result.vtCount    = JwinAllocArray(Result.vtSetCount, int);
     Result.vt         = JwinAllocArray(Result.vtSetCount, v2*);
 
     for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
@@ -2058,6 +2058,11 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
       raw_accessor* RawAccessor = &RawGltfData->RawAccessors[RawAttribute->Index];
       raw_attribute::attribute_type AttributeType = RawAttribute->Type;
       buffer_extract_result ExtractRestult = Extract(RawAccessor, RawGltfData->RawBufferViews, RawGltfData->RawBuffers);
+      if(!Result.vCount){
+        Result.vCount = ExtractRestult.Count;
+      }else{
+        Assert(Result.vCount == ExtractRestult.Count);
+      }
       switch(AttributeType.Type)
       {
         case raw_attribute::attribute_type::type::ERROR: {
@@ -2067,15 +2072,12 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         case raw_attribute::attribute_type::type::POSITION: {
           Assert(ExtractRestult.ComponentSize == 4);
           Assert(ExtractRestult.ComponentCount == 3);
-
           ExtractVertexBoundingBox(&Result, RawAccessor);
-          Result.vCount = ExtractRestult.Count;
           Result.v = (v3*) ExtractRestult.DataBytes;
         }break;
         case raw_attribute::attribute_type::type::NORMAL: {
           Assert(ExtractRestult.ComponentSize == 4);
           Assert(ExtractRestult.ComponentCount == 3);
-          Result.vnCount = ExtractRestult.Count;
           Result.vn = (v3*) ExtractRestult.DataBytes;
         }break;
         case raw_attribute::attribute_type::type::TANGENT: {
@@ -2083,10 +2085,8 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
           Assert(0);
         }break;
         case raw_attribute::attribute_type::type::TEXCOORD: {
-          
           Assert(ExtractRestult.ComponentSize == 4);
           Assert(ExtractRestult.ComponentCount == 2);
-          Result.vtCount[AttributeType.Index] = ExtractRestult.Count;
           Result.vt[AttributeType.Index] = (v2*) ExtractRestult.DataBytes;
         }break;
         case raw_attribute::attribute_type::type::COLOR: {
@@ -2103,7 +2103,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
         }break;
       }
     }
-
 
     Result.MaterialIndex = RawPrimitive->Material;
 

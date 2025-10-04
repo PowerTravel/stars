@@ -218,6 +218,58 @@ opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, const mesh * Mesh)
   return Result;
 }
 
+gl_vertex_buffer CreateGLVertexBuffer2(memory_arena* Arena,
+                     const int IndexCount, const int* Indeces, const int VertexCount,
+                     const v3* VerticeData, const v3* NormalData, const v2* TextureData)
+{
+  int* GLIndexArray         = PushArray(Arena, IndexCount, int);
+  opengl_vertex* VertexData = PushArray(Arena, VertexCount, opengl_vertex);
+  opengl_vertex* Vertice = VertexData;
+  utils::Copy(IndexCount*sizeof(int), (void*) Indeces, (void*)GLIndexArray);
+
+  for (int i = 0; i < VertexCount; ++i)
+  {
+    opengl_vertex* GlVertice = &VertexData[i];
+    Vertice->v  = VerticeData[i];
+    Vertice->vt = TextureData ? TextureData[i] : V2(0,0);
+    Vertice->vn = NormalData  ? NormalData[i]  : V3(0,0,0);
+    ++Vertice;
+  }
+  
+  gl_vertex_buffer Result = {};
+  Result.IndexCount = IndexCount;
+  Result.Indeces =  (u32*) GLIndexArray;
+  Result.VertexCount = VertexCount;
+  Result.VertexData = VertexData;
+  return Result;
+}
+
+void MeshToGlVertexBuffer2(memory_arena* Arena, const asset::gltf_tmp::mesh * Mesh, gl_vertex_buffer* Result)
+{
+  Assert(Mesh->IndexCount && Mesh->Indeces && Mesh->VertexCount && Mesh->Vertex);
+  // We are only handling 1 set of texture vertices atm. Increase if we find the need
+  Assert(Mesh->TextureVertexSetCount== 0 || Mesh->TextureVertexSetCount ==1);
+  *Result = CreateGLVertexBuffer2(
+      Arena,
+      Mesh->IndexCount,
+      Mesh->Indeces,
+      Mesh->VertexCount,
+      Mesh->Vertex,
+      Mesh->VertexNormal,
+      Mesh->TextureVertices[0]
+    );
+}
+
+opengl_buffer_data MeshToGlVertexBuffer2(memory_arena* Arena, const asset::gltf_tmp::mesh * Mesh)
+{ 
+  opengl_buffer_data Result = {};
+  Result.BufferCount = 1;
+  Result.BufferData  = PushStruct(Arena, gl_vertex_buffer);
+  MeshToGlVertexBuffer2(Arena, Mesh, Result.BufferData);
+
+  return Result;
+}
+
 
 }
 }

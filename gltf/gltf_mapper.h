@@ -410,10 +410,8 @@ namespace gltf_tmp {
     Mesh.Indeces = GltfPrimitive->Indeces;
     Mesh.VertexCount = GltfPrimitive->vCount;
     Mesh.Vertex = GltfPrimitive->v;
-    Mesh.VertexNormalCount = GltfPrimitive->vnCount;
     Mesh.VertexNormal = GltfPrimitive->vn;
     Mesh.TextureVertexSetCount = GltfPrimitive->vtSetCount;
-    Mesh.TextureVertexCounts = GltfPrimitive->vtCount;
     Mesh.TextureVertices = GltfPrimitive->vt;
     Mesh.Topology = ModeToTopology(GltfPrimitive->Mode);
     Mesh.AABB = AABB3f(GltfPrimitive->vMin,GltfPrimitive->vMax);

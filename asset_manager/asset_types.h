@@ -203,13 +203,12 @@ namespace asset {
       int IndexCount;
       int* Indeces;
 
+      // Vertex, VertexNormal and each of the TextureVertices* Must have the same size of VertexCount if they exist
       int VertexCount;
       v3* Vertex;     // Vertices
-      int VertexNormalCount;
       v3* VertexNormal;    // Vertice Normals
 
       int TextureVertexSetCount;
-      int* TextureVertexCounts;
       v2** TextureVertices;    // Texture Vertices
 
       topology Topology;

@@ -961,20 +961,15 @@ pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* PbrMater
 }
 
 midx GetMeshSize2( const gltf_tmp::mesh* Mesh ) {
+  midx StructSize     = sizeof(gltf_tmp::mesh);
   midx IndexMemSize   = Mesh->IndexCount * sizeof(int);
   midx VerticeMemSize = Mesh->VertexCount  * sizeof(v3);
-  midx NormalMemSize  = Mesh->VertexNormalCount  * sizeof(v3);
+  midx NormalMemSize  = Mesh->VertexNormal ? Mesh->VertexCount  * sizeof(v3) : 0;
 
-  midx TextureSetMemSize     = Mesh->TextureVertexSetCount*sizeof(int);
   midx TextureSetMemSizeD1   = Mesh->TextureVertexSetCount*sizeof(v2*);
-  midx TextureVerticeMemSize = 0;
-  for (int i = 0; i < Mesh->TextureVertexSetCount; ++i)
-  {
-    TextureVerticeMemSize += Mesh->TextureVertexCounts[i];
-  }
-  TextureVerticeMemSize *= sizeof(v2);
+  midx TextureVerticeMemSize = TextureSetMemSizeD1 ? Mesh->TextureVertexSetCount * Mesh->VertexCount * sizeof(v2) : 0;
 
-  midx TotalMeshSize = sizeof(mesh) + IndexMemSize + VerticeMemSize + NormalMemSize + TextureSetMemSize + TextureSetMemSizeD1 + TextureVerticeMemSize;
+  midx TotalMeshSize = StructSize + IndexMemSize + VerticeMemSize + NormalMemSize + TextureSetMemSizeD1 + TextureVerticeMemSize;
   return TotalMeshSize;
 }
 
@@ -982,44 +977,46 @@ void Copy(const gltf_tmp::mesh* Src, gltf_tmp::mesh* Dst, size_t TotalSize)
 {
   bptr MemScan = AdvanceBytePointer(Dst, sizeof(gltf_tmp::mesh));
 
-  Dst->IndexCount = Src->IndexCount;
-  Dst->Indeces = (int*) MemScan;
-  size_t IndexSize = Src->IndexCount  * sizeof(int);
-  utils::Copy(IndexSize, (void*) Src->Indeces, (void*) Dst->Indeces);
-  MemScan = AdvanceBytePointer(MemScan, IndexSize);
+  if(Src->Indeces)
+  {
+    Dst->IndexCount = Src->IndexCount;
+    Dst->Indeces = (int*) MemScan;
+    size_t IndexSize = Src->IndexCount  * sizeof(int);
+    utils::Copy(IndexSize, (void*) Src->Indeces, (void*) Dst->Indeces);
+    MemScan = AdvanceBytePointer(MemScan, IndexSize);
+  }else{
+    Assert(0); // Indeces are not required, but were not handling it atm. This is to catch that
+  }
 
-  Dst->VertexCount = Src->VertexCount;
+  Assert(Src->Vertex); // Vertex data must exist
+  const size_t VertexCount = Src->VertexCount;
+  Dst->VertexCount = VertexCount;
   Dst->Vertex = (v3*) MemScan;
-  size_t VertexSize = Src->VertexCount  * sizeof(v3);
+  size_t VertexSize = VertexCount  * sizeof(v3);
   utils::Copy(VertexSize, (void*) Src->Vertex, (void*) Dst->Vertex);
   MemScan = AdvanceBytePointer(MemScan, VertexSize);
 
-  Dst->VertexNormalCount = Src->VertexNormalCount;
-  Dst->VertexNormal = (v3*) MemScan;
-  size_t VertexNormalSize = Src->VertexNormalCount  * sizeof(v3);
-  utils::Copy(VertexNormalSize, (void*) Src->VertexNormal, (void*) Dst->VertexNormal);
-  MemScan = AdvanceBytePointer(MemScan, VertexNormalSize);
-
-
-  Dst->TextureVertexSetCount = Src->TextureVertexSetCount;
-  Dst->TextureVertexCounts = (int*) MemScan;
-  size_t TextureVertexCountsSize = Src->TextureVertexSetCount  * sizeof(int);
-  utils::Copy(TextureVertexCountsSize, (void*) Src->TextureVertexCounts, (void*) Dst->TextureVertexCounts);
-  MemScan = AdvanceBytePointer(MemScan, TextureVertexCountsSize);
-
-  Dst->TextureVertices = (v2**) MemScan;
-  size_t TextureVerticeD1Size = Src->TextureVertexSetCount  * sizeof(v2*);
-  MemScan = AdvanceBytePointer(MemScan, TextureVerticeD1Size);
-
-  size_t TotalTextureVertexCount = 0;
-  for (int i = 0; i < Dst->TextureVertexSetCount; ++i)
+  if(Src->VertexNormal)
   {
-    int TextureCount = Src->TextureVertexCounts[i];
-    Dst->TextureVertexCounts[i] = TextureCount;
-    Dst->TextureVertices[i] = (v2*) MemScan;
-    size_t ArraySize = sizeof(v2) * TextureCount;
-    utils::Copy(ArraySize, (void*) Src->TextureVertices[i], (void*) Dst->TextureVertices[i]);
-    MemScan = AdvanceBytePointer(MemScan, ArraySize);
+    Dst->VertexNormal = (v3*) MemScan;
+    size_t VertexNormalSize = VertexCount  * sizeof(v3);
+    utils::Copy(VertexNormalSize, (void*) Src->VertexNormal, (void*) Dst->VertexNormal);
+    MemScan = AdvanceBytePointer(MemScan, VertexNormalSize);
+  }
+
+  if(Src->TextureVertexSetCount)
+  {
+    Dst->TextureVertexSetCount = Src->TextureVertexSetCount;
+    Dst->TextureVertices = (v2**) MemScan;
+    size_t TextureVerticeD1Size = Src->TextureVertexSetCount  * sizeof(v2*);
+    MemScan = AdvanceBytePointer(MemScan, TextureVerticeD1Size);
+    for (int i = 0; i < Dst->TextureVertexSetCount; ++i)
+    {
+      Dst->TextureVertices[i] = (v2*) MemScan;
+      size_t ArraySize = sizeof(v2) * VertexCount;
+      utils::Copy(ArraySize, (void*) Src->TextureVertices[i], (void*) Dst->TextureVertices[i]);
+      MemScan = AdvanceBytePointer(MemScan, ArraySize);
+    }
   }
 
   Assert(MemScan - ((uint8_t*)Dst) == TotalSize);
