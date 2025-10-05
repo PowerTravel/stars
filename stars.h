@@ -7,7 +7,7 @@
 #include "platform/jfont.h"
 #include "commons/random.h"
 #include "camera.h"
-#include "platform/obj_loader.h"
+#include "io/obj.h"
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
 #include "ecs/systems/system_render.h"

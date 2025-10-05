@@ -1,9 +1,9 @@
 #pragma once
 
-#include "asset/asset_types.h"
-#include "platform/obj_loader.h"
+#include "asset_types.h"
+#include "io/obj.h"
 
-gltf_tmp::mesh* MapObjMesh( obj_loaded_file* ObjFile )
+asset::gltf_tmp::mesh* MapObjMesh( obj_loaded_file* ObjFile )
 {
-  
+  return 0;
 }

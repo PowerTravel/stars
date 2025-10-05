@@ -1,5 +1,5 @@
 #include "asset_manager.h"
-#include "platform/obj_loader.h"
+#include "io/obj.h"
 #include "renderer/render_push_buffer/render_push_buffer.h"
 
 extern asset::manager* GlobalAssetManager;

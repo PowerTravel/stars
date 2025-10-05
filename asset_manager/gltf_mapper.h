@@ -1,6 +1,6 @@
 #pragma once
 #include "asset_types.h"
-#include "gltf/gltf_loader.h"
+#include "io/gltf.h"
 #include "commons/memory.h"
 
 namespace asset {
