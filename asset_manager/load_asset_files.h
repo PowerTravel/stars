@@ -22,21 +22,23 @@ static inline asset_file_type GetFiletypeFromEnding(const char* Path) {
 
   static const char* PathEnding = Path - 4;
   static const char TGAEnding[] = ".tga";
-  static const char PNGEnding[] = ".tga";
+  static const char PNGEnding[] = ".png";
   static const char OBJEnding[] = ".obj";
   static const char MTLEnding[] = ".mtl";
   static const char GLTFEnding[] = ".gltf";
 
+  size_t Length = cmn::Length(Path);
+
   asset_file_type Result = asset_file_type::UNKNOWN;
-  if(cmn::Equals(Path - 4, TGAEnding)) {
+  if(cmn::Equals(Path + Length - 4, TGAEnding)) {
     Result = asset_file_type::TGA;
-  }else if(cmn::Equals(Path - 4, PNGEnding)){
+  }else if(cmn::Equals(Path + Length - 4, PNGEnding)){
     Result = asset_file_type::PNG;
-  }else if(cmn::Equals(Path - 4, OBJEnding)){
+  }else if(cmn::Equals(Path + Length - 4, OBJEnding)){
     Result = asset_file_type::OBJ;
-  }else if(cmn::Equals(Path - 4, MTLEnding)){
+  }else if(cmn::Equals(Path + Length - 4, MTLEnding)){
     Result = asset_file_type::MTL;
-  }else if(cmn::Equals(Path - 5, GLTFEnding)){
+  }else if(cmn::Equals(Path + Length - 5, GLTFEnding)){
     Result = asset_file_type::GLTF;
   }
 
@@ -47,11 +49,6 @@ static void LoadTga2(const char* Path) {
 
 }
 static void LoadPng2(const char* Path) {
-
-}
-
-static void LoadObj2(const c8* Path, const c8* UniqueName)
-{
 
 }
 
@@ -71,7 +68,7 @@ void Load(const char* Path, const char* UniqueName = 0)
       LoadPng2(Path);
     } break;
     case asset_file_type::OBJ: {
-      LoadObj2(Path, UniqueName);
+      LoadObj(Path, UniqueName);
     } break;
     case asset_file_type::GLTF: {
       LoadGltf2(Path);

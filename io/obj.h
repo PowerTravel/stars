@@ -6,6 +6,7 @@
 // http://www.paulbourke.net/dataformats/obj/
 // http://www.paulbourke.net/dataformats/mtl/
 
+// TODO: Wrap in namespace obj {}
 struct obj_bitmap
 {
   u32 NameLength;

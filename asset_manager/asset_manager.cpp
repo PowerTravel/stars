@@ -600,6 +600,19 @@ file_local midx GetMaterialSize(const phong_material* Material){
   return Result;
 }
 
+texture DefaultTexture(u32 ImageHandle)
+{
+  texture Result = {};
+  Result.TexCoord = 0;
+  Result.MagFilter = texture::filter::NEAREST;
+  Result.MinFilter = texture::filter::NEAREST;
+  Result.WrapS = texture::wrap::REPEAT;
+  Result.WrapT = texture::wrap::REPEAT;
+  Result.Image = (image*) Find(type::IMAGE, ImageHandle);
+Assert(Result.Image);
+  return Result;
+}
+
 void InitiateMaterial (
     v4* Ka,
     v4* Kd,
@@ -665,21 +678,21 @@ void InitiateMaterial (
     image* Image = (image*) Find(type::IMAGE, BumpMapHandle);
     Assert(Image);
     Material->HasBumpMap = true;
-    Material->BumpMap = DefaultTexture(Image);
+    Material->BumpMap = DefaultTexture(BumpMapHandle);
   }
   if(MapKdHandle)
   {
     image* Image = (image*) Find(type::IMAGE, MapKdHandle);
     Assert(Image);
     Material->HasDiffuseTexture = true;
-    Material->DiffuseTexture = DefaultTexture(Image);
+    Material->DiffuseTexture = DefaultTexture(MapKdHandle);
   }
   if(MapKsHandle)
   {
     image* Image = (image*) Find(type::IMAGE, MapKsHandle);
     Assert(Image);
     Material->HasSpecularTexture = true;
-    Material->SpecularTexture = DefaultTexture(Image);
+    Material->SpecularTexture = DefaultTexture(MapKsHandle);
   }
 }
 
@@ -728,15 +741,16 @@ file_local void CopyMaterial( const phong_material* Src, phong_material* Dst)
     *Dst->Ns = *Src->Ns;
   }
   
-  Dst->BumpMapBM  = Src->BumpMapBM;
-  Dst->HasBumpMap = Src->HasBumpMap;
-  Dst->BumpMap    = Src->BumpMap;
-  Dst->HasDiffuseTexture = Src->HasDiffuseTexture;
-  Dst->DiffuseTexture    = Src->DiffuseTexture;
+  Dst->BumpMapBM          = Src->BumpMapBM;
+  Dst->HasBumpMap         = Src->HasBumpMap;
+  Dst->BumpMap            = Src->BumpMap;
+  Dst->HasDiffuseTexture  = Src->HasDiffuseTexture;
+  Dst->DiffuseTexture     = Src->DiffuseTexture;
   Dst->HasSpecularTexture = Src->HasSpecularTexture;
-  Dst->SpecularTexture = Src->SpecularTexture;
+  Dst->SpecularTexture    = Src->SpecularTexture;
 }
 
+#if 0
 phong_material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 {
   midx MaterialSizeBytes = GetMaterialSize(ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns);
@@ -753,124 +767,19 @@ phong_material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 
   return Result;
 }
-
-struct material_map {
-  u32 MaterialCount;
-  phong_material** Materials;
-  mtl_material** Mtl_Materials;
-};
-
-material_map CreateMaterialMap(u32 MaterialCount)
-{
-  material_map Result = {};
-  Result.MaterialCount = MaterialCount;
-  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, phong_material*);
-  Result.Mtl_Materials = PushArray(GlobalTransientArena, MaterialCount, mtl_material*);
-  return Result;
-}
-
-phong_material* GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
-  for (int i = 0; i < MaterialMap->MaterialCount; ++i)
-  {
-    if(Mtl == MaterialMap->Mtl_Materials[i])
-    {
-      return MaterialMap->Materials[i];
-    }
-  }
-  return 0;
-}
-
-render_group_element CreateRenderGroupElement(const c8* Key, const c8* Name, const c8* Path, obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
-{  
-  render_group_element Result = {};
-
-  obj_mesh_indeces* ObjIndeces = ObjGrp->Indeces;
-  Result.SmoothingGroup = -1;
-  if(ObjGrp->SmoothingGroup) {
-    Result.SmoothingGroup =  *ObjGrp->SmoothingGroup;
-  }
-
-  Result.Mesh = CreateMesh(
-      Key,
-      ObjGrp->GroupName,
-      Path,
-      ObjIndeces->Count,
-      ObjIndeces->vi,
-      ObjIndeces->ni,
-      ObjIndeces->ti,
-      MeshData->nv,
-      MeshData->nvn,
-      MeshData->nvt,
-      MeshData->v,
-      MeshData->vn,
-      MeshData->vt);
-
-  Result.Material = GetMaterial(MaterialMap, ObjGrp->Material);
-  return Result;
-}
+#endif
 
 
-c8* CreateUniqueKey(const c8* Name, u32 Index, u32 MaxCount)
+c8* CreateUniqueName(const c8* Prefix, const c8* Name, const c8* Postfix, u32 Index, u32 MaxCount)
 {
   c8* Result = (c8*) Name;
   if(MaxCount > 1)
   {
     u32 Length = ASSET_MAX_NAME_LENGTH;
     Result = (c8*) PushArray(GlobalTransientArena, Length, c8);
-    FormatString(Result, Length-1, "%s_%d/%d", Name, Index+1, MaxCount);
+    FormatString(Result, Length-1, "%s%s%s_%d/%d", Prefix, Name, Postfix, Index+1, MaxCount);
   }
   return Result;
-}
-
-u32 LoadObj(const c8* Path, const c8* UniqueName)
-{
-  Assert(Path && *Path != '\0');
-  if(!UniqueName || *UniqueName == '\0')
-  {
-    UniqueName = Path;
-  }
-
-  obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
-
-  // MATERIAL
-  obj_mtl_data* ObjMtlGroup = Obj->MaterialData;
-  material_map MaterialMap = CreateMaterialMap(ObjMtlGroup->MaterialCount);
-  for (int i = 0; i < ObjMtlGroup->MaterialCount; ++i)
-  {
-    mtl_material* Mtl = ObjMtlGroup->Materials + i;
-    c8* MtlKey = CreateUniqueKey(UniqueName, i, Obj->ObjectCount);
-    phong_material* Material = CopyObjMtlToMaterial(ObjMtlGroup->Path, Mtl, MtlKey);
-    MaterialMap.Mtl_Materials[i] = Mtl;
-    MaterialMap.Materials[i] = Material;
-  }
-
-  // RENDER_GROUP
-  midx RenderGroupMemSize = sizeof(render_group) + Obj->ObjectCount * sizeof(render_group_element);
-  header* Header = CreateHeader(type::RENDER_GROUP, UniqueName, Obj->ObjectName, Path, RenderGroupMemSize);
-  render_group* RenderGroup = (render_group*) Header->Data;
-  
-  u32 ActualElementCount = {};
-  RenderGroup->Elements = (render_group_element*) AdvanceBytePointer(RenderGroup, sizeof(render_group));
-
-  // RENDER_GROUP_ELEMENT
-  u32 ElementCount = 0;
-  for (int i = 0; i < Obj->ObjectCount; ++i)
-  {
-    obj_group* ObjGrp = Obj->ObjectGroups + i;
-    if(ObjGrp->Indeces->Count)
-    {
-      // Note: The reason we have to check for ObjGrp->Indeces.Count is because we are not handling splines and surfaces in the obj_loader
-      //       if we see a spline or a surface we create a new empty object group. For now we are fine allocating a bit of extra space 
-      //       but this should be taken care of once we implement surfaces and splines etc.
-      c8 MeshNameBuff[ASSET_MAX_NAME_LENGTH] = {};
-      c8* MeshName = CreateUniqueKey(UniqueName, i, Obj->ObjectCount);
-      RenderGroup->Elements[i] = CreateRenderGroupElement(UniqueName, MeshName, Path, ObjGrp, Obj->MeshData, &MaterialMap);
-      ElementCount++;
-    }
-  }
-  RenderGroup->ElementCount = ElementCount;
-
-  return Header->Key;
 }
 
 void CopyMesh(const mesh* SrcMesh, mesh* DstMesh)
@@ -973,7 +882,7 @@ midx GetMeshSize2( const gltf_tmp::mesh* Mesh ) {
   return TotalMeshSize;
 }
 
-void Copy(const gltf_tmp::mesh* Src, gltf_tmp::mesh* Dst, size_t TotalSize)
+void CopyMesh2(const gltf_tmp::mesh* Src, gltf_tmp::mesh* Dst, size_t TotalSize)
 {
   bptr MemScan = AdvanceBytePointer(Dst, sizeof(gltf_tmp::mesh));
 
@@ -1030,7 +939,7 @@ gltf_tmp::mesh* LoadMesh2(const c8* UniqueName, const gltf_tmp::mesh* Mesh, u32*
   midx MeshSize = GetMeshSize2(Mesh);
   header* Header = CreateHeader(type::MESH, UniqueName, UniqueName, "N/A", MeshSize);
   gltf_tmp::mesh* Result = (gltf_tmp::mesh*)Header->Data;
-  Copy(Mesh, Result, MeshSize);
+  CopyMesh2(Mesh, Result, MeshSize);
   
   if(ResultKey)
   {

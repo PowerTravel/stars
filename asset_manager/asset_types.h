@@ -80,7 +80,9 @@ namespace asset {
       REPEAT,
     };
 
-    image* Image; // required
+    image* Image; // required // TODO: Change back to using a imgage handle.
+    //            Reason: Since the asset-api works such that it takes a loadable asset and copies the struct into the asset_manager memory,
+    //                    we don't know if this image is loaded into _our_ memory or not unless we use a handle.
     int TexCoord; // required - References the mesh the material is attached to
     filter MagFilter;
     filter MinFilter;
@@ -88,19 +90,9 @@ namespace asset {
     wrap WrapT;
   };
 
-  texture DefaultTexture(image* Image)
-  {
-    texture Result = {};
-    Result.TexCoord = 0;
-    Result.MagFilter = texture::filter::NEAREST;
-    Result.MinFilter = texture::filter::NEAREST;
-    Result.WrapS = texture::wrap::REPEAT;
-    Result.WrapT = texture::wrap::REPEAT;
-    Result.Image = Image;
-    return Result;
-  }
+  texture DefaultTexture(u32 ImageHandle);
 
-  struct phong_material {
+  struct phong_material { 
     v4*  Ka;
     v4*  Kd;
     v4*  Tf;

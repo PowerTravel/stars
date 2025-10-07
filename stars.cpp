@@ -73,7 +73,7 @@ void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shin
   Assert(Image);
 
   Material.HasDiffuseTexture = true;
-  Material.DiffuseTexture = asset::DefaultTexture(Image);
+  Material.DiffuseTexture = asset::DefaultTexture(MapKdHandle);
   asset::LoadMaterial(UniqueName, &Material);
 }
 
@@ -1156,13 +1156,13 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     LoadMaterials();
     r32 InitTime = Platform.DEBUGGetTime();
-    asset::LoadObj("..\\data\\qube.obj","Cube");
-    asset::LoadObj("..\\data\\checker_plane_simple.obj", "checker_plane_simple");
-    asset::LoadObj("..\\data\\sphere.obj", "Sphere");
-    asset::LoadObj("..\\data\\cone.obj", "Cone");
-    asset::LoadObj("..\\data\\cylinder.obj", "Cylinder");
-    asset::LoadObj("..\\data\\triangle.obj", "Triangle");
-    asset::LoadObj("..\\data\\plane.obj", "Plane");
+    asset::Load("..\\data\\qube.obj","Cube");
+    asset::Load("..\\data\\checker_plane_simple.obj", "checker_plane_simple");
+    asset::Load("..\\data\\sphere.obj", "Sphere");
+    asset::Load("..\\data\\cone.obj", "Cone");
+    asset::Load("..\\data\\cylinder.obj", "Cylinder");
+    asset::Load("..\\data\\triangle.obj", "Triangle");
+    asset::Load("..\\data\\plane.obj", "Plane");
 //    asset::LoadObj("..\\data\\maquetiiillla.obj", "Test2");
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
