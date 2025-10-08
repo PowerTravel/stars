@@ -485,31 +485,14 @@ void FreeAsset(header* Header)
     case type::MESH: {
       // LoadGLVertexBuffer allocates the whole mesh as a contious block
       FreeMemory(&GlobalAssetManager->Memory, Header);
-    }
+    }break;
     case type::PHONG_MATERIAL: {
       // LoadGLVertexBuffer allocates the whole mesh as a contious block
       FreeMemory(&GlobalAssetManager->Memory, Header);
-    }
-    case type::RENDER_GROUP: {
-      render_group* RenderGroup = (render_group*) Header->Data;
-      for (int i = 0; i < RenderGroup->ElementCount; ++i)
-      {
-        render_group_element* Element = RenderGroup->Elements + i;
-        header* MeshHeader = (header*) RetreatByType(Element->Mesh, header);
-        Assert(MeshHeader->Type == type::MESH);
-        FreeAsset(MeshHeader);
-
-        header* MaterialHeader = (header*) RetreatByType(Element->Material, header);
-        if(MaterialHeader->Type == type::PHONG_MATERIAL)
-        {
-          // If several elements point to the same phong_material, this should ensure we only free a phong_material once.
-          FreeAsset(MaterialHeader);
-        }
-
-        FreeMemory(&GlobalAssetManager->Memory, Header);
-
-      }
-    }
+    }break;
+    case type::RENDER_TREE: {
+      
+    }break;
     default: {
       INVALID_CODE_PATH
     };
@@ -773,12 +756,15 @@ phong_material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
 c8* CreateUniqueName(const c8* Prefix, const c8* Name, const c8* Postfix, u32 Index, u32 MaxCount)
 {
   c8* Result = (c8*) Name;
+  u32 Length = ASSET_MAX_NAME_LENGTH;
+  Result = (c8*) PushArray(GlobalTransientArena, Length, c8);
   if(MaxCount > 1)
-  {
-    u32 Length = ASSET_MAX_NAME_LENGTH;
-    Result = (c8*) PushArray(GlobalTransientArena, Length, c8);
+  {  
     FormatString(Result, Length-1, "%s%s%s_%d/%d", Prefix, Name, Postfix, Index+1, MaxCount);
+  }else{
+    FormatString(Result, Length-1, "%s%s%s", Prefix, Name, Postfix);
   }
+  
   return Result;
 }
 
@@ -947,4 +933,165 @@ gltf_tmp::mesh* LoadMesh2(const c8* UniqueName, const gltf_tmp::mesh* Mesh, u32*
   }
   return Result;
 }
+
+
+size_t GetRenderTreeSize(const gltf_tmp::render_tree* RenderTree)
+{
+  size_t StructSize = sizeof(gltf_tmp::render_tree);
+  size_t MeshInfoSize = RenderTree->MeshInfoCount * sizeof(gltf_tmp::render_tree::mesh_info);
+  size_t NodeSize = RenderTree->NodeCount * sizeof(gltf_tmp::render_tree::node);
+  size_t Result = StructSize + MeshInfoSize + NodeSize;
+  return Result;
+}
+
+
+
+struct node_queue {
+  size_t Count;
+  size_t TotCount;
+  gltf_tmp::render_tree::node** Queue;
+};
+
+node_queue NodeQueue(size_t Size)
+{
+  node_queue Result = {}; 
+  Result.Count = 0;
+  Result.TotCount = Size; 
+  Result.Queue = PushArray(GlobalTransientArena, Size, gltf_tmp::render_tree::node*);
+  return Result;
+}
+
+bool IsEmpty(node_queue& Queue)
+{
+  bool Result = Queue.Count == 0;
+  return Result;
+}
+
+void Push(node_queue& Queue, gltf_tmp::render_tree::node* Value)
+{
+  Queue.Queue[Queue.Count++] = Value;
+}
+
+gltf_tmp::render_tree::node* Pop(node_queue& Queue)
+{
+  Assert(Queue.Count > 0);
+  if(Queue.Count == 0) return 0;
+  gltf_tmp::render_tree::node* Result = Queue.Queue[--Queue.Count];
+  Queue.Queue[Queue.Count+1] = 0;
+  return Result;
+}
+
+void MapMeshInfos(gltf_tmp::render_tree::mesh_info* SrcMeshInfoBase, gltf_tmp::render_tree::node* Src, gltf_tmp::render_tree::mesh_info* DstMeshInfoBase, gltf_tmp::render_tree::node* Dst)
+{
+  Dst->MeshInfoCount = Src->MeshInfoCount;
+  for (int i = 0; i < Src->MeshInfoCount; ++i)
+  {
+    uint32_t MeshInfoIndex = &Src->MeshInfos[i] - SrcMeshInfoBase;
+    Dst->MeshInfos     = &DstMeshInfoBase[MeshInfoIndex];
+  }  
+}
+
+void CopyTransforms(gltf_tmp::render_tree::node* Src, gltf_tmp::render_tree::node* Dst)
+{
+  Dst->HasTransform = Src->HasTransform;
+  Dst->Transform    = Src->Transform;
+}
+
+  size_t MapChildNodes(size_t NodeIndex, size_t ChildCount, gltf_tmp::render_tree::node* NodeArray, gltf_tmp::render_tree::node* DstNode) {
+  u32 FirstChildIndex = NodeIndex;
+  u32 LastChildIndex  = NodeIndex + ChildCount;
+
+  for (int i = FirstChildIndex; i < LastChildIndex; ++i)
+  {
+    gltf_tmp::render_tree::node* Child = &NodeArray[i];
+    Child->Parent = DstNode;
+    if(i == FirstChildIndex)
+    {
+      Child->Parent->FirstChild = Child;
+    }
+    if(i < LastChildIndex-1)
+    {
+      Child->NextSibling = &NodeArray[i];
+      Child->NextSibling->PreviousSibling = Child;
+    }
+    if(i == FirstChildIndex-1)
+    {
+      Child->PreviousSibling = &NodeArray[i-1];
+    }
+  }
+
+  size_t ResultNodeIndex = NodeIndex + ChildCount;
+  return ResultNodeIndex;
+}
+
+void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst, size_t RenderTreeSize)
+{
+  bptr MemScan = AdvanceBytePointer(Dst, sizeof(gltf_tmp::render_tree));
+  
+  Dst->MeshInfoCount = Src->MeshInfoCount;
+  Dst->MeshInfos = (gltf_tmp::render_tree::mesh_info*) MemScan;
+  size_t MeshInfosSize = Src->MeshInfoCount * sizeof(gltf_tmp::render_tree::mesh_info);
+  MemScan = AdvanceBytePointer(MemScan, MeshInfosSize);
+  utils::Copy(MeshInfosSize, (void*) Src->MeshInfos, (void*) Dst->MeshInfos);
+
+  size_t NodeCount = Src->NodeCount;
+  Dst->NodeCount = NodeCount;
+  Dst->Nodes = (gltf_tmp::render_tree::node*) MemScan;
+  size_t NodesSize = NodeCount * sizeof(gltf_tmp::render_tree::node);
+  MemScan = AdvanceBytePointer(MemScan, NodesSize);
+
+  Assert((MemScan - ((bptr) Dst)) == RenderTreeSize);
+
+
+  
+  Dst->Root = &Dst->Nodes[0];
+  node_queue SrcQueue = NodeQueue(NodeCount);
+  node_queue DstQueue = NodeQueue(NodeCount);
+  Push(SrcQueue, Src->Root);
+  Push(DstQueue, Dst->Root);
+  
+  size_t NodeHeadIndex = 1;
+  while(!IsEmpty(SrcQueue) && !IsEmpty(DstQueue))
+  {
+    gltf_tmp::render_tree::node* DstNode = Pop(DstQueue);
+    gltf_tmp::render_tree::node* SrcNode = Pop(SrcQueue);
+
+    MapMeshInfos(Src->MeshInfos, SrcNode, Dst->MeshInfos, DstNode);
+    CopyTransforms(SrcNode, DstNode);
+
+    NodeHeadIndex = MapChildNodes(NodeHeadIndex, SrcNode->ChildCount, Dst->Nodes, DstNode);
+    gltf_tmp::render_tree::node* SrcChild = SrcNode->FirstChild;
+    while(SrcChild)
+    {
+      Push(SrcQueue,SrcChild);
+      SrcChild = SrcChild->NextSibling;
+    }
+
+    gltf_tmp::render_tree::node* DstChild = SrcNode->FirstChild;
+    while(DstChild)
+    {
+      Push(DstQueue, DstChild);
+      DstChild = DstChild->NextSibling;
+    }
+  }
+
+  Assert(IsEmpty(SrcQueue) && IsEmpty(DstQueue));
+  
+}
+
+gltf_tmp::render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const gltf_tmp::render_tree* RenderTree, u32* ResultKey)
+{
+  midx RenderTreeSize = GetRenderTreeSize(RenderTree);
+  header* Header = CreateHeader(type::RENDER_TREE, UniqueName, UniqueName, Path, RenderTreeSize);
+  gltf_tmp::render_tree* Result = (gltf_tmp::render_tree*) Header->Data;
+
+  CopyRenderTree(RenderTree, Result, RenderTreeSize);
+  
+  if(ResultKey)
+  {
+    *ResultKey = Header->Key;
+  }
+  return Result;
+}
+
 }

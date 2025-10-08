@@ -9,9 +9,9 @@ namespace asset {
     NONE,
     IMAGE,
     MESH,
-    RENDER_GROUP,
     PHONG_MATERIAL,
-    PBR_MATERIAL
+    PBR_MATERIAL,
+    RENDER_TREE
   };
 
 
@@ -21,9 +21,9 @@ namespace asset {
     {
       case type::IMAGE: return "IMAGE";
       case type::MESH: return "MESH";
-      case type::RENDER_GROUP: return "RENDER_GROUP";
       case type::PHONG_MATERIAL: return "PHONG_MATERIAL";
       case type::PBR_MATERIAL: return "PBR_MATERIAL";
+      case type::RENDER_TREE: return "RENDER_TREE";
       default: {
         INVALID_CODE_PATH
       }
@@ -111,24 +111,6 @@ namespace asset {
     texture SpecularTexture;
   };
 
-  // Combines a mesh (a shape), with a material (How its rendered)
-  // Does not have a header
-  struct render_group_element {
-    // Obj_groups that share a smoothing group have joined edges that should be smoothe
-    // -1 means _no smothing group used_
-    s32 SmoothingGroup;
-
-    mesh* Mesh;
-    phong_material* Material;
-  };
-
-  // A collection of shapes and materials that makes up an object.
-  // A render object can reference this render_group.
-  struct render_group {
-    u32 ElementCount;
-    render_group_element* Elements;
-  };
-
 
   // Things needed for pbr-rendering
   // Asset Type
@@ -173,11 +155,10 @@ namespace asset {
     bool DoubleSided;
   };
 
-  namespace gltf_tmp {
-
+  namespace gltf_tmp {  
+    
     typedef int mesh_id;
     typedef int pbr_material_id;
-  
 
     // A mesh primitive mesh
     struct mesh // mesh_id (Can be OBJ as well)
@@ -212,7 +193,10 @@ namespace asset {
       
       struct mesh_info {
         mesh* Mesh;
-        pbr_material* Material;
+        //union {
+          pbr_material* Material;
+          phong_material* PhongMaterial;
+        //}
       };
 
       struct node {
@@ -223,12 +207,15 @@ namespace asset {
         node* PreviousSibling;
         node* FirstChild;
 
-        size_t MeshCount;
+        size_t MeshInfoCount;
         mesh_info* MeshInfos;
 
         bool HasTransform;
         m4 Transform;
       };
+
+      size_t MeshInfoCount;
+      mesh_info* MeshInfos;
 
       size_t NodeCount;
       node* Nodes;

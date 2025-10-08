@@ -36,18 +36,18 @@ global_variable r32 g_t = 0;
 
 
 
-file_local inline void Initiate(asset::mesh* Mesh, asset::phong_material* Material, ecs::render::component* Render)
+file_local inline void Initiate(asset::gltf_tmp::mesh* Mesh, asset::phong_material* Material, ecs::render::component* Render)
 {
   u32 MeshAssetKey     = asset::ToHeader(Mesh)->Key;
   u32 MaterialAssetKey = asset::ToHeader(Material)->Key;
   ecs::render::Init(MeshAssetKey, MaterialAssetKey, Render);
 }
 
-file_local inline void Initiate(asset::render_group_element* Element, ecs::render::component* Render)
+file_local inline void Initiate(asset::gltf_tmp::render_tree::mesh_info* Element, ecs::render::component* Render)
 {
-  if(Element->Material)
+  if(Element->PhongMaterial)
   {
-    Initiate(Element->Mesh, Element->Material, Render);
+    Initiate(Element->Mesh, Element->PhongMaterial, Render);
   }else{
     Initiate(Element->Mesh, (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, "silver"), Render);
   }
@@ -56,9 +56,9 @@ file_local inline void Initiate(asset::render_group_element* Element, ecs::rende
 
 file_local inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::component* Render)
 {
-  asset::render_group* Grp = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, RenderGroupAssetHandle);
-  Assert(Grp->ElementCount == 1); // We don't support rendering mutliple Elements
-  Initiate(Grp->Elements->Mesh, Grp->Elements->Material, Render);
+  asset::gltf_tmp::render_tree* Tree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderGroupAssetHandle);
+  Assert(Tree->MeshInfoCount == 1); // We don't support rendering mutliple Elements
+  Initiate(Tree->MeshInfos->Mesh, Tree->MeshInfos->PhongMaterial, Render);
 }
 
 void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, const c8* UniqueName)
@@ -1168,8 +1168,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
-    asset::render_group* PlaneMesh = (asset::render_group*) asset::Find(asset::type::RENDER_GROUP, "checker_plane_simple");
-    asset::image* PlaneTex = PlaneMesh->Elements[0].Material->DiffuseTexture.Image;
+    asset::gltf_tmp::render_tree* PlaneMesh = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, "checker_plane_simple");
+    asset::image* PlaneTex = PlaneMesh->Root->MeshInfos[0].PhongMaterial->DiffuseTexture.Image;
     u32 PlaneTexHandle = ToHeader(PlaneTex)->Key;
     ecs::render::LoadImageToGpu(PlaneTexHandle, PlaneTex);
 
@@ -1223,7 +1223,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
         
-        Initiate(asset::ToKey(asset::type::RENDER_GROUP, "checker_plane_simple"), GetRenderComponent(&Entity));
+        Initiate(asset::ToKey(asset::type::RENDER_TREE, "checker_plane_simple"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "checker_plane_simple");

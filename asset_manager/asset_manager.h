@@ -48,6 +48,11 @@ header* ToHeader(mesh* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
+header* ToHeader(gltf_tmp::mesh* Asset) {
+  return (header*) RetreatByType(Asset, header);
+}
+
+
 header* ToHeader(image* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
@@ -76,6 +81,7 @@ phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Materia
 image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, u32* ResultKey = 0);
 pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, u32* ResultKey = 0);
 gltf_tmp::mesh* LoadMesh2(const c8* UniqueName, const gltf_tmp::mesh* Mesh, u32* ResultKey = 0);
+gltf_tmp::render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const gltf_tmp::render_tree* RenderTree, u32* ResultKey = 0);
 
 
 

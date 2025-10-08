@@ -422,7 +422,6 @@ namespace gltf_tmp {
   }
 
 
-
   render_tree LoadToAssetManager(gltf::raw_gltf_data* RawGltfData) {
     render_tree Result = {};
 
@@ -456,12 +455,17 @@ namespace gltf_tmp {
     
 
 ////
+    Result.MeshInfoCount = RawGltfData->RawMeshCount;
+    Result.MeshInfos = JwinAllocArray(Result.MeshInfoCount, gltf_tmp::render_tree::mesh_info);
+    gltf_tmp::render_tree::mesh_info* MeshInfoScan = Result.MeshInfos; 
     for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
     {
       gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
 
       size_t MeshInfoCount = RawMesh->PrimitiveCount;
-      gltf_tmp::render_tree::mesh_info* MeshInfos = JwinAllocArray(MeshInfoCount, gltf_tmp::render_tree::mesh_info);
+      gltf_tmp::render_tree::mesh_info* MeshInfos = MeshInfoScan;
+      MeshInfoScan += MeshInfoCount;
+      Assert((MeshInfoScan - Result.MeshInfos) <= Result.MeshInfoCount);
       for (int j = 0; j < MeshInfoCount; ++j)
       {
         gltf::extracted_primitive* GltfPrimitive = &RawMesh->ExtractedPrimitives[j];
@@ -473,9 +477,6 @@ namespace gltf_tmp {
         }
       }
     }
-
-
-
 
 ////
     JwinFreeMemory(LoadedMaterialTracker);

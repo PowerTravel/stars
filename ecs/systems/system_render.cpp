@@ -25,9 +25,9 @@ u32 GetMeshHandle(u32 AssetKey)
   {
     Result = *Handle;
   }else{
-    asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, AssetKey);
+    asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, AssetKey);
     Assert(Mesh);
-    opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Mesh);
+    opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer2(GlobalTransientArena, Mesh);
     Result = ecs::render::LoadMeshToGpu(AssetKey, &glBufferData);
   }
   return Result;
