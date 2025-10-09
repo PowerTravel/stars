@@ -44,14 +44,9 @@ manager* CreateAssetManager() {
 
 header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* Path, midx DataSize);
 
-header* ToHeader(mesh* Asset) {
-  return (header*) RetreatByType(Asset, header);
-}
-
 header* ToHeader(gltf_tmp::mesh* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
-
 
 header* ToHeader(image* Asset) {
   return (header*) RetreatByType(Asset, header);
@@ -65,6 +60,10 @@ header* ToHeader(phong_material* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
+header* ToHeader(gltf_tmp::render_tree* Asset) {
+  return (header*) RetreatByType(Asset, header);
+}
+
 c8* CreateUniqueName(const c8* Name, u32 Index, u32 MaxCount);
 u32 ToKey(type Type, const c8* UniqueName);
 void* Find(type Type, u32 Key);
@@ -72,9 +71,6 @@ void* Find(type Type, const c8* Name);
 void Free(type Type, u32 Key);
 void Free(type Type, const c8* Name);
 
-u32 LoadTga(const c8* Path, const c8* UniqueName = 0);
-
-mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, u32* ResultKey = 0);
 phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Material, u32* ResultKey = 0);
 
 ///  New loaders for gltf

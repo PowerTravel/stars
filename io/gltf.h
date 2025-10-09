@@ -2254,158 +2254,6 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
-  node ToNode(raw_node* RawNode, mesh* Meshes)
-  {
-    node Result = {};
-    Result.Name = cmn::Copy(RawNode->Name);
-
-    switch(RawNode->TransformationType){
-      case raw_node::transformation_type::NONE:{
-        Result.Transofmation.Type = transformation::type::NONE;
-      }break;
-      case raw_node::transformation_type::TRS:{
-        Result.Transofmation.Type = transformation::type::TRS;
-        Result.Transofmation.TRS.t = RawNode->Translation;
-        Result.Transofmation.TRS.r = RawNode->Rotation;
-        Result.Transofmation.TRS.s = RawNode->Scale;
-      }break;
-      case raw_node::transformation_type::MATRIX:{
-        Result.Transofmation.Type = transformation::type::MATRIX;
-        Result.Transofmation.Matrix = RawNode->Matrix;
-      }break;
-    }
-
-    if(RawNode->Mesh){
-      Result.Mesh = &Meshes[*RawNode->Mesh];
-    }
-
-    return Result;
-  }
-
-  void ConnectChildren(int ParentIndex, raw_node* RawNodes, node* Nodes)
-  {
-    raw_node* RawParent = &RawNodes[ParentIndex];
-    int ChildCount = RawParent->ChildCount;
-    if(ChildCount == 0) return;
-    int* ChildIndeces = RawParent->Children;
-
-    node* Parent = &Nodes[ParentIndex];
-    Parent->ChildCount = ChildCount;
-
-    if (ChildCount == 1) {
-      int FirstChildIndex = ChildIndeces[0];
-      Parent->FirstChild = &Nodes[FirstChildIndex];
-      Parent->FirstChild->Parent = Parent;
-    } else {
-      int FirstChildIndex = ChildIndeces[0];
-      Parent->FirstChild = &Nodes[FirstChildIndex];
-      for (int i = 0; i < ChildCount; ++i)
-      {
-        int ChildIndex = ChildIndeces[i];
-        node* Child = &Nodes[ChildIndex];
-        Child->Parent = Parent;
-    
-        if(i < ChildCount-1)
-        {
-          int NextSiblingIndex = ChildIndeces[i+1];
-          Child->NextSibling = &Nodes[NextSiblingIndex];
-          Child->NextSibling->PreviousSibling = Child;  
-        }
-      }
-    }
-  }
-
-
-  struct node_queue {
-    size_t Count;
-    size_t TotCount;
-    int* Queue;
-  };
-
-  node_queue NodeQueue(size_t Size)
-  {
-    node_queue Result = {}; 
-    Result.Count = 0;
-    Result.TotCount = Size; 
-    Result.Queue = JwinAllocArray(Size, int);
-    return Result;
-  }
-
-  bool IsEmpty(node_queue& Queue)
-  {
-    bool Result = Queue.Count == 0;
-    return Result;
-  }
-
-  void Push(node_queue& Queue, int Value)
-  {
-    Queue.Queue[Queue.Count++] = Value;
-  }
-
-  int Pop(node_queue& Queue)
-  {
-    Assert(Queue.Count > 0);
-    if(Queue.Count == 0) return 0;
-    int Result = Queue.Queue[--Queue.Count];
-    Queue.Queue[Queue.Count+1] = 0;
-    return Result;
-  }
-
-  // Note: The node hierarchy make up a set of disjoint strict trees which means they are free of cycles and each node must have zero or one parent node.
-  //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
-  //       I'm assuming this means each child node only appears once.
-  scene* ToScenes(raw_gltf_data* RawGltfData, mesh* Meshes)
-  {
-    node* Nodes = JwinAllocArray(RawGltfData->RawNodeCount, node);
-    raw_node* RawNodes = RawGltfData->RawNodes;
-
-    for (int i = 0; i < RawGltfData->RawNodeCount; ++i)
-    {
-      Nodes[i] = ToNode(&RawNodes[i], Meshes);
-    }
-
-    node_queue Queue = {}; 
-    Queue.Count = 0;
-    Queue.TotCount = RawGltfData->RawNodeCount; 
-    Queue.Queue = JwinAllocArray(Queue.TotCount, int);
-
-    scene* Result = JwinAllocArray(RawGltfData->RawSceneCount, scene);
-    for (int i = 0; i < RawGltfData->RawSceneCount; ++i)
-    {
-      Assert(IsEmpty(Queue));
-
-      scene* Scene = &Result[i];
-      raw_scene* RawScene = &RawGltfData->RawScenes[i];
-
-      Scene->Name = cmn::Copy(RawScene->Name);
-
-      Scene->RootCount = RawScene->NodeCount;
-      Scene->RootNodes = JwinAllocArray(Scene->RootCount, node*);
-      for (int j = 0; j < RawScene->NodeCount; ++j)
-      {
-        int RootNodeIndex = RawScene->Nodes[j];
-
-        Scene->RootNodes[i] = &Nodes[RootNodeIndex];
-
-        Push(Queue, RootNodeIndex);
-        while(!IsEmpty(Queue))
-        {
-          int ParentNodeIndex = Pop(Queue);
-          ConnectChildren(ParentNodeIndex, RawNodes, Nodes);
-
-          raw_node* RawNode = &RawNodes[ParentNodeIndex];
-          for (int i = 0; i < RawNode->ChildCount; ++i)
-          {
-            Push(Queue, RawNode->Children[i]);
-          }
-        }
-      }
-    }
-
-    JwinFreeMemory(Queue.Queue);
-    return Result;
-  }
-
   void Copy(size_t ByteCount, uint8_t* Src, uint8_t* Dst)
   {
     uint8_t* SrcScan = (uint8_t*) Src;
@@ -2678,6 +2526,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
 
     FreeFile(GltfFile);
 
+#if 0
     document Result = {};
 
     Result.ImageCount = RawGltfData.RawImageCount;
@@ -2718,6 +2567,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     Result.SceneCount = RawGltfData.RawSceneCount;
     Result.Scenes = ToScenes(&RawGltfData, Result.Meshes);
     
+#endif
 
     for (int i = 0; i < RawGltfData.BufferCount; ++i)
     {

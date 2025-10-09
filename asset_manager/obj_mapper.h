@@ -405,38 +405,6 @@ static material_map LoadPhongMaterial(obj_mtl_data* ObjMtlGroup, const c8* Uniqu
   return MaterialMap;
 }
 
-#if 0
-struct render_tree { // render_asset_id
-      
-      struct mesh_info {
-        mesh* Mesh;
-        //union {
-          pbr_material* Material;
-          phong_material* PhongMaterial;
-        //}
-      };
-
-      struct node {
-
-        size_t ChildCount;
-        node* Parent;
-        node* NextSibling;
-        node* PreviousSibling;
-        node* FirstChild;
-
-        size_t MeshCount;
-        mesh_info* MeshInfos;
-
-        bool HasTransform;
-        m4 Transform;
-      };
-
-      size_t NodeCount;
-      node* Nodes;
-      node* Root;
-    };
-#endif
-
 static void* TransientAllocator(uint32_t MemorySize) {
   void* Result = PushSize(GlobalTransientArena, MemorySize);
   return Result;
@@ -454,25 +422,52 @@ static asset::gltf_tmp::render_tree* LoadObj(const c8* Path, const c8* UniqueNam
 
   // Upload MATERIAL and IMAGES related to material
   material_map MaterialMap = LoadPhongMaterial(Obj->MaterialData, UniqueName);
-
-  asset::gltf_tmp::render_tree RenderTree = {};
-  // .obj files does not have mesh-hierarchies. Which means they have only a root node with Obj->ObjectCount meshes
-  RenderTree.NodeCount = 1;
-  RenderTree.Nodes = PushStruct(GlobalTransientArena, asset::gltf_tmp::render_tree::node);
-  RenderTree.MeshInfoCount = Obj->ObjectCount;
-  RenderTree.MeshInfos = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::gltf_tmp::render_tree::mesh_info);
-  RenderTree.Root = RenderTree.Nodes;
-  RenderTree.Root->MeshInfoCount = Obj->ObjectCount;
-  RenderTree.Root->MeshInfos = RenderTree.MeshInfos;
-
+  asset::gltf_tmp::render_tree::mesh_info* MeshInfos = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::gltf_tmp::render_tree::mesh_info);
   // MESH
   for (int i = 0; i < Obj->ObjectCount; ++i)
   {
     c8* MeshName = asset::CreateUniqueName("", UniqueName, "_Mesh", i, Obj->ObjectCount);
-    RenderTree.MeshInfos[i] = CreateMeshInfo(UniqueName, MeshName, Path, &Obj->ObjectGroups[i], Obj->MeshData, &MaterialMap);
+    MeshInfos[i] = CreateMeshInfo(UniqueName, MeshName, Path, &Obj->ObjectGroups[i], Obj->MeshData, &MaterialMap);
   }
 
-  // RENDER_GROUP
+  /// RENDER_TREE
+  Assert(Obj->ObjectCount>0);
+
+  asset::gltf_tmp::render_tree RenderTree = {};
+  if(Obj->ObjectCount==1)
+  {
+    RenderTree.NodeCount = 1;
+    RenderTree.Nodes = PushArray(GlobalTransientArena, RenderTree.NodeCount, asset::gltf_tmp::render_tree::node);
+    RenderTree.MeshInfoCount = 1;
+    RenderTree.MeshInfos = MeshInfos;
+    RenderTree.Root = RenderTree.Nodes;
+    RenderTree.Root->HasMeshInfo = true;
+    RenderTree.Root->MeshInfo = RenderTree.MeshInfos[0];
+
+  }else{
+    RenderTree.NodeCount = Obj->ObjectCount+1;
+    RenderTree.Nodes = PushArray(GlobalTransientArena, RenderTree.NodeCount, asset::gltf_tmp::render_tree::node);
+    RenderTree.MeshInfoCount = Obj->ObjectCount;
+    RenderTree.MeshInfos = MeshInfos;
+    RenderTree.Root = RenderTree.Nodes;
+    RenderTree.Root->FirstChild = &RenderTree.Nodes[1];
+    for (int i = 1; i <= Obj->ObjectCount; ++i)
+    {
+      asset::gltf_tmp::render_tree::node* Node = &RenderTree.Nodes[i];
+      Node->Parent = &RenderTree.Nodes[0];
+      if(i < Obj->ObjectCount){
+        Node->NextSibling = &RenderTree.Nodes[i+1];
+        Node->NextSibling->PreviousSibling = Node;
+      }
+      Node->HasMeshInfo = true;
+      Node->MeshInfo = RenderTree.MeshInfos[i-1];
+    }
+    RenderTree.Root->HasMeshInfo = false;
+    RenderTree.Root->MeshInfo = {};
+  }
+
+
+
   uint32_t ResultKey = 0;
   asset::gltf_tmp::render_tree* Result = asset::LoadRenderTree(UniqueName, Path, &RenderTree, &ResultKey);
 

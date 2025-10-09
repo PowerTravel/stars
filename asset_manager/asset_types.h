@@ -11,7 +11,8 @@ namespace asset {
     MESH,
     PHONG_MATERIAL,
     PBR_MATERIAL,
-    RENDER_TREE
+    RENDER_TREE,
+    SCENE,
   };
 
 
@@ -36,23 +37,6 @@ namespace asset {
     c8* String;
   };
 
-
-  // Basic Asset Type
-  struct mesh {
-    u32 IndexCount;
-    u32* vi;
-    u32* vni;
-    u32* vti;
-
-    u32 vCount;
-    v3* v;     // Vertices
-    u32 vnCount;
-    v3* vn;    // Vertice Normals
-    u32 vtCount;
-    v2* vt;    // Texture Vertices
-
-    aabb3f AABB;
-  };
 
   // Basic Asset Type
   struct image
@@ -92,7 +76,8 @@ namespace asset {
 
   texture DefaultTexture(u32 ImageHandle);
 
-  struct phong_material { 
+  struct phong_material {
+
     v4*  Ka;
     v4*  Kd;
     v4*  Tf;
@@ -207,8 +192,8 @@ namespace asset {
         node* PreviousSibling;
         node* FirstChild;
 
-        size_t MeshInfoCount;
-        mesh_info* MeshInfos;
+        bool HasMeshInfo;
+        mesh_info MeshInfo;
 
         bool HasTransform;
         m4 Transform;
@@ -220,6 +205,24 @@ namespace asset {
       size_t NodeCount;
       node* Nodes;
       node* Root;
+    };
+
+    struct scene { // Scene_id
+
+#if 0 // Move these here later
+
+      size_t MaterialCount;
+      pbr_material* Materials;
+
+      size_t MeshInfoCount;
+      mesh_info* MeshInfos;
+      
+      size_t NodeCount;
+      node* Nodes;
+#endif
+
+      size_t RenderTreeCount;
+      render_tree* RenderTrees;
     };
   } // namespace gltf_tmp
 

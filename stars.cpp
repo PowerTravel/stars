@@ -138,7 +138,7 @@ u32 CreateLineRenderProgram(render_group* RenderGroup)
 
 u32 Load32BitColorTexture(const c8* Name, const c8* Path)
 {
-  u32 Key = asset::LoadTga(Path, Name);
+  u32 Key = asset::Load(Path, Name);
   asset::image* Image = (asset::image*) asset::Find(asset::type::IMAGE, Key);
   u32 Handle = ecs::render::LoadImageToGpu(Key, Image);
   return Handle;
@@ -1169,7 +1169,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
     asset::gltf_tmp::render_tree* PlaneMesh = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, "checker_plane_simple");
-    asset::image* PlaneTex = PlaneMesh->Root->MeshInfos[0].PhongMaterial->DiffuseTexture.Image;
+    asset::image* PlaneTex = PlaneMesh->Root->MeshInfo.PhongMaterial->DiffuseTexture.Image;
     u32 PlaneTexHandle = ToHeader(PlaneTex)->Key;
     ecs::render::LoadImageToGpu(PlaneTexHandle, PlaneTex);
 
@@ -1188,22 +1188,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       char BoxPath[] = "C:\\Users\\jh\\Desktop";
       char BoxName[] = "box.gltf";
 #else
-      char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF";
-      char BoxName[] = "BoxTextured.gltf";
+      char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF\\BoxTextured.gltf";
+      char BoxName[] = "BoxTextured";
 #endif
-      gltf::raw_gltf_data Gltf = gltf::Load(BoxPath, BoxName,
-        [](const char* Path, size_t* Size){
-          debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile(Path);
-          *Size = ReadResult.ContentSize;
-          return ReadResult.Contents;
-        },
-        [](void* FileDataToFree){
-          Platform.DEBUGPlatformFreeFileMemory(FileDataToFree);
-        });
+      asset::Load(BoxPath, BoxName);
 
-      asset::gltf_tmp::LoadToAssetManager(&Gltf);
-
-      gltf::Free(&Gltf);
     }
 
 
@@ -1226,7 +1215,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         Initiate(asset::ToKey(asset::type::RENDER_TREE, "checker_plane_simple"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "checker_plane_simple");
+        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "checker_plane_simple");
         ecs::collider::Init(Collider, Mesh);
       }
 
@@ -1237,7 +1226,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::render::Init(asset::ToKey(asset::type::MESH, "Cube"), asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
         
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cube");
+        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "Cube");
         ecs::collider::Init(Collider, Mesh);
 
       }
@@ -1249,7 +1238,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::PHONG_MATERIAL, "emerald"), GetRenderComponent(&Entity));
         
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
+        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "Cone");
         ecs::collider::Init(Collider, Mesh);
       }
       
@@ -1260,7 +1249,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::render::Init(asset::ToKey(asset::type::MESH, "Cylinder"), asset::ToKey(asset::type::PHONG_MATERIAL, "jade"), GetRenderComponent(&Entity));
        
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cylinder");
+        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "Cylinder");
         ecs::collider::Init(Collider, Mesh);
 
         GlobalState->DebugSquare = PushStruct(GlobalPersistentArena, ecs::entity_id);
@@ -1274,7 +1263,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::PHONG_MATERIAL, "silver"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, "Cone");
+        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "Cone");
         ecs::collider::Init(Collider, Mesh);
       }
       #endif
@@ -1297,7 +1286,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
             Initiate(Element, GetRenderComponent(&Entity));
 
             /*
-            asset::mesh* Mesh = Element->Mesh;
+            asset::gltf_tmp::mesh* Mesh = Element->Mesh;
             v3 MidPoint = (Mesh->AABB.P0 + Mesh->AABB.P1)*0.5;
             for (int i = 0; i < Mesh->vCount; ++i)
             {

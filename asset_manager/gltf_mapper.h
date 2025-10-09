@@ -421,9 +421,268 @@ namespace gltf_tmp {
     return Result;
   }
 
+#if 0
 
-  render_tree LoadToAssetManager(gltf::raw_gltf_data* RawGltfData) {
-    render_tree Result = {};
+  asset::gltf_tmp::render_tree::node ToNode(gltf::raw_node* RawNode, asset::gltf_tmp::mesh** Meshes)
+  {
+    node Result = {};
+    Result.Name = cmn::Copy(RawNode->Name);
+
+    switch(RawNode->TransformationType){
+      case raw_node::transformation_type::NONE:{
+        Result.Transofmation.Type = transformation::type::NONE;
+      }break;
+      case raw_node::transformation_type::TRS:{
+        Result.Transofmation.Type = transformation::type::TRS;
+        Result.Transofmation.TRS.t = RawNode->Translation;
+        Result.Transofmation.TRS.r = RawNode->Rotation;
+        Result.Transofmation.TRS.s = RawNode->Scale;
+      }break;
+      case raw_node::transformation_type::MATRIX:{
+        Result.Transofmation.Type = transformation::type::MATRIX;
+        Result.Transofmation.Matrix = RawNode->Matrix;
+      }break;
+    }
+
+    if(RawNode->Mesh){
+      Result.Mesh = &Meshes[*RawNode->Mesh];
+    }
+
+    return Result;
+  }
+
+  void ConnectChildren(int ParentIndex, gltf::raw_node* RawNodes, asset::gltf_tmp::render_tree::node* Nodes)
+  {
+    gltf::raw_node* RawParent = &RawNodes[ParentIndex];
+    int ChildCount = RawParent->ChildCount;
+    if(ChildCount == 0) return;
+    int* ChildIndeces = RawParent->Children;
+
+    asset::gltf_tmp::render_tree::node* Parent = &Nodes[ParentIndex];
+    Parent->ChildCount = ChildCount;
+
+    if (ChildCount == 1) {
+      int FirstChildIndex = ChildIndeces[0];
+      Parent->FirstChild = &Nodes[FirstChildIndex];
+      Parent->FirstChild->Parent = Parent;
+    } else {
+      int FirstChildIndex = ChildIndeces[0];
+      Parent->FirstChild = &Nodes[FirstChildIndex];
+      for (int i = 0; i < ChildCount; ++i)
+      {
+        int ChildIndex = ChildIndeces[i];
+        asset::gltf_tmp::render_tree::node* Child = &Nodes[ChildIndex];
+        Child->Parent = Parent;
+    
+        if(i < ChildCount-1)
+        {
+          int NextSiblingIndex = ChildIndeces[i+1];
+          Child->NextSibling = &Nodes[NextSiblingIndex];
+          Child->NextSibling->PreviousSibling = Child;  
+        }
+      }
+    }
+  }
+#endif
+#if 0
+  struct node_queue {
+    size_t Count;
+    size_t TotCount;
+    int* Queue;
+  };
+
+  node_queue NodeQueue(size_t Size)
+  {
+    node_queue Result = {}; 
+    Result.Count = 0;
+    Result.TotCount = Size; 
+    Result.Queue = JwinAllocArray(Size, int);
+    return Result;
+  }
+
+  bool IsEmpty(node_queue& Queue)
+  {
+    bool Result = Queue.Count == 0;
+    return Result;
+  }
+
+  void Push(node_queue& Queue, int Value)
+  {
+    Queue.Queue[Queue.Count++] = Value;
+  }
+
+  int Pop(node_queue& Queue)
+  {
+    Assert(Queue.Count > 0);
+    if(Queue.Count == 0) return 0;
+    int Result = Queue.Queue[--Queue.Count];
+    Queue.Queue[Queue.Count+1] = 0;
+    return Result;
+  }
+
+  void Delete(node_queue& Queue)
+  {
+    JwinFreeMemory(Queue.Queue);
+    Queue = {};
+  }
+#endif
+  void MapChildNodes(
+    size_t NodeIndex,
+    size_t ChildCount,
+    gltf_tmp::render_tree::node* NodeArray,
+    gltf_tmp::render_tree::node* Node) 
+  {
+
+    u32 FirstChildIndex = NodeIndex;
+    u32 LastChildIndex  = NodeIndex + ChildCount;
+
+    for (int i = FirstChildIndex; i < LastChildIndex; ++i)
+    {
+      gltf_tmp::render_tree::node* Child = &NodeArray[i];
+      Child->Parent = Node;
+      if(i == FirstChildIndex)
+      {
+        Child->Parent->FirstChild = Child;
+      }
+      if(i < LastChildIndex-1)
+      {
+        Child->NextSibling = &NodeArray[i];
+        Child->NextSibling->PreviousSibling = Child;
+      }
+      if(i == FirstChildIndex-1)
+      {
+        Child->PreviousSibling = &NodeArray[i-1];
+      }
+    }
+  }
+
+  void SetMeshInfo(asset::gltf_tmp::render_tree::node* Node, gltf_tmp::render_tree::mesh_info* MeshInfos, int* MeshIndex)
+  {
+    if(MeshIndex)
+    {
+      Node->HasMeshInfo = true;
+      Node->MeshInfo = MeshInfos[*MeshIndex];
+    }else{
+      Node->HasMeshInfo = false;
+      Node->MeshInfo = {};
+    }
+  }
+
+  void CopyTransforms(gltf_tmp::render_tree::node* Node, gltf::raw_node* RawNode)
+  {
+    switch(RawNode->TransformationType){
+      case gltf::raw_node::transformation_type::TRS:{
+        Node->HasTransform = true;
+        Node->Transform = GetModelMatrix(RawNode->Translation, RawNode->Rotation, RawNode->Scale);
+      }break;
+      case gltf::raw_node::transformation_type::MATRIX:{
+        Node->HasTransform = true;
+        Node->Transform = RawNode->Matrix;
+      }break;
+      default :{
+        Node->HasTransform = false;
+        Node->Transform = M4Identity();
+      } break;
+    }
+  }
+
+  asset::gltf_tmp::render_tree::node* ToNodes(size_t NodeCount, asset::gltf_tmp::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes,
+        gltf_tmp::render_tree::mesh_info* MeshInfos)
+  {
+    node_queue Queue = NodeQueue(NodeCount);
+    Push(Queue, RawRootNodeIndex, 0);
+    
+    size_t NodeHeadIndex = 1;
+    while(!IsEmpty(Queue))
+    {
+      node_queue::pair NodeIndexPair = Pop(Queue);
+      int RawNodeIndex = NodeIndexPair.RawNodeIndex;
+      gltf::raw_node* RawNode = &RawNodes[RawNodeIndex];
+
+      int NodeIndex = NodeIndexPair.NodeIndex;
+      asset::gltf_tmp::render_tree::node* Node = &Nodes[NodeIndex];
+
+      SetMeshInfo(Node, MeshInfos, RawNode->Mesh);
+      CopyTransforms(Node,RawNode);
+
+      MapChildNodes(NodeHeadIndex, RawNode->ChildCount, Nodes, Node);
+      for (int i = 0; i < RawNode->ChildCount; ++i)
+      {
+        int RawChildIndex = RawNode->Children[i];
+        Push(Queue, RawChildIndex, NodeHeadIndex++);
+      }
+    }
+
+    DeleteNodeQueue(Queue);
+    return Nodes;
+  }
+
+  size_t GetTreeNodeCount(int RootNodeIndex, size_t RawNodeCount, gltf::raw_node* RawNodes)
+  {
+    node_queue Queue = NodeQueue(RawNodeCount);
+    Push(Queue, RootNodeIndex);
+    size_t Result = 1;
+    while(!IsEmpty(Queue))
+    {
+      const int RawNodeIndex = Pop(Queue).RawNodeIndex;
+      const int ChildCount = RawNodes[RawNodeIndex].ChildCount;
+      Result += ChildCount;
+      for (int i = 0; i < ChildCount; ++i)
+      {
+        const int ChildIndex = RawNodes[RawNodeIndex].Children[i];
+        Push(Queue, ChildIndex);
+      }
+    }
+
+    DeleteNodeQueue(Queue);
+    return Result;
+  }
+
+  // Note: The node hierarchy make up a set of disjoint strict trees which means they are free of cycles and each node must have zero or one parent node.
+  //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
+  //       I'm assuming this means each child node only appears once.
+  asset::gltf_tmp::render_tree* ToRenderTree( gltf::raw_gltf_data* RawGltfData, asset::gltf_tmp::render_tree::mesh_info* MeshInfos, size_t* RetTreeCount)
+  {
+    const size_t RawNodeCount = RawGltfData->RawNodeCount;
+    gltf::raw_node* RawNodes = RawGltfData->RawNodes;
+
+    size_t RootCount = 0;
+    int* RootNodeIndeces = JwinAllocArray(RawNodeCount, int);
+    bool* RootNodeTracker = JwinAllocArray(RawNodeCount, bool);
+    for (int i = 0; i < RawGltfData->RawSceneCount; ++i)
+    {
+      gltf::raw_scene* RawScene = &RawGltfData->RawScenes[i];
+      for (int j = 0; j < RawScene->NodeCount; ++j)
+      {
+        int RootNodeIndex = RawScene->Nodes[j];
+        if(!RootNodeTracker[RootNodeIndex])
+        {
+          RootNodeIndeces[RootCount++] = RootNodeIndex;
+          RootNodeTracker[RootNodeIndex] = true;
+        }
+      }
+    }
+
+    gltf_tmp::render_tree* Result = JwinAllocArray(RootCount, gltf_tmp::render_tree);
+    *RetTreeCount = RootCount;
+    for (int i = 0; i < RootCount; ++i)
+    {
+      gltf_tmp::render_tree* Tree = &Result[i];
+      int RootNodeIndex = RootNodeIndeces[i];
+      Tree->NodeCount   = GetTreeNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
+      Tree->Nodes       = JwinAllocArray(Tree->NodeCount, asset::gltf_tmp::render_tree::node);
+      
+      Tree->Root = ToNodes(Tree->NodeCount, Tree->Nodes, RootNodeIndex, RawNodes, MeshInfos);
+    }
+
+    JwinFreeMemory(RootNodeIndeces);
+    JwinFreeMemory(RootNodeTracker);
+
+    return Result;
+  }
+
+
+  render_tree* ToRenderTree(gltf::raw_gltf_data* RawGltfData, size_t* RenderTreeCount) {
 
     size_t LoadedImageCount = RawGltfData->RawImageCount;
     image** LoadedImagesTracker = JwinAllocArray(LoadedImageCount, image*);
@@ -455,21 +714,27 @@ namespace gltf_tmp {
     
 
 ////
-    Result.MeshInfoCount = RawGltfData->RawMeshCount;
-    Result.MeshInfos = JwinAllocArray(Result.MeshInfoCount, gltf_tmp::render_tree::mesh_info);
-    gltf_tmp::render_tree::mesh_info* MeshInfoScan = Result.MeshInfos; 
+    size_t MeshInfoCount = 0;
+    for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
+    {
+      gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
+      MeshInfoCount += RawMesh->PrimitiveCount;
+    }
+
+    gltf_tmp::render_tree::mesh_info* MeshInfos = JwinAllocArray(MeshInfoCount, gltf_tmp::render_tree::mesh_info);
+    gltf_tmp::render_tree::mesh_info* MeshInfoScan = MeshInfos;
     for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
     {
       gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
 
       size_t MeshInfoCount = RawMesh->PrimitiveCount;
-      gltf_tmp::render_tree::mesh_info* MeshInfos = MeshInfoScan;
+      gltf_tmp::render_tree::mesh_info* MeshInfoArr = MeshInfoScan;
       MeshInfoScan += MeshInfoCount;
-      Assert((MeshInfoScan - Result.MeshInfos) <= Result.MeshInfoCount);
+      Assert((MeshInfoScan - MeshInfos) <= MeshInfoCount);
       for (int j = 0; j < MeshInfoCount; ++j)
       {
         gltf::extracted_primitive* GltfPrimitive = &RawMesh->ExtractedPrimitives[j];
-        gltf_tmp::render_tree::mesh_info* MeshInfo = &MeshInfos[j];
+        gltf_tmp::render_tree::mesh_info* MeshInfo = &MeshInfoArr[j];
         MeshInfo->Mesh = LoadMeshToAssetManager(GltfPrimitive);
         if(GltfPrimitive->MaterialIndex)
         {
@@ -478,60 +743,17 @@ namespace gltf_tmp {
       }
     }
 
+    asset::gltf_tmp::render_tree* Result = ToRenderTree(RawGltfData, MeshInfos, RenderTreeCount);
 ////
     JwinFreeMemory(LoadedMaterialTracker);
     JwinFreeMemory(LoadedImagesTracker);
 
-#if 0
-
-    Result.ImageCount = RawGltfData.RawImageCount;
-    Result.Images = JwinAllocArray( Result.ImageCount, image);
-    for (int i = 0; i < Result.ImageCount; ++i)
-    {
-      Result.Images[i] = ToImage(&RawGltfData.RawImages[i], PersistentAllocator);
-    }
-
-    Result.SamplerCount = RawGltfData.RawSamplerCount;
-    Result.Samplers = JwinAllocArray( Result.SamplerCount, sampler);
-    for (int i = 0; i < Result.SamplerCount; ++i)
-    {
-      Result.Samplers[i] = ToSampler(&RawGltfData.RawSamplers[i], PersistentAllocator);
-    }
-
-    Result.TextureCount = RawGltfData.RawTextureCount;
-    Result.Textures = JwinAllocArray( Result.TextureCount, texture);
-    for (int i = 0; i < Result.TextureCount; ++i)
-    {
-      Result.Textures[i] = ToTexture(&RawGltfData.RawTextures[i], Result.Samplers, Result.Images, PersistentAllocator);
-    }
-
-    Result.MaterialCount = RawGltfData.RawMaterialCount;
-    Result.Materials = JwinAllocArray( Result.MaterialCount, material);
-    for (int i = 0; i < Result.MaterialCount; ++i)
-    {
-      Result.Materials[i] = ToMaterial(&RawGltfData.RawMaterials[i], Result.Textures, PersistentAllocator);
-    }
-
-    Result.MeshCount = RawGltfData.RawMeshCount;
-    Result.Meshes = JwinAllocArray( Result.MeshCount, mesh);
-    for (int i = 0; i < Result.MeshCount; ++i)
-    {
-      Result.Meshes[i] = ToMesh(i, &RawGltfData, Result.Materials, PersistentAllocator);
-    }
-
-    Result.SceneCount = RawGltfData.RawSceneCount;
-    Result.Scenes = ToScenes(&RawGltfData, Result.Meshes,  TmpAllocator);
-
-    for (int i = 0; i < RawGltfData.BufferCount; ++i)
-    {
-      if(RawGltfData.RawBuffers[i].LoadedData)
-      {
-        FreeFile(RawGltfData.RawBuffers[i].LoadedData);
-      }
-    }
-#endif
     return Result;
   }
 
 } // namespace gltf_tmp
 } // namespace asset
+
+// Läs Vägen ur utmattningssyndrom
+// Inledning + Kap 1 + Hemuppgifter;
+// Välj 1  liten förändring + 

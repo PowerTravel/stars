@@ -7,10 +7,10 @@ namespace collider {
 
 struct mesh
 {
-  u32 nvi;  // 3 times nr Vertice Indeces (CCW Triangles)
-  u32 nv;   // Nr Vertices
+  int nvi;  // 3 times nr Vertice Indeces (CCW Triangles)
+  int* vi;  // Vertex Indeces
 
-  u32* vi;  // Vertex Indeces
+  int nv;   // Nr Vertices
   v3* v;    // Vertices
 };
 
@@ -20,13 +20,13 @@ struct component
   mesh Mesh;
 };
 
-void Init(component* Component, asset::mesh* Mesh)
+void Init(component* Component, asset::gltf_tmp::mesh* Mesh)
 {
   collider::mesh ColliderMesh = {};
   Component->Mesh.nvi = Mesh->IndexCount;
-  Component->Mesh.nv  = Mesh->vCount;
-  Component->Mesh.vi  = Mesh->vi;
-  Component->Mesh.v   = Mesh->v;
+  Component->Mesh.nv  = Mesh->VertexCount;
+  Component->Mesh.vi  = Mesh->Indeces;
+  Component->Mesh.v   = Mesh->Vertex;
   Component->AABB     = Mesh->AABB;
 }
 

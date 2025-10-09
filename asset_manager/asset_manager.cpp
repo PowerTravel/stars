@@ -65,325 +65,6 @@ header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* 
   return Result;
 }
 
-midx GetMeshSize(u32 IndexCount, u32 VertexCount, u32 NormalCount, u32 TextureCount) {
-  u32  TypeCount = ((VertexCount>0) + (NormalCount>0) + (TextureCount>0));
-  midx IndexMemSize   = TypeCount * IndexCount * sizeof(u32);
-  midx VerticeMemSize = VertexCount  * sizeof(v3);
-  midx NormalMemSize  = NormalCount  * sizeof(v3);
-  midx TextureMemSize = TextureCount * sizeof(v2);
-  midx TotalMeshSize = sizeof(mesh) + IndexMemSize + VerticeMemSize + NormalMemSize + TextureMemSize;
-  return TotalMeshSize;
-}
-
-file_local inline midx GetMeshSize(const mesh* Mesh) {
-  midx Result = GetMeshSize(Mesh->IndexCount, Mesh->vCount, Mesh->vnCount, Mesh->vtCount);
-  return Result;
-}
-
-
-mesh* InitializeMesh(u32 IndexCount, u32 VertexCount, u32 NormalCount, u32 TextureCount, void* Memory) {
-  Assert(IndexCount);
-  Assert(VertexCount);
-
-  midx IndexMemSize = IndexCount  * sizeof(u32);
-
-  mesh* Result = (mesh*) Memory;
-  Result->IndexCount = IndexCount;
-
-  bptr MemScan = AdvanceBytePointer(Result, sizeof(mesh));
-  {
-    Result->vCount = VertexCount;
-    Result->vi = (u32*) MemScan;
-    Result->v  = (v3*)  AdvanceBytePointer(Result->vi, IndexMemSize);
-    MemScan = AdvanceBytePointer(Result->v, VertexCount * sizeof(v3));
-  }
-
-
-  if(NormalCount) {
-    Result->vnCount = NormalCount;
-    Result->vni = (u32*) MemScan;
-    Result->vn  = (v3*)  AdvanceBytePointer(Result->vni, IndexMemSize);
-    MemScan = AdvanceBytePointer(Result->vn, NormalCount * sizeof(v3));
-  }
-
-  if(TextureCount) {
-    Result->vtCount = TextureCount;
-    Result->vti = (u32*) MemScan;
-    Result->vt = (v2*) AdvanceBytePointer(Result->vti, IndexMemSize);
-  }
-  return Result;
-}
-
-b32 IntCompareFunction(const bptr DataA, const bptr DataB)
-{
-  u32* A =  (u32*) DataA;
-  u32* B =  (u32*) DataB;
-  return *A == *B;
-}
-
-b32 V3CompareFunction(const bptr DataA, const bptr DataB)
-{
-  v3 A =  *((v3*) DataA);
-  v3 B =  *((v3*) DataB);
-  return A == B;
-}
-
-b32 V2CompareFunction(const bptr DataA, const bptr DataB)
-{
-  v2 A =  *((v2*) DataA);
-  v2 B =  *((v2*) DataB);
-  return A == B;
-}
-
-
-u32 PushUnique(bptr Array, const u32 ElementCount, const u32 ElementByteSize,
-               bptr NewElement, b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
-{
-  bptr Scan = Array;
-  for( u32 i = 0; i < ElementCount; ++i )
-  {
-    if( CompareFunction(NewElement, Scan) )
-    {
-      return i;
-    }
-    Scan += ElementByteSize;
-  }
-  
-  // If we didn't find the element we push it to the end
-  utils::Copy(ElementByteSize, NewElement, Scan);
-  
-  return ElementCount;
-}
-
-/*
-
-// -Z
-VerticeIndeces = {4 5 6 4 6 7};
-Vertices = {
-  {-1,-1, 1},
-  {-1, 1, 1},
-  { 1, 1, 1},
-  { 1,-1, 1},
-  {-1,-1,-1},
-  {-1, 1,-1},
-  { 1, 1,-1},
-  { 1,-1,-1},
-}
-
-
-UniqueVerticeIndeces = {4,5,6,7}
-UniqueVertices = {
-    {-1,-1,-1},
-    {-1, 1,-1},
-    { 1, 1,-1},
-    { 1,-1,-1},
-}
-
-VerticeIndeceMap = {4,0} {5,1} {6,2} {6,3}
-NewVerticeIndece = {0, 1, 2, 0, 2, 3};
-
-
-/////
-NormalIndeces = {5,5,5,5,5,5}
-Normals = {
-  {
-    { 1,0,0},
-    {-1,0,0},
-    {0, 1,0},
-    {0,-1,0},
-    {0,0, 1},
-    {0,0,-1},
-  }
-
-UniqueNormalIndeces = {5}
-UniqueNormals = {0,0,-1},
-NormalMap = {5,0}
-NewNormalIndeces = {0}
-
-
-TextureCount = {0,2,3,0,3,1}
-Texture = {
-  {
-    {0,0},
-    {1,0},
-    {0,1},
-    {1,1}
-  }
-
-UniqueTextureIndeces = {0,2,3,1}
-UniqueTexture = {
-  {
-    {0,0},
-    {0,1},
-    {1,1},
-    {1,0},
-  }
-TextureIndeceMap = {0, 0}, {2, 1}, {3,2}, {1,3}
-NewTextureIndeces = {0,1,2,0,2,3}
-
-*/
-
-struct indexed_array {
-  u32 IndexCount;
-  u32* IndexArray;
-
-  midx ValueSize;
-  u32 ValueCount;
-  bptr ValueArray;
-};
-
-/*
-IndexArray = {4 5 6 4 6 7};
-ValueArray = {
-  {-1,-1, 1},
-  {-1, 1, 1},
-  { 1, 1, 1},
-  { 1,-1, 1},
-  {-1,-1,-1},
-  {-1, 1,-1},
-  { 1, 1,-1},
-  { 1,-1,-1},
-}
-
-IndexTracker = {0 0 0 0 1 2 3 0}
-UniqueIndeces = {0, 1, 2, 0, 2}
-UniqueVertices = {
-    {-1,-1,-1},
-    {-1, 1,-1},
-    { 1, 1,-1},
-    {},
-    {},
-    {},
-    {},
-    {},
-}
-
-*/
-
-indexed_array IndexedArray(memory_arena* Arena, u32 IndexCount, midx ValueSize, u32 ValueCount)
-{
-  indexed_array Result = {};
-  Result.IndexCount = IndexCount;
-  Result.ValueSize  = ValueSize;
-  Result.ValueCount = ValueCount;
-  Result.IndexArray = PushArray(Arena, IndexCount, u32);
-  Result.ValueArray = (bptr) PushSize(Arena, ValueCount*ValueSize);
-  return Result;
-}
-
-struct index_tracker {
-  u32 OldIndex;
-  u32 NewIndex;
-};
-
-index_tracker* Find(u32 TrackerSize, index_tracker* IndexTracker, u32 HashedIndex, u32 OldIndex, u32* Collisions)
-{
-  u32 ArrayIndex = HashedIndex;
-  index_tracker* Element = IndexTracker + ArrayIndex;
-  u32 Coll = 0;
-  while(Element->OldIndex != 0 &&  Element->OldIndex != OldIndex)
-  {
-    ArrayIndex++;
-    if(ArrayIndex >= TrackerSize)
-    {
-      ArrayIndex = 0;
-    }
-    Element = IndexTracker + ArrayIndex;
-    Coll++;
-  }
-  
-  if(Element->OldIndex == 0)
-  {
-    *Collisions = Coll;
-  }
-  // Element is either empty or points to OldIndex;
-  return Element;
-}
-
-
-indexed_array CreateNewIndexedArraySmallValueCount(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, u32 MaxValueCount, bptr ValueArray,
-  b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
-{
-  indexed_array Result = IndexedArray(Arena, IndexCount, ValueSize, Minimum(MaxValueCount, IndexCount));
-  u32* IndexTracker = PushArray(Arena, MaxValueCount, u32);
-
-  u32 ValueCount = 0;
-  for (int i = 0; i < IndexCount; ++i)
-  {
-    u32 OldIndex = IndexArray[i];
-    if(IndexTracker[OldIndex]==0)
-    {
-      u32 NewIndex = ValueCount;
-      Result.IndexArray[i]   = NewIndex;
-      IndexTracker[OldIndex] = ++ValueCount;
-
-      utils::Copy(ValueSize, ValueArray + ValueSize*OldIndex, Result.ValueArray + ValueSize*NewIndex);
-    }else{
-      Result.IndexArray[i] = IndexTracker[OldIndex] - 1;
-    }
-  }
-  Result.ValueCount = ValueCount;
-  return Result;
-}
-
-indexed_array CreateNewIndexedArrayHashedList(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, u32 MaxValueCount, bptr ValueArray,
-  b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
-{
-  indexed_array Result = IndexedArray(Arena, IndexCount, ValueSize, Minimum(MaxValueCount, IndexCount));
-
-  u32 TrackerSize = utils::GetHashListSize(IndexCount,3);
-  index_tracker* IndexTracker = PushArray(Arena, TrackerSize, index_tracker);
-  u32 ValueCount = 0;
-  u32 TotalCollisions = 0;
-  for (int i = 0; i < IndexCount; ++i)
-  {
-    u32 OldIndex = IndexArray[i];
-
-    u32 HashedIndex = utils::Hash(OldIndex) % TrackerSize;
-    u32 Collision = 0;
-    index_tracker* TrackElement = Find(TrackerSize, IndexTracker, HashedIndex, OldIndex, &Collision);
-    TotalCollisions += Collision;
-    if(TrackElement->NewIndex == 0)
-    {
-      u32 NewIndex = ValueCount;
-      Result.IndexArray[i] = NewIndex;
-
-      TrackElement->OldIndex = OldIndex;
-      TrackElement->NewIndex = ++ValueCount;
-
-      utils::Copy(ValueSize, ValueArray + ValueSize*OldIndex, Result.ValueArray + ValueSize*NewIndex);
-    }else{
-      Result.IndexArray[i] = TrackElement->NewIndex - 1;
-    }
-
-  }
-  if(TotalCollisions)
-  {  
-  Platform.DEBUGPrint("--==Collisions==--\n\t%d Collisions\n\t%d Elements\n\t%d ListSize,\n\t%f Collisions/ElementCount\n\t%f Collisions / ElementCount \n", 
-    TotalCollisions, IndexCount, TrackerSize,  (r32)TotalCollisions / (r32) IndexCount,(r32)IndexCount / (r32) TrackerSize);
-  }
-  Result.ValueCount = ValueCount;
-  return Result;
-}
-
-indexed_array CreateNewIndexedArray(memory_arena* Arena, u32 IndexCount, const u32* IndexArray, midx ValueSize, u32 MaxValueCount, bptr ValueArray,
-  b32 (*CompareFunction)(const bptr DataA, const bptr DataB))
-{
-  indexed_array Result = {};
-  #if 0
-  if(MaxValueCount < 2048)
-  {
-    // TODO: Use this one if there are few groups instead
-    Result = CreateNewIndexedArraySmallValueCount(Arena, IndexCount, IndexArray, ValueSize, MaxValueCount, ValueArray, CompareFunction);
-  }else{
-    // TODO: Use this one if there are alot of groups groups
-    Result = CreateNewIndexedArrayHashedList(Arena, IndexCount, IndexArray, ValueSize, MaxValueCount, ValueArray, CompareFunction);
-  }
-  #endif
-  Result = CreateNewIndexedArraySmallValueCount(Arena, IndexCount, IndexArray, ValueSize, MaxValueCount, ValueArray, CompareFunction);
-  return Result;
-}
-
 aabb3f GetAABB(u32 VertexCount, const v3* VerticeArray)
 {
   v3 MinimumVal = V3(R32Max, R32Max, R32Max);
@@ -399,56 +80,6 @@ aabb3f GetAABB(u32 VertexCount, const v3* VerticeArray)
     MaximumVal.Z = Maximum(MaximumVal.Z, Vertex->Z);
   }
   aabb3f Result = AABB3f(MinimumVal, MaximumVal);
-  return Result;
-}
-
-mesh* CreateMesh( const c8* MeshKey, const c8* MeshName, const c8* MeshPath,
-                  const u32 IndexCount,
-                  const u32* VerticeIndeces, const u32* NormalIndeces, const u32* TextureIndeces,
-                  const u32 VerticeCount,    const u32 NormalCount,    const u32 TextureCount,
-                  const v3* VerticeData,     const v3* NormalData,     const v2* TextureData)
-{
-
-  indexed_array VerticeArray = {};
-  if(VerticeIndeces)
-  {
-    VerticeArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, VerticeIndeces, sizeof(v3), VerticeCount, (bptr) VerticeData, V3CompareFunction);
-  }
-
-  indexed_array NormalArray = {};
-  if(NormalIndeces)
-  {
-    NormalArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, NormalIndeces, sizeof(v3), NormalCount, (bptr) NormalData, V3CompareFunction);
-  }
-
-  indexed_array TextureArray = {};
-  if(TextureIndeces)
-  {
-    TextureArray = CreateNewIndexedArray(GlobalTransientArena, IndexCount, TextureIndeces, sizeof(v2), TextureCount, (bptr) TextureData, V2CompareFunction);
-  }
-
-  midx TotalMeshSize = GetMeshSize(IndexCount, VerticeArray.ValueCount, NormalArray.ValueCount, TextureArray.ValueCount);
-  header* Header     = CreateHeader(type::MESH, MeshKey, MeshName, MeshPath, TotalMeshSize);
-  mesh* Result       = InitializeMesh(IndexCount, VerticeArray.ValueCount, NormalArray.ValueCount, TextureArray.ValueCount, Header->Data);
-
-  if(VerticeIndeces)
-  {
-    utils::Copy(sizeof(u32)*VerticeArray.IndexCount,             VerticeArray.IndexArray, Result->vi);
-    utils::Copy(VerticeArray.ValueSize*VerticeArray.ValueCount,  VerticeArray.ValueArray, Result->v);
-  }
-  if(NormalIndeces)
-  {
-    utils::Copy(sizeof(u32)*NormalArray.IndexCount,             NormalArray.IndexArray, Result->vni);
-    utils::Copy(NormalArray.ValueSize*NormalArray.ValueCount,   NormalArray.ValueArray, Result->vn);
-  }
-  if(TextureIndeces)
-  {
-    utils::Copy(sizeof(u32)*TextureArray.IndexCount,              TextureArray.IndexArray, Result->vti);
-    utils::Copy(TextureArray.ValueSize*TextureArray.ValueCount,   TextureArray.ValueArray, Result->vt);
-  }
-
-  Result->AABB = GetAABB(VerticeArray.ValueCount, (v3*) VerticeArray.ValueArray);
-
   return Result;
 }
 
@@ -530,22 +161,6 @@ void Free(type Type, c8* Name) {
   Free(Type, Key);
 }
 
-file_local u32 CopyObjBitmapToTexture(const c8* Key, const obj_bitmap* ObjBitmap)
-{
-  if(!ObjBitmap){return 0;};
-
-  Assert(ObjBitmap->BPP == 32);
-  u32 ImageSizeBytes = sizeof(image) + ObjBitmap->Width * ObjBitmap->Height * ObjBitmap->BPP / 8.f;
-
-  header* Header   = CreateHeader(type::IMAGE, Key, ObjBitmap->Name, ObjBitmap->Path, ImageSizeBytes);
-  image* Image = (image*) Header->Data;
-  Image->Channels = 4;
-  Image->Width    = ObjBitmap->Width;
-  Image->Height   = ObjBitmap->Height;
-  Image->Pixels   = AdvanceBytePointer(Image, sizeof(image));
-  utils::Copy(ImageSizeBytes, ObjBitmap->Pixels, Image->Pixels);
-  return Header->Key;
-}
 
 file_local midx GetMaterialSize(
     v4* Ka,
@@ -733,26 +348,6 @@ file_local void CopyMaterial( const phong_material* Src, phong_material* Dst)
   Dst->SpecularTexture    = Src->SpecularTexture;
 }
 
-#if 0
-phong_material* CopyObjMtlToMaterial(c8* Path, mtl_material* ObjMtl, c8* Key)
-{
-  midx MaterialSizeBytes = GetMaterialSize(ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns);
-  header* Header   = CreateHeader(type::PHONG_MATERIAL, Key, ObjMtl->Name, Path, MaterialSizeBytes);
-  u32 BumpMapHandle = CopyObjBitmapToTexture(Key, ObjMtl->BumpMap);
-  u32 MapKdHandle   = CopyObjBitmapToTexture(Key, ObjMtl->MapKd);
-  u32 MapKsHandle   = CopyObjBitmapToTexture(Key, ObjMtl->MapKs);
-
-  phong_material* Result = (phong_material*) Header->Data;
-  InitiateMaterial(
-    ObjMtl->Ka, ObjMtl->Kd, ObjMtl->Tf, ObjMtl->Ks, ObjMtl->Ke, ObjMtl->d, ObjMtl->Ni, ObjMtl->Ns,
-    ObjMtl->BumpMapBM, BumpMapHandle, MapKdHandle, MapKsHandle,
-    Result);
-
-  return Result;
-}
-#endif
-
-
 c8* CreateUniqueName(const c8* Prefix, const c8* Name, const c8* Postfix, u32 Index, u32 MaxCount)
 {
   c8* Result = (c8*) Name;
@@ -765,53 +360,6 @@ c8* CreateUniqueName(const c8* Prefix, const c8* Name, const c8* Postfix, u32 In
     FormatString(Result, Length-1, "%s%s%s", Prefix, Name, Postfix);
   }
   
-  return Result;
-}
-
-void CopyMesh(const mesh* SrcMesh, mesh* DstMesh)
-{
-  Assert(SrcMesh->v && SrcMesh->vi && DstMesh->v && DstMesh->vi);
-  DstMesh->IndexCount  = SrcMesh->IndexCount;
-  DstMesh->vCount = SrcMesh->vCount;
-  utils::Copy(SrcMesh->IndexCount  * sizeof(u32), SrcMesh->vi, DstMesh->vi);
-  utils::Copy(SrcMesh->vCount * sizeof(v3),       SrcMesh->v, DstMesh->v);
-
-  if(SrcMesh->vn){
-    DstMesh->vnCount = SrcMesh->vnCount;
-    utils::Copy(SrcMesh->IndexCount * sizeof(u32), SrcMesh->vni, DstMesh->vni);
-    utils::Copy(SrcMesh->vnCount * sizeof(v3),     SrcMesh->vn, DstMesh->vn);
-  }
-
-  if(SrcMesh->vt){ 
-    DstMesh->vtCount = SrcMesh->vtCount;
-    utils::Copy(SrcMesh->IndexCount * sizeof(u32), SrcMesh->vti, DstMesh->vti);
-    utils::Copy(SrcMesh->vtCount * sizeof(v2), SrcMesh->vt, DstMesh->vt);
-  }
-}
-
-u32 LoadTga(const c8* Path, const c8* UniqueName)
-{
-  obj_bitmap* ObjBitmap = LoadTGA(TransientAllocator, Path);
-  if(UniqueName == 0 || *UniqueName =='\0')
-  {
-    UniqueName = Path;
-  }
-  u32 TextureHandle = CopyObjBitmapToTexture(UniqueName, ObjBitmap);
-  return TextureHandle; 
-}
-
-
-mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, u32* ResultKey)
-{
-  midx MeshSize = GetMeshSize(Mesh);
-  header* Header = CreateHeader(type::MESH, UniqueName, UniqueName, "N/A", MeshSize);
-  mesh* Result = InitializeMesh(Mesh->IndexCount, Mesh->vCount, Mesh->vnCount, Mesh->vtCount, Header->Data);
-  CopyMesh(Mesh, Result);
-
-  if(ResultKey)
-  {
-    *ResultKey = Header->Key;
-  }
   return Result;
 }
 
@@ -981,14 +529,27 @@ gltf_tmp::render_tree::node* Pop(node_queue& Queue)
   return Result;
 }
 
-void MapMeshInfos(gltf_tmp::render_tree::mesh_info* SrcMeshInfoBase, gltf_tmp::render_tree::node* Src, gltf_tmp::render_tree::mesh_info* DstMeshInfoBase, gltf_tmp::render_tree::node* Dst)
+void MapMeshInfos(
+  size_t MeshInfoCount,
+  gltf_tmp::render_tree::mesh_info* SrcMeshInfoBase,
+  gltf_tmp::render_tree::node* Src,
+  gltf_tmp::render_tree::mesh_info* DstMeshInfoBase,
+  gltf_tmp::render_tree::node* Dst)
 {
-  Dst->MeshInfoCount = Src->MeshInfoCount;
-  for (int i = 0; i < Src->MeshInfoCount; ++i)
+  // TODO: Refactor thisss
+  int MeshInfoIndex = 0;
+  for (int i = 0; i < MeshInfoCount; ++i)
   {
-    uint32_t MeshInfoIndex = &Src->MeshInfos[i] - SrcMeshInfoBase;
-    Dst->MeshInfos     = &DstMeshInfoBase[MeshInfoIndex];
-  }  
+    gltf_tmp::render_tree::mesh_info* SrcInfo = &SrcMeshInfoBase[i];
+    if(Src->HasMeshInfo && SrcInfo->Mesh == Src->MeshInfo.Mesh && 
+       SrcInfo->Material == Src->MeshInfo.Material && 
+        SrcInfo->PhongMaterial == Src->MeshInfo.PhongMaterial)
+    {
+      Dst->HasMeshInfo = true;
+      Dst->MeshInfo = DstMeshInfoBase[i];
+      return;
+    }
+  }
 }
 
 void CopyTransforms(gltf_tmp::render_tree::node* Src, gltf_tmp::render_tree::node* Dst)
@@ -997,7 +558,7 @@ void CopyTransforms(gltf_tmp::render_tree::node* Src, gltf_tmp::render_tree::nod
   Dst->Transform    = Src->Transform;
 }
 
-  size_t MapChildNodes(size_t NodeIndex, size_t ChildCount, gltf_tmp::render_tree::node* NodeArray, gltf_tmp::render_tree::node* DstNode) {
+size_t MapChildNodes(size_t NodeIndex, size_t ChildCount, gltf_tmp::render_tree::node* NodeArray, gltf_tmp::render_tree::node* DstNode) {
   u32 FirstChildIndex = NodeIndex;
   u32 LastChildIndex  = NodeIndex + ChildCount;
 
@@ -1056,7 +617,7 @@ void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst
     gltf_tmp::render_tree::node* DstNode = Pop(DstQueue);
     gltf_tmp::render_tree::node* SrcNode = Pop(SrcQueue);
 
-    MapMeshInfos(Src->MeshInfos, SrcNode, Dst->MeshInfos, DstNode);
+    MapMeshInfos(Src->MeshInfoCount, Src->MeshInfos, SrcNode, Dst->MeshInfos, DstNode);
     CopyTransforms(SrcNode, DstNode);
 
     NodeHeadIndex = MapChildNodes(NodeHeadIndex, SrcNode->ChildCount, Dst->Nodes, DstNode);
