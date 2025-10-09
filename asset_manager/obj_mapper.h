@@ -29,76 +29,6 @@ static asset::phong_material* GetMaterial(material_map* MaterialMap, mtl_materia
   return 0;
 }
 
-#if 0
-
-  struct mesh // mesh_id (Can be OBJ as well)
-  {
-    enum class topology {
-      POINTS,
-      LINES,
-      LINE_LOOP,
-      LINE_STRIP,
-      TRIANGLES,
-      TRIANGLE_STRIP,
-      TRIANGLE_FAN
-    };
-
-    int IndexCount;
-    int* Indeces;
-
-    // Vertex, VertexNormal and each of the TextureVertices* Must have the same size of VertexCount if they exist
-    int VertexCount;
-    v3* Vertex;     // Vertices
-    v3* VertexNormal;    // Vertice Normals
-
-    int TextureVertexSetCount;
-    v2** TextureVertices;    // Texture Vertices
-
-    topology Topology;
-
-    aabb3f AABB;
-  };
-
-
-
-struct obj_mesh_indeces
-{
-  int Count;  // 3 times Nr Triangles
-  int* vi;    // Vertex Indeces
-  int* ti;    // Texture Indeces
-  int* ni;    // Normal Indeces
-  aabb3f AABB;
-  char Name[128];  // Where is this set?
-};
-
-struct obj_group
-{
-  int GroupNameLength;
-  char* GroupName;
-
-  int* SmoothingGroup; // Obj_groups that share a smoothing group have joined edges that should be smoothed
-
-  obj_mesh_indeces* Indeces;
-
-  aabb3f aabb;
-
-  mtl_material* Material;
-};
-
-struct obj_mesh_data
-{
-  int nv;    // Nr Verices
-  int nvn;   // Nr Vertice Normals
-  int nvt;   // Nr Trxture Vertices
-
-  v3* v;     // Vertices
-  v3* vn;    // Vertice Normals
-  v2* vt;    // Texture Vertices
-};
-
-
-#endif
-
 struct tracker_element {
   int ArrayIndex;
   int VerticeIndex;
@@ -233,7 +163,7 @@ asset::gltf_tmp::mesh CreateMesh(memory_arena* Arena,
     VertexNormal = PushArray(Arena, VerticeArrayCount, v3);
     for( int i = 0; i < VerticeArrayCount; ++i )
     {
-      const int idx = VerticeIndexArray[i];
+      const int idx = VerticeNormalIndexArray[i];
       VertexNormal[i] = NormalData[idx];
     }
   }
@@ -247,7 +177,7 @@ asset::gltf_tmp::mesh CreateMesh(memory_arena* Arena,
     v2* TextureVertex = PushArray(Arena, VerticeArrayCount, v2);
     for( int i = 0; i < VerticeArrayCount; ++i )
     {
-      const int idx = VerticeIndexArray[i];
+      const int idx = TextureVerticeIndexArray[i];
       TextureVertex[i] = TextureData[idx];
     }
     *TextureVertexSet = TextureVertex;
