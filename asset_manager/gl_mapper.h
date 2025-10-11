@@ -49,28 +49,28 @@ gl_vertex_buffer CreateGLVertexBuffer2(memory_arena* Arena,
   return Result;
 }
 
-void MeshToGlVertexBuffer2(memory_arena* Arena, const asset::gltf_tmp::mesh * Mesh, gl_vertex_buffer* Result)
+void MeshToGlVertexBuffer2(memory_arena* Arena, const asset::gltf_tmp::mesh::primitive * Primitive, gl_vertex_buffer* Result)
 {
-  Assert(Mesh->IndexCount && Mesh->Indeces && Mesh->VertexCount && Mesh->Vertex);
+  Assert(Primitive->IndexCount && Primitive->Indeces && Primitive->VertexCount && Primitive->Vertex);
   // We are only handling 1 set of texture vertices atm. Increase if we find the need
-  Assert(Mesh->TextureVertexSetCount== 0 || Mesh->TextureVertexSetCount ==1);
+  Assert(Primitive->TextureVertexSetCount== 0 || Primitive->TextureVertexSetCount ==1);
   *Result = CreateGLVertexBuffer2(
       Arena,
-      Mesh->IndexCount,
-      Mesh->Indeces,
-      Mesh->VertexCount,
-      Mesh->Vertex,
-      Mesh->VertexNormal,
-      Mesh->TextureVertices[0]
+      Primitive->IndexCount,
+      Primitive->Indeces,
+      Primitive->VertexCount,
+      Primitive->Vertex,
+      Primitive->VertexNormal,
+      Primitive->TextureVertices[0]
     );
 }
 
-opengl_buffer_data MeshToGlVertexBuffer2(memory_arena* Arena, const asset::gltf_tmp::mesh * Mesh)
+opengl_buffer_data MeshToGlVertexBuffer2(memory_arena* Arena, const asset::gltf_tmp::mesh::primitive * Primitive)
 { 
   opengl_buffer_data Result = {};
   Result.BufferCount = 1;
   Result.BufferData  = PushStruct(Arena, gl_vertex_buffer);
-  MeshToGlVertexBuffer2(Arena, Mesh, Result.BufferData);
+  MeshToGlVertexBuffer2(Arena, Primitive, Result.BufferData);
 
   return Result;
 }

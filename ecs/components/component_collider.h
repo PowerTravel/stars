@@ -23,11 +23,16 @@ struct component
 void Init(component* Component, asset::gltf_tmp::mesh* Mesh)
 {
   collider::mesh ColliderMesh = {};
-  Component->Mesh.nvi = Mesh->IndexCount;
-  Component->Mesh.nv  = Mesh->VertexCount;
-  Component->Mesh.vi  = Mesh->Indeces;
-  Component->Mesh.v   = Mesh->Vertex;
-  Component->AABB     = Mesh->AABB;
+
+  // We need to decide how we want to handle using render_mesh as a physics mesh
+  // This is just to alert us if we run into trying to make a physics-mesh of a render-mesh with several primitives
+  Assert(Mesh->PrimitiveCount == 1);
+  asset::gltf_tmp::mesh::primitive* Primitive = Mesh->Primitives;
+  Component->Mesh.nvi = Primitive->IndexCount;
+  Component->Mesh.nv  = Primitive->VertexCount;
+  Component->Mesh.vi  = Primitive->Indeces;
+  Component->Mesh.v   = Primitive->Vertex;
+  Component->AABB     = Primitive->AABB;
 }
 
 

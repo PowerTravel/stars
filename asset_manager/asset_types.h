@@ -146,43 +146,44 @@ namespace asset {
     typedef int pbr_material_id;
 
     // A mesh primitive mesh
-    struct mesh // mesh_id (Can be OBJ as well)
-    {
-      enum class topology {
-        POINTS,
-        LINES,
-        LINE_LOOP,
-        LINE_STRIP,
-        TRIANGLES,
-        TRIANGLE_STRIP,
-        TRIANGLE_FAN
+    struct mesh {
+      struct primitive // mesh_id (Can be OBJ as well)
+      {
+        enum class topology {
+          POINTS,
+          LINES,
+          LINE_LOOP,
+          LINE_STRIP,
+          TRIANGLES,
+          TRIANGLE_STRIP,
+          TRIANGLE_FAN
+        };
+
+        int IndexCount;
+        int* Indeces;
+
+        // Vertex, VertexNormal and each of the TextureVertices* Must have the same size of VertexCount if they exist
+        int VertexCount;
+        v3* Vertex;     // Vertices
+        v3* VertexNormal;    // Vertice Normals
+
+        int TextureVertexSetCount;
+        v2** TextureVertices;    // Texture Vertices
+
+        topology Topology;
+
+        aabb3f AABB;
+
+        pbr_material*   PbrMaterial;
+        phong_material* PhongMaterial;
       };
 
-      int IndexCount;
-      int* Indeces;
+      size_t PrimitiveCount;
+      primitive* Primitives;
 
-      // Vertex, VertexNormal and each of the TextureVertices* Must have the same size of VertexCount if they exist
-      int VertexCount;
-      v3* Vertex;     // Vertices
-      v3* VertexNormal;    // Vertice Normals
-
-      int TextureVertexSetCount;
-      v2** TextureVertices;    // Texture Vertices
-
-      topology Topology;
-
-      aabb3f AABB;
     };
 
     struct render_tree { // render_asset_id
-      
-      struct mesh_info {
-        mesh* Mesh;
-        //union {
-          pbr_material* Material;
-          phong_material* PhongMaterial;
-        //}
-      };
 
       struct node {
 
@@ -192,15 +193,14 @@ namespace asset {
         node* PreviousSibling;
         node* FirstChild;
 
-        bool HasMeshInfo;
-        mesh_info MeshInfo;
+        // Optional <mesh_id>
+        mesh* Mesh;
 
         bool HasTransform;
         m4 Transform;
       };
 
-      size_t MeshInfoCount;
-      mesh_info* MeshInfos;
+      mesh* Mesh;
 
       size_t NodeCount;
       node* Nodes;

@@ -109,7 +109,7 @@ b32 Exists(int ArraySize, tracker_element* TrackerArray, const tracker_element& 
 }
 
 
-asset::gltf_tmp::mesh CreateMesh(memory_arena* Arena,
+asset::gltf_tmp::mesh::primitive CreateMesh(memory_arena* Arena,
                      const int  IndexCount,
                      const unsigned int* VerticeIndeces, const unsigned int* NormalIndeces, const unsigned  int* TextureIndeces,
                      const v3*  VerticeData,    const v3*  NormalData,    const v2*  TextureData)
@@ -183,7 +183,7 @@ asset::gltf_tmp::mesh CreateMesh(memory_arena* Arena,
     *TextureVertexSet = TextureVertex;
   }
   
-  asset::gltf_tmp::mesh Result = {};
+  asset::gltf_tmp::mesh::primitive Result = {};
   Result.IndexCount = IndexCount;
   Result.Indeces = IndexArray;
   Result.VertexCount = VerticeArrayCount;
@@ -191,16 +191,16 @@ asset::gltf_tmp::mesh CreateMesh(memory_arena* Arena,
   Result.VertexNormal = VertexNormal;
   Result.TextureVertexSetCount = TextureVertexSetCount;
   Result.TextureVertices = TextureVertexSet;
-  Result.Topology = asset::gltf_tmp::mesh::topology::TRIANGLES;
+  Result.Topology = asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
 
   return Result;
 }
 
 
-asset::gltf_tmp::mesh ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData)
+asset::gltf_tmp::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData)
 {
   obj_mesh_indeces* Indeces = ObjGrp->Indeces;
-  asset::gltf_tmp::mesh Result = CreateMesh(GlobalTransientArena,
+  asset::gltf_tmp::mesh::primitive Result = CreateMesh(GlobalTransientArena,
     Indeces->Count, Indeces->vi, Indeces->ni, Indeces->ti,
     MeshData->v,MeshData->vn, MeshData->vt);
 
@@ -209,6 +209,7 @@ asset::gltf_tmp::mesh ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData)
   return Result;
 }
 
+#if 0
 asset::gltf_tmp::render_tree::mesh_info CreateMeshInfo(const c8* UniqueName, const c8* Name, const c8* Path, obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
 {  
   asset::gltf_tmp::render_tree::mesh_info Result = {};
@@ -216,13 +217,18 @@ asset::gltf_tmp::render_tree::mesh_info CreateMeshInfo(const c8* UniqueName, con
 
   obj_mesh_indeces* ObjIndeces = ObjGrp->Indeces;
 
-  const asset::gltf_tmp::mesh Mesh = ToMesh(ObjGrp, MeshData);
+  const asset::gltf_tmp::mesh::primitive MeshPrimitive = ToMesh(ObjGrp, MeshData);
+  const asset::gltf_tmp::mesh Mesh = {};
+  Mesh->PrimitiveCount = 1;
+  Mesh->Primitives = &MeshPrimitive;
+  
 
   unsigned int ResultKey = 0;
   Result.Mesh = asset::LoadMesh2(UniqueName, &Mesh, &ResultKey);
 
   return Result;
 }
+#endif
 
 file_local asset::image ToImage(const obj_bitmap* ObjBitmap)
 {
@@ -351,12 +357,15 @@ static asset::gltf_tmp::render_tree* LoadObj(const c8* Path, const c8* UniqueNam
   obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
 
   // Upload MATERIAL and IMAGES related to material
+  Assert(0);
   material_map MaterialMap = LoadPhongMaterial(Obj->MaterialData, UniqueName);
+  #if 0
   asset::gltf_tmp::render_tree::mesh_info* MeshInfos = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::gltf_tmp::render_tree::mesh_info);
   // MESH
   for (int i = 0; i < Obj->ObjectCount; ++i)
   {
     c8* MeshName = asset::CreateUniqueName("", UniqueName, "_Mesh", i, Obj->ObjectCount);
+    
     MeshInfos[i] = CreateMeshInfo(UniqueName, MeshName, Path, &Obj->ObjectGroups[i], Obj->MeshData, &MaterialMap);
   }
 
@@ -402,6 +411,8 @@ static asset::gltf_tmp::render_tree* LoadObj(const c8* Path, const c8* UniqueNam
   asset::gltf_tmp::render_tree* Result = asset::LoadRenderTree(UniqueName, Path, &RenderTree, &ResultKey);
 
   return Result;
+  #endif
+  return 0;
 }
 
 

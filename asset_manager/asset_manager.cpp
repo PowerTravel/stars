@@ -404,6 +404,11 @@ pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* PbrMater
 }
 
 midx GetMeshSize2( const gltf_tmp::mesh* Mesh ) {
+
+  // Implement
+  Assert(0);
+  return 0;
+  #if 0
   midx StructSize     = sizeof(gltf_tmp::mesh);
   midx IndexMemSize   = Mesh->IndexCount * sizeof(int);
   midx VerticeMemSize = Mesh->VertexCount  * sizeof(v3);
@@ -414,10 +419,14 @@ midx GetMeshSize2( const gltf_tmp::mesh* Mesh ) {
 
   midx TotalMeshSize = StructSize + IndexMemSize + VerticeMemSize + NormalMemSize + TextureSetMemSizeD1 + TextureVerticeMemSize;
   return TotalMeshSize;
+  #endif
 }
 
 void CopyMesh2(const gltf_tmp::mesh* Src, gltf_tmp::mesh* Dst, size_t TotalSize)
 {
+  // Implement
+  Assert(0);
+  #if 0
   bptr MemScan = AdvanceBytePointer(Dst, sizeof(gltf_tmp::mesh));
 
   if(Src->Indeces)
@@ -466,6 +475,7 @@ void CopyMesh2(const gltf_tmp::mesh* Src, gltf_tmp::mesh* Dst, size_t TotalSize)
 
   Dst->Topology = Src->Topology;
   Dst->AABB = Src->AABB;
+  #endif
 }
 
 gltf_tmp::mesh* LoadMesh2(const c8* UniqueName, const gltf_tmp::mesh* Mesh, u32* ResultKey)
@@ -485,11 +495,15 @@ gltf_tmp::mesh* LoadMesh2(const c8* UniqueName, const gltf_tmp::mesh* Mesh, u32*
 
 size_t GetRenderTreeSize(const gltf_tmp::render_tree* RenderTree)
 {
+  Assert(0);
+  return 0;
+  #if 0
   size_t StructSize = sizeof(gltf_tmp::render_tree);
   size_t MeshInfoSize = RenderTree->MeshInfoCount * sizeof(gltf_tmp::render_tree::mesh_info);
   size_t NodeSize = RenderTree->NodeCount * sizeof(gltf_tmp::render_tree::node);
   size_t Result = StructSize + MeshInfoSize + NodeSize;
   return Result;
+  #endif
 }
 
 
@@ -529,6 +543,7 @@ gltf_tmp::render_tree::node* Pop(node_queue& Queue)
   return Result;
 }
 
+#if 0
 void MapMeshInfos(
   size_t MeshInfoCount,
   gltf_tmp::render_tree::mesh_info* SrcMeshInfoBase,
@@ -551,6 +566,7 @@ void MapMeshInfos(
     }
   }
 }
+#endif
 
 void CopyTransforms(gltf_tmp::render_tree::node* Src, gltf_tmp::render_tree::node* Dst)
 {
@@ -587,6 +603,7 @@ size_t MapChildNodes(size_t NodeIndex, size_t ChildCount, gltf_tmp::render_tree:
 
 void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst, size_t RenderTreeSize)
 {
+  #if 0
   bptr MemScan = AdvanceBytePointer(Dst, sizeof(gltf_tmp::render_tree));
   
   Dst->MeshInfoCount = Src->MeshInfoCount;
@@ -637,7 +654,7 @@ void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst
   }
 
   Assert(IsEmpty(SrcQueue) && IsEmpty(DstQueue));
-  
+  #endif
 }
 
 gltf_tmp::render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const gltf_tmp::render_tree* RenderTree, u32* ResultKey)

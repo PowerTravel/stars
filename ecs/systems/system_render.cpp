@@ -27,7 +27,11 @@ u32 GetMeshHandle(u32 AssetKey)
   }else{
     asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, AssetKey);
     Assert(Mesh);
-    opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer2(GlobalTransientArena, Mesh);
+    
+    // There is a one to many relationship between mesh-handles and the rendersystems ptimitive-handles which were not handling atm
+    // This assert is here to catch the cases when we need to deal with that.
+    Assert(Mesh->PrimitiveCount == 1);
+    opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer2(GlobalTransientArena, Mesh->Primitives);
     Result = ecs::render::LoadMeshToGpu(AssetKey, &glBufferData);
   }
   return Result;
@@ -1015,17 +1019,20 @@ gl_vertex_buffer* GetBlitPlane()
     int TextureVerticesCounts[] = {ArrayCount(TextureVertices)};
 
     asset::gltf_tmp::mesh Mesh = {};
-    Mesh.IndexCount = ArrayCount(VerticeIndex);
-    Mesh.Indeces = VerticeIndex;
-    Mesh.VertexCount = ArrayCount(Vertices);
-    Mesh.Vertex = Vertices;
-    Mesh.TextureVertexSetCount = ArrayCount(TextureVerticesCounts);
-    Mesh.TextureVertices = TextureVerticesArr;
-    Mesh.Topology = asset::gltf_tmp::mesh::topology::TRIANGLES;
-    Mesh.AABB = AABB3f(V3(-1,-1,0), V3(1,1,0));
+    asset::gltf_tmp::mesh::primitive Primitive = {};
+    Primitive.IndexCount = ArrayCount(VerticeIndex);
+    Primitive.Indeces = VerticeIndex;
+    Primitive.VertexCount = ArrayCount(Vertices);
+    Primitive.Vertex = Vertices;
+    Primitive.TextureVertexSetCount = ArrayCount(TextureVerticesCounts);
+    Primitive.TextureVertices = TextureVerticesArr;
+    Primitive.Topology = asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
+    Primitive.AABB = AABB3f(V3(-1,-1,0), V3(1,1,0));
+    Mesh.Primitives = &Primitive;
+    Mesh.PrimitiveCount = 1;
 
     asset::gltf_tmp::mesh* LoadedMesh  = asset::LoadMesh2("BlitPlane", &Mesh);
-    asset::mapper::MeshToGlVertexBuffer2(GlobalTransientArena, LoadedMesh, StoredVertexBuffer);
+    asset::mapper::MeshToGlVertexBuffer2(GlobalTransientArena, LoadedMesh->Primitives, StoredVertexBuffer);
   }
   return StoredVertexBuffer;
 }

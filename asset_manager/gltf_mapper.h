@@ -388,23 +388,27 @@ namespace gltf_tmp {
     return Result;
   }
 
-  asset::gltf_tmp::mesh::topology ModeToTopology(gltf::primitive_mode Mode)
+  asset::gltf_tmp::mesh::primitive::topology ModeToTopology(gltf::primitive_mode Mode)
   {  
     switch(Mode)
     {
-      case gltf::primitive_mode::POINTS: return asset::gltf_tmp::mesh::topology::POINTS;
-      case gltf::primitive_mode::LINES: return asset::gltf_tmp::mesh::topology::LINES;
-      case gltf::primitive_mode::LINE_LOOP: return asset::gltf_tmp::mesh::topology::LINE_LOOP;
-      case gltf::primitive_mode::LINE_STRIP: return asset::gltf_tmp::mesh::topology::LINE_STRIP;
-      case gltf::primitive_mode::TRIANGLES: return asset::gltf_tmp::mesh::topology::TRIANGLES;
-      case gltf::primitive_mode::TRIANGLE_STRIP: return asset::gltf_tmp::mesh::topology::TRIANGLE_STRIP;
-      case gltf::primitive_mode::TRIANGLE_FAN: return asset::gltf_tmp::mesh::topology::TRIANGLE_FAN;
+      case gltf::primitive_mode::POINTS: return asset::gltf_tmp::mesh::primitive::topology::POINTS;
+      case gltf::primitive_mode::LINES: return asset::gltf_tmp::mesh::primitive::topology::LINES;
+      case gltf::primitive_mode::LINE_LOOP: return asset::gltf_tmp::mesh::primitive::topology::LINE_LOOP;
+      case gltf::primitive_mode::LINE_STRIP: return asset::gltf_tmp::mesh::primitive::topology::LINE_STRIP;
+      case gltf::primitive_mode::TRIANGLES: return asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
+      case gltf::primitive_mode::TRIANGLE_STRIP: return asset::gltf_tmp::mesh::primitive::topology::TRIANGLE_STRIP;
+      case gltf::primitive_mode::TRIANGLE_FAN: return asset::gltf_tmp::mesh::primitive::topology::TRIANGLE_FAN;
     };
-    return asset::gltf_tmp::mesh::topology::TRIANGLES;
+    return asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
   }
 
   gltf_tmp::mesh* LoadMeshToAssetManager(gltf::extracted_primitive* GltfPrimitive) {
 
+
+    Assert(0);
+    return 0;
+    #if 0
     gltf_tmp::mesh Mesh = {};
     Mesh.IndexCount = GltfPrimitive->IndexCount;
     Mesh.Indeces = GltfPrimitive->Indeces;
@@ -417,8 +421,8 @@ namespace gltf_tmp {
     Mesh.AABB = AABB3f(GltfPrimitive->vMin,GltfPrimitive->vMax);
     u32 ResultKey = 0;
     asset::gltf_tmp::mesh* Result = asset::LoadMesh2("N/A", &Mesh, &ResultKey);
-
     return Result;
+    #endif
   }
 
 #if 0
@@ -556,18 +560,6 @@ namespace gltf_tmp {
     }
   }
 
-  void SetMeshInfo(asset::gltf_tmp::render_tree::node* Node, gltf_tmp::render_tree::mesh_info* MeshInfos, int* MeshIndex)
-  {
-    if(MeshIndex)
-    {
-      Node->HasMeshInfo = true;
-      Node->MeshInfo = MeshInfos[*MeshIndex];
-    }else{
-      Node->HasMeshInfo = false;
-      Node->MeshInfo = {};
-    }
-  }
-
   void CopyTransforms(gltf_tmp::render_tree::node* Node, gltf::raw_node* RawNode)
   {
     switch(RawNode->TransformationType){
@@ -586,8 +578,7 @@ namespace gltf_tmp {
     }
   }
 
-  asset::gltf_tmp::render_tree::node* ToNodes(size_t NodeCount, asset::gltf_tmp::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes,
-        gltf_tmp::render_tree::mesh_info* MeshInfos)
+  asset::gltf_tmp::render_tree::node* ToNodes(size_t NodeCount, asset::gltf_tmp::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes)
   {
     node_queue Queue = NodeQueue(NodeCount);
     Push(Queue, RawRootNodeIndex, 0);
@@ -602,7 +593,6 @@ namespace gltf_tmp {
       int NodeIndex = NodeIndexPair.NodeIndex;
       asset::gltf_tmp::render_tree::node* Node = &Nodes[NodeIndex];
 
-      SetMeshInfo(Node, MeshInfos, RawNode->Mesh);
       CopyTransforms(Node,RawNode);
 
       MapChildNodes(NodeHeadIndex, RawNode->ChildCount, Nodes, Node);
@@ -641,7 +631,7 @@ namespace gltf_tmp {
   // Note: The node hierarchy make up a set of disjoint strict trees which means they are free of cycles and each node must have zero or one parent node.
   //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
   //       I'm assuming this means each child node only appears once.
-  asset::gltf_tmp::render_tree* ToRenderTree( gltf::raw_gltf_data* RawGltfData, asset::gltf_tmp::render_tree::mesh_info* MeshInfos, size_t* RetTreeCount)
+  asset::gltf_tmp::render_tree* ToRenderTree1( gltf::raw_gltf_data* RawGltfData, size_t* RetTreeCount)
   {
     const size_t RawNodeCount = RawGltfData->RawNodeCount;
     gltf::raw_node* RawNodes = RawGltfData->RawNodes;
@@ -672,7 +662,7 @@ namespace gltf_tmp {
       Tree->NodeCount   = GetTreeNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
       Tree->Nodes       = JwinAllocArray(Tree->NodeCount, asset::gltf_tmp::render_tree::node);
       
-      Tree->Root = ToNodes(Tree->NodeCount, Tree->Nodes, RootNodeIndex, RawNodes, MeshInfos);
+      Tree->Root = ToNodes(Tree->NodeCount, Tree->Nodes, RootNodeIndex, RawNodes);
     }
 
     JwinFreeMemory(RootNodeIndeces);
@@ -721,6 +711,7 @@ namespace gltf_tmp {
       MeshInfoCount += RawMesh->PrimitiveCount;
     }
 
+#if 0
     gltf_tmp::render_tree::mesh_info* MeshInfos = JwinAllocArray(MeshInfoCount, gltf_tmp::render_tree::mesh_info);
     gltf_tmp::render_tree::mesh_info* MeshInfoScan = MeshInfos;
     for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
@@ -742,8 +733,9 @@ namespace gltf_tmp {
         }
       }
     }
+#endif
 
-    asset::gltf_tmp::render_tree* Result = ToRenderTree(RawGltfData, MeshInfos, RenderTreeCount);
+    asset::gltf_tmp::render_tree* Result = ToRenderTree1(RawGltfData, RenderTreeCount);
 ////
     JwinFreeMemory(LoadedMaterialTracker);
     JwinFreeMemory(LoadedImagesTracker);
