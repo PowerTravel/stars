@@ -5,7 +5,7 @@
 
 struct material_map {
   int MaterialCount;
-  asset::phong_material** Materials;
+  asset::gltf_tmp::phong_material_id* Materials;
   mtl_material** Mtl_Materials;
 };
 
@@ -13,12 +13,12 @@ static material_map CreateMaterialMap(int MaterialCount)
 {
   material_map Result = {};
   Result.MaterialCount = MaterialCount;
-  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, asset::phong_material*);
+  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, asset::gltf_tmp::phong_material_id);
   Result.Mtl_Materials = PushArray(GlobalTransientArena, MaterialCount, mtl_material*);
   return Result;
 }
 
-static asset::phong_material* GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
+static asset::gltf_tmp::phong_material_id GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
   for (int i = 0; i < MaterialMap->MaterialCount; ++i)
   {
     if(Mtl == MaterialMap->Mtl_Materials[i])
@@ -109,18 +109,18 @@ b32 Exists(int ArraySize, tracker_element* TrackerArray, const tracker_element& 
 }
 
 
-asset::gltf_tmp::mesh::primitive CreateMesh(memory_arena* Arena,
-                     const int  IndexCount,
-                     const unsigned int* VerticeIndeces, const unsigned int* NormalIndeces, const unsigned  int* TextureIndeces,
-                     const v3*  VerticeData,    const v3*  NormalData,    const v2*  TextureData)
+asset::gltf_tmp::mesh::primitive CreateMesh(
+  const int  IndexCount,
+  const unsigned int* VerticeIndeces, const unsigned int* NormalIndeces, const unsigned  int* TextureIndeces,
+  const v3*  VerticeData,    const v3*  NormalData,    const v2*  TextureData)
 {
-  int* VerticeIndexArray        = PushArray(Arena, IndexCount, int);
-  int* VerticeNormalIndexArray  = PushArray(Arena, IndexCount, int);
-  int* TextureVerticeIndexArray = PushArray(Arena, IndexCount, int);
-  int* IndexArray               = PushArray(Arena, IndexCount, int);
+  int* VerticeIndexArray        = PushArray(GlobalTransientArena, IndexCount, int);
+  int* VerticeNormalIndexArray  = PushArray(GlobalTransientArena, IndexCount, int);
+  int* TextureVerticeIndexArray = PushArray(GlobalTransientArena, IndexCount, int);
+  int* IndexArray               = PushArray(GlobalTransientArena, IndexCount, int);
 
   int TrackerCount = utils::GetHashListSize(IndexCount, 3);
-  tracker_element* TrackerArray  = PushArray(Arena, TrackerCount, tracker_element);
+  tracker_element* TrackerArray  = PushArray(GlobalTransientArena, TrackerCount, tracker_element);
   G_CollisionCount = 0;
   int VerticeArrayCount = 0;
   for( int i = 0; i < IndexCount; ++i )
@@ -150,7 +150,7 @@ asset::gltf_tmp::mesh::primitive CreateMesh(memory_arena* Arena,
 
 
   Assert(VerticeData);
-  v3* Vertex = PushArray(Arena, VerticeArrayCount, v3);
+  v3* Vertex = PushArray(GlobalTransientArena, VerticeArrayCount, v3);
   for( int i = 0; i < VerticeArrayCount; ++i )
   {
     const int idx = VerticeIndexArray[i];
@@ -160,7 +160,7 @@ asset::gltf_tmp::mesh::primitive CreateMesh(memory_arena* Arena,
   v3* VertexNormal = 0;
   if(NormalData)
   {
-    VertexNormal = PushArray(Arena, VerticeArrayCount, v3);
+    VertexNormal = PushArray(GlobalTransientArena, VerticeArrayCount, v3);
     for( int i = 0; i < VerticeArrayCount; ++i )
     {
       const int idx = VerticeNormalIndexArray[i];
@@ -173,8 +173,8 @@ asset::gltf_tmp::mesh::primitive CreateMesh(memory_arena* Arena,
   if(TextureData)
   {
     TextureVertexSetCount = 1;
-    TextureVertexSet = PushArray(Arena, 1, v2*);
-    v2* TextureVertex = PushArray(Arena, VerticeArrayCount, v2);
+    TextureVertexSet = PushArray(GlobalTransientArena, 1, v2*);
+    v2* TextureVertex = PushArray(GlobalTransientArena, VerticeArrayCount, v2);
     for( int i = 0; i < VerticeArrayCount; ++i )
     {
       const int idx = TextureVerticeIndexArray[i];
@@ -197,14 +197,17 @@ asset::gltf_tmp::mesh::primitive CreateMesh(memory_arena* Arena,
 }
 
 
-asset::gltf_tmp::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData)
+asset::gltf_tmp::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
 {
   obj_mesh_indeces* Indeces = ObjGrp->Indeces;
-  asset::gltf_tmp::mesh::primitive Result = CreateMesh(GlobalTransientArena,
-    Indeces->Count, Indeces->vi, Indeces->ni, Indeces->ti,
-    MeshData->v,MeshData->vn, MeshData->vt);
+  asset::gltf_tmp::mesh::primitive Result = CreateMesh(Indeces->Count,
+    Indeces->vi, Indeces->ni,  Indeces->ti,
+    MeshData->v, MeshData->vn, MeshData->vt);
 
   Result.AABB = ObjGrp->aabb;
+
+  Result.PhongMaterial = GetMaterial(MaterialMap, ObjGrp->Material);
+
 
   return Result;
 }
@@ -277,9 +280,9 @@ asset::phong_material ToPhongMaterial(const mtl_material* ObjMtl)
 }
 
 
-static int LoadObjBitmap(const char* UniqueName, const char* Postfix, obj_bitmap* Bitmap)
+static asset::key LoadObjBitmap(const char* UniqueName, const char* Postfix, obj_bitmap* Bitmap)
 {
-  uint32_t Result = 0;
+  asset::key Result = 0;
 
   if(Bitmap)
   {
@@ -306,37 +309,40 @@ static material_map LoadPhongMaterial(obj_mtl_data* ObjMtlGroup, const c8* Uniqu
   for (int i = 0; i < ObjMtlGroup->MaterialCount; ++i)
   {
     mtl_material* Mtl = ObjMtlGroup->Materials + i;
+
     c8* UniqueMtlName = Mtl->Name;
     if(!Mtl->NameLength){
-      UniqueMtlName = asset::CreateUniqueName("", UniqueName, "", i, ObjMtlGroup->MaterialCount);
+      UniqueMtlName = asset::CreateUniqueName(UniqueName, "_" , Mtl->Name, i, ObjMtlGroup->MaterialCount);
+    }else{
+      UniqueMtlName = asset::CreateUniqueName(UniqueName, "_" , "material", i, ObjMtlGroup->MaterialCount);
     }
 
     asset::phong_material Material = ToPhongMaterial(Mtl);
     if(Mtl->BumpMap)
     {
-      int Handle = LoadObjBitmap(UniqueName,  "_BumpMap", Mtl->BumpMap);
+      int Handle = LoadObjBitmap(UniqueMtlName,  "_BumpMap", Mtl->BumpMap);
       Material.BumpMap = asset::DefaultTexture(Handle);
       Material.HasBumpMap = true;
     }
 
     if(Mtl->MapKd)
     {
-      int Handle = LoadObjBitmap(UniqueName,  "_DiffuseMap", Mtl->MapKd);
+      int Handle = LoadObjBitmap(UniqueMtlName,  "_DiffuseMap", Mtl->MapKd);
       Material.HasDiffuseTexture = true;
       Material.DiffuseTexture = asset::DefaultTexture(Handle);
     }
 
     if(Mtl->MapKs)
     {
-      int Handle = LoadObjBitmap(UniqueName,  "_SpecularMap", Mtl->MapKs);
+      int Handle = LoadObjBitmap(UniqueMtlName,  "_SpecularMap", Mtl->MapKs);
       Material.HasSpecularTexture = true;
       Material.SpecularTexture = asset::DefaultTexture(Handle);
     }
 
-    uint32_t Key = 0;
-    asset::phong_material* LoadedMaterial = asset::LoadMaterial(UniqueName, &Material, &Key);
+    asset::key Key = 0;
+    asset::LoadMaterial(UniqueMtlName, &Material, &Key);
     MaterialMap.Mtl_Materials[i] = Mtl;
-    MaterialMap.Materials[i] = LoadedMaterial;
+    MaterialMap.Materials[i] = Key;
   }
   return MaterialMap;
 }
@@ -346,7 +352,35 @@ static void* TransientAllocator(uint32_t MemorySize) {
   return Result;
 }
 
-static asset::gltf_tmp::render_tree* LoadObj(const c8* Path, const c8* UniqueName)
+asset::key LoadMesh(const char* UniqueName, obj_loaded_file* Obj, material_map* MaterialMap)
+{  
+  c8* MeshName = asset::CreateUniqueName(UniqueName,"_", Obj->ObjectNameLength ? Obj->ObjectName : "_mesh");
+  asset::gltf_tmp::mesh Mesh = {};
+  Mesh.PrimitiveCount = Obj->ObjectCount;
+  Mesh.Primitives = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::gltf_tmp::mesh::primitive);
+  for (int i = 0; i < Obj->ObjectCount; ++i)
+  {
+    obj_group* ObjectGroup = &Obj->ObjectGroups[i];
+    Mesh.Primitives[i] = ToMesh(ObjectGroup, Obj->MeshData, MaterialMap);
+  }
+
+  asset::key ResultKey = 0;
+  asset::LoadMesh(MeshName, &Mesh, &ResultKey);
+  asset::gltf_tmp::mesh* LoadedMesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, ResultKey);
+  return ResultKey;
+}
+
+asset::gltf_tmp::render_tree CreateRenderTree(asset::key MeshId)
+{
+  asset::gltf_tmp::render_tree Result = {};
+  Result.NodeCount  = 1;
+  Result.Nodes      = PushArray(GlobalTransientArena, Result.NodeCount, asset::gltf_tmp::render_tree::node);
+  Result.Root       = Result.Nodes;
+  Result.Root->Mesh = MeshId;
+  return Result;
+}
+
+static asset::key LoadObj(const c8* Path, const c8* UniqueName)
 {
   Assert(Path && *Path != '\0');
   if(!UniqueName || *UniqueName == '\0')
@@ -357,66 +391,16 @@ static asset::gltf_tmp::render_tree* LoadObj(const c8* Path, const c8* UniqueNam
   obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
 
   // Upload MATERIAL and IMAGES related to material
-  Assert(0);
+
   material_map MaterialMap = LoadPhongMaterial(Obj->MaterialData, UniqueName);
-  #if 0
-  asset::gltf_tmp::render_tree::mesh_info* MeshInfos = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::gltf_tmp::render_tree::mesh_info);
+  
   // MESH
-  for (int i = 0; i < Obj->ObjectCount; ++i)
-  {
-    c8* MeshName = asset::CreateUniqueName("", UniqueName, "_Mesh", i, Obj->ObjectCount);
-    
-    MeshInfos[i] = CreateMeshInfo(UniqueName, MeshName, Path, &Obj->ObjectGroups[i], Obj->MeshData, &MaterialMap);
-  }
+  asset::key MeshKey = LoadMesh(UniqueName, Obj, &MaterialMap);
+  
+  asset::gltf_tmp::render_tree RenderTree = CreateRenderTree(MeshKey);
 
-  /// RENDER_TREE
-  Assert(Obj->ObjectCount>0);
+  asset::key ResultKey = 0;
+  asset::LoadRenderTree(UniqueName, Path, &RenderTree, &ResultKey);
 
-  asset::gltf_tmp::render_tree RenderTree = {};
-  if(Obj->ObjectCount==1)
-  {
-    RenderTree.NodeCount = 1;
-    RenderTree.Nodes = PushArray(GlobalTransientArena, RenderTree.NodeCount, asset::gltf_tmp::render_tree::node);
-    RenderTree.MeshInfoCount = 1;
-    RenderTree.MeshInfos = MeshInfos;
-    RenderTree.Root = RenderTree.Nodes;
-    RenderTree.Root->HasMeshInfo = true;
-    RenderTree.Root->MeshInfo = RenderTree.MeshInfos[0];
-
-  }else{
-    RenderTree.NodeCount = Obj->ObjectCount+1;
-    RenderTree.Nodes = PushArray(GlobalTransientArena, RenderTree.NodeCount, asset::gltf_tmp::render_tree::node);
-    RenderTree.MeshInfoCount = Obj->ObjectCount;
-    RenderTree.MeshInfos = MeshInfos;
-    RenderTree.Root = RenderTree.Nodes;
-    RenderTree.Root->FirstChild = &RenderTree.Nodes[1];
-    for (int i = 1; i <= Obj->ObjectCount; ++i)
-    {
-      asset::gltf_tmp::render_tree::node* Node = &RenderTree.Nodes[i];
-      Node->Parent = &RenderTree.Nodes[0];
-      if(i < Obj->ObjectCount){
-        Node->NextSibling = &RenderTree.Nodes[i+1];
-        Node->NextSibling->PreviousSibling = Node;
-      }
-      Node->HasMeshInfo = true;
-      Node->MeshInfo = RenderTree.MeshInfos[i-1];
-    }
-    RenderTree.Root->HasMeshInfo = false;
-    RenderTree.Root->MeshInfo = {};
-  }
-
-
-
-  uint32_t ResultKey = 0;
-  asset::gltf_tmp::render_tree* Result = asset::LoadRenderTree(UniqueName, Path, &RenderTree, &ResultKey);
-
-  return Result;
-  #endif
-  return 0;
-}
-
-
-asset::gltf_tmp::mesh* MapObjMesh( obj_loaded_file* ObjFile )
-{
-  return 0;
+  return ResultKey;
 }

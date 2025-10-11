@@ -64,20 +64,20 @@ header* ToHeader(gltf_tmp::render_tree* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
-c8* CreateUniqueName(const c8* Name, u32 Index, u32 MaxCount);
-u32 ToKey(type Type, const c8* UniqueName);
-void* Find(type Type, u32 Key);
+c8* CreateUniqueName(const c8* Prefix, const c8* Name, const c8* Postfix, u32 Index = 0, u32 MaxCount = 0);
+key ToKey(type Type, const c8* UniqueName);
+void* Find(type Type, key Key);
 void* Find(type Type, const c8* Name);
-void Free(type Type, u32 Key);
+void Free(type Type, key Key);
 void Free(type Type, const c8* Name);
 
-phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Material, u32* ResultKey = 0);
+phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Material, key* ResultKey = 0);
 
 ///  New loaders for gltf
-image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, u32* ResultKey = 0);
-pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, u32* ResultKey = 0);
-gltf_tmp::mesh* LoadMesh2(const c8* UniqueName, const gltf_tmp::mesh* Mesh, u32* ResultKey = 0);
-gltf_tmp::render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const gltf_tmp::render_tree* RenderTree, u32* ResultKey = 0);
+image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, key* ResultKey = 0);
+pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, key* ResultKey = 0);
+gltf_tmp::mesh* LoadMesh(const c8* UniqueName, const gltf_tmp::mesh* Mesh, key* ResultKey = 0);
+gltf_tmp::render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const gltf_tmp::render_tree* RenderTree, key* ResultKey = 0);
 
 
 

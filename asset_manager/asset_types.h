@@ -5,6 +5,8 @@
 
 namespace asset {
 
+  typedef size_t key;
+
   enum class type {
     NONE,
     IMAGE,
@@ -142,8 +144,9 @@ namespace asset {
 
   namespace gltf_tmp {  
     
-    typedef int mesh_id;
-    typedef int pbr_material_id;
+    typedef key mesh_id;
+    typedef key pbr_material_id;
+    typedef key phong_material_id;
 
     // A mesh primitive mesh
     struct mesh {
@@ -174,8 +177,8 @@ namespace asset {
 
         aabb3f AABB;
 
-        pbr_material*   PbrMaterial;
-        phong_material* PhongMaterial;
+        pbr_material_id PbrMaterial;
+        phong_material_id PhongMaterial;
       };
 
       size_t PrimitiveCount;
@@ -194,16 +197,15 @@ namespace asset {
         node* FirstChild;
 
         // Optional <mesh_id>
-        mesh* Mesh;
+        mesh_id Mesh;
 
         bool HasTransform;
         m4 Transform;
       };
 
-      mesh* Mesh;
-
       size_t NodeCount;
       node* Nodes;
+
       node* Root;
     };
 

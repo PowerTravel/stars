@@ -64,17 +64,17 @@ file_local u32 CopyObjBitmapToTexture(const c8* Key, const obj_bitmap* ObjBitmap
 }
 
 
-static int LoadTga2(const char* Path, const char* UniqueName) {
+static asset::key LoadTga2(const char* Path, const char* UniqueName) {
   const obj_bitmap* Tga = LoadTGA([](u32 ByteSize){
     return PushSize(GlobalTransientArena, ByteSize);
   }, Path);
   const asset::image Image = ToImage(Tga);
-  u32 Result = 0;
+  asset::key Result = 0;
   image* LoadedImage = LoadImage(UniqueName, UniqueName, Path, &Image, &Result);
   return Result;
 }
 
-static int LoadPng2(const char* Path, const char* UniqueName) {
+static asset::key LoadPng2(const char* Path, const char* UniqueName) {
   Assert(0);
   return 0;
 }
@@ -112,7 +112,7 @@ static int LoadGltf(const char* Path, const char* UniqueName) {
   size_t RenderTreeCount = 0;
   gltf_tmp::render_tree* RenderTrees = asset::gltf_tmp::ToRenderTree(&Gltf, &RenderTreeCount);
 
-  u32 ResultKey = 0;
+  asset::key ResultKey = 0;
   for (int i = 0; i < RenderTreeCount; ++i)
   {
     asset::LoadRenderTree(UniqueName, Path, &RenderTrees[i], &ResultKey);
@@ -123,27 +123,26 @@ static int LoadGltf(const char* Path, const char* UniqueName) {
   return ResultKey;
 }
 
-int Load(const char* Path, const char* UniqueName = 0)
+asset::key Load(const char* Path, const char* UniqueName = 0)
 {
   asset_file_type FileType = GetFiletypeFromEnding(Path);
-  int AssetHandle = 0;
+  asset::key Result = 0;
   switch(FileType)
   {
     case asset_file_type::TGA: {
-      AssetHandle = LoadTga2(Path, UniqueName);
+      Result = LoadTga2(Path, UniqueName);
     } break;
     case asset_file_type::PNG: {
-      AssetHandle = LoadPng2(Path, UniqueName);
+      Result = LoadPng2(Path, UniqueName);
     } break;
     case asset_file_type::OBJ: {
-      asset::gltf_tmp::render_tree* Asset = LoadObj(Path, UniqueName);
-      AssetHandle = asset::ToHeader(Asset)->Key;
+      Result = LoadObj(Path, UniqueName);
     } break;
     case asset_file_type::GLTF: {
-      AssetHandle = LoadGltf(Path, UniqueName);
+      Result = LoadGltf(Path, UniqueName);
     } break;
   }
-  Assert(AssetHandle);
-  return AssetHandle;
+  Assert(Result);
+  return Result;
 }
 }

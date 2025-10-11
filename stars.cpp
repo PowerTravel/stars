@@ -34,36 +34,16 @@
 
 global_variable r32 g_t = 0;
 
-file_local inline void Initiate(asset::gltf_tmp::mesh* Mesh, asset::phong_material* Material, ecs::render::component* Render)
+file_local inline void Initiate(asset::key RenderTreeKey, ecs::render::component* Render)
 {
-  Assert(0);
-  #if 0
-  u32 MeshAssetKey     = asset::ToHeader(Mesh)->Key;
-  u32 MaterialAssetKey = asset::ToHeader(Material)->Key;
-  ecs::render::Init(MeshAssetKey, MaterialAssetKey, Render);
-  #endif
-}
+  asset::gltf_tmp::render_tree* Tree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeKey);
+  Assert(Tree->NodeCount == 1); // We don't support rendering big node hierarchy (yet)
+  Assert(Tree->Root->Mesh);
 
-file_local inline void Initiate(asset::gltf_tmp::render_tree* RenderTree, ecs::render::component* Render)
-{
-  Assert(0);
-  #if 0
-  if(RenderTree->PhongMaterial)
-  {
-    Initiate(RenderTree->Mesh, RenderTree->PhongMaterial, Render);
-  }else{
-    Initiate(RenderTree->Mesh, (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, "silver"), Render);
-  }
-  #endif
-  //Initiate(RenderTree->Mesh, (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, "silver"), Render);
-}
+  asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
 
-file_local inline void Initiate(u32 RenderGroupAssetHandle, ecs::render::component* Render)
-{
-  asset::gltf_tmp::render_tree* Tree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderGroupAssetHandle);
-  Assert(Tree->Mesh->PrimitiveCount == 1); // We don't support rendering mutliple Elements
-  Assert(0);
-  //Initiate(Tree->MeshInfos->Mesh, Tree->MeshInfos->PhongMaterial, Render);
+  Assert(Mesh->PrimitiveCount == 1);
+  ecs::render::Init(Tree->Root->Mesh, Mesh->Primitives->PhongMaterial, Render);
 }
 
 void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, const c8* UniqueName)
@@ -91,7 +71,7 @@ void LoadMaterials()
   WhitePixelBitmap.Width = 1;
   WhitePixelBitmap.Height = 1;
   WhitePixelBitmap.Pixels = (bptr) WhitePixelPtr;
-  u32 TextureKey = 0;
+  asset::key TextureKey = 0;
   asset::LoadImage("WhitePixel", "N/A", "N/A", &WhitePixelBitmap, &TextureKey);
   ecs::render::LoadImageToGpu(TextureKey, &WhitePixelBitmap);
 
@@ -985,6 +965,15 @@ void DrawAllRenderObjects()
   }
 }
 
+asset::gltf_tmp::mesh* MeshFromTree(const c8* Name)
+{
+  asset::gltf_tmp::render_tree* Tree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
+  Assert(Tree->NodeCount == 1); // other thhings not supported yet
+  asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
+  return Mesh;
+}
+
+
 struct overlay_doodad {
   v3 Pos;
   quat Rot;
@@ -1112,6 +1101,7 @@ void PowerOfTwoMiddles(u32 MaxNum){
   }
 }
 
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1173,8 +1163,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
-    asset::gltf_tmp::render_tree* PlaneMesh = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, "checker_plane_simple");
-    asset::image* PlaneTex = PlaneMesh->Root->Mesh->Primitives[0].PhongMaterial->DiffuseTexture.Image;
+    asset::gltf_tmp::render_tree* PlaneTree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, "checker_plane_simple");
+    asset::gltf_tmp::mesh* PlaneMesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, PlaneTree->Root->Mesh);
+    asset::phong_material* PlaneMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, PlaneMesh->Primitives[0].PhongMaterial);
+    Assert(PlaneMaterial->HasDiffuseTexture);
+    asset::image* PlaneTex = PlaneMaterial->DiffuseTexture.Image;
     u32 PlaneTexHandle = ToHeader(PlaneTex)->Key;
     ecs::render::LoadImageToGpu(PlaneTexHandle, PlaneTex);
 
@@ -1186,9 +1179,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Initialized = true;
 
     {
-
-      debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile("C:\\Users\\jh\\Desktop\\box.gltf");
-
 #if 0
       char BoxPath[] = "C:\\Users\\jh\\Desktop";
       char BoxName[] = "box.gltf";
@@ -1196,7 +1186,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF\\BoxTextured.gltf";
       char BoxName[] = "BoxTextured";
 #endif
-      asset::Load(BoxPath, BoxName);
+//      asset::Load(BoxPath, BoxName);
 
     }
 
@@ -1213,48 +1203,54 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     { // Create some entities
       #if 1
       { // Checker Floor
+        asset::gltf_tmp::mesh* Mesh = MeshFromTree("checker_plane_simple");
+
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER | ecs::flag::COLLIDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
-        
+      
         Initiate(asset::ToKey(asset::type::RENDER_TREE, "checker_plane_simple"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "checker_plane_simple");
         ecs::collider::Init(Collider, Mesh);
       }
 
       { // Transparent Cube
+        asset::gltf_tmp::mesh* Mesh = MeshFromTree("Cube");
+
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cube"), asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
+        ecs::render::Init(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
+        
         
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "Cube");
         ecs::collider::Init(Collider, Mesh);
-
       }
       
       { // Transparent Cone
+        asset::gltf_tmp::mesh* Mesh = MeshFromTree("Cone");
+
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::PHONG_MATERIAL, "emerald"), GetRenderComponent(&Entity));
+        ecs::render::Init(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "emerald"), GetRenderComponent(&Entity));
+        
         
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "Cone");
         ecs::collider::Init(Collider, Mesh);
       }
       
       { // Transparent Cylinder
+        asset::gltf_tmp::mesh* Mesh = MeshFromTree("Cylinder");
+
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cylinder", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cylinder"), asset::ToKey(asset::type::PHONG_MATERIAL, "jade"), GetRenderComponent(&Entity));
+        ecs::render::Init(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "jade"), GetRenderComponent(&Entity));
        
+        
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "Cylinder");
         ecs::collider::Init(Collider, Mesh);
 
         GlobalState->DebugSquare = PushStruct(GlobalPersistentArena, ecs::entity_id);
@@ -1262,13 +1258,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Solid Cone
+        asset::gltf_tmp::mesh* Mesh = MeshFromTree("Cone");
+
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToKey(asset::type::MESH, "Cone"), asset::ToKey(asset::type::PHONG_MATERIAL, "silver"), GetRenderComponent(&Entity));
+
+        ecs::render::Init(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "silver"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, "Cone");
         ecs::collider::Init(Collider, Mesh);
       }
       #endif

@@ -31,7 +31,7 @@ u32 GetMeshHandle(u32 AssetKey)
     // There is a one to many relationship between mesh-handles and the rendersystems ptimitive-handles which were not handling atm
     // This assert is here to catch the cases when we need to deal with that.
     Assert(Mesh->PrimitiveCount == 1);
-    opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer2(GlobalTransientArena, Mesh->Primitives);
+    opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Mesh);
     Result = ecs::render::LoadMeshToGpu(AssetKey, &glBufferData);
   }
   return Result;
@@ -39,8 +39,10 @@ u32 GetMeshHandle(u32 AssetKey)
 
 u32 GetMeshHandle(const c8* Name)
 {
-  u32 AssetKey = asset::ToKey(asset::type::MESH, Name);
-  u32 Handle = GetMeshHandle(AssetKey);
+  u32 AssetKey = asset::ToKey(asset::type::RENDER_TREE, Name);
+  asset::gltf_tmp::render_tree* Tree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
+  Assert(Tree->NodeCount == 1);
+  u32 Handle = GetMeshHandle(Tree->Root->Mesh);
   return Handle;
 }
 
@@ -990,69 +992,61 @@ data::font CreateFont(memory_arena* Arena)
 }
 
 
-gl_vertex_buffer* GetBlitPlane()
+opengl_buffer_data GetBlitPlane()
 {
-  gl_vertex_buffer* StoredVertexBuffer = PushStruct(GlobalTransientArena, gl_vertex_buffer);
   // Define and Load Blitplane into asset manager.
-  {
-    int VerticeIndex[] = {
-      0,1,2,
-      2,1,3
-    };
+  int VerticeIndex[] = {
+    0,1,2,
+    2,1,3
+  };
 
-    v3 Vertices[] = {
-      {-1.0f, -1.0f, 0.0f},
-      { 1.0f, -1.0f, 0.0f},
-      {-1.0f,  1.0f, 0.0f},
-      { 1.0f,  1.0f, 0.0f}
-    };
-    v2 TextureVertices[] = {
-      {0,0},
-      {1,0},
-      {0,1},
-      {1,1}
-    };
-    v2* TextureVerticesArr[] = {
-      TextureVertices
-    };
-    
-    int TextureVerticesCounts[] = {ArrayCount(TextureVertices)};
+  v3 Vertices[] = {
+    {-1.0f, -1.0f, 0.0f},
+    { 1.0f, -1.0f, 0.0f},
+    {-1.0f,  1.0f, 0.0f},
+    { 1.0f,  1.0f, 0.0f}
+  };
+  v2 TextureVertices[] = {
+    {0,0},
+    {1,0},
+    {0,1},
+    {1,1}
+  };
+  v2* TextureVerticesArr[] = {
+    TextureVertices
+  };
+  
+  int TextureVerticesCounts[] = {ArrayCount(TextureVertices)};
 
-    asset::gltf_tmp::mesh Mesh = {};
-    asset::gltf_tmp::mesh::primitive Primitive = {};
-    Primitive.IndexCount = ArrayCount(VerticeIndex);
-    Primitive.Indeces = VerticeIndex;
-    Primitive.VertexCount = ArrayCount(Vertices);
-    Primitive.Vertex = Vertices;
-    Primitive.TextureVertexSetCount = ArrayCount(TextureVerticesCounts);
-    Primitive.TextureVertices = TextureVerticesArr;
-    Primitive.Topology = asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
-    Primitive.AABB = AABB3f(V3(-1,-1,0), V3(1,1,0));
-    Mesh.Primitives = &Primitive;
-    Mesh.PrimitiveCount = 1;
+  asset::gltf_tmp::mesh Mesh = {};
+  asset::gltf_tmp::mesh::primitive Primitive = {};
+  Primitive.IndexCount = ArrayCount(VerticeIndex);
+  Primitive.Indeces = VerticeIndex;
+  Primitive.VertexCount = ArrayCount(Vertices);
+  Primitive.Vertex = Vertices;
+  Primitive.TextureVertexSetCount = ArrayCount(TextureVerticesCounts);
+  Primitive.TextureVertices = TextureVerticesArr;
+  Primitive.Topology = asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
+  Primitive.AABB = AABB3f(V3(-1,-1,0), V3(1,1,0));
+  Mesh.Primitives = &Primitive;
+  Mesh.PrimitiveCount = 1;
 
-    asset::gltf_tmp::mesh* LoadedMesh  = asset::LoadMesh2("BlitPlane", &Mesh);
-    asset::mapper::MeshToGlVertexBuffer2(GlobalTransientArena, LoadedMesh->Primitives, StoredVertexBuffer);
-  }
-  return StoredVertexBuffer;
+  Assert(! asset::Find(asset::type::MESH, "BlitPlane"));
+
+  asset::gltf_tmp::mesh* LoadedMesh = asset::LoadMesh("BlitPlane", &Mesh);
+  opengl_buffer_data Result = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, LoadedMesh);
+  return Result;
 }
 
 u32 PushBlitPlaneMesh(system* RenderSystem, render_group* RenderGroup)
 {
-
   // Define and Load Blitplane into asset manager.
-  u32 AssetKey  = 0;
-  gl_vertex_buffer* StoredVertexBuffer = GetBlitPlane();
+  asset::key AssetKey  = 0;
   // Send BlitPlane to the render-system
-  u32 IndexHandle = 0;
-  u32 MeshHandle = 0;
-  {
-    opengl_buffer_data GlBufferData = {};
-    GlBufferData.BufferCount = 1;
-    GlBufferData.BufferData = StoredVertexBuffer;
-    MeshHandle = PushNewMesh(RenderGroup, StoredVertexBuffer->VertexCount, StoredVertexBuffer->VertexData);  
-    IndexHandle = PushNewMeshIndices(RenderGroup, MeshHandle, StoredVertexBuffer->IndexCount, StoredVertexBuffer->Indeces);
-  }
+  opengl_buffer_data GlBufferData = GetBlitPlane();
+  Assert(GlBufferData.BufferCount == 1);
+  u32 MeshHandle = PushNewMesh(RenderGroup, GlBufferData.BufferData->VertexCount, GlBufferData.BufferData->VertexData);
+  u32 IndexHandle = PushNewMeshIndices(RenderGroup, MeshHandle, GlBufferData.BufferData->IndexCount, GlBufferData.BufferData->Indeces);
   
   // Create a mapping between the render-handle and the asset-handle
   {
@@ -1167,12 +1161,16 @@ u32 LoadImageToGpu(u32 AssetKey, asset::image* Image) {
   return Handle;
 }
 
-
-void Init(u32 MeshAssetKey, u32 MaterialAssetKey, component* Render)
+void ecs::render::Init(asset::key MeshKey, asset::key MaterialKey, component* Render)
 {
-  Render->MeshHandle = ecs::render::GetMeshHandle(MeshAssetKey);
+  asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, MeshKey);
+  Render->MeshHandle = ecs::render::GetMeshHandle(MeshKey);
+  Assert(Mesh->PrimitiveCount == 1); // We don't support multi primitive mesh rendering (yet)
 
-  asset::phong_material* Material = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, MaterialAssetKey); 
+
+
+  asset::phong_material* Material = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, MaterialKey);
+  Assert(Material);
   if(Material->Ka){
     Render->Ambient = *Material->Ka;
   }
