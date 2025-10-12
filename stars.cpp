@@ -1186,7 +1186,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF\\BoxTextured.gltf";
       char BoxName[] = "BoxTextured";
 #endif
-//      asset::Load(BoxPath, BoxName);
+      asset::key BoxKey = asset::Load(BoxPath, BoxName);
+
 
     }
 

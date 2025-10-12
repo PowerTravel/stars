@@ -354,14 +354,16 @@ file_local void CopyMaterial( const phong_material* Src, phong_material* Dst)
 
 c8* CreateUniqueName(const c8* Prefix, const c8* Name, const c8* Postfix, u32 Index, u32 MaxCount)
 {
+  static size_t Counter = 0;
+
   c8* Result = (c8*) Name;
   u32 Length = ASSET_MAX_NAME_LENGTH;
   Result = (c8*) PushArray(GlobalTransientArena, Length, c8);
   if(MaxCount > 1)
   {  
-    FormatString(Result, Length-1, "%s%s%s_%d/%d", Prefix, Name, Postfix, Index+1, MaxCount);
+    FormatString(Result, Length-1, "%s%s%s_%d/%d-%d", Prefix, Name, Postfix, Index+1, MaxCount, Counter++);
   }else{
-    FormatString(Result, Length-1, "%s%s%s", Prefix, Name, Postfix);
+    FormatString(Result, Length-1, "%s%s%s-%d", Prefix, Name, Postfix, Counter++);
   }
   
   return Result;
@@ -627,6 +629,7 @@ void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst
     gltf_tmp::render_tree::node* DstNode = Pop(DstQueue);
     gltf_tmp::render_tree::node* SrcNode = Pop(SrcQueue);
 
+    DstNode->ChildCount = SrcNode->ChildCount;
     DstNode->Mesh = SrcNode->Mesh;
     CopyTransforms(SrcNode, DstNode);
 
@@ -638,7 +641,7 @@ void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst
       SrcChild = SrcChild->NextSibling;
     }
 
-    gltf_tmp::render_tree::node* DstChild = SrcNode->FirstChild;
+    gltf_tmp::render_tree::node* DstChild = DstNode->FirstChild;
     while(DstChild)
     {
       Push(DstQueue, DstChild);

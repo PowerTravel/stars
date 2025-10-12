@@ -79,7 +79,7 @@ static asset::key LoadPng2(const char* Path, const char* UniqueName) {
   return 0;
 }
 
-static int LoadGltf(const char* Path, const char* UniqueName) {
+static asset::key LoadGltf(const char* Path, const char* UniqueName) {
 
   
   size_t FullLength = jstr::StringLength( Path );
@@ -110,17 +110,10 @@ static int LoadGltf(const char* Path, const char* UniqueName) {
   });
 
   size_t RenderTreeCount = 0;
-  gltf_tmp::render_tree* RenderTrees = asset::gltf_tmp::ToRenderTree(&Gltf, &RenderTreeCount);
-
-  asset::key ResultKey = 0;
-  for (int i = 0; i < RenderTreeCount; ++i)
-  {
-    asset::LoadRenderTree(UniqueName, Path, &RenderTrees[i], &ResultKey);
-  }
-  
-
+  asset::key* Keys = asset::gltf_tmp::LoadGltf(UniqueName, Path, &Gltf, &RenderTreeCount);
+  Assert(RenderTreeCount == 1); // Deal with more assets when we get to it.
   gltf::Free(&Gltf);
-  return ResultKey;
+  return Keys[0];
 }
 
 asset::key Load(const char* Path, const char* UniqueName = 0)

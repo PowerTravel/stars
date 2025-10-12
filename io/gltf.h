@@ -2105,6 +2105,7 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     }
 
     Result.MaterialIndex = RawPrimitive->Material;
+    Result.Mode = RawPrimitive->Mode;
 
     return Result;
   }
