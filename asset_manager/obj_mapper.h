@@ -3,31 +3,9 @@
 #include "asset_types.h"
 #include "io/obj.h"
 
-struct material_map {
-  int MaterialCount;
-  asset::gltf_tmp::phong_material_id* Materials;
-  mtl_material** Mtl_Materials;
-};
 
-static material_map CreateMaterialMap(int MaterialCount)
-{
-  material_map Result = {};
-  Result.MaterialCount = MaterialCount;
-  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, asset::gltf_tmp::phong_material_id);
-  Result.Mtl_Materials = PushArray(GlobalTransientArena, MaterialCount, mtl_material*);
-  return Result;
-}
-
-static asset::gltf_tmp::phong_material_id GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
-  for (int i = 0; i < MaterialMap->MaterialCount; ++i)
-  {
-    if(Mtl == MaterialMap->Mtl_Materials[i])
-    {
-      return MaterialMap->Materials[i];
-    }
-  }
-  return 0;
-}
+namespace obj {
+namespace mapper {
 
 struct tracker_element {
   int ArrayIndex;
@@ -36,7 +14,7 @@ struct tracker_element {
   int NormalIndex;
 };
 
-tracker_element NewTrackerElement(int ArrayIndex, int VerticeIndex, int TextureIndex, int NormalIndex)
+static tracker_element NewTrackerElement(int ArrayIndex, int VerticeIndex, int TextureIndex, int NormalIndex)
 {
   tracker_element Result = {};
   Result.ArrayIndex = ArrayIndex;
@@ -45,59 +23,52 @@ tracker_element NewTrackerElement(int ArrayIndex, int VerticeIndex, int TextureI
   Result.NormalIndex = NormalIndex;
   return Result;
 }
-size_t GetCantorPair2(size_t a, size_t b)
+
+static inline size_t CantorPair(size_t a, size_t b)
 {
   size_t Result = (a + b) * (a + b + 1) / 2 + b;
   return Result;
 }
 
-size_t GetCantorTriplet(const tracker_element& Element)
+static size_t GetCantorTriplet(const tracker_element& Element)
 {
-  size_t CantorPair    = GetCantorPair2(Element.VerticeIndex, Element.TextureIndex);
-  size_t CantorTriplet = GetCantorPair2(CantorPair, Element.NormalIndex);
+  size_t CantorPair    = obj::mapper::CantorPair(Element.VerticeIndex, Element.TextureIndex);
+  size_t CantorTriplet = obj::mapper::CantorPair(CantorPair, Element.NormalIndex);
   return CantorTriplet;
 }
 
-b32 IsEmpty(const tracker_element& Element)
+static bool IsEmpty(const tracker_element& Element)
 {
-  b32 Result =  Element.VerticeIndex == 0 &&
+  bool Result =  Element.VerticeIndex == 0 &&
                 Element.TextureIndex == 0 &&
                 Element.NormalIndex  == 0;
   return Result;
 }
 
-b32 Equals(const tracker_element& A, const tracker_element& B)
+static bool Equals(const tracker_element& A, const tracker_element& B)
 {
-  b32 Result =  A.VerticeIndex == B.VerticeIndex &&
+  bool Result =  A.VerticeIndex == B.VerticeIndex &&
                 A.TextureIndex == B.TextureIndex &&
                 A.NormalIndex  == B.NormalIndex;
   return Result;
 }
 
-global_variable r32 G_CollisionCount = 0;
-
-b32 Exists(int ArraySize, tracker_element* TrackerArray, const tracker_element& NewElement, int* ResultIndex)
+static bool Exists(int ArraySize, tracker_element* TrackerArray, const tracker_element& NewElement, int* ResultIndex)
 {
   size_t CantorTriplet = GetCantorTriplet(NewElement);
   int Idx = CantorTriplet % ArraySize;
 
   tracker_element ExistingElement = TrackerArray[Idx];
-  b32 Collision = false;
   do
   {
     if(IsEmpty(ExistingElement))
     {
       *ResultIndex = Idx;
-      if(Collision)
-      {
-        G_CollisionCount++;
-      }
       return false;
     }else if(Equals(ExistingElement, NewElement)){
       *ResultIndex = Idx;
       return true;
     }else{
-      Collision = true;
       Idx = (Idx+1)%ArraySize;
       ExistingElement = TrackerArray[Idx];
     }
@@ -109,7 +80,7 @@ b32 Exists(int ArraySize, tracker_element* TrackerArray, const tracker_element& 
 }
 
 
-asset::gltf_tmp::mesh::primitive CreateMesh(
+static asset::gltf_tmp::mesh::primitive CreateMesh(
   const int  IndexCount,
   const unsigned int* VerticeIndeces, const unsigned int* NormalIndeces, const unsigned  int* TextureIndeces,
   const v3*  VerticeData,    const v3*  NormalData,    const v2*  TextureData)
@@ -121,7 +92,6 @@ asset::gltf_tmp::mesh::primitive CreateMesh(
 
   int TrackerCount = utils::GetHashListSize(IndexCount, 3);
   tracker_element* TrackerArray  = PushArray(GlobalTransientArena, TrackerCount, tracker_element);
-  G_CollisionCount = 0;
   int VerticeArrayCount = 0;
   for( int i = 0; i < IndexCount; ++i )
   {
@@ -146,8 +116,6 @@ asset::gltf_tmp::mesh::primitive CreateMesh(
       IndexArray[i] = ExistingElement.ArrayIndex;
     }
   }
-  //Platform.DEBUGPrint("%f %% %d %d Unique Collision Frequencey\n", G_CollisionCount/(r32)IndexCount,IndexCount, TrackerCount);
-
 
   Assert(VerticeData);
   v3* Vertex = PushArray(GlobalTransientArena, VerticeArrayCount, v3);
@@ -196,8 +164,35 @@ asset::gltf_tmp::mesh::primitive CreateMesh(
   return Result;
 }
 
+struct material_map {
+  int MaterialCount;
+  asset::gltf_tmp::phong_material_id* Materials;
+  mtl_material** Mtl_Materials;
+};
 
-asset::gltf_tmp::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
+inline static material_map
+CreateMaterialMap(int MaterialCount)
+{
+  material_map Result = {};
+  Result.MaterialCount = MaterialCount;
+  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, asset::gltf_tmp::phong_material_id);
+  Result.Mtl_Materials = PushArray(GlobalTransientArena, MaterialCount, mtl_material*);
+  return Result;
+}
+
+inline static asset::gltf_tmp::phong_material_id
+GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
+  for (int i = 0; i < MaterialMap->MaterialCount; ++i)
+  {
+    if(Mtl == MaterialMap->Mtl_Materials[i])
+    {
+      return MaterialMap->Materials[i];
+    }
+  }
+  return 0;
+}
+
+static asset::gltf_tmp::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
 {
   obj_mesh_indeces* Indeces = ObjGrp->Indeces;
   asset::gltf_tmp::mesh::primitive Result = CreateMesh(Indeces->Count,
@@ -212,28 +207,7 @@ asset::gltf_tmp::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshDa
   return Result;
 }
 
-#if 0
-asset::gltf_tmp::render_tree::mesh_info CreateMeshInfo(const c8* UniqueName, const c8* Name, const c8* Path, obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
-{  
-  asset::gltf_tmp::render_tree::mesh_info Result = {};
-  Result.PhongMaterial = GetMaterial(MaterialMap, ObjGrp->Material);
-
-  obj_mesh_indeces* ObjIndeces = ObjGrp->Indeces;
-
-  const asset::gltf_tmp::mesh::primitive MeshPrimitive = ToMesh(ObjGrp, MeshData);
-  const asset::gltf_tmp::mesh Mesh = {};
-  Mesh->PrimitiveCount = 1;
-  Mesh->Primitives = &MeshPrimitive;
-  
-
-  unsigned int ResultKey = 0;
-  Result.Mesh = asset::LoadMesh2(UniqueName, &Mesh, &ResultKey);
-
-  return Result;
-}
-#endif
-
-file_local asset::image ToImage(const obj_bitmap* ObjBitmap)
+static asset::image ToImage(const obj_bitmap* ObjBitmap)
 {
   asset::image Result = {};
   if(!ObjBitmap){return Result;};
@@ -247,7 +221,7 @@ file_local asset::image ToImage(const obj_bitmap* ObjBitmap)
   return Result;
 }
 
-asset::phong_material ToPhongMaterial(const mtl_material* ObjMtl)
+static asset::phong_material ToPhongMaterial(const mtl_material* ObjMtl)
 {
   asset::phong_material Result = {};
 
@@ -347,12 +321,8 @@ static material_map LoadPhongMaterial(obj_mtl_data* ObjMtlGroup, const c8* Uniqu
   return MaterialMap;
 }
 
-static void* TransientAllocator(uint32_t MemorySize) {
-  void* Result = PushSize(GlobalTransientArena, MemorySize);
-  return Result;
-}
 
-asset::key LoadMesh(const char* UniqueName, obj_loaded_file* Obj, material_map* MaterialMap)
+static asset::key LoadMesh(const char* UniqueName, obj_loaded_file* Obj, material_map* MaterialMap)
 {  
   c8* MeshName = asset::CreateUniqueName(UniqueName,"_", Obj->ObjectNameLength ? Obj->ObjectName : "_mesh");
   asset::gltf_tmp::mesh Mesh = {};
@@ -370,7 +340,7 @@ asset::key LoadMesh(const char* UniqueName, obj_loaded_file* Obj, material_map* 
   return ResultKey;
 }
 
-asset::gltf_tmp::render_tree CreateRenderTree(asset::key MeshId)
+static asset::gltf_tmp::render_tree CreateRenderTree(asset::key MeshId)
 {
   asset::gltf_tmp::render_tree Result = {};
   Result.NodeCount  = 1;
@@ -380,7 +350,12 @@ asset::gltf_tmp::render_tree CreateRenderTree(asset::key MeshId)
   return Result;
 }
 
-static asset::key LoadObj(const c8* Path, const c8* UniqueName)
+static void* TransientAllocator(uint32_t MemorySize) {
+  void* Result = PushSize(GlobalTransientArena, MemorySize);
+  return Result;
+}
+
+asset::key LoadObj(const c8* Path, const c8* UniqueName)
 {
   Assert(Path && *Path != '\0');
   if(!UniqueName || *UniqueName == '\0')
@@ -390,11 +365,8 @@ static asset::key LoadObj(const c8* Path, const c8* UniqueName)
 
   obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
 
-  // Upload MATERIAL and IMAGES related to material
-
   material_map MaterialMap = LoadPhongMaterial(Obj->MaterialData, UniqueName);
   
-  // MESH
   asset::key MeshKey = LoadMesh(UniqueName, Obj, &MaterialMap);
   
   asset::gltf_tmp::render_tree RenderTree = CreateRenderTree(MeshKey);
@@ -404,3 +376,6 @@ static asset::key LoadObj(const c8* Path, const c8* UniqueName)
 
   return ResultKey;
 }
+
+} // namespace mapper
+} // namespace obj

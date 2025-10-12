@@ -68,7 +68,7 @@ static asset::key LoadTga2(const char* Path, const char* UniqueName) {
   const obj_bitmap* Tga = LoadTGA([](u32 ByteSize){
     return PushSize(GlobalTransientArena, ByteSize);
   }, Path);
-  const asset::image Image = ToImage(Tga);
+  const asset::image Image = obj::mapper::ToImage(Tga);
   asset::key Result = 0;
   image* LoadedImage = LoadImage(UniqueName, UniqueName, Path, &Image, &Result);
   return Result;
@@ -136,7 +136,7 @@ asset::key Load(const char* Path, const char* UniqueName = 0)
       Result = LoadPng2(Path, UniqueName);
     } break;
     case asset_file_type::OBJ: {
-      Result = LoadObj(Path, UniqueName);
+      Result = obj::mapper::LoadObj(Path, UniqueName);
     } break;
     case asset_file_type::GLTF: {
       Result = LoadGltf(Path, UniqueName);
