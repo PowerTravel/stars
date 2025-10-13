@@ -44,7 +44,7 @@ manager* CreateAssetManager() {
 
 header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* Path, midx DataSize);
 
-header* ToHeader(gltf_tmp::mesh* Asset) {
+header* ToHeader(mesh* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
@@ -60,7 +60,7 @@ header* ToHeader(phong_material* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
-header* ToHeader(gltf_tmp::render_tree* Asset) {
+header* ToHeader(render_tree* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
@@ -76,8 +76,8 @@ phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Materia
 ///  New loaders for gltf
 image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, key* ResultKey = 0);
 pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, key* ResultKey = 0);
-gltf_tmp::mesh* LoadMesh(const c8* UniqueName, const gltf_tmp::mesh* Mesh, key* ResultKey = 0);
-gltf_tmp::render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const gltf_tmp::render_tree* RenderTree, key* ResultKey = 0);
+mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, key* ResultKey = 0);
+render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const render_tree* RenderTree, key* ResultKey = 0);
 
 
 

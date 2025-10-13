@@ -25,7 +25,7 @@ u32 GetMeshHandle(u32 AssetKey)
   {
     Result = *Handle;
   }else{
-    asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, AssetKey);
+    asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, AssetKey);
     Assert(Mesh);
     
     // There is a one to many relationship between mesh-handles and the rendersystems ptimitive-handles which were not handling atm
@@ -40,7 +40,7 @@ u32 GetMeshHandle(u32 AssetKey)
 u32 GetMeshHandle(const c8* Name)
 {
   u32 AssetKey = asset::ToKey(asset::type::RENDER_TREE, Name);
-  asset::gltf_tmp::render_tree* Tree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
+  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
   Assert(Tree->NodeCount == 1);
   u32 Handle = GetMeshHandle(Tree->Root->Mesh);
   return Handle;
@@ -1018,22 +1018,22 @@ opengl_buffer_data GetBlitPlane()
   
   int TextureVerticesCounts[] = {ArrayCount(TextureVertices)};
 
-  asset::gltf_tmp::mesh Mesh = {};
-  asset::gltf_tmp::mesh::primitive Primitive = {};
+  asset::mesh Mesh = {};
+  asset::mesh::primitive Primitive = {};
   Primitive.IndexCount = ArrayCount(VerticeIndex);
   Primitive.Indeces = VerticeIndex;
   Primitive.VertexCount = ArrayCount(Vertices);
   Primitive.Vertex = Vertices;
   Primitive.TextureVertexSetCount = ArrayCount(TextureVerticesCounts);
   Primitive.TextureVertices = TextureVerticesArr;
-  Primitive.Topology = asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
+  Primitive.Topology = asset::mesh::primitive::topology::TRIANGLES;
   Primitive.AABB = AABB3f(V3(-1,-1,0), V3(1,1,0));
   Mesh.Primitives = &Primitive;
   Mesh.PrimitiveCount = 1;
 
   Assert(! asset::Find(asset::type::MESH, "BlitPlane"));
 
-  asset::gltf_tmp::mesh* LoadedMesh = asset::LoadMesh("BlitPlane", &Mesh);
+  asset::mesh* LoadedMesh = asset::LoadMesh("BlitPlane", &Mesh);
   opengl_buffer_data Result = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, LoadedMesh);
   return Result;
 }
@@ -1163,7 +1163,7 @@ u32 LoadImageToGpu(u32 AssetKey, asset::image* Image) {
 
 void ecs::render::Init(asset::key MeshKey, asset::key MaterialKey, component* Render)
 {
-  asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, MeshKey);
+  asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, MeshKey);
   Render->MeshHandle = ecs::render::GetMeshHandle(MeshKey);
   Assert(Mesh->PrimitiveCount == 1); // We don't support multi primitive mesh rendering (yet)
 

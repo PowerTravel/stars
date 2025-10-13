@@ -36,11 +36,11 @@ global_variable r32 g_t = 0;
 
 file_local inline void Initiate(asset::key RenderTreeKey, ecs::render::component* Render)
 {
-  asset::gltf_tmp::render_tree* Tree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeKey);
+  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeKey);
   Assert(Tree->NodeCount == 1); // We don't support rendering big node hierarchy (yet)
   Assert(Tree->Root->Mesh);
 
-  asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
+  asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
 
   Assert(Mesh->PrimitiveCount == 1);
   ecs::render::Init(Tree->Root->Mesh, Mesh->Primitives->PhongMaterial, Render);
@@ -965,11 +965,11 @@ void DrawAllRenderObjects()
   }
 }
 
-asset::gltf_tmp::mesh* MeshFromTree(const c8* Name)
+asset::mesh* MeshFromTree(const c8* Name)
 {
-  asset::gltf_tmp::render_tree* Tree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
+  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
   Assert(Tree->NodeCount == 1); // other thhings not supported yet
-  asset::gltf_tmp::mesh* Mesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
+  asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
   return Mesh;
 }
 
@@ -1163,8 +1163,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
-    asset::gltf_tmp::render_tree* PlaneTree = (asset::gltf_tmp::render_tree*) asset::Find(asset::type::RENDER_TREE, "checker_plane_simple");
-    asset::gltf_tmp::mesh* PlaneMesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, PlaneTree->Root->Mesh);
+    asset::render_tree* PlaneTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, "checker_plane_simple");
+    asset::mesh* PlaneMesh = (asset::mesh*) asset::Find(asset::type::MESH, PlaneTree->Root->Mesh);
     asset::phong_material* PlaneMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, PlaneMesh->Primitives[0].PhongMaterial);
     Assert(PlaneMaterial->HasDiffuseTexture);
     asset::key PlaneTexHandle = PlaneMaterial->DiffuseTexture.Image;
@@ -1204,7 +1204,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     { // Create some entities
       #if 1
       { // Checker Floor
-        asset::gltf_tmp::mesh* Mesh = MeshFromTree("checker_plane_simple");
+        asset::mesh* Mesh = MeshFromTree("checker_plane_simple");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER | ecs::flag::COLLIDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1217,7 +1217,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Transparent Cube
-        asset::gltf_tmp::mesh* Mesh = MeshFromTree("Cube");
+        asset::mesh* Mesh = MeshFromTree("Cube");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1230,7 +1230,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
       
       { // Transparent Cone
-        asset::gltf_tmp::mesh* Mesh = MeshFromTree("Cone");
+        asset::mesh* Mesh = MeshFromTree("Cone");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1243,7 +1243,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
       
       { // Transparent Cylinder
-        asset::gltf_tmp::mesh* Mesh = MeshFromTree("Cylinder");
+        asset::mesh* Mesh = MeshFromTree("Cylinder");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cylinder", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1259,7 +1259,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 
       { // Solid Cone
-        asset::gltf_tmp::mesh* Mesh = MeshFromTree("Cone");
+        asset::mesh* Mesh = MeshFromTree("Cone");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
         ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1290,7 +1290,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
             Initiate(Element, GetRenderComponent(&Entity));
 
             /*
-            asset::gltf_tmp::mesh* Mesh = Element->Mesh;
+            asset::mesh* Mesh = Element->Mesh;
             v3 MidPoint = (Mesh->AABB.P0 + Mesh->AABB.P1)*0.5;
             for (int i = 0; i < Mesh->vCount; ++i)
             {

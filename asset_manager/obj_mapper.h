@@ -80,7 +80,7 @@ static bool Exists(int ArraySize, tracker_element* TrackerArray, const tracker_e
 }
 
 
-static asset::gltf_tmp::mesh::primitive CreateMesh(
+static asset::mesh::primitive CreateMesh(
   const int  IndexCount,
   const unsigned int* VerticeIndeces, const unsigned int* NormalIndeces, const unsigned  int* TextureIndeces,
   const v3*  VerticeData,    const v3*  NormalData,    const v2*  TextureData)
@@ -151,7 +151,7 @@ static asset::gltf_tmp::mesh::primitive CreateMesh(
     *TextureVertexSet = TextureVertex;
   }
   
-  asset::gltf_tmp::mesh::primitive Result = {};
+  asset::mesh::primitive Result = {};
   Result.IndexCount = IndexCount;
   Result.Indeces = IndexArray;
   Result.VertexCount = VerticeArrayCount;
@@ -159,14 +159,14 @@ static asset::gltf_tmp::mesh::primitive CreateMesh(
   Result.VertexNormal = VertexNormal;
   Result.TextureVertexSetCount = TextureVertexSetCount;
   Result.TextureVertices = TextureVertexSet;
-  Result.Topology = asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
+  Result.Topology = asset::mesh::primitive::topology::TRIANGLES;
 
   return Result;
 }
 
 struct material_map {
   int MaterialCount;
-  asset::gltf_tmp::phong_material_id* Materials;
+  asset::phong_material_id* Materials;
   mtl_material** Mtl_Materials;
 };
 
@@ -175,12 +175,12 @@ CreateMaterialMap(int MaterialCount)
 {
   material_map Result = {};
   Result.MaterialCount = MaterialCount;
-  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, asset::gltf_tmp::phong_material_id);
+  Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, asset::phong_material_id);
   Result.Mtl_Materials = PushArray(GlobalTransientArena, MaterialCount, mtl_material*);
   return Result;
 }
 
-inline static asset::gltf_tmp::phong_material_id
+inline static asset::phong_material_id
 GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
   for (int i = 0; i < MaterialMap->MaterialCount; ++i)
   {
@@ -192,10 +192,10 @@ GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
   return 0;
 }
 
-static asset::gltf_tmp::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
+static asset::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
 {
   obj_mesh_indeces* Indeces = ObjGrp->Indeces;
-  asset::gltf_tmp::mesh::primitive Result = CreateMesh(Indeces->Count,
+  asset::mesh::primitive Result = CreateMesh(Indeces->Count,
     Indeces->vi, Indeces->ni,  Indeces->ti,
     MeshData->v, MeshData->vn, MeshData->vt);
 
@@ -325,9 +325,9 @@ static material_map LoadPhongMaterial(obj_mtl_data* ObjMtlGroup, const c8* Uniqu
 static asset::key LoadMesh(const char* UniqueName, obj_loaded_file* Obj, material_map* MaterialMap)
 {  
   c8* MeshName = asset::CreateUniqueName(UniqueName,"_", Obj->ObjectNameLength ? Obj->ObjectName : "_mesh");
-  asset::gltf_tmp::mesh Mesh = {};
+  asset::mesh Mesh = {};
   Mesh.PrimitiveCount = Obj->ObjectCount;
-  Mesh.Primitives = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::gltf_tmp::mesh::primitive);
+  Mesh.Primitives = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::mesh::primitive);
   for (int i = 0; i < Obj->ObjectCount; ++i)
   {
     obj_group* ObjectGroup = &Obj->ObjectGroups[i];
@@ -336,15 +336,15 @@ static asset::key LoadMesh(const char* UniqueName, obj_loaded_file* Obj, materia
 
   asset::key ResultKey = 0;
   asset::LoadMesh(MeshName, &Mesh, &ResultKey);
-  asset::gltf_tmp::mesh* LoadedMesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, ResultKey);
+  asset::mesh* LoadedMesh = (asset::mesh*) asset::Find(asset::type::MESH, ResultKey);
   return ResultKey;
 }
 
-static asset::gltf_tmp::render_tree CreateRenderTree(asset::key MeshId)
+static asset::render_tree CreateRenderTree(asset::key MeshId)
 {
-  asset::gltf_tmp::render_tree Result = {};
+  asset::render_tree Result = {};
   Result.NodeCount  = 1;
-  Result.Nodes      = PushArray(GlobalTransientArena, Result.NodeCount, asset::gltf_tmp::render_tree::node);
+  Result.Nodes      = PushArray(GlobalTransientArena, Result.NodeCount, asset::render_tree::node);
   Result.Root       = Result.Nodes;
   Result.Root->Mesh = MeshId;
   return Result;
@@ -369,7 +369,7 @@ asset::key LoadObj(const c8* Path, const c8* UniqueName)
   
   asset::key MeshKey = LoadMesh(UniqueName, Obj, &MaterialMap);
   
-  asset::gltf_tmp::render_tree RenderTree = CreateRenderTree(MeshKey);
+  asset::render_tree RenderTree = CreateRenderTree(MeshKey);
 
   asset::key ResultKey = 0;
   asset::LoadRenderTree(UniqueName, Path, &RenderTree, &ResultKey);

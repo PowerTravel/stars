@@ -2,9 +2,8 @@
 #include "asset_types.h"
 #include "io/gltf.h"
 
-namespace asset {
-namespace gltf_tmp {
-
+namespace gltf {
+namespace mapper {
   struct node_queue {
 
     struct pair {
@@ -55,9 +54,9 @@ namespace gltf_tmp {
     while (ByteCount--) { *DstScan++ = *SrcScan++;}
   }
 
-  image Map(const gltf::raw_image& Raw)
+  asset::image Map(const gltf::raw_image& Raw)
   { 
-    image Result = {};
+    asset::image Result = {};
     Result.Width    = Raw.Width;
     Result.Height   = Raw.Height;
     Result.Channels = Raw.Channels;
@@ -65,35 +64,35 @@ namespace gltf_tmp {
     return Result;  
   }
 
-  texture::filter MapFilter(gltf::raw_sampler::filter Raw)
+  asset::texture::filter MapFilter(gltf::raw_sampler::filter Raw)
   {
-    texture::filter Result = texture::filter::NEAREST;
+    asset::texture::filter Result = asset::texture::filter::NEAREST;
     switch(Raw)
     {
-      case gltf::raw_sampler::filter::NEAREST:                Result = texture::filter::NEAREST; break;
-      case gltf::raw_sampler::filter::LINEAR:                 Result = texture::filter::LINEAR; break;
-      case gltf::raw_sampler::filter::NEAREST_MIPMAP_NEAREST: Result = texture::filter::NEAREST_MIPMAP_NEAREST; break;
-      case gltf::raw_sampler::filter::LINEAR_MIPMAP_NEAREST:  Result = texture::filter::LINEAR_MIPMAP_NEAREST; break;
-      case gltf::raw_sampler::filter::NEAREST_MIPMAP_LINEAR:  Result = texture::filter::NEAREST_MIPMAP_LINEAR; break;
-      case gltf::raw_sampler::filter::LINEAR_MIPMAP_LINEAR:   Result = texture::filter::LINEAR_MIPMAP_LINEAR; break;
+      case gltf::raw_sampler::filter::NEAREST:                Result = asset::texture::filter::NEAREST; break;
+      case gltf::raw_sampler::filter::LINEAR:                 Result = asset::texture::filter::LINEAR; break;
+      case gltf::raw_sampler::filter::NEAREST_MIPMAP_NEAREST: Result = asset::texture::filter::NEAREST_MIPMAP_NEAREST; break;
+      case gltf::raw_sampler::filter::LINEAR_MIPMAP_NEAREST:  Result = asset::texture::filter::LINEAR_MIPMAP_NEAREST; break;
+      case gltf::raw_sampler::filter::NEAREST_MIPMAP_LINEAR:  Result = asset::texture::filter::NEAREST_MIPMAP_LINEAR; break;
+      case gltf::raw_sampler::filter::LINEAR_MIPMAP_LINEAR:   Result = asset::texture::filter::LINEAR_MIPMAP_LINEAR; break;
     }
     return Result;
   }
 
-  texture::wrap MapWrap(gltf::raw_sampler::wrap Raw)
+  asset::texture::wrap MapWrap(gltf::raw_sampler::wrap Raw)
   {
-    texture::wrap Result = texture::wrap::REPEAT;
+    asset::texture::wrap Result = asset::texture::wrap::REPEAT;
     switch(Raw)
     {
-      case gltf::raw_sampler::wrap::CLAMP_TO_EDGE:   Result = texture::wrap::CLAMP_TO_EDGE; break;
-      case gltf::raw_sampler::wrap::MIRRORED_REPEAT: Result = texture::wrap::MIRRORED_REPEAT; break;
-      case gltf::raw_sampler::wrap::REPEAT:          Result = texture::wrap::REPEAT; break;
+      case gltf::raw_sampler::wrap::CLAMP_TO_EDGE:   Result = asset::texture::wrap::CLAMP_TO_EDGE; break;
+      case gltf::raw_sampler::wrap::MIRRORED_REPEAT: Result = asset::texture::wrap::MIRRORED_REPEAT; break;
+      case gltf::raw_sampler::wrap::REPEAT:          Result = asset::texture::wrap::REPEAT; break;
     }
     return Result;
   }
 
-  texture MapTexture(gltf::raw_texture_info* BaseColorTexture, gltf::raw_gltf_data* RawGltfData, asset::key* Images) {
-    texture Result = {};
+  asset::texture MapTexture(gltf::raw_texture_info* BaseColorTexture, gltf::raw_gltf_data* RawGltfData, asset::key* Images) {
+    asset::texture Result = {};
 
     gltf::raw_texture* RawTexture = &RawGltfData->RawTextures[BaseColorTexture->Index];
 
@@ -105,10 +104,10 @@ namespace gltf_tmp {
       Result.WrapS = MapWrap(RawSampler->WrapS);
       Result.WrapT = MapWrap(RawSampler->WrapT);
     }else{
-      Result.MagFilter = texture::filter::NEAREST;
-      Result.MinFilter = texture::filter::NEAREST;
-      Result.WrapS = texture::wrap::REPEAT;
-      Result.WrapT = texture::wrap::REPEAT;  
+      Result.MagFilter = asset::texture::filter::NEAREST;
+      Result.MinFilter = asset::texture::filter::NEAREST;
+      Result.WrapS = asset::texture::wrap::REPEAT;
+      Result.WrapT = asset::texture::wrap::REPEAT;  
     }
 
     Assert(RawTexture->Source);
@@ -118,8 +117,8 @@ namespace gltf_tmp {
     return Result;
   };
 
-  pbr_material::metallic_roughness MapMetallicRoughness(gltf::raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf::raw_gltf_data* RawGltfData,  asset::key* Images) {
-    pbr_material::metallic_roughness Result = {};
+  asset::pbr_material::metallic_roughness MapMetallicRoughness(gltf::raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf::raw_gltf_data* RawGltfData,  asset::key* Images) {
+    asset::pbr_material::metallic_roughness Result = {};
 
     Result.BaseColorFactor = RawPbrMetallicRoughness->BaseColorFactor;
 
@@ -141,25 +140,25 @@ namespace gltf_tmp {
     return Result;
   }
 
-  pbr_material::normal_texture MapNormalTexture() {
-    pbr_material::normal_texture Result = {};
+  asset::pbr_material::normal_texture MapNormalTexture() {
+    asset::pbr_material::normal_texture Result = {};
 
     // Implement if we hit this
     Assert(0);
     return Result;
   };
 
-  pbr_material::occlusion_texture MapOcclusionTexture() {
-    pbr_material::occlusion_texture Result = {};
+  asset::pbr_material::occlusion_texture MapOcclusionTexture() {
+    asset::pbr_material::occlusion_texture Result = {};
     // Implement if we hit this
     Assert(0);
     return Result;
   };
 
 
-  pbr_material MapMaterial(gltf::raw_material* RawMaterial, gltf::raw_gltf_data* RawGltfData,  asset::key* Images)
+  asset::pbr_material MapMaterial(gltf::raw_material* RawMaterial, gltf::raw_gltf_data* RawGltfData,  asset::key* Images)
   {
-    pbr_material Result = {};
+    asset::pbr_material Result = {};
 
     if(RawMaterial->PbrMetallicRoughness)
     {
@@ -195,26 +194,26 @@ namespace gltf_tmp {
     return Result;
   }
 
-  asset::gltf_tmp::mesh::primitive::topology ModeToTopology(gltf::primitive_mode Mode)
+  asset::mesh::primitive::topology ModeToTopology(gltf::primitive_mode Mode)
   {  
     switch(Mode)
     {
-      case gltf::primitive_mode::POINTS: return asset::gltf_tmp::mesh::primitive::topology::POINTS;
-      case gltf::primitive_mode::LINES: return asset::gltf_tmp::mesh::primitive::topology::LINES;
-      case gltf::primitive_mode::LINE_LOOP: return asset::gltf_tmp::mesh::primitive::topology::LINE_LOOP;
-      case gltf::primitive_mode::LINE_STRIP: return asset::gltf_tmp::mesh::primitive::topology::LINE_STRIP;
-      case gltf::primitive_mode::TRIANGLES: return asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
-      case gltf::primitive_mode::TRIANGLE_STRIP: return asset::gltf_tmp::mesh::primitive::topology::TRIANGLE_STRIP;
-      case gltf::primitive_mode::TRIANGLE_FAN: return asset::gltf_tmp::mesh::primitive::topology::TRIANGLE_FAN;
+      case gltf::primitive_mode::POINTS: return asset::mesh::primitive::topology::POINTS;
+      case gltf::primitive_mode::LINES: return asset::mesh::primitive::topology::LINES;
+      case gltf::primitive_mode::LINE_LOOP: return asset::mesh::primitive::topology::LINE_LOOP;
+      case gltf::primitive_mode::LINE_STRIP: return asset::mesh::primitive::topology::LINE_STRIP;
+      case gltf::primitive_mode::TRIANGLES: return asset::mesh::primitive::topology::TRIANGLES;
+      case gltf::primitive_mode::TRIANGLE_STRIP: return asset::mesh::primitive::topology::TRIANGLE_STRIP;
+      case gltf::primitive_mode::TRIANGLE_FAN: return asset::mesh::primitive::topology::TRIANGLE_FAN;
     };
-    return asset::gltf_tmp::mesh::primitive::topology::TRIANGLES;
+    return asset::mesh::primitive::topology::TRIANGLES;
   }
 
   void MapChildNodes(
     size_t NodeIndex,
     size_t ChildCount,
-    gltf_tmp::render_tree::node* NodeArray,
-    gltf_tmp::render_tree::node* Parent) 
+    asset::render_tree::node* NodeArray,
+    asset::render_tree::node* Parent) 
   {
 
     u32 FirstChildIndex = NodeIndex;
@@ -222,7 +221,7 @@ namespace gltf_tmp {
 
     for (int i = FirstChildIndex; i < LastChildIndex; ++i)
     {
-      gltf_tmp::render_tree::node* Child = &NodeArray[i];
+      asset::render_tree::node* Child = &NodeArray[i];
       Child->Parent = Parent;
       if(i == FirstChildIndex)
       {
@@ -240,7 +239,7 @@ namespace gltf_tmp {
     }
   }
 
-  void CopyTransforms(gltf_tmp::render_tree::node* Node, gltf::raw_node* RawNode)
+  void CopyTransforms(asset::render_tree::node* Node, gltf::raw_node* RawNode)
   {
     switch(RawNode->TransformationType){
       case gltf::raw_node::transformation_type::TRS:{
@@ -258,7 +257,7 @@ namespace gltf_tmp {
     }
   }
 
-  asset::gltf_tmp::render_tree::node* ToNodes(size_t NodeCount, asset::gltf_tmp::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes)
+  asset::render_tree::node* ToNodes(size_t NodeCount, asset::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes)
   {
     node_queue Queue = NodeQueue(NodeCount);
     Push(Queue, RawRootNodeIndex, 0);
@@ -271,7 +270,7 @@ namespace gltf_tmp {
       gltf::raw_node* RawNode = &RawNodes[RawNodeIndex];
 
       int NodeIndex = NodeIndexPair.NodeIndex;
-      asset::gltf_tmp::render_tree::node* Node = &Nodes[NodeIndex];
+      asset::render_tree::node* Node = &Nodes[NodeIndex];
 
       CopyTransforms(Node,RawNode);
       if(RawNode->Mesh)
@@ -279,7 +278,8 @@ namespace gltf_tmp {
         Node->Mesh = LoadedMeshes[*RawNode->Mesh];
       }
       Node->ChildCount = RawNode->ChildCount;
-      MapChildNodes(NodeHeadIndex, RawNode->ChildCount, Nodes, Node);
+      InitiateChildNodes(Node, Node->ChildCount, Nodes+NodeHeadIndex);
+
       for (int i = 0; i < RawNode->ChildCount; ++i)
       {
         int RawChildIndex = RawNode->Children[i];
@@ -339,31 +339,30 @@ namespace gltf_tmp {
     *RetKeyCount = RootCount;
     for (int i = 0; i < RootCount; ++i)
     {
-      gltf_tmp::render_tree Tree = {};
+      asset::render_tree Tree = {};
       int RootNodeIndex = RootNodeIndeces[i];
       Tree.NodeCount   = GetTreeNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
-      Tree.Nodes       = PushArray(GlobalTransientArena,Tree.NodeCount, asset::gltf_tmp::render_tree::node);
+      Tree.Nodes       = PushArray(GlobalTransientArena,Tree.NodeCount, asset::render_tree::node);
       Tree.Root        = ToNodes(Tree.NodeCount, Tree.Nodes, RootNodeIndex, RawNodes, LoadedMeshes);
 
       c8* UnqName = asset::CreateUniqueName("",Name,"", i, RootCount);
 
-      asset::gltf_tmp::render_tree* RT = asset::LoadRenderTree(UnqName, Path, &Tree, &Result[i]);
+      asset::render_tree* RT = asset::LoadRenderTree(UnqName, Path, &Tree, &Result[i]);
       int a = 10;
     }
 
     return Result;
   }
 
-  gltf_tmp::mesh ToMesh(gltf::raw_mesh* RawMesh, asset::key* LoadedMaterials){
+  asset::mesh ToMesh(gltf::raw_mesh* RawMesh, asset::key* LoadedMaterials){
     
-    gltf_tmp::mesh Result = {};
+    asset::mesh Result = {};
     Result.PrimitiveCount = RawMesh->ExtractedPrimitiveCount;
-    Result.Primitives = PushArray(GlobalTransientArena, Result.PrimitiveCount, gltf_tmp::mesh::primitive);
-   
+    Result.Primitives = PushArray(GlobalTransientArena, Result.PrimitiveCount, asset::mesh::primitive);
     for (int i = 0; i < RawMesh->ExtractedPrimitiveCount; ++i)
     {
       gltf::extracted_primitive* ExtractedPrimitive = &RawMesh->ExtractedPrimitives[i];  
-      gltf_tmp::mesh::primitive* Primitive = &Result.Primitives[i];
+      asset::mesh::primitive* Primitive = &Result.Primitives[i];
       Primitive->IndexCount            = ExtractedPrimitive->IndexCount;
       Primitive->Indeces               = ExtractedPrimitive->Indeces;
       Primitive->VertexCount           = ExtractedPrimitive->vCount;
@@ -386,7 +385,7 @@ namespace gltf_tmp {
     for (int i = 0; i < RawGltfData->RawImageCount; ++i)
     {
       gltf::raw_image& RawImage = RawGltfData->RawImages[i];
-      image TmpImage = Map(RawImage);
+      asset::image TmpImage = Map(RawImage);
       asset::LoadImage(RawImage.Uri.data, RawImage.Name.data, RawImage.Uri.data, &TmpImage, &LoadedImagesTracker[i]);
     }
 
@@ -395,7 +394,7 @@ namespace gltf_tmp {
     for (int i = 0; i < RawGltfData->RawMaterialCount; ++i)
     {
       gltf::raw_material* RawMaterial = &RawGltfData->RawMaterials[i];
-      pbr_material TmpMaterial = MapMaterial(RawMaterial, RawGltfData, LoadedImagesTracker);
+      asset::pbr_material TmpMaterial = MapMaterial(RawMaterial, RawGltfData, LoadedImagesTracker);
 
       c8* Name = 0;
       if(cmn::IsEmpty(RawMaterial->Name))
@@ -413,7 +412,7 @@ namespace gltf_tmp {
     for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
     {
       gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
-      gltf_tmp::mesh Mesh = ToMesh(RawMesh, LoadedMaterialTracker);
+      asset::mesh Mesh = ToMesh(RawMesh, LoadedMaterialTracker);
 
       c8* Name = 0;
       if(cmn::IsEmpty(RawMesh->Name))
@@ -433,7 +432,5 @@ namespace gltf_tmp {
   }
 
 
-  
-
-} // namespace gltf_tmp
-} // namespace asset
+} // namespace mapper
+} // namespace gltf

@@ -49,7 +49,7 @@ gl_vertex_buffer CreateGLVertexBuffer2(memory_arena* Arena,
   return Result;
 }
 
-static void PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::gltf_tmp::mesh::primitive * Primitive, gl_vertex_buffer* Result)
+static void PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mesh::primitive * Primitive, gl_vertex_buffer* Result)
 {
   Assert(Primitive->IndexCount && Primitive->Indeces && Primitive->VertexCount && Primitive->Vertex);
   // We are only handling 1 set of texture vertices atm. Increase if we find the need
@@ -65,7 +65,7 @@ static void PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::gltf_tmp
     );
 }
 
-opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, const asset::gltf_tmp::mesh * Mesh)
+opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, const asset::mesh * Mesh)
 { 
   opengl_buffer_data Result = {};
   Assert(Mesh->PrimitiveCount == 1); // Deal wiht several primitives per mesh when we run into them.

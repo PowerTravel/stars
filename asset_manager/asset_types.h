@@ -142,90 +142,116 @@ namespace asset {
     bool DoubleSided;
   };
 
-  namespace gltf_tmp {  
-    
-    typedef key mesh_id;
-    typedef key pbr_material_id;
-    typedef key phong_material_id;
+  typedef key mesh_id;
+  typedef key pbr_material_id;
+  typedef key phong_material_id;
 
-    // A mesh primitive mesh
-    struct mesh {
-      struct primitive // mesh_id (Can be OBJ as well)
+  // A mesh primitive mesh
+  struct mesh {
+    struct primitive // mesh_id (Can be OBJ as well)
+    {
+      enum class topology {
+        POINTS,
+        LINES,
+        LINE_LOOP,
+        LINE_STRIP,
+        TRIANGLES,
+        TRIANGLE_STRIP,
+        TRIANGLE_FAN
+      };
+
+      int IndexCount;
+      int* Indeces;
+
+      // Vertex, VertexNormal and each of the TextureVertices* Must have the same size of VertexCount if they exist
+      int VertexCount;
+      v3* Vertex;     // Vertices
+      v3* VertexNormal;    // Vertice Normals
+
+      int TextureVertexSetCount;
+      v2** TextureVertices;    // Texture Vertices
+
+      topology Topology;
+
+      aabb3f AABB;
+
+      pbr_material_id PbrMaterial;
+      phong_material_id PhongMaterial;
+    };
+
+    size_t PrimitiveCount;
+    primitive* Primitives;
+
+  };
+
+  struct render_tree { // render_asset_id
+
+    struct node {
+
+      size_t ChildCount;
+      node* Parent;
+      node* NextSibling;
+      node* PreviousSibling;
+      node* FirstChild;
+
+      // Optional <mesh_id>
+      mesh_id Mesh;
+
+      bool HasTransform;
+      m4 Transform;
+    };
+
+    size_t NodeCount;
+    node* Nodes;
+
+    node* Root;
+  };
+
+  void InitiateChildNodes(render_tree::node* Parent, size_t ChildCount, render_tree::node* Children)
+  {  
+    if(ChildCount == 0) {
+      return;
+    }
+    else if(ChildCount == 1)
+    {
+      Parent->FirstChild = Children;
+      Parent->FirstChild->Parent = Parent;
+    }
+    else
+    {
+      for (int i = 0; i < ChildCount; ++i)
       {
-        enum class topology {
-          POINTS,
-          LINES,
-          LINE_LOOP,
-          LINE_STRIP,
-          TRIANGLES,
-          TRIANGLE_STRIP,
-          TRIANGLE_FAN
-        };
+        render_tree::node* Child = &Children[i];
+        Child->Parent = Parent;
 
-        int IndexCount;
-        int* Indeces;
+        if(i > 0)
+        {
+          Child->NextSibling = &Children[i+1];
+        }
 
-        // Vertex, VertexNormal and each of the TextureVertices* Must have the same size of VertexCount if they exist
-        int VertexCount;
-        v3* Vertex;     // Vertices
-        v3* VertexNormal;    // Vertice Normals
+        if(i < ChildCount)
+        {
+          Child->PreviousSibling = &Children[i-1];
+        }
+      }
+    }
+  }
 
-        int TextureVertexSetCount;
-        v2** TextureVertices;    // Texture Vertices
-
-        topology Topology;
-
-        aabb3f AABB;
-
-        pbr_material_id PbrMaterial;
-        phong_material_id PhongMaterial;
-      };
-
-      size_t PrimitiveCount;
-      primitive* Primitives;
-
-    };
-
-    struct render_tree { // render_asset_id
-
-      struct node {
-
-        size_t ChildCount;
-        node* Parent;
-        node* NextSibling;
-        node* PreviousSibling;
-        node* FirstChild;
-
-        // Optional <mesh_id>
-        mesh_id Mesh;
-
-        bool HasTransform;
-        m4 Transform;
-      };
-
-      size_t NodeCount;
-      node* Nodes;
-
-      node* Root;
-    };
-
-    struct scene { // Scene_id
+  struct scene { // Scene_id
 
 #if 0 // Move these here later ?
 
-      size_t MaterialCount;
-      pbr_material* Materials;
+    size_t MaterialCount;
+    pbr_material* Materials;
 
-      size_t MeshInfoCount;
-      mesh_info* MeshInfos;
-      
-      size_t NodeCount;
-      node* Nodes;
+    size_t MeshInfoCount;
+    mesh_info* MeshInfos;
+    
+    size_t NodeCount;
+    node* Nodes;
 #endif
 
-      size_t RenderTreeCount;
-      render_tree* RenderTrees;
-    };
-  } // namespace gltf_tmp
-
+    size_t RenderTreeCount;
+    render_tree* RenderTrees;
+  };
 }

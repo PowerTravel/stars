@@ -413,7 +413,7 @@ pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* PbrMater
 }
 
 
-static size_t GetPrimitiveContentSize(gltf_tmp::mesh::primitive* Primitive)
+static size_t GetPrimitiveContentSize(mesh::primitive* Primitive)
 {
   size_t IndexSize = Primitive->IndexCount * sizeof(int);
   size_t VertexSize = Primitive->VertexCount * sizeof(v3);
@@ -424,10 +424,10 @@ static size_t GetPrimitiveContentSize(gltf_tmp::mesh::primitive* Primitive)
   return Result;
 }
 
-static size_t GetMeshSize( const gltf_tmp::mesh* Mesh ) {
+static size_t GetMeshSize( const mesh* Mesh ) {
 
-  size_t Result = sizeof(gltf_tmp::mesh);
-  Result += Mesh->PrimitiveCount * sizeof(gltf_tmp::mesh::primitive);
+  size_t Result = sizeof(mesh);
+  Result += Mesh->PrimitiveCount * sizeof(mesh::primitive);
   for (int i = 0; i < Mesh->PrimitiveCount; ++i)
   {
     Result += GetPrimitiveContentSize(&Mesh->Primitives[i]);
@@ -436,7 +436,7 @@ static size_t GetMeshSize( const gltf_tmp::mesh* Mesh ) {
   return Result;
 }
 
-bptr CopyMeshPrimitive(bptr PayloadPtr, const gltf_tmp::mesh::primitive* Src, gltf_tmp::mesh::primitive* Dst, size_t TotalSize)
+bptr CopyMeshPrimitive(bptr PayloadPtr, const mesh::primitive* Src, mesh::primitive* Dst, size_t TotalSize)
 {
 
   Dst->PbrMaterial = Src->PbrMaterial;
@@ -494,28 +494,28 @@ bptr CopyMeshPrimitive(bptr PayloadPtr, const gltf_tmp::mesh::primitive* Src, gl
   return MemScan;
 }
 
-void CopyMesh(const gltf_tmp::mesh* Src, gltf_tmp::mesh* Dst, size_t TotalSize)
+void CopyMesh(const mesh* Src, mesh* Dst, size_t TotalSize)
 {
-  bptr MemScan = AdvanceBytePointer(Dst, sizeof(gltf_tmp::mesh));
+  bptr MemScan = AdvanceBytePointer(Dst, sizeof(mesh));
 
   Dst->PrimitiveCount = Src->PrimitiveCount;
-  Dst->Primitives = (gltf_tmp::mesh::primitive*) MemScan;
-  MemScan = AdvanceBytePointer(MemScan, Dst->PrimitiveCount * sizeof(gltf_tmp::mesh::primitive));
+  Dst->Primitives = (mesh::primitive*) MemScan;
+  MemScan = AdvanceBytePointer(MemScan, Dst->PrimitiveCount * sizeof(mesh::primitive));
   
   for (int i = 0; i < Dst->PrimitiveCount; ++i)
   {
-    gltf_tmp::mesh::primitive* SrcPrimitive = &Src->Primitives[i];
-    gltf_tmp::mesh::primitive* DstPrimitive = &Dst->Primitives[i];
+    mesh::primitive* SrcPrimitive = &Src->Primitives[i];
+    mesh::primitive* DstPrimitive = &Dst->Primitives[i];
     size_t PrimitiveSize = GetPrimitiveContentSize(SrcPrimitive);
     MemScan = CopyMeshPrimitive(MemScan, SrcPrimitive, DstPrimitive, PrimitiveSize);
   }
 }
 
-gltf_tmp::mesh* LoadMesh(const c8* UniqueName, const gltf_tmp::mesh* Mesh, key* ResultKey)
+mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, key* ResultKey)
 {
   midx MeshSize = GetMeshSize(Mesh);
   header* Header = CreateHeader(type::MESH, UniqueName, UniqueName, "N/A", MeshSize);
-  gltf_tmp::mesh* Result = (gltf_tmp::mesh*)Header->Data;
+  mesh* Result = (mesh*)Header->Data;
   CopyMesh(Mesh, Result, MeshSize);
   
   if(ResultKey)
@@ -526,10 +526,10 @@ gltf_tmp::mesh* LoadMesh(const c8* UniqueName, const gltf_tmp::mesh* Mesh, key* 
 }
 
 
-static size_t GetRenderTreeSize(const gltf_tmp::render_tree* RenderTree)
+static size_t GetRenderTreeSize(const render_tree* RenderTree)
 {
-  size_t StructSize = sizeof(gltf_tmp::render_tree);
-  size_t NodeSize = RenderTree->NodeCount * sizeof(gltf_tmp::render_tree::node);
+  size_t StructSize = sizeof(render_tree);
+  size_t NodeSize = RenderTree->NodeCount * sizeof(render_tree::node);
   size_t Result = StructSize + NodeSize;
   return Result;
 }
@@ -539,7 +539,7 @@ static size_t GetRenderTreeSize(const gltf_tmp::render_tree* RenderTree)
 struct node_queue {
   size_t Count;
   size_t TotCount;
-  gltf_tmp::render_tree::node** Queue;
+  render_tree::node** Queue;
 };
 
 node_queue NodeQueue(size_t Size)
@@ -547,7 +547,7 @@ node_queue NodeQueue(size_t Size)
   node_queue Result = {}; 
   Result.Count = 0;
   Result.TotCount = Size; 
-  Result.Queue = PushArray(GlobalTransientArena, Size, gltf_tmp::render_tree::node*);
+  Result.Queue = PushArray(GlobalTransientArena, Size, render_tree::node*);
   return Result;
 }
 
@@ -557,61 +557,34 @@ bool IsEmpty(node_queue& Queue)
   return Result;
 }
 
-void Push(node_queue& Queue, gltf_tmp::render_tree::node* Value)
+void Push(node_queue& Queue, render_tree::node* Value)
 {
   Queue.Queue[Queue.Count++] = Value;
 }
 
-gltf_tmp::render_tree::node* Pop(node_queue& Queue)
+render_tree::node* Pop(node_queue& Queue)
 {
   Assert(Queue.Count > 0);
   if(Queue.Count == 0) return 0;
-  gltf_tmp::render_tree::node* Result = Queue.Queue[--Queue.Count];
+  render_tree::node* Result = Queue.Queue[--Queue.Count];
   Queue.Queue[Queue.Count+1] = 0;
   return Result;
 }
 
-void CopyTransforms(gltf_tmp::render_tree::node* Src, gltf_tmp::render_tree::node* Dst)
+void CopyTransforms(render_tree::node* Src, render_tree::node* Dst)
 {
   Dst->HasTransform = Src->HasTransform;
   Dst->Transform    = Src->Transform;
 }
 
-size_t MapChildNodes(size_t NodeIndex, size_t ChildCount, gltf_tmp::render_tree::node* NodeArray, gltf_tmp::render_tree::node* DstNode) {
-  u32 FirstChildIndex = NodeIndex;
-  u32 LastChildIndex  = NodeIndex + ChildCount;
-
-  for (int i = FirstChildIndex; i < LastChildIndex; ++i)
-  {
-    gltf_tmp::render_tree::node* Child = &NodeArray[i];
-    Child->Parent = DstNode;
-    if(i == FirstChildIndex)
-    {
-      Child->Parent->FirstChild = Child;
-    }
-    if(i < LastChildIndex-1)
-    {
-      Child->NextSibling = &NodeArray[i];
-      Child->NextSibling->PreviousSibling = Child;
-    }
-    if(i == FirstChildIndex-1)
-    {
-      Child->PreviousSibling = &NodeArray[i-1];
-    }
-  }
-
-  size_t ResultNodeIndex = NodeIndex + ChildCount;
-  return ResultNodeIndex;
-}
-
-void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst, size_t RenderTreeSize)
+void CopyRenderTree(const render_tree* Src, render_tree* Dst, size_t RenderTreeSize)
 {
-  bptr MemScan = AdvanceBytePointer(Dst, sizeof(gltf_tmp::render_tree));
+  bptr MemScan = AdvanceBytePointer(Dst, sizeof(render_tree));
   
   size_t NodeCount = Src->NodeCount;
   Dst->NodeCount = NodeCount;
-  Dst->Nodes = (gltf_tmp::render_tree::node*) MemScan;
-  size_t NodesSize = NodeCount * sizeof(gltf_tmp::render_tree::node);
+  Dst->Nodes = (render_tree::node*) MemScan;
+  size_t NodesSize = NodeCount * sizeof(render_tree::node);
   MemScan = AdvanceBytePointer(MemScan, NodesSize);
 
   Assert((MemScan - ((bptr) Dst)) == RenderTreeSize);
@@ -625,22 +598,24 @@ void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst
   size_t NodeHeadIndex = 1;
   while(!IsEmpty(SrcQueue) && !IsEmpty(DstQueue))
   {
-    gltf_tmp::render_tree::node* DstNode = Pop(DstQueue);
-    gltf_tmp::render_tree::node* SrcNode = Pop(SrcQueue);
+    render_tree::node* DstNode = Pop(DstQueue);
+    render_tree::node* SrcNode = Pop(SrcQueue);
 
     DstNode->ChildCount = SrcNode->ChildCount;
     DstNode->Mesh = SrcNode->Mesh;
     CopyTransforms(SrcNode, DstNode);
 
-    NodeHeadIndex = MapChildNodes(NodeHeadIndex, SrcNode->ChildCount, Dst->Nodes, DstNode);
-    gltf_tmp::render_tree::node* SrcChild = SrcNode->FirstChild;
+    InitiateChildNodes(DstNode, DstNode->ChildCount, Dst->Nodes + NodeHeadIndex);
+    NodeHeadIndex += DstNode->ChildCount;
+
+    render_tree::node* SrcChild = SrcNode->FirstChild;
     while(SrcChild)
     {
       Push(SrcQueue,SrcChild);
       SrcChild = SrcChild->NextSibling;
     }
 
-    gltf_tmp::render_tree::node* DstChild = DstNode->FirstChild;
+    render_tree::node* DstChild = DstNode->FirstChild;
     while(DstChild)
     {
       Push(DstQueue, DstChild);
@@ -651,11 +626,11 @@ void CopyRenderTree(const gltf_tmp::render_tree* Src, gltf_tmp::render_tree* Dst
   Assert(IsEmpty(SrcQueue) && IsEmpty(DstQueue));
 }
 
-gltf_tmp::render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const gltf_tmp::render_tree* RenderTree, key* ResultKey)
+render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const render_tree* RenderTree, key* ResultKey)
 {
   midx RenderTreeSize = GetRenderTreeSize(RenderTree);
   header* Header = CreateHeader(type::RENDER_TREE, UniqueName, UniqueName, Path, RenderTreeSize);
-  gltf_tmp::render_tree* Result = (gltf_tmp::render_tree*) Header->Data;
+  render_tree* Result = (render_tree*) Header->Data;
 
   CopyRenderTree(RenderTree, Result, RenderTreeSize);
   
