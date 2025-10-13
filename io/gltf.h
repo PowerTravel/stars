@@ -2,7 +2,6 @@
 
 #include "externals/json.hpp"
 #include "commons/jstring.h"
-#include "commons/memory.h"
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
 #define STB_IMAGE_IMPLEMENTATION
@@ -10,13 +9,75 @@
 #include "externals/stb_image.h"
 
 
+// To use custom allocation functions define GLTF_ALLOC_FUNCTIONS as well as
+// GLTF_ALLOC_MEMORY must be defined as void* Allocate(size_t SizeInBytes)
+// GLTF_FREE_MEMORY  must be defined as void Free(void* PointerGivenFromAllocate)
+
+#ifndef GLTF_ALLOC_FUNCTIONS
+#define GLTF_ALLOC_FUNCTIONS
+#include <cstdlib>
+
+#define GLTF_ALLOC_MEMORY(size) malloc(size)
+#define GLTF_FREE_MEMORY(ResultFromAlloc) free(ResultFromAlloc)
+#endif
+
+void* __gltf__alloc(size_t SizeInBytes) {
+  void* Result = GLTF_ALLOC_MEMORY(SizeInBytes);
+  uint8_t* Scan = (uint8_t*) Result;
+  for (int i = 0; i < SizeInBytes; ++i)
+  {
+    *Scan++ = 0;
+  }
+  return Result;
+}
+
+#define gltf__AllocSize(Size) __gltf__alloc(Size)
+#define gltf__AllocStruct(Type) (Type*) __gltf__alloc(sizeof(Type))
+#define gltf__AllocArray(Count, Type) (Type*) __gltf__alloc((Count)*sizeof(Type))
+#define gltf__FreeMemory(ResultFromAlloc) GLTF_FREE_MEMORY(ResultFromAlloc)
+
+
+
+// To use custom io functions define GLTF_IO_FUNCTIONS as well as
+// GLTF_READ_ENTIRE_FILE must be defined as void* ReadEntireFille(char* Path, size_t* ResultSizeOfFile)
+// GLTF_FREE_FILE_MEMORY must be defined as void  FreeFile(void* ReadEntireFille)
+
+#ifndef GLTF_IO_FUNCTIONS
+#define GLTF_IO_FUNCTIONS
+
+#include <cstdio>
+void* __gltf__ReadEntireFile(const char* Path, size_t* FileSize)
+{
+  FILE* fileptr = fopen(Path, "rb");
+  fseek(fileptr, 0, SEEK_END);
+  long filelen = ftell(fileptr);
+  rewind(fileptr);
+
+  char* buffer = (char*) gltf__AllocSize((filelen+1) * sizeof(char));  // filelen + 1 is to keep terminating zero
+  fread(buffer, 1, filelen, fileptr);
+  fclose(fileptr); // Close the file
+  buffer[filelen] = 0;
+
+  Assert(FileSize);
+  *FileSize = filelen;
+
+  return (void*) buffer;
+}
+
+void __gltf__FreeFileMemory(void* Memory)
+{
+  gltf__FreeMemory(Memory);
+}
+
+#define GLTF_READ_ENTIRE_FILE(Path, FileSize) __gltf__ReadEntireFile(Path, FileSize)
+#define GLTF_FREE_FILE_MEMORY(ResultFromReadFle) __gltf__FreeFileMemory((void*)(ResultFromReadFle))
+
+#endif // GLTF_IO_FUNCTIONS
+
+#define gltf__ReadEntireFile(Path, FileSize) GLTF_READ_ENTIRE_FILE(Path, FileSize) 
+#define gltf__FreeFileMemory(ResultFromReadFle) GLTF_FREE_FILE_MEMORY(ResultFromReadFle)
+
 namespace gltf {
-
-#define GLTF_READ_ENTIRE_FILE(name) void* name( const c8* Filename, size_t* FileSize)
-typedef GLTF_READ_ENTIRE_FILE(gltf_read_entire_file);
-
-#define GLTF_FREE_FILE_MEMORY(name) void name( void* Memory )
-typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
   enum class primitive_mode {
     POINTS, // 0 
@@ -722,7 +783,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   size_t JsonToIntArray(const nlohmann::json& j, int** Array)
   {
     size_t Count = j.size();
-    int* IntArr = JwinAllocArray(Count, int);
+    int* IntArr = gltf__AllocArray(Count, int);
     int i = 0;
     for (const nlohmann::json& JsonNode : j)
     {
@@ -736,7 +797,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   #define JsonToArrayTemplate(Name, Type) \
   size_t Name(const nlohmann::json& j, Type** Array) { \
     size_t Count = j.size(); \
-    Type* Arr = JwinAllocArray(Count, Type); \
+    Type* Arr = gltf__AllocArray(Count, Type); \
     int i = 0; \
     for (const nlohmann::json& JsonNode : j) \
     { \
@@ -836,7 +897,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
     if(j.contains("camera"))
     {
-      Result.Camera = JwinAllocStruct(int);
+      Result.Camera = gltf__AllocStruct(int);
       *Result.Camera = j.at("camera").get<int>();
       Platform.DEBUGPrint("WARN: raw_node contains camera. No parser yet written. Ignoring.\n");
       Assert(0);
@@ -844,7 +905,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
     if(j.contains("skin"))
     {
-      Result.Skin = JwinAllocStruct(int);
+      Result.Skin = gltf__AllocStruct(int);
       *Result.Skin = j.at("skin").get<int>();
       Platform.DEBUGPrint("WARN: raw_node contains Skin. No parser yet written. Ignoring.\n");
       Assert(0);
@@ -863,7 +924,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
     if(j.contains("mesh"))
     {
-      Result.Mesh = JwinAllocStruct(int);
+      Result.Mesh = gltf__AllocStruct(int);
       *Result.Mesh = j.at("mesh").get<int>();
     }
 
@@ -924,23 +985,23 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   void FreeRawNode(raw_node* Node){
     if(Node->Children)
     {
-      JwinFreeMemory(Node->Children);
+      gltf__FreeMemory(Node->Children);
     }
     if(Node->Mesh)
     {
-      JwinFreeMemory(Node->Mesh);
+      gltf__FreeMemory(Node->Mesh);
     }
     if(Node->Weights)
     {
-      JwinFreeMemory(Node->Weights);
+      gltf__FreeMemory(Node->Weights);
     }
     if(Node->Skin)
     {
-      JwinFreeMemory(Node->Skin);
+      gltf__FreeMemory(Node->Skin);
     }
     if(Node->Camera)
     {
-      JwinFreeMemory(Node->Camera);
+      gltf__FreeMemory(Node->Camera);
     }
     cmn::Delete(Node->Name);
   }
@@ -1008,7 +1069,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     Assert(j.contains("attributes"));
     const nlohmann::json& JsonAttributes = j.at("attributes");
     Result.AttributeCount = JsonAttributes.size();
-    Result.Attributes =  JwinAllocArray(Result.AttributeCount, raw_attribute);
+    Result.Attributes =  gltf__AllocArray(Result.AttributeCount, raw_attribute);
     int i = 0;
     for(auto& Attribute : JsonAttributes.items())
     {
@@ -1017,13 +1078,13 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
     if(j.contains("indices"))
     {
-      Result.Indices = JwinAllocStruct( int);
+      Result.Indices = gltf__AllocStruct( int);
       *Result.Indices = j.at("indices").get<int>();
     }
 
     if(j.contains("material"))
     {
-      Result.Material = JwinAllocStruct( int);
+      Result.Material = gltf__AllocStruct( int);
       *Result.Material = j.at("material").get<int>();
     }
 
@@ -1053,26 +1114,26 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     
     if(RawPrimitive->Attributes)
     {
-      JwinFreeMemory(RawPrimitive->Attributes);
+      gltf__FreeMemory(RawPrimitive->Attributes);
       RawPrimitive->Attributes = 0;
     }
     
     if(RawPrimitive->Indices)
     {
-      JwinFreeMemory(RawPrimitive->Indices);
+      gltf__FreeMemory(RawPrimitive->Indices);
       RawPrimitive->Indices = 0;
     }
 
     if(RawPrimitive->Material)
     {
-      JwinFreeMemory(RawPrimitive->Material);
+      gltf__FreeMemory(RawPrimitive->Material);
       RawPrimitive->Material = 0;
     }
   }
 
   raw_texture_info* JsonToRawTextureInfo(const nlohmann::json& j)
   {
-    raw_texture_info* Result = JwinAllocStruct( raw_texture_info);
+    raw_texture_info* Result = gltf__AllocStruct( raw_texture_info);
     Result->Index = j.at("index").get<int>();
     if(j.contains("texCoord"))
     {
@@ -1089,8 +1150,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
   raw_pbr_metallic_roughness* JsonToRawPbrMetallicRoughness(const nlohmann::json& j)
   {
-
-    raw_pbr_metallic_roughness* Result = JwinAllocStruct( raw_pbr_metallic_roughness);
+    raw_pbr_metallic_roughness* Result = gltf__AllocStruct( raw_pbr_metallic_roughness);
 
     if(j.contains("baseColorFactor"))
     {
@@ -1131,7 +1191,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
   raw_material_normal_texture_info* JsonToRawNormalTexture(const nlohmann::json& j)
   {
-    raw_material_normal_texture_info* Result = JwinAllocStruct( raw_material_normal_texture_info);
+    raw_material_normal_texture_info* Result = gltf__AllocStruct( raw_material_normal_texture_info);
     Result->Index = j.at("index").get<int>();
     if(j.contains("texCoord"))
     {
@@ -1155,7 +1215,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
   raw_material_occlusion_texture_info* JsonToRawOcclusionTextureInfo(const nlohmann::json& j)
   {
-    raw_material_occlusion_texture_info* Result = JwinAllocStruct( raw_material_occlusion_texture_info);
+    raw_material_occlusion_texture_info* Result = gltf__AllocStruct( raw_material_occlusion_texture_info);
 
     Result->Index = j.at("index").get<int>();
     if(j.contains("texCoord"))
@@ -1184,7 +1244,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     Assert(j.contains("primitives"));
     const nlohmann::json& JsonPrimitives = j.at("primitives");
     Result.PrimitiveCount = JsonPrimitives.size();
-    Result.Primitives = JwinAllocArray(Result.PrimitiveCount,raw_primitive);
+    Result.Primitives = gltf__AllocArray(Result.PrimitiveCount,raw_primitive);
     int i = 0;
     for (const nlohmann::json& JsonPrimitive : JsonPrimitives) {
       Result.Primitives[i++] = JsonToPrimitive(JsonPrimitive);
@@ -1208,19 +1268,19 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   {
     if(ExtractedPrimitive->Indeces)
     {
-      JwinFreeMemory(ExtractedPrimitive->Indeces);
+      gltf__FreeMemory(ExtractedPrimitive->Indeces);
       ExtractedPrimitive->IndexCount = 0;
       ExtractedPrimitive->Indeces = 0;
 
     }
     if(ExtractedPrimitive->v)
     {
-      JwinFreeMemory(ExtractedPrimitive->v);
+      gltf__FreeMemory(ExtractedPrimitive->v);
       ExtractedPrimitive->v = 0;
     }
     if(ExtractedPrimitive->vn)
     {
-      JwinFreeMemory(ExtractedPrimitive->vn);
+      gltf__FreeMemory(ExtractedPrimitive->vn);
       ExtractedPrimitive->vn = 0;
     }
 
@@ -1228,14 +1288,14 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       for (int i = 0; i < ExtractedPrimitive->vtSetCount; ++i)
       {
-        JwinFreeMemory(ExtractedPrimitive->vt[i]);
+        gltf__FreeMemory(ExtractedPrimitive->vt[i]);
       }
-      JwinFreeMemory(ExtractedPrimitive->vt);
+      gltf__FreeMemory(ExtractedPrimitive->vt);
       ExtractedPrimitive->vt = 0;
     }
     if(ExtractedPrimitive->MaterialIndex)
     {
-      JwinFreeMemory(ExtractedPrimitive->MaterialIndex);
+      gltf__FreeMemory(ExtractedPrimitive->MaterialIndex);
       ExtractedPrimitive->MaterialIndex = 0;
     }
   }
@@ -1250,25 +1310,28 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_primitive* Primitive = &RawMesh->Primitives[i];
         FreeRawPrimitive(Primitive);
       }
-      JwinFreeMemory(RawMesh->Primitives);
+      gltf__FreeMemory(RawMesh->Primitives);
       RawMesh->Primitives = 0;
     }
 
     if(RawMesh->Weights)
     {
-      JwinFreeMemory(RawMesh->Weights);
+      gltf__FreeMemory(RawMesh->Weights);
       RawMesh->Weights = 0;
     }
 
     cmn::Delete(RawMesh->Name);
 
-    for (int i = 0; i < RawMesh->ExtractedPrimitiveCount; ++i)
+    if(RawMesh->ExtractedPrimitives)
     {
-      extracted_primitive* ExtractedPrimitive = &RawMesh->ExtractedPrimitives[i];
-      FreeExtractedPrimitive(ExtractedPrimitive);
+      for (int i = 0; i < RawMesh->ExtractedPrimitiveCount; ++i)
+      {
+        extracted_primitive* ExtractedPrimitive = &RawMesh->ExtractedPrimitives[i];
+        FreeExtractedPrimitive(ExtractedPrimitive);
+      }
+      gltf__FreeMemory(RawMesh->ExtractedPrimitives);
+      RawMesh->ExtractedPrimitives = 0;  
     }
-    JwinFreeMemory(RawMesh->ExtractedPrimitives);
-    RawMesh->ExtractedPrimitives = 0;
   }
 
   raw_material JsonToRawMaterial(const nlohmann::json& j)
@@ -1338,13 +1401,13 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   {
     if(PbrMetallicRoughness->BaseColorTexture)
     {
-      JwinFreeMemory(PbrMetallicRoughness->BaseColorTexture);
+      gltf__FreeMemory(PbrMetallicRoughness->BaseColorTexture);
       PbrMetallicRoughness->BaseColorTexture = 0;
     }
 
     if(PbrMetallicRoughness->MetallicRoughnessTexture)
     {
-      JwinFreeMemory(PbrMetallicRoughness->MetallicRoughnessTexture);
+      gltf__FreeMemory(PbrMetallicRoughness->MetallicRoughnessTexture);
       PbrMetallicRoughness->MetallicRoughnessTexture = 0;
     }
   }
@@ -1356,24 +1419,24 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     if(RawMaterial->PbrMetallicRoughness)
     {
       FreeRawPbrMetallicRoughness(RawMaterial->PbrMetallicRoughness);
-      JwinFreeMemory(RawMaterial->PbrMetallicRoughness);
+      gltf__FreeMemory(RawMaterial->PbrMetallicRoughness);
     }
 
     if(RawMaterial->NormalTexture)
     {
-      JwinFreeMemory(RawMaterial->NormalTexture);
+      gltf__FreeMemory(RawMaterial->NormalTexture);
       RawMaterial->NormalTexture = 0;
     }
 
     if(RawMaterial->OcclusionTexture)
     {
-      JwinFreeMemory(RawMaterial->OcclusionTexture);
+      gltf__FreeMemory(RawMaterial->OcclusionTexture);
       RawMaterial->OcclusionTexture = 0;
     }
 
     if(RawMaterial->EmissiveTexture)
     {
-      JwinFreeMemory(RawMaterial->EmissiveTexture);
+      gltf__FreeMemory(RawMaterial->EmissiveTexture);
       RawMaterial->EmissiveTexture = 0;
     }
     cmn::Delete(RawMaterial->AlphaMode);
@@ -1419,7 +1482,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
   raw_accessor::sparse* JsonToSparse(const nlohmann::json& j)
   {
-    raw_accessor::sparse* Result = JwinAllocStruct( raw_accessor::sparse);
+    raw_accessor::sparse* Result = gltf__AllocStruct( raw_accessor::sparse);
 
     Result->Count = j.at("count").get<int>();
     Result->Indices = JsonToSparseIndices(j.at("indices"));
@@ -1464,7 +1527,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     raw_accessor Result = {};
     
     if(j.contains("bufferView")){
-      Result.BufferView = JwinAllocStruct( int);
+      Result.BufferView = gltf__AllocStruct( int);
       *Result.BufferView = j.at("bufferView").get<int>();
     }
 
@@ -1515,25 +1578,25 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   {
     if(RawAccessor->BufferView)
     {
-      JwinFreeMemory(RawAccessor->BufferView);
+      gltf__FreeMemory(RawAccessor->BufferView);
       RawAccessor->BufferView = 0;
     }
     
     if(RawAccessor->Max)
     {
-      JwinFreeMemory(RawAccessor->Max);
+      gltf__FreeMemory(RawAccessor->Max);
       RawAccessor->Max = 0;
     }
     
     if(RawAccessor->Min)
     {
-      JwinFreeMemory(RawAccessor->Min);
+      gltf__FreeMemory(RawAccessor->Min);
       RawAccessor->Min = 0;
     }
     
     if(RawAccessor->Sparse)
     {
-      JwinFreeMemory(RawAccessor->Sparse);
+      gltf__FreeMemory(RawAccessor->Sparse);
       RawAccessor->Sparse = 0;
     }
     
@@ -1573,7 +1636,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     Result.ByteLength = j.at("byteLength").get<size_t>();
 
     if(j.contains("byteStride")){
-      Result.ByteStride = JwinAllocStruct( int);
+      Result.ByteStride = gltf__AllocStruct( int);
       *Result.ByteStride = j.at("byteStride").get<int>();
     }
 
@@ -1594,7 +1657,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   {
     if(RawBufferView->ByteStride)
     {
-      JwinFreeMemory(RawBufferView->ByteStride);
+      gltf__FreeMemory(RawBufferView->ByteStride);
       RawBufferView->ByteStride = 0;
     }
     cmn::Delete(RawBufferView->Name);
@@ -1629,7 +1692,13 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   {
     cmn::Delete(RawBuffer->Uri);
     cmn::Delete(RawBuffer->Name);
-    Assert(RawBuffer->LoadedData == 0);
+
+    if(RawBuffer->LoadedData)
+    {
+      gltf__FreeFileMemory(RawBuffer->LoadedData);
+      RawBuffer->LoadedData = 0;
+      RawBuffer->LoadedSize = 0;  
+    }
   }
 
 
@@ -1655,7 +1724,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
   void FreeRawScene(raw_scene* RawScene){
     cmn::Delete(RawScene->Name);
-    JwinFreeMemory(RawScene->Nodes);
+    gltf__FreeMemory(RawScene->Nodes);
   }
 
   raw_sampler JsonToRawSampler(const nlohmann::json& j)
@@ -1736,7 +1805,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
     if(j.contains("bufferView"))
     {
-      Result.BufferView = JwinAllocStruct( int);
+      Result.BufferView = gltf__AllocStruct( int);
       *Result.BufferView = j.at("bufferView").get<int>();
       Assert(j.contains("mimeType")); // Note MimeType must be defined if bufferView is defined.
       Assert(!j.contains("uri"));     // Note uri must _NOT_ be defined if bufferView is defined.
@@ -1759,13 +1828,13 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     cmn::Delete(RawImage->Uri);
     if(RawImage->BufferView)
     {
-      JwinFreeMemory(RawImage->BufferView);
+      gltf__FreeMemory(RawImage->BufferView);
       RawImage->BufferView = 0;
     }
     cmn::Delete(RawImage->Name);
     if(RawImage->Pixels)
     {
-      JwinFreeMemory(RawImage->Pixels);
+      gltf__FreeMemory(RawImage->Pixels);
       RawImage->Pixels = 0;
     }
   }
@@ -1776,7 +1845,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
     // Note: When undefined, a sampler with repeat wrapping and auto filtering SHOULD be used.
     if(j.contains("sampler")){
-      Result.Sampler = JwinAllocStruct( int);
+      Result.Sampler = gltf__AllocStruct( int);
       *Result.Sampler = j.at("sampler").get<int>();
     }
 
@@ -1785,7 +1854,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     // Note: The index of the image used by this texture. When undefined, an extension or other mechanism SHOULD
     //       supply an alternate texture source, otherwise behavior is undefined.
     if(j.contains("sampler")){
-      Result.Source = JwinAllocStruct( int);
+      Result.Source = gltf__AllocStruct( int);
       *Result.Source = j.at("sampler").get<int>();
     }
     
@@ -1803,12 +1872,12 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   {
     if(RawTexture->Sampler)
     {
-      JwinFreeMemory(RawTexture->Sampler);
+      gltf__FreeMemory(RawTexture->Sampler);
       RawTexture->Sampler = 0;
     }
     if(RawTexture->Source)
     {
-      JwinFreeMemory(RawTexture->Source);
+      gltf__FreeMemory(RawTexture->Source);
       RawTexture->Source = 0;
     }
     cmn::Delete(RawTexture->Name);
@@ -1930,7 +1999,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
     buffer_extract_result Result = Extract(ElementCount, ComponentCount,
       SrcComponentSize, SrcStride, Src,
-      DstComponentSize, (uint8_t*) JwinAllocSize(ElementCount * ComponentCount * DstComponentSize) );
+      DstComponentSize, (uint8_t*) gltf__AllocSize(ElementCount * ComponentCount * DstComponentSize) );
 
     return Result;
   }
@@ -2001,7 +2070,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
 
 
     Result.vtSetCount = TextureCoordinateCount;
-    Result.vt         = JwinAllocArray(Result.vtSetCount, v2*);
+    Result.vt         = gltf__AllocArray(Result.vtSetCount, v2*);
 
     for (int i = 0; i < RawPrimitive->AttributeCount; ++i)
     {
@@ -2055,7 +2124,11 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
       }
     }
 
-    Result.MaterialIndex = RawPrimitive->Material;
+    if(RawPrimitive->Material)
+    {
+      Result.MaterialIndex = gltf__AllocStruct(int);
+      *Result.MaterialIndex = *RawPrimitive->Material;
+    }
     Result.Mode = RawPrimitive->Mode;
 
     return Result;
@@ -2064,7 +2137,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
   void ExtractPrimitives(raw_mesh* RawMesh, raw_gltf_data* RawGltfData)
   {
     RawMesh->ExtractedPrimitiveCount = RawMesh->PrimitiveCount;
-    RawMesh->ExtractedPrimitives = JwinAllocArray(RawMesh->ExtractedPrimitiveCount, extracted_primitive);
+    RawMesh->ExtractedPrimitives = gltf__AllocArray(RawMesh->ExtractedPrimitiveCount, extracted_primitive);
     for (int i = 0; i < RawMesh->PrimitiveCount; ++i)
     {
       RawMesh->ExtractedPrimitives[i] = ToPrimitive(RawMesh->Primitives, RawGltfData);
@@ -2078,7 +2151,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     while (ByteCount--) { *DstScan++ = *SrcScan++;}
   }
 
-  raw_gltf_data Load(const char* FolderPath, const char* FileName, gltf_read_entire_file ReadFile, gltf_free_file_memory FreeFile)
+  raw_gltf_data Load(const char* FolderPath, const char* FileName)
   {
     raw_gltf_data RawGltfData = {};
 
@@ -2089,7 +2162,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     cmn::PushBack(GltfFIlePath, FileName);
     
     size_t DataSize = 0;
-    void* GltfFile = ReadFile(GltfFIlePath.data, &DataSize);
+    void* GltfFile = gltf__ReadEntireFile(GltfFIlePath.data, &DataSize);
 
     nlohmann::json GltfJson = nlohmann::json::parse( (const char*) GltfFile);
 
@@ -2108,7 +2181,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("scenes");
       RawGltfData.RawSceneCount = JsonList.size();
-      RawGltfData.RawScenes = JwinAllocArray(RawGltfData.RawSceneCount, raw_scene);
+      RawGltfData.RawScenes = gltf__AllocArray(RawGltfData.RawSceneCount, raw_scene);
       int i = 0;
       for(nlohmann::json& JsonListElement : JsonList)
       {
@@ -2120,7 +2193,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("nodes");
       RawGltfData.RawNodeCount = JsonList.size();
-      RawGltfData.RawNodes = JwinAllocArray(RawGltfData.RawNodeCount, raw_node);
+      RawGltfData.RawNodes = gltf__AllocArray(RawGltfData.RawNodeCount, raw_node);
       int i = 0;
       for(nlohmann::json& JsonListElement : JsonList)
       {
@@ -2132,7 +2205,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("meshes");
       RawGltfData.RawMeshCount = JsonList.size();
-      RawGltfData.RawMeshes = JwinAllocArray(RawGltfData.RawMeshCount, raw_mesh);
+      RawGltfData.RawMeshes = gltf__AllocArray(RawGltfData.RawMeshCount, raw_mesh);
       int i = 0;
       for(nlohmann::json& JsonListElement : JsonList)
       {
@@ -2144,7 +2217,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("materials");
       RawGltfData.RawMaterialCount = JsonList.size();
-      RawGltfData.RawMaterials = JwinAllocArray(RawGltfData.RawMaterialCount, raw_material);
+      RawGltfData.RawMaterials = gltf__AllocArray(RawGltfData.RawMaterialCount, raw_material);
       int i = 0;
       for(nlohmann::json& JsonListElement : JsonList)
       {
@@ -2156,7 +2229,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("accessors");
       RawGltfData.RawAccessorCount = JsonList.size();
-      RawGltfData.RawAccessors = JwinAllocArray(RawGltfData.RawAccessorCount, raw_accessor);
+      RawGltfData.RawAccessors = gltf__AllocArray(RawGltfData.RawAccessorCount, raw_accessor);
       int i = 0;
       for(nlohmann::json& JsonListElement : JsonList)
       {
@@ -2168,7 +2241,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("bufferViews");
       RawGltfData.RawBufferViewCount = JsonList.size();
-      RawGltfData.RawBufferViews = JwinAllocArray(RawGltfData.RawBufferViewCount, raw_buffer_view);
+      RawGltfData.RawBufferViews = gltf__AllocArray(RawGltfData.RawBufferViewCount, raw_buffer_view);
       int i = 0;
       for(const nlohmann::json& JsonListElement : JsonList)
       {
@@ -2180,7 +2253,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("buffers");
       RawGltfData.RawBufferCount = JsonList.size();
-      RawGltfData.RawBuffers = JwinAllocArray(RawGltfData.RawBufferCount, raw_buffer);
+      RawGltfData.RawBuffers = gltf__AllocArray(RawGltfData.RawBufferCount, raw_buffer);
       int i = 0;
       for(nlohmann::json& JsonBuffer : JsonList)
       {
@@ -2194,7 +2267,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
           cmn::PushBack(BinPath, FolderPath);
           cmn::PushBack(BinPath, "\\");
           cmn::PushBack(BinPath, RawBuffer->Uri);
-          RawBuffer->LoadedData = (uint8_t*) ReadFile(BinPath.data, &RawBuffer->LoadedSize);
+          RawBuffer->LoadedData = (uint8_t*) gltf__ReadEntireFile(BinPath.data, &RawBuffer->LoadedSize);
           Assert(RawBuffer->LoadedSize == RawBuffer->ByteLength);
         }else{
           // We have a buffer without file name.
@@ -2209,7 +2282,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("samplers");
       RawGltfData.RawSamplerCount = JsonList.size();
-      RawGltfData.RawSamplers = JwinAllocArray(RawGltfData.RawSamplerCount, raw_sampler);
+      RawGltfData.RawSamplers = gltf__AllocArray(RawGltfData.RawSamplerCount, raw_sampler);
       int i = 0;
       for(const nlohmann::json& JsonListElement : JsonList)
       {
@@ -2221,7 +2294,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("images");
       RawGltfData.RawImageCount = JsonList.size();
-      RawGltfData.RawImages = JwinAllocArray(RawGltfData.RawImageCount, raw_image);
+      RawGltfData.RawImages = gltf__AllocArray(RawGltfData.RawImageCount, raw_image);
       int i = 0;
       for(nlohmann::json& JsonBuffer : JsonList)
       {
@@ -2242,7 +2315,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
           RawImage->Channels = STBI_rgb_alpha;
 
           size_t ImageByteSize = RawImage->Width * RawImage->Height * RawImage->Channels;
-          RawImage->Pixels = (uint8_t*) JwinAllocSize(ImageByteSize);
+          RawImage->Pixels = (uint8_t*) gltf__AllocSize(ImageByteSize);
           Copy(ImageByteSize, (uint8_t*) ImageData, (uint8_t*) RawImage->Pixels);
           stbi_image_free(ImageData);
         }else{
@@ -2258,7 +2331,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
     {
       nlohmann::json JsonList = GltfJson.at("textures");
       RawGltfData.RawTextureCount = JsonList.size();
-      RawGltfData.RawTextures = JwinAllocArray(RawGltfData.RawTextureCount, raw_texture);
+      RawGltfData.RawTextures = gltf__AllocArray(RawGltfData.RawTextureCount, raw_texture);
       int i = 0;
       for(const nlohmann::json& JsonListElement : JsonList)
       {
@@ -2271,17 +2344,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
       ExtractPrimitives(RawGltfData.RawMeshes, &RawGltfData);
     }
 
-    FreeFile(GltfFile);
-
-    for (int i = 0; i < RawGltfData.RawBufferCount; ++i)
-    {
-      if(RawGltfData.RawBuffers[i].LoadedData)
-      {
-        FreeFile(RawGltfData.RawBuffers[i].LoadedData);
-        RawGltfData.RawBuffers[i].LoadedData = 0;
-        RawGltfData.RawBuffers[i].LoadedSize = 0;
-      }
-    }
+    gltf__FreeFileMemory(GltfFile);
 
     return RawGltfData;
   }
@@ -2295,7 +2358,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_scene* RawScene = &RawGltfData->RawScenes[i];
         FreeRawScene(RawScene);
       }
-      JwinFreeMemory(RawGltfData->RawScenes);
+      gltf__FreeMemory(RawGltfData->RawScenes);
     }
 
     if(RawGltfData->RawNodes)
@@ -2305,7 +2368,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_node* RawNode = &RawGltfData->RawNodes[i];
         FreeRawNode(RawNode);
       }
-      JwinFreeMemory(RawGltfData->RawNodes);
+      gltf__FreeMemory(RawGltfData->RawNodes);
     }
 
     if(RawGltfData->RawMeshes)
@@ -2315,7 +2378,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_mesh* RawMesh = &RawGltfData->RawMeshes[i]; 
         FreeRawMesh(RawMesh);
       }
-      JwinFreeMemory(RawGltfData->RawMeshes);
+      gltf__FreeMemory(RawGltfData->RawMeshes);
     }
 
     if(RawGltfData->RawMaterials)
@@ -2325,7 +2388,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_material* RawMaterial = &RawGltfData->RawMaterials[i];
         FreeRawMaterial(RawMaterial);
       }
-      JwinFreeMemory(RawGltfData->RawMaterials);
+      gltf__FreeMemory(RawGltfData->RawMaterials);
     }
 
     if(RawGltfData->RawAccessors)
@@ -2335,7 +2398,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_accessor* RawAccessor = &RawGltfData->RawAccessors[i]; 
         FreeRawAccessor(RawAccessor);
       }
-      JwinFreeMemory(RawGltfData->RawAccessors);
+      gltf__FreeMemory(RawGltfData->RawAccessors);
     }
 
     if(RawGltfData->RawBufferViews)
@@ -2345,7 +2408,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_buffer_view* RawBufferView = &RawGltfData->RawBufferViews[i]; 
         FreeRawBufferView(RawBufferView);
       }
-      JwinFreeMemory(RawGltfData->RawBufferViews);
+      gltf__FreeMemory(RawGltfData->RawBufferViews);
     }
 
     if(RawGltfData->RawBuffers)
@@ -2355,7 +2418,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_buffer* RawBuffer = &RawGltfData->RawBuffers[i]; 
         FreeRawBuffer(RawBuffer);
       }
-      JwinFreeMemory(RawGltfData->RawBuffers);
+      gltf__FreeMemory(RawGltfData->RawBuffers);
     }
 
     if(RawGltfData->RawSamplers)
@@ -2365,7 +2428,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_sampler* RawSampler = &RawGltfData->RawSamplers[i]; 
         FreeRawSampler(RawSampler);
       }
-      JwinFreeMemory(RawGltfData->RawSamplers);
+      gltf__FreeMemory(RawGltfData->RawSamplers);
     }
 
     if(RawGltfData->RawImages)
@@ -2375,7 +2438,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_image* RawImage = &RawGltfData->RawImages[i]; 
         FreeRawImage(RawImage);
       }
-      JwinFreeMemory(RawGltfData->RawImages);
+      gltf__FreeMemory(RawGltfData->RawImages);
     }
 
     if(RawGltfData->RawTextures)
@@ -2385,7 +2448,7 @@ typedef GLTF_FREE_FILE_MEMORY(gltf_free_file_memory);
         raw_texture* RawTexture = &RawGltfData->RawTextures[i]; 
         FreeRawTexture(RawTexture);
       }
-      JwinFreeMemory(RawGltfData->RawTextures);
+      gltf__FreeMemory(RawGltfData->RawTextures);
     }
 
     *RawGltfData = {};

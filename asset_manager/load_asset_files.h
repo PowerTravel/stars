@@ -99,16 +99,7 @@ static asset::key LoadGltf(const char* Path, const char* UniqueName) {
   size_t FileNameLength = jstr::StringLength( OnePastLastSlash );
   jstr::CopyStrings( FileNameLength, OnePastLastSlash, FileNameLength+1, FileNameBuf );
   
-
-  gltf::raw_gltf_data Gltf = gltf::Load(FolderBuf, FileNameBuf,
-  [](const char* Path, size_t* Size){
-    debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile(Path);
-    *Size = ReadResult.ContentSize;
-    return ReadResult.Contents;
-  },
-  [](void* FileDataToFree){
-    Platform.DEBUGPlatformFreeFileMemory(FileDataToFree);
-  });
+  gltf::raw_gltf_data Gltf = gltf::Load(FolderBuf, FileNameBuf);
 
   size_t RenderTreeCount = 0;
 
