@@ -1048,6 +1048,27 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     return Result;
   }
 
+  void FreeRawPrimitive(raw_primitive* RawPrimitive) {
+    
+    if(RawPrimitive->Attributes)
+    {
+      JwinFreeMemory(RawPrimitive->Attributes);
+      RawPrimitive->Attributes = 0;
+    }
+    
+    if(RawPrimitive->Indices)
+    {
+      JwinFreeMemory(RawPrimitive->Indices);
+      RawPrimitive->Indices = 0;
+    }
+
+    if(RawPrimitive->Material)
+    {
+      JwinFreeMemory(RawPrimitive->Material);
+      RawPrimitive->Material = 0;
+    }
+  }
+
   raw_texture_info* JsonToRawTextureInfo(const nlohmann::json& j)
   {
     raw_texture_info* Result = JwinAllocStruct( raw_texture_info);
@@ -1180,6 +1201,73 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     }
 
     return Result;
+  }
+
+  void FreeExtractedPrimitive(extracted_primitive* ExtractedPrimitive)
+  {
+    if(ExtractedPrimitive->Indeces)
+    {
+      JwinFreeMemory(ExtractedPrimitive->Indeces);
+      ExtractedPrimitive->IndexCount = 0;
+      ExtractedPrimitive->Indeces = 0;
+
+    }
+    if(ExtractedPrimitive->v)
+    {
+      JwinFreeMemory(ExtractedPrimitive->v);
+      ExtractedPrimitive->v = 0;
+    }
+    if(ExtractedPrimitive->vn)
+    {
+      JwinFreeMemory(ExtractedPrimitive->vn);
+      ExtractedPrimitive->vn = 0;
+    }
+
+    if(ExtractedPrimitive->vt)
+    {
+      for (int i = 0; i < ExtractedPrimitive->vtSetCount; ++i)
+      {
+        JwinFreeMemory(ExtractedPrimitive->vt[i]);
+      }
+      JwinFreeMemory(ExtractedPrimitive->vt);
+      ExtractedPrimitive->vt = 0;
+    }
+    if(ExtractedPrimitive->MaterialIndex)
+    {
+      JwinFreeMemory(ExtractedPrimitive->MaterialIndex);
+      ExtractedPrimitive->MaterialIndex = 0;
+    }
+  }
+
+
+  void FreeRawMesh(raw_mesh* RawMesh)
+  {
+    if(RawMesh->Primitives)
+    {
+      for (int i = 0; i < RawMesh->PrimitiveCount; ++i)
+      {
+        raw_primitive* Primitive = &RawMesh->Primitives[i];
+        FreeRawPrimitive(Primitive);
+      }
+      JwinFreeMemory(RawMesh->Primitives);
+      RawMesh->Primitives = 0;
+    }
+
+    if(RawMesh->Weights)
+    {
+      JwinFreeMemory(RawMesh->Weights);
+      RawMesh->Weights = 0;
+    }
+
+    cmn::Delete(RawMesh->Name);
+
+    for (int i = 0; i < RawMesh->ExtractedPrimitiveCount; ++i)
+    {
+      extracted_primitive* ExtractedPrimitive = &RawMesh->ExtractedPrimitives[i];
+      FreeExtractedPrimitive(ExtractedPrimitive);
+    }
+    JwinFreeMemory(RawMesh->ExtractedPrimitives);
+    RawMesh->ExtractedPrimitives = 0;
   }
 
   raw_material JsonToRawMaterial(const nlohmann::json& j)
@@ -2090,7 +2178,9 @@ typedef GLTF_FREE_FILE_MEMORY( gltf_free_file_memory );
     for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
     {
       raw_mesh* RawMesh = &RawGltfData->RawMeshes[i]; 
+      FreeRawMesh(RawMesh);
     }
+    JwinFreeMemory(RawGltfData->RawMeshes);
 
     for (int i = 0; i < RawGltfData->RawMaterialCount; ++i)
     {
