@@ -66,7 +66,7 @@ namespace asset {
       REPEAT,
     };
 
-    image* Image; // required // TODO: Change back to using a imgage handle.
+    key Image; // required // TODO: Change back to using a imgage handle.
     //            Reason: Since the asset-api works such that it takes a loadable asset and copies the struct into the asset_manager memory,
     //                    we don't know if this image is loaded into _our_ memory or not unless we use a handle.
     int TexCoord; // required - References the mesh the material is attached to
@@ -211,7 +211,7 @@ namespace asset {
 
     struct scene { // Scene_id
 
-#if 0 // Move these here later
+#if 0 // Move these here later ?
 
       size_t MaterialCount;
       pbr_material* Materials;

@@ -1167,8 +1167,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     asset::gltf_tmp::mesh* PlaneMesh = (asset::gltf_tmp::mesh*) asset::Find(asset::type::MESH, PlaneTree->Root->Mesh);
     asset::phong_material* PlaneMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, PlaneMesh->Primitives[0].PhongMaterial);
     Assert(PlaneMaterial->HasDiffuseTexture);
-    asset::image* PlaneTex = PlaneMaterial->DiffuseTexture.Image;
-    u32 PlaneTexHandle = ToHeader(PlaneTex)->Key;
+    asset::key PlaneTexHandle = PlaneMaterial->DiffuseTexture.Image;
+    asset::image* PlaneTex = (asset::image*) asset::Find(asset::type::IMAGE, PlaneTexHandle);
     ecs::render::LoadImageToGpu(PlaneTexHandle, PlaneTex);
 
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);

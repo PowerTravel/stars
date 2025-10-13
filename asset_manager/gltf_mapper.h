@@ -92,7 +92,7 @@ namespace gltf_tmp {
     return Result;
   }
 
-  texture MapTexture(gltf::raw_texture_info* BaseColorTexture, gltf::raw_gltf_data* RawGltfData, image** Images) {
+  texture MapTexture(gltf::raw_texture_info* BaseColorTexture, gltf::raw_gltf_data* RawGltfData, asset::key* Images) {
     texture Result = {};
 
     gltf::raw_texture* RawTexture = &RawGltfData->RawTextures[BaseColorTexture->Index];
@@ -118,7 +118,7 @@ namespace gltf_tmp {
     return Result;
   };
 
-  pbr_material::metallic_roughness MapMetallicRoughness(gltf::raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf::raw_gltf_data* RawGltfData, image** Images) {
+  pbr_material::metallic_roughness MapMetallicRoughness(gltf::raw_pbr_metallic_roughness* RawPbrMetallicRoughness, gltf::raw_gltf_data* RawGltfData,  asset::key* Images) {
     pbr_material::metallic_roughness Result = {};
 
     Result.BaseColorFactor = RawPbrMetallicRoughness->BaseColorFactor;
@@ -157,7 +157,7 @@ namespace gltf_tmp {
   };
 
 
-  pbr_material MapMaterial(gltf::raw_material* RawMaterial, gltf::raw_gltf_data* RawGltfData, image** Images)
+  pbr_material MapMaterial(gltf::raw_material* RawMaterial, gltf::raw_gltf_data* RawGltfData,  asset::key* Images)
   {
     pbr_material Result = {};
 
@@ -382,12 +382,12 @@ namespace gltf_tmp {
   asset::key* LoadGltf(const c8* UniqueName,const  c8* Path, gltf::raw_gltf_data* RawGltfData, size_t* RenderTreeCount) {
 
     size_t LoadedImageCount = RawGltfData->RawImageCount;
-    image** LoadedImagesTracker = PushArray(GlobalTransientArena,LoadedImageCount, image*);
+    asset::key* LoadedImagesTracker = PushArray(GlobalTransientArena,LoadedImageCount, asset::key);
     for (int i = 0; i < RawGltfData->RawImageCount; ++i)
     {
       gltf::raw_image& RawImage = RawGltfData->RawImages[i];
       image TmpImage = Map(RawImage);
-      LoadedImagesTracker[i]  = asset::LoadImage(RawImage.Uri.data, RawImage.Name.data, RawImage.Uri.data, &TmpImage);
+      asset::LoadImage(RawImage.Uri.data, RawImage.Name.data, RawImage.Uri.data, &TmpImage, &LoadedImagesTracker[i]);
     }
 
     size_t LoadedMaterialCount = RawGltfData->RawMaterialCount;

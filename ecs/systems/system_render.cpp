@@ -1185,7 +1185,7 @@ void ecs::render::Init(asset::key MeshKey, asset::key MaterialKey, component* Re
   }
   if(Material->HasDiffuseTexture)
   {
-    u32 Handle = ToHeader(Material->DiffuseTexture.Image)->Key;
+    u32 Handle = Material->DiffuseTexture.Image;
     Render->DiffuseTextureHandle = ecs::render::Get32BitTextureHandle(Handle);
   }
 }

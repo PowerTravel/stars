@@ -210,8 +210,7 @@ texture DefaultTexture(u32 ImageHandle)
   Result.MinFilter = texture::filter::NEAREST;
   Result.WrapS = texture::wrap::REPEAT;
   Result.WrapT = texture::wrap::REPEAT;
-  Result.Image = (image*) Find(type::IMAGE, ImageHandle);
-Assert(Result.Image);
+  Result.Image = ImageHandle;
   return Result;
 }
 
