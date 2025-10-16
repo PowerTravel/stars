@@ -80,11 +80,11 @@ namespace asset {
 
   struct phong_material {
 
-    v4*  Ka;
-    v4*  Kd;
-    v4*  Tf;
-    v4*  Ks;
-    v4*  Ke;
+    v4*  Ka; // Ambient
+    v4*  Kd; // Diffuse
+    v4*  Tf; // Transmission
+    v4*  Ks; // Spekular
+    v4*  Ke; // Emissive
     r32* d;  // Specifies the dissolve for the current material
     r32* Ni; // Index of refraction
     r32* Ns; // Specifies the specular exponent for the current material.
@@ -97,7 +97,6 @@ namespace asset {
     b32 HasSpecularTexture;
     texture SpecularTexture;
   };
-
 
   // Things needed for pbr-rendering
   // Asset Type

@@ -21,9 +21,33 @@
 #include "asset_manager/asset_manager.cpp"
 #include "dynamic_aabb_tree.cpp"
 #include "ecs/components/component_collider.h"
-//#include "dynamic_aabb_tree.cpp"
-//#include "externals\json_fwd.hpp"
 #include "io/obj.cpp"
+
+#if 0
+
+#define GLTF_IO_FUNCTIONS
+void* __jwin__ReadEntireFile(const char* Path, size_t* FileSize)
+{
+  debug_read_file_result ReadResult = Platform.DEBUGPlatformReadEntireFile(Path);
+  *FileSize = ReadResult.ContentSize;
+  return ReadResult.Contents;
+}
+
+void __jwin__FreeFileMemory(void* FileDataToFree)
+{
+  Platform.DEBUGPlatformFreeFileMemory(FileDataToFree);
+}
+
+#define GLTF_READ_ENTIRE_FILE(Path, FileSize) __jwin__ReadEntireFile(Path, FileSize)
+#define GLTF_FREE_FILE_MEMORY(ResultFromReadFle) __jwin__FreeFileMemory((void*)(ResultFromReadFle))
+#endif
+
+#if 0
+#define GLTF_ALLOC_FUNCTIONS
+
+#define GLTF_ALLOC_MEMORY(Size) malloc(Size)
+#define GLTF_FREE_MEMORY(ResultFromAlloc) JwinFree(ResultFromAlloc)
+#endif
 #include "io/gltf.h"
 #include "asset_manager/gltf_mapper.h"
 #include "asset_manager/load_asset_files.h"

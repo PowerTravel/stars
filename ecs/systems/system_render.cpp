@@ -46,7 +46,7 @@ u32 GetMeshHandle(const c8* Name)
   return Handle;
 }
 
-u32 Get32BitTextureHandle(u32 AssetKey)
+u32 Get32BitTextureHandle(asset::key AssetKey)
 {
   u32* Handle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, AssetKey);
   u32 Result = 0;
@@ -63,7 +63,7 @@ u32 Get32BitTextureHandle(u32 AssetKey)
 
 u32 Get32BitTextureHandle(const c8* Name)
 {
-  u32 AssetKey = asset::ToKey(asset::type::IMAGE, Name);
+  asset::key AssetKey = asset::ToKey(asset::type::IMAGE, Name);
   u32 Handle = Get32BitTextureHandle(AssetKey);
   return Handle;
 }
@@ -398,7 +398,16 @@ void DrawRenderObject(component* Component)
 {
   if(!Component) return;
 
-  if(Component->Ambient.W < 1)
+  
+  r32 Transparancy = 1;
+  if(Component->PhongMaterialHandle)
+  {
+    asset::phong_material* PhongMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, Component->PhongMaterialHandle);
+    Assert(PhongMaterial->Ks);
+    Transparancy = PhongMaterial->Ks->W;
+  }
+
+  if(Transparancy < 1)
   {
     Push(&GlobalRenderSystem->Arena,  GetTransparentObjects(), (bptr) &Component);
   }else{
@@ -576,7 +585,7 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u3
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
 }
 
-void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
+static void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
   v3 LightDirection, v3 LightColor)
 {
   entity_id EntityId = GetEntityIDFromComponent( (bptr) Render );
@@ -587,24 +596,61 @@ void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program,
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = Render->MeshHandle;
 
-  if(Render->DiffuseTextureHandle)
-  {
-    Object->TextureCount = 1;
-    Object->TextureHandles[0] = Render->DiffuseTextureHandle;
-  }
+
   m4 ModelMat = GetModelMatrix(Position);
 
   m4 ModelView = ViewMatrix*ModelMat;
   m4 NormalView = Transpose(RigidInverse(ModelView));
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"), ProjectionMatrix);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"), ModelView);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Render->Ambient);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Render->Diffuse);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Render->Specular);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Render->Shininess);
+
+  v4 Ambient = V4(0.2,0.2,0.2,1);
+  v4 Diffuse = V4(0.6,0.6,0.6,1);
+  v4 Specular = V4(1,1,1,1);
+  r32 Shininess = 16;
+  
+  if(Render->PhongMaterialHandle)
+  {
+    asset::phong_material* PhongMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, Render->PhongMaterialHandle);
+    if(PhongMaterial->Ka){
+      Ambient   = *PhongMaterial->Ka;
+    }
+    if(PhongMaterial->Kd){
+      Diffuse   = *PhongMaterial->Kd;
+    }
+    if(PhongMaterial->Ks){
+      Specular  = *PhongMaterial->Ks;
+    }
+    if(PhongMaterial->Ns){
+      Shininess = *PhongMaterial->Ns;
+    }
+
+    if(PhongMaterial->HasDiffuseTexture)
+    {
+      asset::key ImageHandle = PhongMaterial->DiffuseTexture.Image;
+      asset::image* Image = (asset::image*) Find(asset::type::IMAGE, PhongMaterial->DiffuseTexture.Image);
+      u32 TexHandle = Get32BitTextureHandle(ImageHandle);
+
+      Object->TextureCount = 1;
+      Object->TextureHandles[0] = TexHandle;
+    }
+  } 
+#if 0
+  else if (Render->PbrMaterialHandle)
+  {
+    asset::pbr_material* PbrMaterial = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, Render->PbrMaterialHandle);
+    Assert(PbrMaterial->HasMetallicRoughness);
+    Diffuse =  PbrMaterial->MetallicRoughness.BaseColorFactor;
+  }
+#endif
+
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"),    ProjectionMatrix);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"),        ModelView);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"),       NormalView);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"),   LightDirection);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"),       LightColor);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"),  Ambient);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"),  Diffuse);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"),        Shininess);
 }
 
 void DEBUGPrintMatrix(m4 Matrix)
@@ -1166,28 +1212,7 @@ void ecs::render::Init(asset::key MeshKey, asset::key MaterialKey, component* Re
   asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, MeshKey);
   Render->MeshHandle = ecs::render::GetMeshHandle(MeshKey);
   Assert(Mesh->PrimitiveCount == 1); // We don't support multi primitive mesh rendering (yet)
-
-
-
-  asset::phong_material* Material = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, MaterialKey);
-  Assert(Material);
-  if(Material->Ka){
-    Render->Ambient = *Material->Ka;
-  }
-  if(Material->Kd){
-    Render->Diffuse = *Material->Kd;
-  }
-  if(Material->Ks){
-    Render->Specular = *Material->Ks;
-  }
-  if(Material->Ns){
-    Render->Shininess = *Material->Ns;
-  }
-  if(Material->HasDiffuseTexture)
-  {
-    u32 Handle = Material->DiffuseTexture.Image;
-    Render->DiffuseTextureHandle = ecs::render::Get32BitTextureHandle(Handle);
-  }
+  Render->PhongMaterialHandle = MaterialKey;
 }
 
 void DrawLine3D(v3 Start, v3 End, v4 Color, r32 Thickness) {

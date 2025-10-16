@@ -1,18 +1,15 @@
 #pragma once
 
+#include "asset_manager\asset_types.h"
+
 namespace ecs{ 
 namespace render {
 
 struct component {
-  u32 MeshHandle;
-  u32 MaterialHandle;
+  asset::key MeshHandle;
+  asset::key PhongMaterialHandle;
 
-  v4 Ambient;
-  v4 Diffuse;
-  v4 Specular;
-  r32 Shininess;
-
-  u32 DiffuseTextureHandle;
+  asset::key RenderTreeHandle;
 };
 
 
