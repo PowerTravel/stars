@@ -543,12 +543,7 @@ u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWei
 void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
   v3 LightDirection, v3 LightColor, v3 Pos, quat Rot, v3 Scal)
 {
-  render_object* Object = PushNewRenderObject(RenderGroup);
-  Object->ProgramHandle = Program;
-  Object->FrameBufferHandle = FrameBuffer;
-  Object->MeshHandle = MeshHandle;
-  Object->TextureCount = 0;
-
+  
   m4 Scale = GetScaleMatrix(V4(Scal,1));
   m4 Rotation = GetRotationMatrix(Rot);
   m4 Translation = GetTranslationMatrix(V4(Pos,1));
@@ -574,6 +569,13 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u3
 
   m4 ModelView = ViewMatrix*ModelMat;
   m4 NormalView = Transpose(RigidInverse(ModelView));
+
+
+  render_object* Object = PushNewRenderObject(RenderGroup);
+  Object->ProgramHandle = Program;
+  Object->FrameBufferHandle = FrameBuffer;
+  Object->MeshHandle = MeshHandle;
+  Object->TextureCount = 0;
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"), ProjectionMatrix);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"), ModelView);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
@@ -588,15 +590,25 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u3
 static void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
   v3 LightDirection, v3 LightColor)
 {
+
   entity_id EntityId = GetEntityIDFromComponent( (bptr) Render );
   ecs::position::component* Position =  GetPositionComponent(&EntityId);
 
-  render_object* Object = PushNewRenderObject(RenderGroup);
-  Object->ProgramHandle = Program;
-  Object->FrameBufferHandle = FrameBuffer;
-  Object->MeshHandle = Render->MeshHandle;
-
-
+  u32 MeshHandle = 0;
+  if(Render->MeshHandle)
+  {
+    MeshHandle = Render->MeshHandle;
+    
+  }else if (Render->RenderTreeHandle)
+  {
+    asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Render->RenderTreeHandle);
+    // Todo: This is just to make 1 gltf-file work.
+    asset::key MeshKey = RenderTree->Root->FirstChild->Mesh;
+    Assert(MeshKey);
+    //asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::RENDER_TREE, MeshKey);
+    MeshHandle = ecs::render::GetMeshHandle(MeshKey);
+  }
+  
   m4 ModelMat = GetModelMatrix(Position);
 
   m4 ModelView = ViewMatrix*ModelMat;
@@ -607,6 +619,8 @@ static void PushRenderObject(render_group* RenderGroup, component* Render, u32 P
   v4 Specular = V4(1,1,1,1);
   r32 Shininess = 16;
   
+  u32 TextureCount = 0;
+  u32 TextureHandle = 0;
   if(Render->PhongMaterialHandle)
   {
     asset::phong_material* PhongMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, Render->PhongMaterialHandle);
@@ -626,21 +640,36 @@ static void PushRenderObject(render_group* RenderGroup, component* Render, u32 P
     if(PhongMaterial->HasDiffuseTexture)
     {
       asset::key ImageHandle = PhongMaterial->DiffuseTexture.Image;
-      asset::image* Image = (asset::image*) Find(asset::type::IMAGE, PhongMaterial->DiffuseTexture.Image);
-      u32 TexHandle = Get32BitTextureHandle(ImageHandle);
-
-      Object->TextureCount = 1;
-      Object->TextureHandles[0] = TexHandle;
+      asset::image* Image = (asset::image*) Find(asset::type::IMAGE, ImageHandle);
+      TextureCount = 1;
+      TextureHandle = Get32BitTextureHandle(ImageHandle);
     }
-  } 
-#if 0
-  else if (Render->PbrMaterialHandle)
+  }else if (Render->RenderTreeHandle)
   {
-    asset::pbr_material* PbrMaterial = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, Render->PbrMaterialHandle);
+    asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Render->RenderTreeHandle);
+    Assert(RenderTree->Root->FirstChild->Mesh);
+    asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, RenderTree->Root->FirstChild->Mesh);
+    Assert(Mesh->PrimitiveCount == 1);
+    asset::pbr_material* PbrMaterial = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, Mesh->Primitives[0].PbrMaterial);
+    Assert(PbrMaterial);
     Assert(PbrMaterial->HasMetallicRoughness);
-    Diffuse =  PbrMaterial->MetallicRoughness.BaseColorFactor;
+    Diffuse = PbrMaterial->MetallicRoughness.BaseColorFactor;
+
+    if(PbrMaterial->MetallicRoughness.HasBaseColorTexture)
+    {
+      asset::key ImageHandle = PbrMaterial->MetallicRoughness.BaseColorTexture.Image;
+      asset::image* Image = (asset::image*) Find(asset::type::IMAGE, ImageHandle);
+      TextureCount = 1;
+      TextureHandle = Get32BitTextureHandle(ImageHandle);
+    }
   }
-#endif
+
+  render_object* Object = PushNewRenderObject(RenderGroup);
+  Object->ProgramHandle = Program;
+  Object->FrameBufferHandle = FrameBuffer;
+  Object->MeshHandle = MeshHandle;
+  Object->TextureCount = TextureCount;
+  Object->TextureHandles[0] = TextureHandle;
 
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"),    ProjectionMatrix);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"),        ModelView);
@@ -1001,6 +1030,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     RenderLevel = RenderLevel->Next;
   }
 
+  int _a = 10;
 }
 
 
@@ -1093,7 +1123,7 @@ u32 PushBlitPlaneMesh(system* RenderSystem, render_group* RenderGroup)
   Assert(GlBufferData.BufferCount == 1);
   u32 MeshHandle = PushNewMesh(RenderGroup, GlBufferData.BufferData->VertexCount, GlBufferData.BufferData->VertexData);
   u32 IndexHandle = PushNewMeshIndices(RenderGroup, MeshHandle, GlBufferData.BufferData->IndexCount, GlBufferData.BufferData->Indeces);
-  
+
   // Create a mapping between the render-handle and the asset-handle
   {
     u32* StoredRenderHandle = (u32*) GetNewBlock(GlobalPersistentArena, &RenderSystem->RenderHandles);
@@ -1192,6 +1222,7 @@ u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr) {
   Assert(BufferDataPtr->BufferCount == 1);
   gl_vertex_buffer* VertexBuffer = BufferDataPtr->BufferData;
   u32 MeshHandle = PushNewMesh(GlobalRenderCommands->RenderGroup, VertexBuffer->VertexCount, VertexBuffer->VertexData);
+  
   u32 IndexHandle = PushNewMeshIndices(GlobalRenderCommands->RenderGroup, MeshHandle, VertexBuffer->IndexCount, VertexBuffer->Indeces);
   SetHandle(&GlobalRenderSystem->MeshHandleMap, AssetKey, IndexHandle);
   return IndexHandle;
@@ -1211,8 +1242,14 @@ void ecs::render::Init(asset::key MeshKey, asset::key MaterialKey, component* Re
 {
   asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, MeshKey);
   Render->MeshHandle = ecs::render::GetMeshHandle(MeshKey);
+
   Assert(Mesh->PrimitiveCount == 1); // We don't support multi primitive mesh rendering (yet)
   Render->PhongMaterialHandle = MaterialKey;
+}
+
+void ecs::render::Init2(asset::key RenderTreeHandle, component* Render)
+{
+  Render->RenderTreeHandle = RenderTreeHandle;
 }
 
 void DrawLine3D(v3 Start, v3 End, v4 Color, r32 Thickness) {

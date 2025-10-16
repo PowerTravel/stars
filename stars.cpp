@@ -67,7 +67,12 @@ file_local inline void Initiate(asset::key RenderTreeKey, ecs::render::component
   asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
 
   Assert(Mesh->PrimitiveCount == 1);
-  ecs::render::Init(Tree->Root->Mesh, Mesh->Primitives->PhongMaterial, Render);
+  if(Mesh->Primitives->PhongMaterial)
+  {
+    ecs::render::Init(Tree->Root->Mesh, Mesh->Primitives->PhongMaterial, Render);
+  }else if(Mesh->Primitives->PbrMaterial){
+    ecs::render::Init2(RenderTreeKey, Render);
+  }
 }
 
 void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, const c8* UniqueName)
@@ -1211,8 +1216,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       char BoxName[] = "BoxTextured";
 #endif
       asset::key BoxKey = asset::Load(BoxPath, BoxName);
-
-
     }
 
 
@@ -1226,6 +1229,17 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
    
     { // Create some entities
+#if 1
+      { // Gltf Box
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "BoxTextured", ecs::flag::RENDER);
+        ecs::position::component* Position = GetPositionComponent(&Entity);
+        ecs::position::Set(Position, V3(0,2,0), 0, V3(0,1,0), V3(1,1,1));
+        asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, "BoxTextured-13");
+        asset::key TreeKey = asset::ToHeader(RenderTree)->Key;
+        ecs::render::Init2(TreeKey, GetRenderComponent(&Entity));
+      }
+#endif
+
       #if 1
       { // Checker Floor
         asset::mesh* Mesh = MeshFromTree("checker_plane_simple");
@@ -1417,7 +1431,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 #else
   ecs::render::SetDrawWindow(GetRenderSystem(), Rect2f(0,0,1,1));
   DrawAllRenderObjects();
-  DrawOverlayObjects();
+  // Note: This function cold-calls a asset named "Cube" which does not always exist.
+  // If we want to cold-call a mesh we should maybe have a set of basic primitives that we load on startup, similar to the BlitPlane and 
+  // refer to them by enum or something. Not frikkin string.
+  //DrawOverlayObjects(); 
   ecs::render::DrawLine3D(V3(0,0,0), V3(1,1,1), V4(0,1,0,1), 0.1);
 #endif
   #if 1
@@ -1428,4 +1445,5 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   #endif
   ImguiEnd();
   ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
+  int _a = 10;
 } 

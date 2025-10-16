@@ -216,6 +216,7 @@ namespace data {
 
 
   void Init(asset::key MeshKey, asset::key MaterialKey, component* Render);
+  void Init2(asset::key RenderTreeHandle, component* Render);
 
   // Draw basic shapes
   void DrawLine3D(v3 Start, v3 End, v4 Color, r32 Thickness);
