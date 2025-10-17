@@ -1987,7 +1987,8 @@ namespace gltf {
     raw_buffer_view* RawBufferView = &RawBufferViews[*RawAccessor->BufferView];
     raw_buffer*      RawBuffer     = RawBuffers + RawBufferViews->Buffer;
 
-    uint8_t* Src = RawBuffer->LoadedData + RawBufferView->ByteOffset;
+    size_t SrcOffset = RawAccessor->ByteOffset + RawBufferView->ByteOffset;
+    uint8_t* Src = &RawBuffer->LoadedData[SrcOffset];
     
     size_t ElementCount = RawAccessor->Count;
     size_t ComponentCount = AccessorComponentCount(RawAccessor->Type);
@@ -1997,9 +1998,11 @@ namespace gltf {
 
     size_t DstComponentSize = sizeof(float);
 
+    size_t DstSize = ElementCount * ComponentCount * DstComponentSize;
+    uint8_t* Dst = (uint8_t*) gltf__AllocSize(DstSize);
     buffer_extract_result Result = Extract(ElementCount, ComponentCount,
       SrcComponentSize, SrcStride, Src,
-      DstComponentSize, (uint8_t*) gltf__AllocSize(ElementCount * ComponentCount * DstComponentSize) );
+      DstComponentSize, Dst);
 
     return Result;
   }
