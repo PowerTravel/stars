@@ -1183,26 +1183,19 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     LoadMaterials();
     r32 InitTime = Platform.DEBUGGetTime();
     asset::Load("..\\data\\qube.obj","Cube");
-    //asset::Load("..\\data\\checker_plane_simple.obj", "checker_plane_simple");
-    //asset::Load("..\\data\\sphere.obj", "Sphere");
-    //asset::Load("..\\data\\cone.obj", "Cone");
-    //asset::Load("..\\data\\cylinder.obj", "Cylinder");
-    //asset::Load("..\\data\\triangle.obj", "Triangle");
-    //asset::Load("..\\data\\plane.obj", "Plane");
+    asset::Load("..\\data\\checker_plane_simple.obj", "checker_plane_simple");
+    asset::Load("..\\data\\sphere.obj", "Sphere");
+    asset::Load("..\\data\\cone.obj", "Cone");
+    asset::Load("..\\data\\cylinder.obj", "Cylinder");
+    asset::Load("..\\data\\triangle.obj", "Triangle");
+    asset::Load("..\\data\\plane.obj", "Plane");
 //    asset::LoadObj("..\\data\\maquetiiillla.obj", "Test2");
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
-    #if 0
+
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
-    asset::render_tree* PlaneTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, "checker_plane_simple");
-    asset::mesh* PlaneMesh = (asset::mesh*) asset::Find(asset::type::MESH, PlaneTree->Root->Mesh);
-    asset::phong_material* PlaneMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, PlaneMesh->Primitives[0].PhongMaterial);
-    Assert(PlaneMaterial->HasDiffuseTexture);
-    asset::key PlaneTexHandle = PlaneMaterial->DiffuseTexture.Image;
-    asset::image* PlaneTex = (asset::image*) asset::Find(asset::type::IMAGE, PlaneTexHandle);
-    ecs::render::LoadImageToGpu(PlaneTexHandle, PlaneTex);
-#endif
+
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
     GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
@@ -1211,13 +1204,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->Initialized = true;
 
     {
-#if 0
-      char BoxPath[] = "C:\\Users\\jh\\Desktop";
-      char BoxName[] = "box.gltf";
-#else
+
       char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF\\BoxTextured.gltf";
       char BoxName[] = "BoxTextured";
-#endif
+
       BoxTextured = asset::Load(BoxPath, BoxName);
     }
 
@@ -1228,7 +1218,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
    
     { // Create some entities
-#if 1
+
       { // Gltf Box
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "BoxTextured", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
@@ -1237,9 +1227,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         //asset::key TreeKey = asset::ToHeader(RenderTree)->Key;
         ecs::render::Init2(BoxTextured, GetRenderComponent(&Entity));
       }
-#endif
 
-      #if 1
       { // Transparent Cube
         asset::mesh* Mesh = MeshFromTree("Cube");
 
@@ -1252,7 +1240,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);
       }
-      #if 0
+
       { // Checker Floor
         asset::mesh* Mesh = MeshFromTree("checker_plane_simple");
 
@@ -1309,8 +1297,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);
       }
-      #endif
-      #endif
+
 #if 0
       { // TestBuilding
         asset::LoadObj("C:\\Users\\jh\\Desktop\\Donut\\Donut_grouping.obj", "Test");
