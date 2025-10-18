@@ -17,7 +17,24 @@ struct overlay_object {
   quat Rotation;
 };
 
-u32 GetMeshHandle(u32 AssetKey)
+
+file_local void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
+  u32* HandleMem = (u32*) GetNewBlock(GlobalPersistentArena, &GlobalRenderSystem->RenderHandles);
+  *HandleMem = Handle;
+  Insert(HandleTree, Key, (void*) HandleMem);
+}
+
+static u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr) {
+  Assert(BufferDataPtr->BufferCount == 1);
+  gl_vertex_buffer* VertexBuffer = BufferDataPtr->BufferData;
+  u32 MeshHandle = PushNewMesh(GlobalRenderCommands->RenderGroup, VertexBuffer->VertexCount, VertexBuffer->VertexData);
+  
+  u32 IndexHandle = PushNewMeshIndices(GlobalRenderCommands->RenderGroup, MeshHandle, VertexBuffer->IndexCount, VertexBuffer->Indeces);
+  SetHandle(&GlobalRenderSystem->MeshHandleMap, AssetKey, IndexHandle);
+  return IndexHandle;
+}
+
+static u32 GetMeshHandle(asset::key AssetKey)
 {
   u32* Handle = (u32*) Find(&GlobalRenderSystem->MeshHandleMap, AssetKey);
   u32 Result = 0;
@@ -46,26 +63,83 @@ u32 GetMeshHandle(const c8* Name)
   return Handle;
 }
 
-u32 Get32BitTextureHandle(asset::key AssetKey)
+
+static u32 MapTextureFilter(asset::texture::filter Filter)
 {
-  u32* Handle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, AssetKey);
+  switch(Filter)
+  {
+    case asset::texture::filter::NEAREST: return OPEN_GL_NEAREST;
+    case asset::texture::filter::LINEAR: return OPEN_GL_LINEAR;
+    case asset::texture::filter::NEAREST_MIPMAP_NEAREST: return OPEN_GL_NEAREST_MIPMAP_NEAREST;
+    case asset::texture::filter::LINEAR_MIPMAP_NEAREST: return OPEN_GL_LINEAR_MIPMAP_NEAREST;
+    case asset::texture::filter::NEAREST_MIPMAP_LINEAR: return OPEN_GL_NEAREST_MIPMAP_LINEAR;
+    case asset::texture::filter::LINEAR_MIPMAP_LINEAR: return OPEN_GL_LINEAR_MIPMAP_LINEAR;
+  }
+  return OPEN_GL_LINEAR;
+}
+
+static u32 MapTextureWrap(asset::texture::wrap Wrap)
+{
+  switch(Wrap)
+  {
+    case asset::texture::wrap::CLAMP_TO_EDGE: return OPEN_GL_CLAMP_TO_EDGE;
+    case asset::texture::wrap::MIRRORED_REPEAT: return OPEN_GL_MIRRORED_REPEAT;
+    case asset::texture::wrap::REPEAT: return OPEN_GL_REPEAT;
+  }
+  return OPEN_GL_LINEAR;
+}
+
+// Pass texture here!
+u32 LoadTextureToGpu(asset::texture* Texture) {
+  asset::image* Image = (asset::image*) asset::Find(asset::type::IMAGE, Texture->Image);
+  Assert(Image);
+  Assert(Image->Channels == 4);
+
+  texture_params Result = {};
+  Result.TextureFormat = texture_format::RGBA_F32;
+  Result.InputDataType = OPEN_GL_FLOAT;
+  SetParam(&Result, OPEN_GL_TEXTURE_MAG_FILTER, MapTextureFilter(Texture->MagFilter));
+  SetParam(&Result, OPEN_GL_TEXTURE_MIN_FILTER, MapTextureFilter(Texture->MinFilter));
+  SetParam(&Result, OPEN_GL_TEXTURE_WRAP_S,     MapTextureWrap(Texture->WrapS));
+  SetParam(&Result, OPEN_GL_TEXTURE_WRAP_T,     MapTextureWrap(Texture->WrapT));
+  
+  // TODO: Set params based on texture
+  texture_params Params = DefaultColorTextureParams();
+  Params.TextureFormat = texture_format::RGBA_U8;
+  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, Params, Image->Pixels);
+  SetHandle(&GlobalRenderSystem->TextureHandleMap, Texture->Image, Handle);
+  return Handle;
+}
+
+
+u32 Get32BitTextureHandle(asset::key Image)
+{
+  u32* Handle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, Image);
   u32 Result = 0;
   if(Handle)
   {
     Result = *Handle;
   }else{
-    asset::image* Texture = (asset::image*) asset::Find(asset::type::IMAGE, AssetKey);
-    Result = ecs::render::LoadImageToGpu(AssetKey, Texture);
+    asset::texture Texture = asset::DefaultTexture(Image);
+    Result = LoadTextureToGpu(&Texture);
   }
 
   return Result;
 }
 
-u32 Get32BitTextureHandle(const c8* Name)
+u32 Get32BitTextureHandle(asset::texture* Texture)
 {
-  asset::key AssetKey = asset::ToKey(asset::type::IMAGE, Name);
-  u32 Handle = Get32BitTextureHandle(AssetKey);
-  return Handle;
+  u32* Handle = (u32*) Find(&GlobalRenderSystem->TextureHandleMap, Texture->Image);
+  u32 Result = 0;
+  if(Handle)
+  {
+    Result = *Handle;
+  }else{
+    Result = LoadTextureToGpu(Texture);
+  }
+
+  return Result;
 }
 
 void PushStringToGpu(render_group* RenderGroup, render_object* RenderObject, jfont::sdf_font* Font, jfont::sdf_atlas* FontAtlas, r32 X0, r32 Y0, r32 RelativeScale, utf8_byte Text[])
@@ -657,10 +731,9 @@ static void PushRenderObject(render_group* RenderGroup, component* Render, u32 P
 
     if(PbrMaterial->MetallicRoughness.HasBaseColorTexture)
     {
-      asset::key ImageHandle = PbrMaterial->MetallicRoughness.BaseColorTexture.Image;
-      asset::image* Image = (asset::image*) Find(asset::type::IMAGE, ImageHandle);
+      asset::texture* Texture = &PbrMaterial->MetallicRoughness.BaseColorTexture;
       TextureCount = 1;
-      TextureHandle = Get32BitTextureHandle(ImageHandle);
+      TextureHandle = Get32BitTextureHandle(Texture);
     }
   }
 
@@ -1210,32 +1283,6 @@ void Begin()
   GlobalRenderSystem->SolidObjects = {};
   GlobalRenderSystem->OverlayRenders = {};
   GlobalRenderSystem->LineObjects = {};
-}
-
-file_local void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
-  u32* HandleMem = (u32*) GetNewBlock(GlobalPersistentArena, &GlobalRenderSystem->RenderHandles);
-  *HandleMem = Handle;
-  Insert(HandleTree, Key, (void*) HandleMem);
-}
-
-u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr) {
-  Assert(BufferDataPtr->BufferCount == 1);
-  gl_vertex_buffer* VertexBuffer = BufferDataPtr->BufferData;
-  u32 MeshHandle = PushNewMesh(GlobalRenderCommands->RenderGroup, VertexBuffer->VertexCount, VertexBuffer->VertexData);
-  
-  u32 IndexHandle = PushNewMeshIndices(GlobalRenderCommands->RenderGroup, MeshHandle, VertexBuffer->IndexCount, VertexBuffer->Indeces);
-  SetHandle(&GlobalRenderSystem->MeshHandleMap, AssetKey, IndexHandle);
-  return IndexHandle;
-}
-
-u32 LoadImageToGpu(u32 AssetKey, asset::image* Image) {
-  Assert(Image->Channels == 4);
-  texture_params Params = DefaultColorTextureParams();
-  Params.TextureFormat = texture_format::RGBA_U8;
-  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, Params, Image->Pixels);
-  SetHandle(&GlobalRenderSystem->TextureHandleMap, AssetKey, Handle);
-  return Handle;
 }
 
 void ecs::render::Init(asset::key MeshKey, asset::key MaterialKey, component* Render)

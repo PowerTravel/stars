@@ -23,6 +23,7 @@
 #include "ecs/components/component_collider.h"
 #include "io/obj.cpp"
 
+
 #if 0
 
 #define GLTF_IO_FUNCTIONS
@@ -102,7 +103,6 @@ void LoadMaterials()
   WhitePixelBitmap.Pixels = (bptr) WhitePixelPtr;
   asset::key TextureKey = 0;
   asset::LoadImage("WhitePixel", "N/A", "N/A", &WhitePixelBitmap, &TextureKey);
-  ecs::render::LoadImageToGpu(TextureKey, &WhitePixelBitmap);
 
 
   LoadMaterial(TextureKey, {0.0215f,    0.1745f,    0.0215f,   0.55f}, {0.07568f,    0.61424f,    0.07568f,    0.55f}, {0.633f,       0.727811f,    0.633f,      0.55f}, 128 * 0.6f,          "emerald");
@@ -153,8 +153,8 @@ u32 CreateLineRenderProgram(render_group* RenderGroup)
 u32 Load32BitColorTexture(const c8* Name, const c8* Path)
 {
   u32 Key = asset::Load(Path, Name);
-  asset::image* Image = (asset::image*) asset::Find(asset::type::IMAGE, Key);
-  u32 Handle = ecs::render::LoadImageToGpu(Key, Image);
+  asset::texture Texture = asset::DefaultTexture(Key);;
+  u32 Handle = ecs::render::Get32BitTextureHandle(&Texture);
   return Handle;
 }
 
@@ -1147,9 +1147,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ImguiBegin(Input);
   g_t = Input->Time;
 
+  asset::key BoxTextured = {};
+
   if(!GlobalState->Initialized)
   {
-    PowerOfTwoMiddles(1000000000);
+    //PowerOfTwoMiddles(1000000000);
     GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
     GlobalState->AssetManager = asset::CreateAssetManager();
     GlobalAssetManager = GlobalState->AssetManager;
@@ -1181,14 +1183,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     LoadMaterials();
     r32 InitTime = Platform.DEBUGGetTime();
     asset::Load("..\\data\\qube.obj","Cube");
-    asset::Load("..\\data\\checker_plane_simple.obj", "checker_plane_simple");
-    asset::Load("..\\data\\sphere.obj", "Sphere");
-    asset::Load("..\\data\\cone.obj", "Cone");
-    asset::Load("..\\data\\cylinder.obj", "Cylinder");
-    asset::Load("..\\data\\triangle.obj", "Triangle");
-    asset::Load("..\\data\\plane.obj", "Plane");
+    //asset::Load("..\\data\\checker_plane_simple.obj", "checker_plane_simple");
+    //asset::Load("..\\data\\sphere.obj", "Sphere");
+    //asset::Load("..\\data\\cone.obj", "Cone");
+    //asset::Load("..\\data\\cylinder.obj", "Cylinder");
+    //asset::Load("..\\data\\triangle.obj", "Triangle");
+    //asset::Load("..\\data\\plane.obj", "Plane");
 //    asset::LoadObj("..\\data\\maquetiiillla.obj", "Test2");
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
+    #if 0
     Load32BitColorTexture("Brick Wall", "..\\data\\textures\\brick_wall_base.tga");
     Load32BitColorTexture("Faded Ray", "..\\data\\textures\\faded_ray.tga");
     Load32BitColorTexture("Earth Map", "..\\data\\textures\\8081_earthmap4k.tga");
@@ -1199,7 +1202,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     asset::key PlaneTexHandle = PlaneMaterial->DiffuseTexture.Image;
     asset::image* PlaneTex = (asset::image*) asset::Find(asset::type::IMAGE, PlaneTexHandle);
     ecs::render::LoadImageToGpu(PlaneTexHandle, PlaneTex);
-
+#endif
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
     GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
@@ -1215,12 +1218,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF\\BoxTextured.gltf";
       char BoxName[] = "BoxTextured";
 #endif
-      asset::key BoxKey = asset::Load(BoxPath, BoxName);
+      BoxTextured = asset::Load(BoxPath, BoxName);
     }
-
-
-
-
 
     GlobalState->Camera = {};
     InitiateCamera(&GlobalState->Camera, 70, GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio, 0.1);
@@ -1234,13 +1233,26 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "BoxTextured", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,2,0), 0, V3(0,1,0), V3(1,1,1));
-        asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, "BoxTextured-13");
-        asset::key TreeKey = asset::ToHeader(RenderTree)->Key;
-        ecs::render::Init2(TreeKey, GetRenderComponent(&Entity));
+        //asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, BoxTextured);
+        //asset::key TreeKey = asset::ToHeader(RenderTree)->Key;
+        ecs::render::Init2(BoxTextured, GetRenderComponent(&Entity));
       }
 #endif
 
       #if 1
+      { // Transparent Cube
+        asset::mesh* Mesh = MeshFromTree("Cube");
+
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
+        ecs::position::component* Position = GetPositionComponent(&Entity);
+        ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
+        ecs::render::Init(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
+        
+        
+        ecs::collider::component* Collider = GetColliderComponent(&Entity);
+        ecs::collider::Init(Collider, Mesh);
+      }
+      #if 0
       { // Checker Floor
         asset::mesh* Mesh = MeshFromTree("checker_plane_simple");
 
@@ -1254,18 +1266,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::Init(Collider, Mesh);
       }
 
-      { // Transparent Cube
-        asset::mesh* Mesh = MeshFromTree("Cube");
 
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
-        ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
-        ecs::render::Init(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
-        
-        
-        ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        ecs::collider::Init(Collider, Mesh);
-      }
       
       { // Transparent Cone
         asset::mesh* Mesh = MeshFromTree("Cone");
@@ -1308,6 +1309,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);
       }
+      #endif
       #endif
 #if 0
       { // TestBuilding
