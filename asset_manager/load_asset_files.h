@@ -86,13 +86,10 @@ static asset::key LoadGltf(const char* Path, const char* UniqueName) {
   size_t FullLength = jstr::StringLength( Path );
   Assert(FullLength < 255);
 
-
-  char* OneBeforeLastSlash = jstr::FindLastOf( "\\", Path)-1;
-  char* OnePastLastSlash = OneBeforeLastSlash+2;
-  OneBeforeLastSlash[1] = '\0';
+  char* OnePastLastSlash = jstr::FindLastOf( "\\", Path)+1;
 
   char FolderBuf[256] = {};
-  size_t FolderLength = jstr::StringLength( Path );
+  size_t FolderLength = OnePastLastSlash - Path;
   jstr::CopyStrings( FolderLength, Path, FolderLength+1, FolderBuf );
 
   char FileNameBuf[256] = {};

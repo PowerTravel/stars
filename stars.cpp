@@ -1201,14 +1201,13 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
 
+
     GlobalState->Initialized = true;
 
     {
-
-      char BoxPath[] = "C:\\Users\\jh\\Desktop\\BoxTextured\\glTF\\BoxTextured.gltf";
-      char BoxName[] = "BoxTextured";
-
-      BoxTextured = asset::Load(BoxPath, BoxName);
+      //BoxTextured = asset::Load("..\\data\\gltf\\BoxTextured\\BoxTextured.gltf", "BoxTextured");
+      asset::key Engine = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
+      int a = 10;
     }
 
     GlobalState->Camera = {};

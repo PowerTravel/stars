@@ -202,6 +202,7 @@ namespace gltf {
       TRS
     };
 
+    bool DebugUnhandledField;
 
     // key: children
     // Reqiuired:
@@ -389,6 +390,7 @@ namespace gltf {
         // Not implemented:
         // key: extensions (not required)
         // key: extras     (not required)
+        bool DebugUnhandledField;
       };
 
       struct values {
@@ -405,6 +407,7 @@ namespace gltf {
         // Not implemented:
         // key: extensions (not required)
         // key: extras     (not required)
+        bool DebugUnhandledField;
       };
 
       // key: count
@@ -426,6 +429,7 @@ namespace gltf {
       // Not implemented:
       // key: extensions (not required)
       // key: extras     (not required)
+      bool DebugUnhandledField;
     };
 
     // key: bufferView
@@ -489,6 +493,105 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+    bool DebugUnhandledField;
+  };
+
+
+  struct raw_camera {
+
+    struct orthographic {
+      // key: xmag
+      // Required: yes
+      // Note: The floating-point horizontal magnification of the view. This value MUST NOT be equal to zero.
+      //       This value SHOULD NOT be negative.
+      float XMag;
+
+      // key: ymag
+      // Required: yes
+      // Note: The floating-point vertical magnification of the view. This value MUST NOT be equal to zero.
+      //       This value SHOULD NOT be negative.
+      float YMag;
+
+      // key: zfar
+      // Required: yes
+      // Note: The floating-point distance to the far clipping plane. This value MUST NOT be equal to zero.
+      //       zfar MUST be greater than znear.
+      float ZFar;
+
+      // key: znear
+      // Required: yes
+      // Note: The floating-point distance to the near clipping plane.
+      float ZNear;
+
+      // Not implemented:
+      // key: extensions (not required)
+      // key: extras     (not required)
+      bool DebugUnhandledField;
+    };
+
+    struct perspective {
+      // key: aspectRatio
+      // Required: No (Default Pi/2, My choice)
+      // Note: The floating-point aspect ratio of the field of view.
+      //       When undefined, the aspect ratio of the rendering viewport MUST be used.
+      float* AspectRatio;
+
+      // key: yfov
+      // Required: Yes
+      // Note: The floating-point vertical field of view in radians. This value SHOULD be less than π.
+      float YFov;
+
+      // key: zfar
+      // Required: No
+      // Note: The floating-point distance to the far clipping plane. When defined, zfar MUST be greater than
+      //       znear. If zfar is undefined, client implementations SHOULD use infinite projection matrix
+      float* ZFar;
+
+      // key: znear
+      // Required: distance to the near clipping plane.
+      // Note: Yes
+      float ZNear;
+
+      // Not implemented:
+      // key: extensions (not required)
+      // key: extras     (not required)
+      bool DebugUnhandledField;
+
+    };
+
+    enum class type {
+      ORTHOGRAPHIC,
+      PERSPECTIVE
+    };
+
+    union {
+      // key: orthographic
+      // Required: No
+      // Note: An orthographic camera containing properties to create an orthographic projection matrix.
+      //       This property MUST NOT be defined when perspective is defined.
+      orthographic Orthographic;
+
+      // key: perspective
+      // Required: No
+      // Note: A perspective camera containing properties to create a perspective projection matrix.
+      //       This property MUST NOT be defined when orthographic is defined.
+      perspective Perspective;  
+    };
+    
+    // key: type
+    // Required: Yes
+    // Note: Specifies if the camera uses a perspective or orthographic projection.
+    type Type;
+
+    // key: name
+    // Required: No
+    // Note: The user-defined name of this object.
+    cmn::string Name;
+
+    // Not implemented:
+    // key: extensions (not required)
+    // key: extras     (not required)
+    bool DebugUnhandledField;
   };
 
   struct raw_texture {
@@ -512,6 +615,7 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+    bool DebugUnhandledField;
   };
 
   struct raw_image{
@@ -548,6 +652,7 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+    bool DebugUnhandledField;
 
     int Channels;
     int Width;
@@ -603,6 +708,8 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+
+    bool DebugUnhandledField;
   };
 
   struct raw_texture_info{
@@ -619,6 +726,8 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+
+    bool DebugUnhandledField;
   };
 
   struct raw_material_occlusion_texture_info {
@@ -639,6 +748,7 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+    bool DebugUnhandledField;
   };
 
   struct raw_material_normal_texture_info {
@@ -660,6 +770,7 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+    bool DebugUnhandledField;
   };
 
   struct raw_pbr_metallic_roughness
@@ -692,6 +803,7 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+    bool DebugUnhandledField;
   };
 
   struct raw_material {
@@ -704,6 +816,7 @@ namespace gltf {
     // Not implemented:
     // key: extensions (not required)
     // key: extras     (not required)
+    bool DebugUnhandledField;
 
     // key: pbrMetallicRoughness
     // Note: A set of parameter values that are used to define the metallic- roughness material model from Physically Based Rendering (PBR) methodology.
@@ -750,7 +863,11 @@ namespace gltf {
     cmn::string Name;
     int NodeCount;
     int* Nodes;
-    // Extensions, Extras omitted
+
+    // Not implemented:
+    // key: extensions (not required)
+    // key: extras     (not required)
+    bool DebugUnhandledField;
   };
 
 
@@ -778,6 +895,8 @@ namespace gltf {
     raw_image* RawImages;
     size_t RawTextureCount;
     raw_texture* RawTextures;
+    size_t RawCameraCount;
+    raw_camera* RawCameras;
   };
 
   size_t JsonToIntArray(const nlohmann::json& j, int** Array)
@@ -885,6 +1004,22 @@ namespace gltf {
     return Str;
   }
 
+  static bool HasExtrasOrExtentions(const nlohmann::json& j)
+  {
+    bool Result = false;
+    if(j.contains("extensions"))
+    {
+      Platform.DEBUGPrint("WARN: Gltf File contains extensions. No parser yet written. Ignoring.\n");
+      Result = true;
+    }
+    if(j.contains("extras"))
+    {
+      Platform.DEBUGPrint("WARN: Gltf File contains extras. No parser yet written. Ignoring.\n");
+      Result = true;
+    }
+    return Result;
+  }
+
   raw_node JsonToRawNode(nlohmann::json& j)
   {
     raw_node Result = {};
@@ -900,7 +1035,7 @@ namespace gltf {
       Result.Camera = gltf__AllocStruct(int);
       *Result.Camera = j.at("camera").get<int>();
       Platform.DEBUGPrint("WARN: raw_node contains camera. No parser yet written. Ignoring.\n");
-      Assert(0);
+      Result.DebugUnhandledField = true;
     }
 
     if(j.contains("skin"))
@@ -908,7 +1043,7 @@ namespace gltf {
       Result.Skin = gltf__AllocStruct(int);
       *Result.Skin = j.at("skin").get<int>();
       Platform.DEBUGPrint("WARN: raw_node contains Skin. No parser yet written. Ignoring.\n");
-      Assert(0);
+      Result.DebugUnhandledField = true;
     }
 
     if(j.contains("matrix"))
@@ -959,7 +1094,7 @@ namespace gltf {
     {
       Platform.DEBUGPrint("WARN: raw_node contains weights. No parser yet written. Ignoring.\n");
       Assert(j.contains("mesh")); // Mesh is required if weights is set.
-      Assert(0);
+      Result.DebugUnhandledField = true;
     }
 
     if(j.contains("name"))
@@ -968,16 +1103,7 @@ namespace gltf {
       Platform.DEBUGPrint("%s\n", Result.Name.data);
     }
 
-    if(j.contains("extensions"))
-    {
-      Platform.DEBUGPrint("WARN: raw_node contains extensions. No parser yet written. Ignoring.\n");
-      Assert(0);
-    }
-    if(j.contains("extras"))
-    {
-      Platform.DEBUGPrint("WARN: raw_node contains extras. No parser yet written. Ignoring.\n");
-      Assert(0);
-    }
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
 
     return Result;
   }
@@ -1142,8 +1268,7 @@ namespace gltf {
       Result->TexCoord = 0;
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result->DebugUnhandledField = HasExtrasOrExtentions(j);
 
     return Result;
   }
@@ -1183,8 +1308,7 @@ namespace gltf {
       Result->MetallicRoughnessTexture = JsonToRawTextureInfo(j.at("metallicRoughnessTexture"));
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result->DebugUnhandledField = HasExtrasOrExtentions(j);
 
     return Result;
   }
@@ -1207,8 +1331,7 @@ namespace gltf {
       Result->Scale = 1;
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result->DebugUnhandledField = HasExtrasOrExtentions(j);
 
     return Result;
   }
@@ -1232,8 +1355,7 @@ namespace gltf {
       Result->Strength = 1;
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result->DebugUnhandledField = HasExtrasOrExtentions(j);
 
     return Result;
   }
@@ -1348,8 +1470,7 @@ namespace gltf {
       Platform.DEBUGPrint("Scene Name: %s\n", Result.Name.data);
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
 
     if(j.contains("pbrMetallicRoughness")){
       Platform.DEBUGPrint("ALLOCATING pbrMetallicRoughness\n");
@@ -1459,8 +1580,7 @@ namespace gltf {
             Result.ComponentType == raw_accessor::component_type::UNSIGNED_INT);
 
     
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
     return Result;
   }
 
@@ -1475,8 +1595,7 @@ namespace gltf {
       Result.ByteOffset = 0;
     }    
     
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
     return Result;
   }
 
@@ -1488,8 +1607,7 @@ namespace gltf {
     Result->Indices = JsonToSparseIndices(j.at("indices"));
     Result->Values = JsonToSparseValues(j.at("indices"));
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result->DebugUnhandledField = HasExtrasOrExtentions(j);
     return Result;
   }
   //raw_accessor::type JsonToAccessorType(const nlohmann::json& j)
@@ -1497,7 +1615,6 @@ namespace gltf {
   {
     //const char* Type = j.get<std::string>().c_str();
     raw_accessor::type Result = raw_accessor::type::INVALID;
-    Platform.DEBUGPrint("TYPE: %s\n", Type);
     if(cmn::Equals(Type,"SCALAR")){
       Result = raw_accessor::type::SCALAR;
     }
@@ -1568,8 +1685,7 @@ namespace gltf {
       Result.Sparse = JsonToSparse(j.at("sparse"));
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
 
     return Result;
   }
@@ -1704,10 +1820,10 @@ namespace gltf {
 
   raw_scene JsonToRawScene(const nlohmann::json& j)
   {
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
 
     raw_scene Result = {};
+
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
     
     if(j.contains("name"))
     {
@@ -1766,8 +1882,7 @@ namespace gltf {
              Result.WrapT == raw_sampler::wrap::REPEAT);
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
 
     if(j.contains("name"))
     {
@@ -1817,8 +1932,7 @@ namespace gltf {
       Result.Name = JsonToString(j.at("name"));
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
 
     return Result;  
   }
@@ -1863,8 +1977,7 @@ namespace gltf {
       Result.Name = JsonToString(j.at("name"));
     }
 
-    Assert(!j.contains("extensions"));  // We can ignore extensions but I want to see if / when they appear
-    Assert(!j.contains("extras"));      // We can ignore extras but I want to see if / when they appear
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
     return Result;  
   }
 
@@ -1881,6 +1994,101 @@ namespace gltf {
       RawTexture->Source = 0;
     }
     cmn::Delete(RawTexture->Name);
+  }
+
+  raw_camera::type StringToCameraType(const char* Type)
+  {
+    raw_camera::type Result = {};
+    if(cmn::Equals(Type,"orthographic")){
+      Result = raw_camera::type::ORTHOGRAPHIC;
+    }
+    else if(cmn::Equals(Type,"perspective")) {
+      Result = raw_camera::type::PERSPECTIVE;
+    }else{
+      Platform.DEBUGPrint("ERR: Camrea does not have perspective or orthographic type defined");
+    }
+    return Result;
+  }
+  
+  raw_camera::orthographic JsonToOrthographic(const nlohmann::json& j)
+  {
+    raw_camera::orthographic Result = {};
+
+    Result.XMag = j.at("xmag").get<float>();
+    Result.YMag = j.at("ymag").get<float>();
+    Result.ZFar = j.at("zfar").get<float>();
+    Result.ZNear = j.at("znear").get<float>();
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
+    return Result;
+  } 
+    
+  raw_camera::perspective JsonToPerspective(const nlohmann::json& j)
+  {
+    raw_camera::perspective Result = {};
+
+    if(j.contains("aspectRatio")) {
+      Result.AspectRatio = gltf__AllocStruct(float);
+      *Result.AspectRatio = j.at("aspectRatio").get<float>();
+    }
+
+    Result.YFov = j.at("yfov").get<float>();
+
+    if(j.contains("zfar")) {
+      Result.ZFar = gltf__AllocStruct(float);
+      *Result.ZFar = j.at("zfar").get<float>();
+    }
+
+    Result.ZNear = j.at("znear").get<float>();
+
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
+
+    return Result;
+  }
+
+  raw_camera JsonToRawCamera(const nlohmann::json& j)
+  {
+    raw_camera Result = {};
+
+    if(j.contains("orthographic")) {
+      Result.Orthographic = JsonToOrthographic(j.at("orthographic"));
+    }
+
+    if (j.contains("perspective")) {
+      Result.Perspective = JsonToPerspective(j.at("perspective"));
+    }
+
+    if(j.contains("type"))
+    {
+      Result.Type = StringToCameraType(j.at("type").get<std::string>().c_str());
+    }
+    
+    if(j.contains("name"))
+    {
+      Result.Name = JsonToString(j.at("name"));
+    }
+
+    Result.DebugUnhandledField = HasExtrasOrExtentions(j);
+    
+    return Result;
+  }
+
+
+  void FreeRawCamera(raw_camera* RawCamera)
+  {
+    if(RawCamera->Type == raw_camera::type::PERSPECTIVE)
+    {
+      if(RawCamera->Perspective.AspectRatio)
+      {
+        gltf__FreeMemory(RawCamera->Perspective.AspectRatio);
+        RawCamera->Perspective.AspectRatio = 0;
+      }
+      if(RawCamera->Perspective.ZFar)
+      {
+        gltf__FreeMemory(RawCamera->Perspective.ZFar);
+        RawCamera->Perspective.ZFar = 0;
+      }
+    }
+    cmn::Delete(RawCamera->Name);
   }
 
   size_t AccessorComponentSize(raw_accessor::component_type ComponentType)
@@ -2161,7 +2369,10 @@ namespace gltf {
     char Buff[256] = {};
     cmn::string GltfFIlePath = cmn::String(ArrayCount(Buff), Buff);
     cmn::PushBack(GltfFIlePath, FolderPath);
-    cmn::PushBack(GltfFIlePath, "\\");
+    if(!cmn::EndsWith(GltfFIlePath, "\\"))
+    {
+      cmn::PushBack(GltfFIlePath, "\\");
+    }
     cmn::PushBack(GltfFIlePath, FileName);
     
     size_t DataSize = 0;
@@ -2200,7 +2411,14 @@ namespace gltf {
       int i = 0;
       for(nlohmann::json& JsonListElement : JsonList)
       {
+        
         RawGltfData.RawNodes[i++] = JsonToRawNode(JsonListElement);
+
+        if(RawGltfData.RawNodes[i-1].DebugUnhandledField)
+        {
+          Platform.DEBUGPrint("Unhandled field at %d\n", i);
+        }
+
       }
     }
 
@@ -2342,6 +2560,18 @@ namespace gltf {
       }
     }
 
+    if(GltfJson.contains("cameras"))
+    {
+      nlohmann::json JsonList = GltfJson.at("cameras");
+      RawGltfData.RawCameraCount = JsonList.size();
+      RawGltfData.RawCameras = gltf__AllocArray(RawGltfData.RawCameraCount, raw_camera);
+      int i = 0;
+      for(const nlohmann::json& JsonListElement : JsonList)
+      {
+        RawGltfData.RawCameras[i++] = JsonToRawCamera(JsonListElement);
+      }
+    }
+
     for (int i = 0; i < RawGltfData.RawMeshCount; ++i)
     {
       ExtractPrimitives(RawGltfData.RawMeshes, &RawGltfData);
@@ -2450,6 +2680,16 @@ namespace gltf {
       {
         raw_texture* RawTexture = &RawGltfData->RawTextures[i]; 
         FreeRawTexture(RawTexture);
+      }
+      gltf__FreeMemory(RawGltfData->RawTextures);
+    }
+
+    if(RawGltfData->RawCameras)
+    {
+      for (int i = 0; i < RawGltfData->RawCameraCount; ++i)
+      {
+        raw_camera* RawCamera = &RawGltfData->RawCameras[i]; 
+        FreeRawCamera(RawCamera);
       }
       gltf__FreeMemory(RawGltfData->RawTextures);
     }
