@@ -15,18 +15,20 @@ namespace asset {
     PBR_MATERIAL,
     RENDER_TREE,
     SCENE,
+    CAMERA
   };
-
 
   const c8* TypeToString(type Type)
   {
     switch(Type)
     {
-      case type::IMAGE: return "IMAGE";
-      case type::MESH: return "MESH";
+      case type::IMAGE:          return "IMAGE";
+      case type::MESH:           return "MESH";
       case type::PHONG_MATERIAL: return "PHONG_MATERIAL";
-      case type::PBR_MATERIAL: return "PBR_MATERIAL";
-      case type::RENDER_TREE: return "RENDER_TREE";
+      case type::PBR_MATERIAL:   return "PBR_MATERIAL";
+      case type::RENDER_TREE:    return "RENDER_TREE";
+      case type::SCENE:          return "SCENE";
+      case type::CAMERA:         return "CAMERA";
       default: {
         INVALID_CODE_PATH
       }
@@ -144,6 +146,7 @@ namespace asset {
   typedef key mesh_id;
   typedef key pbr_material_id;
   typedef key phong_material_id;
+  typedef key camera_id;
 
   // A mesh primitive mesh
   struct mesh {
@@ -183,6 +186,34 @@ namespace asset {
 
   };
 
+  struct camera {
+    enum class type {
+      PERSPECTIVE,
+      ORTHOGRAPHIC
+    };
+    struct orthographic {
+      float XMag;
+      float YMag;
+      float ZFar;
+      float ZNear;
+    };
+
+    struct perspective {
+      // When undefined, the aspect ratio of the rendering viewport MUST be used.
+      float AspectRatio;
+      float YFov;
+      // If zfar is undefined, client implementations SHOULD use infinite projection matrix
+      float ZFar;
+      float ZNear;
+    };
+
+    type Type;
+    union {
+      orthographic Orthographic;
+      perspective Perspective;
+    };
+  };
+
   struct render_tree { // render_asset_id
 
     struct node {
@@ -195,6 +226,8 @@ namespace asset {
 
       // Optional <mesh_id>
       mesh_id Mesh;
+
+      camera_id Camera;
 
       bool HasTransform;
       m4 Transform;
@@ -218,6 +251,7 @@ namespace asset {
     }
     else
     {
+      Parent->FirstChild = Children;
       for (int i = 0; i < ChildCount; ++i)
       {
         render_tree::node* Child = &Children[i];
@@ -225,31 +259,18 @@ namespace asset {
 
         if(i > 0)
         {
-          Child->NextSibling = &Children[i+1];
+          Child->PreviousSibling = &Children[i-1];
         }
 
-        if(i < ChildCount)
+        if(i < ChildCount-1)
         {
-          Child->PreviousSibling = &Children[i-1];
+          Child->NextSibling = &Children[i+1];
         }
       }
     }
   }
 
-  struct scene { // Scene_id
-
-#if 0 // Move these here later ?
-
-    size_t MaterialCount;
-    pbr_material* Materials;
-
-    size_t MeshInfoCount;
-    mesh_info* MeshInfos;
-    
-    size_t NodeCount;
-    node* Nodes;
-#endif
-
+  struct scene {
     size_t RenderTreeCount;
     render_tree* RenderTrees;
   };

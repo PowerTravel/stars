@@ -1,6 +1,7 @@
 #pragma once
 #include "asset_types.h"
 #include "io/gltf.h"
+#include "ecs/systems/system_render.h" // For Aspect Ratio
 
 namespace gltf {
 namespace mapper {
@@ -257,7 +258,8 @@ namespace mapper {
     }
   }
 
-  asset::render_tree::node* ToNodes(size_t NodeCount, asset::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes)
+
+  asset::render_tree::node* ToNodes(size_t NodeCount, asset::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
   {
     node_queue Queue = NodeQueue(NodeCount);
     Push(Queue, RawRootNodeIndex, 0);
@@ -277,8 +279,16 @@ namespace mapper {
       {
         Node->Mesh = LoadedMeshes[*RawNode->Mesh];
       }
+
+      if(RawNode->Camera)
+      {
+        Node->Camera = LoadedCameras[*RawNode->Camera];
+      }
+
       Node->ChildCount = RawNode->ChildCount;
       InitiateChildNodes(Node, Node->ChildCount, Nodes+NodeHeadIndex);
+
+      
 
       for (int i = 0; i < RawNode->ChildCount; ++i)
       {
@@ -313,7 +323,7 @@ namespace mapper {
   // Note: The node hierarchy make up a set of disjoint strict trees which means they are free of cycles and each node must have zero or one parent node.
   //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
   //       I'm assuming this means each child node only appears once.
-  asset::key* ToRenderTrees(const c8* Name, const c8* Path, gltf::raw_gltf_data* RawGltfData, size_t* RetKeyCount, asset::key* LoadedMeshes)
+  asset::key* ToRenderTrees(const c8* Name, const c8* Path, gltf::raw_gltf_data* RawGltfData, size_t* RetKeyCount, asset::key* LoadedMeshes, asset::key* LoadedCameras)
   {
     const size_t RawNodeCount = RawGltfData->RawNodeCount;
     gltf::raw_node* RawNodes = RawGltfData->RawNodes;
@@ -343,7 +353,7 @@ namespace mapper {
       int RootNodeIndex = RootNodeIndeces[i];
       Tree.NodeCount   = GetTreeNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
       Tree.Nodes       = PushArray(GlobalTransientArena,Tree.NodeCount, asset::render_tree::node);
-      Tree.Root        = ToNodes(Tree.NodeCount, Tree.Nodes, RootNodeIndex, RawNodes, LoadedMeshes);
+      Tree.Root        = ToNodes(Tree.NodeCount, Tree.Nodes, RootNodeIndex, RawNodes, LoadedMeshes, LoadedCameras);
 
       c8* UnqName = asset::CreateUniqueName("",Name,"", i, RootCount);
 
@@ -374,6 +384,44 @@ namespace mapper {
       Primitive->AABB                  = AABB3f(ExtractedPrimitive->vMin,ExtractedPrimitive->vMax);
       Assert(ExtractedPrimitive->MaterialIndex); // Not required but fix once we find a mesh without material
       Primitive->PbrMaterial           = LoadedMaterials[*ExtractedPrimitive->MaterialIndex];
+    }
+    return Result;
+  }
+
+  asset::camera ToCamera(gltf::raw_camera* RawCamera)
+  {
+    asset::camera Result = {};
+    switch(RawCamera->Type)
+    {
+      case gltf::raw_camera::type::ORTHOGRAPHIC:
+      {
+        Result.Type = asset::camera::type::ORTHOGRAPHIC;
+        Result.Orthographic.XMag = RawCamera->Orthographic.XMag;
+        Result.Orthographic.YMag = RawCamera->Orthographic.YMag;
+        Result.Orthographic.ZFar = RawCamera->Orthographic.ZFar;
+        Result.Orthographic.ZNear = RawCamera->Orthographic.ZNear;
+      }break;
+      case gltf::raw_camera::type::PERSPECTIVE:
+      {
+        Result.Type = asset::camera::type::PERSPECTIVE;
+        if(RawCamera->Perspective.AspectRatio)
+        {
+          Result.Perspective.AspectRatio = *RawCamera->Perspective.AspectRatio;
+        }else{
+          ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(GetRenderSystem());
+          Result.Perspective.AspectRatio = WindowSize.ApplicationAspectRatio;
+        }
+        Result.Perspective.YFov = RawCamera->Perspective.YFov;
+        if(RawCamera->Perspective.AspectRatio)
+        {
+          Result.Perspective.ZFar = *RawCamera->Perspective.ZFar;
+        }else{ 
+          Result.Perspective.ZFar = R32Max;
+        }
+
+        Result.Perspective.ZNear = RawCamera->Perspective.ZNear;
+        
+      }break;
     }
     return Result;
   }
@@ -409,7 +457,7 @@ namespace mapper {
     
     size_t LoadedMeshCount = RawGltfData->RawMeshCount;
     asset::key* LoadedMeshTracker = PushArray(GlobalTransientArena,LoadedMeshCount, asset::key);
-    for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
+    for (int i = 0; i < LoadedMeshCount; ++i)
     {
       gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
       asset::mesh Mesh = ToMesh(RawMesh, LoadedMaterialTracker);
@@ -417,15 +465,33 @@ namespace mapper {
       c8* Name = 0;
       if(cmn::IsEmpty(RawMesh->Name))
       {
-        Name =  asset::CreateUniqueName("", "mesh", "", i, RawGltfData->RawMeshCount);
+        Name =  asset::CreateUniqueName("", "mesh", "", i, LoadedMeshCount);
       }else{
-        Name =  asset::CreateUniqueName("", RawMesh->Name.data, "", i, RawGltfData->RawMeshCount);
+        Name =  asset::CreateUniqueName("", RawMesh->Name.data, "", i, LoadedMeshCount);
       }
 
       asset::LoadMesh(Name, &Mesh, &LoadedMeshTracker[i]);
     }
 
-    asset::key* Result = ToRenderTrees(UniqueName, Path, RawGltfData, RenderTreeCount, LoadedMeshTracker);
+    size_t LoadedCameraCount = RawGltfData->RawCameraCount;
+    asset::key* LoadedCameraTracker = PushArray(GlobalTransientArena, LoadedCameraCount, asset::key);
+    for(int i = 0; i < RawGltfData->RawCameraCount; ++i)
+    {
+      gltf::raw_camera* RawCamera = &RawGltfData->RawCameras[i];
+      asset::camera Camera = ToCamera(RawCamera);
+
+      c8* Name = 0;
+      if(cmn::IsEmpty(RawCamera->Name))
+      {
+        Name =  asset::CreateUniqueName("", "camera", "", i, LoadedCameraCount);
+      }else{
+        Name =  asset::CreateUniqueName("", RawCamera->Name.data, "", i, LoadedCameraCount);
+      }
+
+      asset::LoadCamera(Name, &Camera, &LoadedCameraTracker[i]);
+    }
+
+    asset::key* Result = ToRenderTrees(UniqueName, Path, RawGltfData, RenderTreeCount, LoadedMeshTracker, LoadedCameraTracker);
 ////
 
     return Result;

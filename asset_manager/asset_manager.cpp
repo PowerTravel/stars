@@ -525,6 +525,18 @@ mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, key* ResultKey)
   return Result;
 }
 
+camera* LoadCamera(const c8* UniqueName, const camera* Camera, key* ResultKey)
+{
+  midx CameraSize = sizeof(camera);
+  header* Header = CreateHeader(type::CAMERA, UniqueName, UniqueName, "N/A", CameraSize);
+  camera* Result = (camera*) Header->Data;
+  *Result = *Camera;
+  if(ResultKey)
+  {
+    *ResultKey = Header->Key;
+  }
+  return Result;
+}
 
 static size_t GetRenderTreeSize(const render_tree* RenderTree)
 {
@@ -603,6 +615,7 @@ void CopyRenderTree(const render_tree* Src, render_tree* Dst, size_t RenderTreeS
 
     DstNode->ChildCount = SrcNode->ChildCount;
     DstNode->Mesh = SrcNode->Mesh;
+    DstNode->Camera = SrcNode->Camera;
     CopyTransforms(SrcNode, DstNode);
 
     InitiateChildNodes(DstNode, DstNode->ChildCount, Dst->Nodes + NodeHeadIndex);
