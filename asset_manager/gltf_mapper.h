@@ -345,7 +345,7 @@ namespace mapper {
       }
     }
 
-    asset::key* Result = PushArray(GlobalTransientArena,RootCount, asset::key);
+    asset::key* Result = PushArray(GlobalTransientArena, RootCount, asset::key);
     *RetKeyCount = RootCount;
     for (int i = 0; i < RootCount; ++i)
     {
@@ -357,8 +357,7 @@ namespace mapper {
 
       c8* UnqName = asset::CreateUniqueName("",Name,"", i, RootCount);
 
-      asset::render_tree* RT = asset::LoadRenderTree(UnqName, Path, &Tree, &Result[i]);
-      int a = 10;
+      asset::LoadRenderTree(UnqName, Path, &Tree, &Result[i]);
     }
 
     return Result;
@@ -426,10 +425,10 @@ namespace mapper {
     return Result;
   }
 
-  asset::key* LoadGltf(const c8* UniqueName,const  c8* Path, gltf::raw_gltf_data* RawGltfData, size_t* RenderTreeCount) {
+  asset::package_id LoadGltf(const c8* UniqueName,const  c8* Path, gltf::raw_gltf_data* RawGltfData) {
 
     size_t LoadedImageCount = RawGltfData->RawImageCount;
-    asset::key* LoadedImagesTracker = PushArray(GlobalTransientArena,LoadedImageCount, asset::key);
+    asset::key* LoadedImagesTracker = PushArray(GlobalTransientArena, LoadedImageCount, asset::key);
     for (int i = 0; i < RawGltfData->RawImageCount; ++i)
     {
       gltf::raw_image& RawImage = RawGltfData->RawImages[i];
@@ -447,9 +446,9 @@ namespace mapper {
       c8* Name = 0;
       if(cmn::IsEmpty(RawMaterial->Name))
       {
-        Name =  asset::CreateUniqueName("", "material", "", i, RawGltfData->RawMaterialCount);
+        Name =  asset::CreateUniqueName(UniqueName, "material", "", i, RawGltfData->RawMaterialCount);
       }else{
-        Name =  asset::CreateUniqueName("", RawMaterial->Name.data, "", i, RawGltfData->RawMaterialCount);
+        Name =  asset::CreateUniqueName(UniqueName, RawMaterial->Name.data, "", i, RawGltfData->RawMaterialCount);
       }
 
       asset::LoadPbrMaterial(Name, &TmpMaterial, &LoadedMaterialTracker[i]);
@@ -465,9 +464,9 @@ namespace mapper {
       c8* Name = 0;
       if(cmn::IsEmpty(RawMesh->Name))
       {
-        Name =  asset::CreateUniqueName("", "mesh", "", i, LoadedMeshCount);
+        Name =  asset::CreateUniqueName(UniqueName, "mesh", "", i, LoadedMeshCount);
       }else{
-        Name =  asset::CreateUniqueName("", RawMesh->Name.data, "", i, LoadedMeshCount);
+        Name =  asset::CreateUniqueName(UniqueName, RawMesh->Name.data, "", i, LoadedMeshCount);
       }
 
       asset::LoadMesh(Name, &Mesh, &LoadedMeshTracker[i]);
@@ -483,16 +482,21 @@ namespace mapper {
       c8* Name = 0;
       if(cmn::IsEmpty(RawCamera->Name))
       {
-        Name =  asset::CreateUniqueName("", "camera", "", i, LoadedCameraCount);
+        Name =  asset::CreateUniqueName(UniqueName, "camera", "", i, LoadedCameraCount);
       }else{
-        Name =  asset::CreateUniqueName("", RawCamera->Name.data, "", i, LoadedCameraCount);
+        Name =  asset::CreateUniqueName(UniqueName, RawCamera->Name.data, "", i, LoadedCameraCount);
       }
 
       asset::LoadCamera(Name, &Camera, &LoadedCameraTracker[i]);
     }
 
-    asset::key* Result = ToRenderTrees(UniqueName, Path, RawGltfData, RenderTreeCount, LoadedMeshTracker, LoadedCameraTracker);
-////
+
+    asset::package Package = {};
+    Package.RenderTrees = ToRenderTrees(UniqueName, Path, RawGltfData, &Package.RenderTreeCount, LoadedMeshTracker, LoadedCameraTracker);
+
+  
+    asset::package_id Result = 0;
+    asset::LoadPackage(UniqueName, Path, &Package, &Result);
 
     return Result;
   }
@@ -500,3 +504,4 @@ namespace mapper {
 
 } // namespace mapper
 } // namespace gltf
+

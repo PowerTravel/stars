@@ -314,7 +314,7 @@ static material_map LoadPhongMaterial(obj_mtl_data* ObjMtlGroup, const c8* Uniqu
     }
 
     asset::key Key = 0;
-    asset::LoadMaterial(UniqueMtlName, &Material, &Key);
+    asset::LoadPhongMaterial(UniqueMtlName, &Material, &Key);
     MaterialMap.Mtl_Materials[i] = Mtl;
     MaterialMap.Materials[i] = Key;
   }

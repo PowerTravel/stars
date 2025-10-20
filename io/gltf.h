@@ -1034,7 +1034,6 @@ namespace gltf {
     {
       Result.Camera = gltf__AllocStruct(int);
       *Result.Camera = j.at("camera").get<int>();
-      Platform.DEBUGPrint("WARN: raw_node contains camera. No parser yet written. Ignoring.\n");
       Result.DebugUnhandledField = true;
     }
 
@@ -1100,7 +1099,6 @@ namespace gltf {
     if(j.contains("name"))
     {
       Result.Name = JsonToString(j.at("name"));
-      Platform.DEBUGPrint("%s\n", Result.Name.data);
     }
 
     Result.DebugUnhandledField = HasExtrasOrExtentions(j);
@@ -1380,7 +1378,6 @@ namespace gltf {
     if(j.contains("name"))
     {
       Result.Name = JsonToString(j.at("name"));
-      Platform.DEBUGPrint("Mehs Name: %s\n", Result.Name.data);
     }
 
     return Result;
@@ -1458,25 +1455,17 @@ namespace gltf {
 
   raw_material JsonToRawMaterial(const nlohmann::json& j)
   {
-    Platform.DEBUGPrint("JsonToRawMaterial\n");
-    for(const auto& el : j.items())
-    {
-      Platform.DEBUGPrint("%s\n", el.key().c_str());
-    }
+
     raw_material Result = {};
     if(j.contains("name"))
     {
       Result.Name = JsonToString(j.at("name"));
-      Platform.DEBUGPrint("Scene Name: %s\n", Result.Name.data);
     }
 
     Result.DebugUnhandledField = HasExtrasOrExtentions(j);
 
     if(j.contains("pbrMetallicRoughness")){
-      Platform.DEBUGPrint("ALLOCATING pbrMetallicRoughness\n");
       Result.PbrMetallicRoughness = JsonToRawPbrMetallicRoughness(j.at("pbrMetallicRoughness"));
-    }else{
-      Platform.DEBUGPrint("WTF\n");
     }
 
     if(j.contains("normalTexture")){

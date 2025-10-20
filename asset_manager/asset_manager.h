@@ -6,9 +6,6 @@
 #include "ecs/components/component_collider.h"
 #include "containers/linked_memory.h"
 
-struct gl_vertex_buffer;
-struct obj_loaded_file;
-
 #define ASSET_MAX_NAME_LENGTH 256
 #define ASSET_MAX_PATH_LENGTH 256
 #define ASSET_MAX_KEY_LENGTH 2048
@@ -71,16 +68,16 @@ void* Find(type Type, const c8* Name);
 void Free(type Type, key Key);
 void Free(type Type, const c8* Name);
 
-phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Material, key* ResultKey = 0);
 
 ///  New loaders for gltf
-image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, key* ResultKey = 0);
-pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, key* ResultKey = 0);
-mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, key* ResultKey = 0);
-camera* LoadCamera(const c8* UniqueName, const camera* Camera, key* ResultKey = 0);
-render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const render_tree* RenderTree, key* ResultKey = 0);
+// Bah, using 'id', 'handle' and 'key' interchangeably
+image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, image_id* ResultKey = 0);
+pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, pbr_material_id* ResultKey = 0);
+phong_material* LoadPhongMaterial(const c8* UniqueName, const phong_material* Material, phong_material_id* ResultKey = 0);
+mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, mesh_id* ResultKey = 0);
+camera* LoadCamera(const c8* UniqueName, const camera* Camera, camera_id* ResultKey = 0);
+render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const render_tree* RenderTree, render_tree_id* ResultKey = 0);
+package* LoadPackage(const c8* UniqueName, const c8* Path, const package* RenderTree, package_id* ResultKey = 0);
 
 
-
-// Refactor
 }

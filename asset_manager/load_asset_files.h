@@ -80,9 +80,8 @@ static asset::key LoadPng2(const char* Path, const char* UniqueName) {
 }
 
 
-static asset::key LoadGltf(const char* Path, const char* UniqueName) {
+static asset::package_id LoadGltf(const char* Path, const char* UniqueName) {
 
-  
   size_t FullLength = jstr::StringLength( Path );
   Assert(FullLength < 255);
 
@@ -100,10 +99,10 @@ static asset::key LoadGltf(const char* Path, const char* UniqueName) {
 
   size_t RenderTreeCount = 0;
 
-  asset::key* Keys = gltf::mapper::LoadGltf(UniqueName, Path, &Gltf, &RenderTreeCount);
-  Assert(RenderTreeCount == 1); // Deal with more assets when we get to it.
+  asset::package_id Key = gltf::mapper::LoadGltf(UniqueName, Path, &Gltf);
+
   gltf::Free(&Gltf);
-  return Keys[0];
+  return Key;
 }
 
 asset::key Load(const char* Path, const char* UniqueName = 0)

@@ -7,6 +7,14 @@ namespace asset {
 
   typedef size_t key;
 
+  typedef key image_id;
+  typedef key mesh_id;
+  typedef key pbr_material_id;
+  typedef key phong_material_id;
+  typedef key camera_id;
+  typedef key render_tree_id;
+  typedef key package_id;
+
   enum class type {
     NONE,
     IMAGE,
@@ -14,8 +22,8 @@ namespace asset {
     PHONG_MATERIAL,
     PBR_MATERIAL,
     RENDER_TREE,
-    SCENE,
-    CAMERA
+    CAMERA,
+    PACKAGE,
   };
 
   const c8* TypeToString(type Type)
@@ -27,8 +35,8 @@ namespace asset {
       case type::PHONG_MATERIAL: return "PHONG_MATERIAL";
       case type::PBR_MATERIAL:   return "PBR_MATERIAL";
       case type::RENDER_TREE:    return "RENDER_TREE";
-      case type::SCENE:          return "SCENE";
       case type::CAMERA:         return "CAMERA";
+      case type::PACKAGE:        return "PACKAGE";  
       default: {
         INVALID_CODE_PATH
       }
@@ -68,7 +76,7 @@ namespace asset {
       REPEAT,
     };
 
-    key Image; // required // TODO: Change back to using a imgage handle.
+    image_id Image; // required // TODO: Change back to using a imgage handle.
     //            Reason: Since the asset-api works such that it takes a loadable asset and copies the struct into the asset_manager memory,
     //                    we don't know if this image is loaded into _our_ memory or not unless we use a handle.
     int TexCoord; // required - References the mesh the material is attached to
@@ -143,10 +151,6 @@ namespace asset {
     bool DoubleSided;
   };
 
-  typedef key mesh_id;
-  typedef key pbr_material_id;
-  typedef key phong_material_id;
-  typedef key camera_id;
 
   // A mesh primitive mesh
   struct mesh {
@@ -270,8 +274,27 @@ namespace asset {
     }
   }
 
-  struct scene {
+
+  // A package is a collection of assets grouped by being loaded by the same base file such as OBJ or GLTF.
+  // Files like PNGs or similar do not get a package file.
+  struct package {
+    size_t PhongMaterialCount;
+    phong_material_id* PhongMaterials;
+
+    size_t PBRMaterialCount;
+    pbr_material_id* PBRMaterials;
+
+    size_t CameraCount;
+    camera_id* Cameras;
+
+    size_t ImageCount;
+    image_id* Images;
+
+    size_t MeshCount;
+    mesh_id* Meshes;
+
+    size_t DefaultRenderTree;
     size_t RenderTreeCount;
-    render_tree* RenderTrees;
+    render_tree_id* RenderTrees;
   };
 }

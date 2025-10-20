@@ -55,16 +55,20 @@ header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* 
   Result->FilePath.String  = (c8*) AdvanceBytePointer(Result, sizeof(header) + DataSize + NameSize);
   Result->KeyString.String = (c8*) AdvanceBytePointer(Result, sizeof(header) + DataSize + NameSize + PathSize);
 
+
+
   jstr::CopyStrings(Result->Name.Length, Name, Result->Name.Length+1, Result->Name.String);
   jstr::CopyStrings(Result->FilePath.Length, Path, Result->FilePath.Length+1, Result->FilePath.String);
   FormatString(Result->KeyString.String, KeyStringSize, "%s::%s", TypeString, UniqueName);
-
+  
   Result->Key  = utils::djb2_hash(Result->KeyString.String);
 
 
   Assert(Find(Type,Result->Key) == 0);
 
   Insert(&GlobalAssetManager->Headers, Result->Key, (void*) Result);
+
+  Platform.DEBUGPrint("Creating '%s' - %zu\n", Result->KeyString.String, Result->Key);
 
   return Result;
 }
@@ -360,15 +364,15 @@ c8* CreateUniqueName(const c8* Prefix, const c8* Name, const c8* Postfix, u32 In
   Result = (c8*) PushArray(GlobalTransientArena, Length, c8);
   if(MaxCount > 1)
   {  
-    FormatString(Result, Length-1, "%s%s%s_%d/%d-%d", Prefix, Name, Postfix, Index+1, MaxCount, Counter++);
+    FormatString(Result, Length-1, "%s%s%s_%d/%d", Prefix, Name, Postfix, Index+1, MaxCount);
   }else{
-    FormatString(Result, Length-1, "%s%s%s-%d", Prefix, Name, Postfix, Counter++);
+    FormatString(Result, Length-1, "%s%s%s", Prefix, Name, Postfix);
   }
   
   return Result;
 }
 
-phong_material* LoadMaterial(const c8* UniqueName, const phong_material* Material, key* ResultKey)
+phong_material* LoadPhongMaterial(const c8* UniqueName, const phong_material* Material, key* ResultKey)
 {
   midx MaterialSize = GetMaterialSize(Material);
   header* Header = CreateHeader(type::PHONG_MATERIAL, UniqueName, UniqueName, "N/A", MaterialSize);
@@ -647,6 +651,75 @@ render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const render_t
 
   CopyRenderTree(RenderTree, Result, RenderTreeSize);
   
+  if(ResultKey)
+  {
+    *ResultKey = Header->Key;
+  }
+  return Result;
+}
+
+size_t GetPackageSize(const package* Package)
+{
+  size_t PhongMaterialsSize = sizeof(phong_material_id*) * Package->PhongMaterialCount;
+  size_t PBRMaterialsSize = sizeof(pbr_material_id*) * Package->PBRMaterialCount;
+  size_t CamerasSize = sizeof(camera_id*) * Package->CameraCount;
+  size_t ImagesSize = sizeof(image_id*) * Package->ImageCount;
+  size_t MeshSize = sizeof(mesh_id*) * Package->MeshCount;
+  size_t RenderTreesSize = sizeof(render_tree_id*) * Package->RenderTreeCount;
+  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + MeshSize + RenderTreesSize;
+  return Result;
+}
+
+uint8_t* CopyData(size_t  SrcCount, size_t      SrcElementSize, uint8_t* SrcMemory,
+                  size_t* DstCount, uint8_t**   DstPtr,         uint8_t* DstMemory)
+{
+  uint8_t* Result = DstMemory;
+  *DstCount = SrcCount;
+  *DstPtr = 0;
+  if(SrcCount)
+  {
+    *DstPtr = DstMemory;
+    size_t SrcSize = SrcCount*SrcElementSize;
+    utils::Copy(SrcSize, (void*) SrcMemory, (void*) DstMemory);
+    Result += SrcSize;
+
+  }
+  return Result;
+}
+
+void CopyPackage(const package* Src, package* Dst)
+{
+  *Dst = {};
+  Dst->DefaultRenderTree = Src->DefaultRenderTree;
+  uint8_t* MemScan = (uint8_t*) AdvanceBytePointer(Dst,sizeof(package));
+
+  MemScan = CopyData(Src->PhongMaterialCount, sizeof(phong_material_id*), (uint8_t*) Src->PhongMaterials,
+                     &Dst->PhongMaterialCount, (uint8_t**) &Dst->PhongMaterials,         MemScan);
+
+  MemScan = CopyData(Src->PBRMaterialCount, sizeof(pbr_material_id*), (uint8_t*) Src->PBRMaterials,
+                     &Dst->PBRMaterialCount, (uint8_t**) &Dst->PBRMaterials,         MemScan);
+
+  MemScan = CopyData(Src->CameraCount, sizeof(camera_id*), (uint8_t*) Src->Cameras,
+                     &Dst->CameraCount, (uint8_t**) &Dst->Cameras,         MemScan);
+ 
+  MemScan = CopyData(Src->ImageCount, sizeof(image_id*), (uint8_t*) Src->Images,
+                     &Dst->ImageCount, (uint8_t**) &Dst->Images,         MemScan);
+ 
+  MemScan = CopyData(Src->MeshCount, sizeof(mesh_id*), (uint8_t*) Src->Meshes,
+                     &Dst->MeshCount, (uint8_t**) &Dst->Meshes,         MemScan);
+
+  MemScan = CopyData(Src->RenderTreeCount, sizeof(mesh_id*), (uint8_t*) Src->RenderTrees,
+                     &Dst->RenderTreeCount, (uint8_t**) &Dst->RenderTrees,         MemScan);
+
+  Assert((MemScan - (uint8_t*) Dst) == GetPackageSize(Src));
+}
+
+package* LoadPackage(const c8* UniqueName, const c8* Path, const package* Package, package_id* ResultKey)
+{
+  midx PackageSize = GetPackageSize(Package);
+  header* Header = CreateHeader(type::PACKAGE, UniqueName, UniqueName, Path, PackageSize);
+  package* Result = (package*) Header->Data;
+  CopyPackage(Package, Result);
   if(ResultKey)
   {
     *ResultKey = Header->Key;

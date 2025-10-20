@@ -89,7 +89,7 @@ void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shin
 
   Material.HasDiffuseTexture = true;
   Material.DiffuseTexture = asset::DefaultTexture(MapKdHandle);
-  asset::LoadMaterial(UniqueName, &Material);
+  asset::LoadPhongMaterial(UniqueName, &Material);
 }
 
 void LoadMaterials()
@@ -1199,15 +1199,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
     GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
-
-
-
     GlobalState->Initialized = true;
 
     {
-      //BoxTextured = asset::Load("..\\data\\gltf\\BoxTextured\\BoxTextured.gltf", "BoxTextured");
-      asset::key Engine = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
-      int a = 10;
+      asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
+
     }
 
     GlobalState->Camera = {};
@@ -1218,12 +1214,18 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
    
     { // Create some entities
 
+      { // Gltf Engine
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Engine", ecs::flag::RENDER);
+        ecs::position::component* Position = GetPositionComponent(&Entity);
+        ecs::position::Set(Position, V3(0,2,0), 0, V3(0,1,0), V3(1,1,1));
+        asset::key HardcodedKey = 3262297436;
+        ecs::render::Init2(HardcodedKey, GetRenderComponent(&Entity));
+      }
+
       { // Gltf Box
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "BoxTextured", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,2,0), 0, V3(0,1,0), V3(1,1,1));
-        //asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, BoxTextured);
-        //asset::key TreeKey = asset::ToHeader(RenderTree)->Key;
         ecs::render::Init2(BoxTextured, GetRenderComponent(&Entity));
       }
 
