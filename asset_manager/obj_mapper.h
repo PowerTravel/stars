@@ -164,10 +164,19 @@ static asset::mesh::primitive CreateMesh(
   return Result;
 }
 
+struct image_id_list {
+  asset::image_id Image;
+  image_id_list* Next;
+};
+
 struct material_map {
   int MaterialCount;
   asset::phong_material_id* Materials;
   mtl_material** Mtl_Materials;
+
+  int ImageCount;
+  image_id_list* Images;
+  image_id_list* ImageTail;
 };
 
 inline static material_map
@@ -178,6 +187,21 @@ CreateMaterialMap(int MaterialCount)
   Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, asset::phong_material_id);
   Result.Mtl_Materials = PushArray(GlobalTransientArena, MaterialCount, mtl_material*);
   return Result;
+}
+
+void PushImageToMap(material_map* MaterialMap, asset::image_id Image) {
+  image_id_list* ImageListElement = PushStruct(GlobalTransientArena, image_id_list);
+  ImageListElement->Image = Image;
+  if(MaterialMap->Images)
+  {
+    MaterialMap->ImageTail->Next = ImageListElement;
+    MaterialMap->ImageTail = ImageListElement;
+  }else{
+    Assert(MaterialMap->ImageCount == 0);
+    MaterialMap->Images = ImageListElement;
+    MaterialMap->ImageTail = MaterialMap->Images;
+  }
+  MaterialMap->ImageCount++;
 }
 
 inline static asset::phong_material_id
@@ -254,9 +278,9 @@ static asset::phong_material ToPhongMaterial(const mtl_material* ObjMtl)
 }
 
 
-static asset::key LoadObjBitmap(const char* UniqueName, const char* Postfix, obj_bitmap* Bitmap)
+static asset::image_id LoadObjBitmap(const char* UniqueName, const char* Postfix, obj_bitmap* Bitmap)
 {
-  asset::key Result = 0;
+  asset::image_id Result = 0;
 
   if(Bitmap)
   {
@@ -277,7 +301,7 @@ static asset::key LoadObjBitmap(const char* UniqueName, const char* Postfix, obj
   return Result;
 }
 
-static material_map LoadPhongMaterial(obj_mtl_data* ObjMtlGroup, const c8* UniqueName)
+static material_map LoadPhongMaterials(obj_mtl_data* ObjMtlGroup, const c8* UniqueName)
 {
   material_map MaterialMap = CreateMaterialMap(ObjMtlGroup->MaterialCount);
   for (int i = 0; i < ObjMtlGroup->MaterialCount; ++i)
@@ -294,21 +318,24 @@ static material_map LoadPhongMaterial(obj_mtl_data* ObjMtlGroup, const c8* Uniqu
     asset::phong_material Material = ToPhongMaterial(Mtl);
     if(Mtl->BumpMap)
     {
-      int Handle = LoadObjBitmap(UniqueMtlName,  "_BumpMap", Mtl->BumpMap);
+      asset::image_id Handle = LoadObjBitmap(UniqueMtlName,  "_BumpMap", Mtl->BumpMap);
+      PushImageToMap(&MaterialMap, Handle);
       Material.BumpMap = asset::DefaultTexture(Handle);
       Material.HasBumpMap = true;
     }
 
     if(Mtl->MapKd)
     {
-      int Handle = LoadObjBitmap(UniqueMtlName,  "_DiffuseMap", Mtl->MapKd);
+      asset::image_id Handle = LoadObjBitmap(UniqueMtlName,  "_DiffuseMap", Mtl->MapKd);
+      PushImageToMap(&MaterialMap, Handle);
       Material.HasDiffuseTexture = true;
       Material.DiffuseTexture = asset::DefaultTexture(Handle);
     }
 
     if(Mtl->MapKs)
     {
-      int Handle = LoadObjBitmap(UniqueMtlName,  "_SpecularMap", Mtl->MapKs);
+      asset::image_id Handle = LoadObjBitmap(UniqueMtlName,  "_SpecularMap", Mtl->MapKs);
+      PushImageToMap(&MaterialMap, Handle);
       Material.HasSpecularTexture = true;
       Material.SpecularTexture = asset::DefaultTexture(Handle);
     }
@@ -365,7 +392,22 @@ asset::key LoadObj(const c8* Path, const c8* UniqueName)
 
   obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
 
-  material_map MaterialMap = LoadPhongMaterial(Obj->MaterialData, UniqueName);
+  asset::package Result = {};
+
+  material_map MaterialMap = LoadPhongMaterials(Obj->MaterialData, UniqueName);
+  Result.PhongMaterialCount = MaterialMap.MaterialCount;
+  Result.PhongMaterials = MaterialMap.Materials;
+
+  Result.ImageCount = MaterialMap.ImageCount;
+  Result.Images = PushArray(GlobalTransientArena, Result.ImageCount, asset::image_id);
+  image_id_list* ImageElement = MaterialMap.Images;
+  int ImageIndex = 0;
+  while(ImageElement)
+  {
+    Result.Images[ImageIndex++] = ImageElement->Image;
+    ImageElement = ImageElement->Next;
+  }
+  Assert(ImageIndex == Result.ImageCount);
   
   asset::key MeshKey = LoadMesh(UniqueName, Obj, &MaterialMap);
   
