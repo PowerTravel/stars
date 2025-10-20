@@ -425,75 +425,81 @@ namespace mapper {
     return Result;
   }
 
-  asset::package_id LoadGltf(const c8* UniqueName,const  c8* Path, gltf::raw_gltf_data* RawGltfData) {
-
-    size_t LoadedImageCount = RawGltfData->RawImageCount;
-    asset::key* LoadedImagesTracker = PushArray(GlobalTransientArena, LoadedImageCount, asset::key);
-    for (int i = 0; i < RawGltfData->RawImageCount; ++i)
+  
+  c8* SetName(const c8* UniqueName, const cmn::string Name, const c8* TypeName, int Index, int IndexCount)
+  {
+    c8* Result = 0;
+    if(cmn::IsEmpty(Name))
     {
-      gltf::raw_image& RawImage = RawGltfData->RawImages[i];
-      asset::image TmpImage = Map(RawImage);
-      asset::LoadImage(RawImage.Uri.data, RawImage.Name.data, RawImage.Uri.data, &TmpImage, &LoadedImagesTracker[i]);
+      Result =  asset::CreateUniqueName(UniqueName, TypeName, "", Index, IndexCount);
+    }else{
+      Result =  asset::CreateUniqueName(UniqueName, Name.data, "", Index, IndexCount);
     }
+    return Result;
+  }
 
-    size_t LoadedMaterialCount = RawGltfData->RawMaterialCount;
-    asset::key* LoadedMaterialTracker = PushArray(GlobalTransientArena,LoadedImageCount, asset::key);
-    for (int i = 0; i < RawGltfData->RawMaterialCount; ++i)
-    {
-      gltf::raw_material* RawMaterial = &RawGltfData->RawMaterials[i];
-      asset::pbr_material TmpMaterial = MapMaterial(RawMaterial, RawGltfData, LoadedImagesTracker);
-
-      c8* Name = 0;
-      if(cmn::IsEmpty(RawMaterial->Name))
-      {
-        Name =  asset::CreateUniqueName(UniqueName, "material", "", i, RawGltfData->RawMaterialCount);
-      }else{
-        Name =  asset::CreateUniqueName(UniqueName, RawMaterial->Name.data, "", i, RawGltfData->RawMaterialCount);
-      }
-
-      asset::LoadPbrMaterial(Name, &TmpMaterial, &LoadedMaterialTracker[i]);
-    }
-    
-    size_t LoadedMeshCount = RawGltfData->RawMeshCount;
-    asset::key* LoadedMeshTracker = PushArray(GlobalTransientArena,LoadedMeshCount, asset::key);
-    for (int i = 0; i < LoadedMeshCount; ++i)
-    {
-      gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
-      asset::mesh Mesh = ToMesh(RawMesh, LoadedMaterialTracker);
-
-      c8* Name = 0;
-      if(cmn::IsEmpty(RawMesh->Name))
-      {
-        Name =  asset::CreateUniqueName(UniqueName, "mesh", "", i, LoadedMeshCount);
-      }else{
-        Name =  asset::CreateUniqueName(UniqueName, RawMesh->Name.data, "", i, LoadedMeshCount);
-      }
-
-      asset::LoadMesh(Name, &Mesh, &LoadedMeshTracker[i]);
-    }
-
-    size_t LoadedCameraCount = RawGltfData->RawCameraCount;
-    asset::key* LoadedCameraTracker = PushArray(GlobalTransientArena, LoadedCameraCount, asset::key);
-    for(int i = 0; i < RawGltfData->RawCameraCount; ++i)
-    {
-      gltf::raw_camera* RawCamera = &RawGltfData->RawCameras[i];
-      asset::camera Camera = ToCamera(RawCamera);
-
-      c8* Name = 0;
-      if(cmn::IsEmpty(RawCamera->Name))
-      {
-        Name =  asset::CreateUniqueName(UniqueName, "camera", "", i, LoadedCameraCount);
-      }else{
-        Name =  asset::CreateUniqueName(UniqueName, RawCamera->Name.data, "", i, LoadedCameraCount);
-      }
-
-      asset::LoadCamera(Name, &Camera, &LoadedCameraTracker[i]);
-    }
-
+  asset::package_id LoadGltf(const c8* UniqueName, const  c8* Path, gltf::raw_gltf_data* RawGltfData) {
 
     asset::package Package = {};
-    Package.RenderTrees = ToRenderTrees(UniqueName, Path, RawGltfData, &Package.RenderTreeCount, LoadedMeshTracker, LoadedCameraTracker);
 
+    if(RawGltfData->RawImageCount)
+    {
+      Package.ImageCount = RawGltfData->RawImageCount;
+      Package.Images = PushArray(GlobalTransientArena, Package.ImageCount, asset::image_id);
+      for (int i = 0; i < RawGltfData->RawImageCount; ++i)
+      {
+        gltf::raw_image& RawImage = RawGltfData->RawImages[i];
+        asset::image TmpImage = Map(RawImage);
+        asset::LoadImage(RawImage.Uri.data, RawImage.Name.data, RawImage.Uri.data, &TmpImage, &Package.Images[i]);
+      }
+    }
+
+    if(RawGltfData->RawMaterialCount)
+    {
+      Package.PBRMaterialCount = RawGltfData->RawMaterialCount;
+      Package.PBRMaterials = PushArray(GlobalTransientArena, Package.PBRMaterialCount, asset::pbr_material_id);
+      for (int i = 0; i < Package.PBRMaterialCount; ++i)
+      {
+        gltf::raw_material* RawMaterial = &RawGltfData->RawMaterials[i];
+        asset::pbr_material TmpMaterial = MapMaterial(RawMaterial, RawGltfData, &Package.PBRMaterials[i]);
+
+        c8* Name = SetName(UniqueName, RawMaterial->Name, "material", i, Package.PBRMaterialCount);
+
+        asset::LoadPbrMaterial(Name, &TmpMaterial, &Package.PBRMaterials[i]);
+      }
+    }
+    
+    if(RawGltfData->RawMeshCount)
+    {
+      Package.MeshCount = RawGltfData->RawMeshCount;
+      Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
+      for (int i = 0; i < Package.MeshCount; ++i)
+      {
+        gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
+        asset::mesh Mesh = ToMesh(RawMesh, Package.PBRMaterials);
+
+        c8* Name = SetName(UniqueName, RawMesh->Name, "mesh", i, Package.MeshCount);
+
+        asset::LoadMesh(Name, &Mesh, &Package.Meshes[i]);
+      }
+    }
+
+    if(RawGltfData->RawCameraCount)
+    {
+      Package.CameraCount = RawGltfData->RawCameraCount;
+      Package.Cameras = PushArray(GlobalTransientArena, Package.CameraCount, asset::camera_id);
+      for(int i = 0; i < Package.CameraCount; ++i)
+      {
+        gltf::raw_camera* RawCamera = &RawGltfData->RawCameras[i];
+        asset::camera Camera = ToCamera(RawCamera);
+
+        c8* Name = SetName(UniqueName, RawCamera->Name, "camera", i, Package.CameraCount);
+        
+        asset::LoadCamera(Name, &Camera, &Package.Cameras[i]);
+      }
+    }
+
+    Package.RenderTrees = ToRenderTrees(UniqueName, Path, RawGltfData, &Package.RenderTreeCount, Package.Meshes, Package.Cameras);
   
     asset::package_id Result = 0;
     asset::LoadPackage(UniqueName, Path, &Package, &Result);
