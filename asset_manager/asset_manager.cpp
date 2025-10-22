@@ -143,6 +143,7 @@ void* Find(type Type, key Key) {
   void* Result = 0;
   if(Header)
   {
+    Assert(Header->Type == Type);
     Result = Header->Data;
   }
 
