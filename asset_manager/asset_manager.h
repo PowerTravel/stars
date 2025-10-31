@@ -31,6 +31,7 @@ struct manager {
   rb_tree Headers;
 };
 
+
 manager* CreateAssetManager() {
   manager* Result = BootstrapPushStruct(manager, Arena);
   Result->Memory = NewLinkedMemory(&Result->Arena, Megabytes(1));
@@ -80,4 +81,9 @@ render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const render_t
 package* LoadPackage(const c8* UniqueName, const c8* Path, const package* RenderTree, package_id* ResultKey = 0);
 
 
+
+#define ASSET_TREE_TRAVERSAL_CALLBACK(name) void name(asset::header* Header, void* UserData)
+typedef ASSET_TREE_TRAVERSAL_CALLBACK( asset_tree_traversal_function );
+
+void InOrderTraverse(asset_tree_traversal_function* Callback, void* UserData);
 }

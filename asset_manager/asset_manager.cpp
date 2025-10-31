@@ -727,4 +727,31 @@ package* LoadPackage(const c8* UniqueName, const c8* Path, const package* Packag
   return Result;
 }
 
+struct asset_tree_traversal_struct {
+  void* UserData;
+  asset_tree_traversal_function* Callback;
+};
+
+void NodeFun(red_black_tree_node const * Node, void* CustomData)
+{
+  asset_tree_traversal_struct* TraversalStruct = (asset_tree_traversal_struct*) CustomData;
+  asset::header* Header = (asset::header*) Node->Data->Data;
+  Assert(Node->Data->Next == 0);
+  TraversalStruct->Callback(Header, TraversalStruct->UserData);
+}
+
+void InOrderTraverse(asset_tree_traversal_function* Callback, void* UserData)
+{
+  asset_tree_traversal_struct TraversalStruct = {};
+  TraversalStruct.UserData = UserData;
+  TraversalStruct.Callback = Callback;
+
+  temporary_memory TempMem = BeginTemporaryMemory( GlobalTransientArena );
+  size_t MemReq = PreOrderGetStackMemorySize(&GlobalAssetManager->Headers.Tree);
+  void* StackMemory = PushSize(GlobalTransientArena, MemReq);
+  PreOrderTraverse(&GlobalAssetManager->Headers.Tree, StackMemory, (void*) &TraversalStruct, NodeFun);
+  EndTemporaryMemory( TempMem );
+}
+
+
 }

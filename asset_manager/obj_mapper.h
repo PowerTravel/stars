@@ -349,7 +349,7 @@ static material_map LoadPhongMaterials(obj_mtl_data* ObjMtlGroup, const c8* Uniq
 }
 
 
-static asset::key LoadMesh(const char* UniqueName, obj_loaded_file* Obj, material_map* MaterialMap)
+static asset::mesh_id LoadMesh(const char* UniqueName, obj_loaded_file* Obj, material_map* MaterialMap)
 {  
   c8* MeshName = asset::CreateUniqueName(UniqueName,"_", Obj->ObjectNameLength ? Obj->ObjectName : "_mesh");
   asset::mesh Mesh = {};
@@ -361,13 +361,12 @@ static asset::key LoadMesh(const char* UniqueName, obj_loaded_file* Obj, materia
     Mesh.Primitives[i] = ToMesh(ObjectGroup, Obj->MeshData, MaterialMap);
   }
 
-  asset::key ResultKey = 0;
+  asset::mesh_id ResultKey = 0;
   asset::LoadMesh(MeshName, &Mesh, &ResultKey);
-  asset::mesh* LoadedMesh = (asset::mesh*) asset::Find(asset::type::MESH, ResultKey);
   return ResultKey;
 }
 
-static asset::render_tree CreateRenderTree(asset::key MeshId)
+static asset::render_tree CreateRenderTree(asset::mesh_id MeshId)
 {
   asset::render_tree Result = {};
   Result.NodeCount  = 1;
@@ -382,7 +381,7 @@ static void* TransientAllocator(uint32_t MemorySize) {
   return Result;
 }
 
-asset::key LoadObj(const c8* Path, const c8* UniqueName)
+asset::package_id LoadObj(const c8* Path, const c8* UniqueName)
 {
   Assert(Path && *Path != '\0');
   if(!UniqueName || *UniqueName == '\0')
@@ -392,29 +391,35 @@ asset::key LoadObj(const c8* Path, const c8* UniqueName)
 
   obj_loaded_file* Obj = ReadOBJFile(TransientAllocator, GlobalTransientArena, Path);
 
-  asset::package Result = {};
+  asset::package Package = {};
 
   material_map MaterialMap = LoadPhongMaterials(Obj->MaterialData, UniqueName);
-  Result.PhongMaterialCount = MaterialMap.MaterialCount;
-  Result.PhongMaterials = MaterialMap.Materials;
+  Package.PhongMaterialCount = MaterialMap.MaterialCount;
+  Package.PhongMaterials = MaterialMap.Materials;
 
-  Result.ImageCount = MaterialMap.ImageCount;
-  Result.Images = PushArray(GlobalTransientArena, Result.ImageCount, asset::image_id);
+  Package.ImageCount = MaterialMap.ImageCount;
+  Package.Images = PushArray(GlobalTransientArena, Package.ImageCount, asset::image_id);
   image_id_list* ImageElement = MaterialMap.Images;
   int ImageIndex = 0;
   while(ImageElement)
   {
-    Result.Images[ImageIndex++] = ImageElement->Image;
+    Package.Images[ImageIndex++] = ImageElement->Image;
     ImageElement = ImageElement->Next;
   }
-  Assert(ImageIndex == Result.ImageCount);
+  Assert(ImageIndex == Package.ImageCount);
   
-  asset::key MeshKey = LoadMesh(UniqueName, Obj, &MaterialMap);
-  
-  asset::render_tree RenderTree = CreateRenderTree(MeshKey);
+  Package.MeshCount = 1;
+  Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
+  Package.Meshes[0] = LoadMesh(UniqueName, Obj, &MaterialMap);
 
-  asset::key ResultKey = 0;
-  asset::LoadRenderTree(UniqueName, Path, &RenderTree, &ResultKey);
+  Package.RenderTreeCount = 1;
+  Package.RenderTrees = PushArray(GlobalTransientArena, Package.MeshCount, asset::render_tree_id);
+  asset::render_tree RenderTree = CreateRenderTree(Package.Meshes[0]);
+  asset::LoadRenderTree(UniqueName, Path, &RenderTree, Package.RenderTrees);
+
+
+  asset::package_id ResultKey = 0;
+  asset::LoadPackage(UniqueName, Path, &Package, &ResultKey);
 
   return ResultKey;
 }

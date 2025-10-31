@@ -228,9 +228,7 @@ namespace asset {
       node* PreviousSibling;
       node* FirstChild;
 
-      // Optional <mesh_id>
       mesh_id Mesh;
-
       camera_id Camera;
 
       bool HasTransform;

@@ -475,6 +475,10 @@ namespace mapper {
       Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
       for (int i = 0; i < Package.MeshCount; ++i)
       {
+        if(i == 23)
+        {
+          int a = 10;
+        }
         gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
         asset::mesh Mesh = ToMesh(RawMesh, Package.PBRMaterials);
 

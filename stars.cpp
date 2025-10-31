@@ -1130,6 +1130,29 @@ void PowerOfTwoMiddles(u32 MaxNum){
   }
 }
 
+struct asset_package_vec {
+  size_t Count;
+  asset::package_id* Packages;
+};
+
+ASSET_TREE_TRAVERSAL_CALLBACK(CountPackageTypes)
+{
+  size_t* PackageCount =  (size_t*) UserData;
+  size_t Count = *PackageCount;
+  if(Header->Type == asset::type::PACKAGE)
+  {
+    *PackageCount = Count+1;
+  }
+}
+
+ASSET_TREE_TRAVERSAL_CALLBACK(OutputPackages)
+{
+  asset_package_vec* Packages = (asset_package_vec*) UserData;
+  if(Header->Type == asset::type::PACKAGE)
+  {
+    Packages->Packages[Packages->Count++] = Header->Key;
+  }
+}
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
@@ -1203,8 +1226,14 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     {
       asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
-
     }
+
+    size_t PackageCount = 0;
+    asset::InOrderTraverse(CountPackageTypes, (void*) &PackageCount);
+    asset_package_vec Vec = {};
+    Vec.Count = 0;
+    Vec.Packages = PushArray(GlobalTransientArena, PackageCount, asset::package_id);
+    asset::InOrderTraverse(OutputPackages, (void*) &Vec);
 
     GlobalState->Camera = {};
     InitiateCamera(&GlobalState->Camera, 70, GlobalState->World.RenderSystem->WindowSize.ApplicationAspectRatio, 0.1);
