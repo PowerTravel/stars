@@ -1,6 +1,7 @@
 #pragma once
 
 #include "macros.h"
+#include <cstdint> // uint32_t etc
 
 namespace cmn{
 namespace utils {
