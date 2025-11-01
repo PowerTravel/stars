@@ -130,6 +130,36 @@ void TestPushPop_2(){
     DBG_Assert(List.Empty(), false, "List Empty");
     DBG_Assert(List.Size(), N, "List Size");
 
+    // Test looping Right
+    {
+      cmn::list<int>::element* Element = List.First();
+      int ListValue = N-1;
+      while (!List.IsEnd(Element))
+      {
+        DBG_Assert(Element->GetCopy(), ListValue--, "Loop Right");
+        Element = Element->Next;
+      }
+    }
+
+    // Test looping Left
+    {
+      int ListValue = 0;
+      cmn::list<int>::element* Element = List.Last();
+      while (!List.IsEnd(Element))
+      {
+        DBG_Assert(Element->GetCopy(), ListValue++, "Loop Left");
+        Element = Element->Previous;
+      }
+    }
+    
+    // Test At function
+    {
+      for (int i = 0; i < N; ++i)
+      {
+        DBG_Assert(List.At(i)->GetCopy(), N-i-1, "List At");
+      }
+    }
+
     int Index = 1;
     while(!List.Empty())
     {

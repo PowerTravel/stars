@@ -137,6 +137,40 @@ struct list {
     return Result;
   }
 
+  // m_count = 5
+  // Midpoint = 5/2 = 2
+  // index = 0
+
+  // 0 -> 0
+  // 1 -> 0, 1
+  // 1 -> 0, 1
+
+  element* At(size_t Index)
+  {
+    if(!m_sentinel) return 0;
+    if(Index >= m_count) return 0;
+
+    element* Result = 0;
+    size_t Midpoint = m_count / 2;
+    if(Index <= Midpoint)
+    {
+      Result = First();
+      while(Index-- && Result != m_sentinel){
+        Result = Result->Next;
+      }
+    }else{
+      Index = m_count - Index - 1;
+      Result = Last();
+      while(Index-- &&Result != m_sentinel){
+       Result = Result->Previous;
+      }
+    }
+    if(Result == m_sentinel){
+     Result = 0;
+    }
+    return Result;
+  }
+
   bool IsEnd(element* Position){return !m_sentinel || Position == m_sentinel;};
   bool Empty(){return !m_sentinel || m_sentinel == m_sentinel->Next;}
 
