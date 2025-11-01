@@ -31,22 +31,80 @@ namespace cmn {
     struct navigator {
       n_tree<T>* m_tree;
       n_tree<T>::node* m_node;
-      uint32_t m_depth; // why not
-      uint32_t m_siblingIndex;
+      int32_t m_depth; // why not
+      int32_t m_siblingIndex;
 
-      uint32_t ChildCount(){return 0;};       // Number of children
-      uint32_t SiblingCount(){return 0;};     // Number of Siblings
-      uint32_t SiblingIndex(){return m_siblingIndex;};     // Number of Current Sibling
-      uint32_t Depth(){return m_depth;};            // Get the depth
-      navigator Parent(){return {};};                     // Move to parent
-      navigator Child(uint32_t ChildIndex){return {};}     // Move to Child
-      navigator Sibling(uint32_t SiblingIndex){return {};}; // Move to Sibling
-      T GetCopy(){return {};}; // Get Node Value As Copy
-      //T& GetRef(){return {};};  // Get Node Value As Ref
-      T* GetPtr(){return 0;};  // Get Node Value As Ptr
-      //n_tree<T>::node& GetNodeRef(); // Get The Node 
-      n_tree<T>::node* GetNodePtr(){return {};}; // Get The Node 
-      bool IsLeaf(){return ChildCount()==0;};  // Is the node a leaf (same as ChildCount =`= 0)
+      size_t ChildCount() const {return m_node->ChildCount();};       // Number of children
+      bool IsLeaf() const {return m_node->ChildCount()==0;};       // Is the node a leaf (same as ChildCount =`= 0)
+      uint32_t SiblingCount() const { // Number of Siblings including m_node
+        if(m_depth == 0) {return 0;} // Root
+        return m_node->Parent->ChildCount();
+      }
+      uint32_t SiblingIndex() const {return m_siblingIndex;};     // Number of Current Sibling
+      uint32_t Depth() const {return m_depth;};            // Get the depth
+      bool MoveToParent() // Move to parent
+      {
+        if(m_depth == 0) return false;
+        m_node = m_node->Parent;
+        m_depth--;
+        m_siblingIndex = GetSiblingIndex(m_node);
+        return true;
+      };                     
+      bool MoveToChild(uint32_t ChildIndex = 0)  // Move to Child
+      {
+        if(ChildIndex >= ChildCount()) return false;
+        m_node = GetChildNode(m_node, ChildIndex);
+        m_depth = m_depth+1;
+        m_siblingIndex = ChildIndex;
+        return true;
+      }
+      bool NextSibling(int32_t NextCount){
+        if(NextCount==0) return false;
+        int32_t NewSiblingIndex = m_siblingIndex + NextCount;
+        if(NewSiblingIndex < 0 || NewSiblingIndex >= SiblingCount()) return false;
+        list<node*>* Siblings = &m_node->Parent->Children;
+        m_node = Siblings->At(NewSiblingIndex)->GetCopy();
+        m_siblingIndex = NewSiblingIndex;
+        return true;
+      }
+      bool NextSibling(){
+        return NextSibling(1);
+      } 
+      bool PreviousSibling(){
+        return NextSibling(-1);
+      }
+      bool MoveToSibling(uint32_t SiblingIndex){
+        return NextSibling(SiblingIndex - m_siblingIndex);
+      };
+
+      T GetCopy() const {return *m_node->Data;}; // Get Node Value As Copy
+      T& GetRef() const {return *m_node->Data;};  // Get Node Value As Ref
+      T* GetPtr() const {return m_node->Data;};  // Get Node Value As Ptr
+      n_tree<T>::node& GetNodeRef(){return *m_node;}; // Get The Node 
+      n_tree<T>::node* GetNode(){return m_node;}; // Get The Node 
+
+      // Tree modifications
+
+      // Removes the sub-tree from the current tree and returns a new tree
+      // The navigator is now in the old tree but on the parent of the dissconnected node.
+      n_tree<T> Dissconnect(){
+        return {};
+      }
+      // Attaches the tree in the argument as a child to the Navigator
+      // The navigator remains unchanged
+      void Attach(n_tree<T>* Tree){};
+
+      // Deletes the node and its subtree then moves to a sibling.
+      // If there are no more siblings, moves to parent. 
+      // Returns false if the tree is empty (cannot delete anymore)
+      bool Delete(){
+        return false;
+      };
+
+      // Inserts a new node into the tree as a child
+      void InsertChild(const T& Value){};
+      // Inserts a new node into the tree as a Sibling
+      void InsertSibling(const T& Value){};
     };
 
     _cmn_malloc*  m_malloc;
@@ -102,10 +160,55 @@ namespace cmn {
       return m_nodeList.Size();
     }
 
-    navigator Start() {
-      return {};
+    navigator NewNavigator(n_tree<T>::node* Node = 0) {
+      navigator Result = {};
+
+      if(Node == 0)
+      {
+        // Start At Root
+        Result.m_tree = this;
+        Result.m_node = m_root;
+        Result.m_depth = 0;
+        Result.m_siblingIndex = 0;
+      }else{
+        // Start At Node
+        Result.m_tree = this;
+        Result.m_node = Node;
+        Result.m_depth = GetDepth(Node);
+        Result.m_siblingIndex = GetSiblingIndex(Node);
+      }
+      return Result;
     }
 
+    static size_t GetDepth(n_tree<T>::node* Node){
+      size_t Result = 0;
+      while(Node->Parent)
+      {
+        Node = Node->Parent;
+        Result++;
+      }
+      return Result;
+    }
+    static size_t GetSiblingIndex(n_tree<T>::node* Node){
+      if(!Node->Parent) return 0;
+      n_tree<T>::node* Parent = Node->Parent;
+      list<node*>& ChildList = Parent->Children;
+      list<node*>::element* ChildElement = ChildList.First();
+      size_t Result = 0;
+      while(!ChildList.IsEnd(ChildElement)){
+        if(ChildElement->GetCopy() == Node){
+          return Result;
+        }
+        Result++;;
+        ChildElement = ChildElement->Next;
+      }
+      return Result;
+    }
+    static n_tree<T>::node* GetChildNode(n_tree<T>::node* Node, uint32_t ChildIndex)
+    {
+      if(Node->ChildCount() == 0 || Node->ChildCount() < ChildIndex  ) return 0;
+      return Node->Children.At(ChildIndex)->GetCopy();
+    }
   };
 
 #define _NodeVisitFunction(name) void name(typename cmn::n_tree<T>* Tree, typename cmn::n_tree<T>::node* Node, void* UserData)
@@ -158,7 +261,6 @@ void LevelOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback,
     }
   }
 }
-
 
 namespace internal {
   template<typename T>
