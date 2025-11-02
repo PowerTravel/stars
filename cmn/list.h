@@ -14,13 +14,13 @@ struct list {
     T* Data;
     element* Next;
     element* Previous;
-    T* GetPtr(){
+    T* GetPtr() const {
       return Data;
     }
-    T& GetRef(){
+    T& GetRef() const {
       return *Data;
     };
-    T GetCopy(){
+    T GetCopy() const{
       return *Data;
     };
   };
@@ -46,6 +46,10 @@ struct list {
 
   };
 
+  // 1 Destructor
+  ~list() {Clear();}
+
+  // 2 Copy Constructor
   list(const list& List) : list(List.m_malloc, List.m_free) {
     element* Src = List.m_sentinel->Next;
     while(Src != List.m_sentinel)
@@ -57,21 +61,13 @@ struct list {
     Assert(m_count == List.m_count);
   };
 
-  ~list()  {
-    if(m_sentinel)
-    {
-      element* e = m_sentinel->Next;
-      while(e != m_sentinel)
-      {
-        element* eNext = e->Next;
-        m_free(e->Data);
-        m_free(e);
-        e = eNext;
-      }
-      m_free(m_sentinel);
-      m_sentinel = 0;
-      m_count = 0;
+  // 3 Copy Operator
+  list& operator=(const list& Other) {
+    if(this != &Other){
+      Clear();
+      list(Other);
     }
+    return *this;
   }
 
   element* GetSentinel(){
@@ -108,21 +104,50 @@ struct list {
     InsertAfter(GetSentinel(), Data);
   }
 
-  void Delete(element* ElementToRemove){
+
+  element* Detach(element* ElementToDetach) {
+    if(m_count == 0 || IsEnd(ElementToDetach)){
+      return 0;
+    }
+    ListRemove(ElementToDetach);
+    ListInitiate(ElementToDetach);
+    m_count--;
+    return ElementToDetach;
+  }
+
+
+  void Delete(element* ElementToRemove) {
     if(m_count == 0 || IsEnd(ElementToRemove)){
       return;
     }
-
-    ListRemove(ElementToRemove);
+    ElementToRemove = Detach(ElementToRemove);
     m_free(ElementToRemove->Data);
     m_free(ElementToRemove);
-    m_count--;
+  }
+
+  void Clear() {
+
+    if(m_sentinel)
+    {
+      element* e = m_sentinel->Next;
+      while(e != m_sentinel)
+      {
+        element* eNext = e->Next;
+        m_free(e->Data);
+        m_free(e);
+        e = eNext;
+      }
+      
+      m_free(m_sentinel);
+      m_sentinel = 0;
+      m_count = 0;
+    }
   }
 
   T PopBack() {
     T Result = {};
     if(!Empty()){
-      Result = *Last()->Data;
+      Result = Last()->GetCopy();
       Delete(Last());
     }
     return Result;
@@ -131,19 +156,40 @@ struct list {
   T PopFront() {
     T Result = {};
     if(!Empty()){
-      Result = *First()->Data;
+      Result = First()->GetCopy();
       Delete(First());
     }
     return Result;
   }
 
-  // m_count = 5
-  // Midpoint = 5/2 = 2
-  // index = 0
+  // Moves Element into List ElementToMove must be in 'this' list, ListPosition must belong to in List arguments list
+  void MoveInto(list& List, element* ElementToMove, element* ListPosition = 0)
+  {
+    Assert(List.m_free == m_free);
+    ListRemove(ElementToMove);
+    m_count--;
+    if(ListPosition)
+    {
+      ListInsertAfter(ListPosition, ElementToMove);
+    }else{
+      ListInsertBefore(List.GetSentinel(), ElementToMove);
+    }
+    List.m_count++;
+  }
 
-  // 0 -> 0
-  // 1 -> 0, 1
-  // 1 -> 0, 1
+  void MoveInto(list& List)
+  {
+    if(m_sentinel)
+    {
+      element* E = m_sentinel->Next;
+      while(!IsEnd(E))
+      {
+        element* NextE = E->Next;
+        MoveInto(List, E);
+        E = NextE;
+      }
+    }
+  }
 
   element* At(size_t Index)
   {
@@ -169,6 +215,20 @@ struct list {
      Result = 0;
     }
     return Result;
+  }
+
+
+  T GetCopy(size_t Index){
+    element* E = At(Index);
+    return E->GetCopy();
+  }
+  T& GetRef(size_t Index){
+    element* E = At(Index);
+    return E->GetRef();
+  }
+  T* GetPtr(size_t Index){
+    element* E = At(Index);
+    return E->GetPtr();
   }
 
   bool IsEnd(element* Position){return !m_sentinel || Position == m_sentinel;};

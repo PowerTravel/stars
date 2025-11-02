@@ -1,50 +1,14 @@
 #include <cstdio>
 
+
 #include "list.h"
 #include "debug_asserts.h"
 
 bool gShouldPrint = false;
-int gReallocCount = 0;
-int gMallocCount = 0;
-int gFreeCount = 0;
-
-CMN_MALLOC_FUNCTION(customMalloc){
-  gMallocCount++;
-  return malloc(sz);
-}
-CMN_REALLOC_FUNCTION(customRealloc){
-  gReallocCount++;
-  return realloc(p, sz);
-}
-CMN_FREE_FUNCTION(customFree){
-  gFreeCount++;
-  free(p);
-}
-
-void ResetAllocationCounters()
-{
-  gReallocCount = 0;
-  gMallocCount = 0;
-  gFreeCount = 0;
-}
-
-void SetDefaultGlobalAllocators(){
-  cmn::SetDefaultCustomAllocators(malloc, realloc, free);
-}
-
-void SetCustomGlobalAllocators(){
-  cmn::SetDefaultCustomAllocators(customMalloc, customRealloc, customFree);
-}
-
-void ResetTestEnvironment()
-{
-  ResetAllocationCounters();
-  SetDefaultGlobalAllocators();
-}
 
 void TestConstructDestructEmpty()
 {
-  SetCustomGlobalAllocators();
+  dbg::SetCustomGlobalAllocators();
   {
     cmn::list<int> List = cmn::list<int>();
   }
@@ -54,7 +18,7 @@ void TestConstructDestructEmpty()
 }
 
 void TestPushPop_1(){
-  SetCustomGlobalAllocators();
+  dbg::SetCustomGlobalAllocators();
 
   int N = 32;
   int AllocFreeCount = N*2+1; // There are two allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
@@ -89,7 +53,7 @@ void TestPushPop_1(){
 
 void TestPushPop_2(){
 
-  SetCustomGlobalAllocators();
+  dbg::SetCustomGlobalAllocators();
 
   int N = 32;
   int AllocFreeCount =2*(N*2+1); // There are two lists and allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
@@ -179,8 +143,7 @@ void TestPushPop_2(){
 }
 
 void TestLoop(){
-  ResetTestEnvironment();
-  SetCustomGlobalAllocators();
+  dbg::SetCustomGlobalAllocators();
 
   int N = 32;
   int AllocFreeCount = N*2+1; // There are two allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
@@ -216,13 +179,11 @@ void TestLoop(){
   DBG_Assert(gMallocCount, AllocFreeCount, "Malloc Call Count");
   DBG_Assert(gReallocCount, 0,  "Realloc Call Count");
   DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
-
-  ResetTestEnvironment();
 }
 
 void TestConstructDestruct()
 {
-  SetCustomGlobalAllocators();
+  dbg::SetCustomGlobalAllocators();
   int N = 32;
   int AllocFreeCount = N*2+1; // There are two allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
   {
@@ -244,6 +205,134 @@ void TestConstructDestruct()
   DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
 }
 
+void TestMove_1(){
+    dbg::SetCustomGlobalAllocators();
+    
+    int N = 32;
+    int AllocFreeCount = N*2+2;
+    cmn::list<int>::element* DetachedElement = 0;
+    {
+      cmn::list<int> ListA = cmn::list<int>();
+      for (int i = 0; i < N; ++i)
+      {
+        ListA.PushBack(i);
+      }
+
+      cmn::list<int> ListB = cmn::list<int>();
+      for (int i = 0; i < N/2; ++i)
+      {
+        ListA.MoveInto(ListB, ListA.First());
+      }
+
+      {
+        cmn::list<int>::element* BElement = ListB.First();
+        for (int i = 0; i < N/2; ++i)
+        {
+          DBG_Assert(BElement->GetCopy(), i, "Size After Detach");
+          BElement = BElement->Next;
+        }
+        DBG_Assert(ListB.IsEnd(BElement), true, "List B Is End");
+      }
+      {
+        cmn::list<int>::element* AElement = ListA.First();
+        for (int i = N/2; i < N; ++i)
+        {
+          DBG_Assert(AElement->GetCopy(), i, "Size After Detach");
+          AElement = AElement->Next;
+        }
+        DBG_Assert(ListA.IsEnd(AElement), true, "List A Is End");
+      }
+
+      // Test Get on list
+      {
+        for (int i = 0; i < N/2; ++i)
+        {
+          DBG_Assert(ListB.GetCopy(i), i, "Size After Detach");
+        }
+      }
+      {
+        for (int i = 0; i < N/2; ++i)
+        {
+          DBG_Assert(ListA.GetRef(i), i+N/2, "Size After Detach");
+        }
+      }
+
+      DBG_Assert(ListA.Size(), ListB.Size(), "Size After Detach");
+    }
+
+    // Add 1 because we allocated the sentinel of list B
+    DBG_Assert(gMallocCount, AllocFreeCount, "Malloc Call Count");
+    DBG_Assert(gReallocCount, 0,  "Realloc Call Count");
+    // Detached node is not freed since its no longer connected to the list
+    DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
+}
+
+void TestMove_2(){
+    dbg::SetCustomGlobalAllocators();
+    
+    int N = 32;
+    int AllocFreeCount = N*2+2;
+    cmn::list<int>::element* DetachedElement = 0;
+    {
+      cmn::list<int> ListA = cmn::list<int>();
+      for (int i = 0; i < N; ++i)
+      {
+        ListA.PushBack(i);
+      }
+
+      cmn::list<int> ListB = cmn::list<int>();
+      ListA.MoveInto(ListB);
+
+      {
+        cmn::list<int>::element* BElement = ListB.First();
+        for (int i = 0; i < N; ++i)
+        {
+          DBG_Assert(BElement->GetCopy(), i, "Size After Detach");
+          BElement = BElement->Next;
+        }
+        DBG_Assert(ListB.IsEnd(BElement), true, "List B Is End");
+      }
+    }
+
+    // Add 1 because we allocated the sentinel of list B
+    DBG_Assert(gMallocCount, AllocFreeCount, "Malloc Call Count");
+    DBG_Assert(gReallocCount, 0,  "Realloc Call Count");
+    // Detached node is not freed since its no longer connected to the list
+    DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
+}
+
+void TestCopyOperatorCopyContructor()
+{
+  dbg::SetCustomGlobalAllocators();
+  int N = 32;
+  int AllocFreeCount = N*4+2;
+
+  {
+    cmn::list<int> ListA = cmn::list<int>();
+    for (int i = 0; i < N; ++i)
+    {
+      ListA.PushBack(i);
+    }
+
+    // Copy List
+    cmn::list<int> ListB = ListA;
+
+    for (int i = 0; i < N; ++i)
+    {
+      // Values are the same
+      DBG_Assert(ListA.GetCopy(i), ListB.GetCopy(i), "Value");
+
+      // Adresses are NOT the same
+      DBG_AssertFalse((void*) ListA.GetPtr(i), (void*) ListB.GetPtr(i), "Value Address");
+    }
+  }
+
+  DBG_Assert(gMallocCount, AllocFreeCount, "Malloc Call Count");
+  DBG_Assert(gReallocCount, 0,  "Realloc Call Count");
+  DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
+}
+
+
 int main(int argc, char* argv[]) {
   gShouldPrint = argc > 1;
   DBG_RunTest(TestConstructDestructEmpty);
@@ -251,5 +340,8 @@ int main(int argc, char* argv[]) {
   DBG_RunTest(TestPushPop_2);
   DBG_RunTest(TestConstructDestruct);
   DBG_RunTest(TestLoop);
+  DBG_RunTest(TestMove_1);
+  DBG_RunTest(TestMove_2);
+  DBG_RunTest(TestCopyOperatorCopyContructor);
   return 0;
 }
