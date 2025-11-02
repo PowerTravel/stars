@@ -4,43 +4,6 @@
 #include "debug_asserts.h"
 
 bool gShouldPrint = false;
-int gReallocCount = 0;
-int gMallocCount = 0;
-int gFreeCount = 0;
-
-CMN_MALLOC_FUNCTION(customMalloc){
-  gMallocCount++;
-  return malloc(sz);
-}
-CMN_REALLOC_FUNCTION(customRealloc){
-  gReallocCount++;
-  return realloc(p, sz);
-}
-CMN_FREE_FUNCTION(customFree){
-  gFreeCount++;
-  free(p);
-}
-
-void ResetAllocationCounters()
-{
-  gReallocCount = 0;
-  gMallocCount = 0;
-  gFreeCount = 0;
-}
-
-void SetDefaultGlobalAllocators(){
-  cmn::SetDefaultCustomAllocators(malloc, realloc, free);
-}
-
-void SetCustomGlobalAllocators(){
-  cmn::SetDefaultCustomAllocators(customMalloc, customRealloc, customFree);
-}
-
-void ResetTestEnvironment()
-{
-  ResetAllocationCounters();
-  SetDefaultGlobalAllocators();
-}
 
 void BasicPushPop(cmn::vector<int>& v) {
 
@@ -108,7 +71,7 @@ void Test1_BasicPushPop()
 
 void Test2_BasicPushPop_GlobalCustomAllocators()
 {
-  SetCustomGlobalAllocators();
+  dbg::SetCustomGlobalAllocators();
   cmn::vector<int> v1 = cmn::vector<int>();
   BasicPushPop(v1);
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
@@ -116,7 +79,7 @@ void Test2_BasicPushPop_GlobalCustomAllocators()
   DBG_Assert(gFreeCount, 1, "Free Call Count");
 
   // Reset default allocators
-  SetDefaultGlobalAllocators();
+  dbg::SetDefaultGlobalAllocators();
   cmn::vector<int> v2 = cmn::vector<int>();
   BasicPushPop(v2);
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
@@ -137,7 +100,7 @@ void Test3_BasicPushPop_LocalCustomAllocators(){
 
 void TestConstructorDestructor_1()
 {
-  SetCustomGlobalAllocators();
+  dbg::SetCustomGlobalAllocators();
   {
     // No allocations should happen with an empty vector
     cmn::vector<float> v = cmn::vector<float>();
@@ -150,7 +113,7 @@ void TestConstructorDestructor_1()
 
 void TestConstructorDestructor_2()
 {
-  SetCustomGlobalAllocators();
+  dbg::SetCustomGlobalAllocators();
   {
     // No allocations should happen with an empty vector
     cmn::vector<float> v = cmn::vector<float>(10);
