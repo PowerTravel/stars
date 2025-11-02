@@ -23,6 +23,9 @@ namespace cmn {
       T* Data;
       node* Parent;
       list<node*> Children;
+      node(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free) : Parent(0), Data(0), Children(Malloc,Free){
+
+      }
       size_t ChildCount(){
         return Children.Size();
       }
@@ -85,10 +88,32 @@ namespace cmn {
 
       // Tree modifications
 
-      // Removes the sub-tree from the current tree and returns a new tree
+      // Removes the sub-tree from the current tree and returns it as a new tree
       // The navigator is now in the old tree but on the parent of the dissconnected node.
       n_tree<T> Dissconnect(){
-        return {};
+        /*
+        n_tree<T>* m_tree;
+        n_tree<T>::node* m_node;
+        int32_t m_depth; // why not
+        int32_t m_siblingIndex;
+        */
+        if(m_depth == 0) *m_tree;
+
+        // Create a new tree
+        n_tree<T> Result = n_tree<T>(m_tree->m_malloc, m_tree->m_free);
+
+        node_list<T>& Siblings = m_node->Parent->Children;
+        node_list_element<T>* NodeElementToTransfer = Siblings.At(m_siblingIndex);
+
+        // Remove the node
+        NodeElementToTransfer = Siblings.Detach(NodeElementToTransfer);
+
+        // Copy over the node pointer
+        Result.m_root = NodeElementToTransfer->GetCopy();
+        Siblings.Delete(NodeElementToTransfer);        
+
+        return Result;
+
       }
       // Attaches the tree in the argument as a child to the Navigator
       // The navigator remains unchanged
@@ -101,10 +126,19 @@ namespace cmn {
         return false;
       };
 
-      // Inserts a new node into the tree as a child
-      void InsertChild(const T& Value){};
+      // Inserts a new node into the tree as a child and return it
+      node* InsertChild(const T& Value){ 
+        node* Result =m_tree->NewNode(m_node, Value);
+        return Result;
+      };
+
       // Inserts a new node into the tree as a Sibling
-      void InsertSibling(const T& Value){};
+      node* InsertSibling(const T& Value){
+        if(m_depth == 0) return 0;
+        node* Result = m_tree->NewNode(m_node->Parent, Value);
+        m_siblingIndex = GetSiblingIndex(m_node);
+        return Result;
+      };
     };
 
     _cmn_malloc*  m_malloc;
@@ -119,9 +153,7 @@ namespace cmn {
     }
 
     n_tree::node* AllocateNode() {
-      n_tree::node* Result = (n_tree::node*) m_malloc(sizeof(n_tree::node));
-      *Result = {};
-      Result->Children = list<node*>(m_malloc, m_free);
+      n_tree::node* Result = new(m_malloc(sizeof(n_tree::node))) n_tree::node(m_malloc, m_free);
       m_nodeList.PushBack(Result);
       return Result;
     }

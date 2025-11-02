@@ -12,54 +12,6 @@
 
 
 bool gShouldPrint = false;
-int gReallocCount = 0;
-int gMallocCount = 0;
-int gFreeCount = 0;
-
-CMN_MALLOC_FUNCTION(customMalloc){
-  gMallocCount++;
-  return malloc(sz);
-}
-CMN_REALLOC_FUNCTION(customRealloc){
-  gReallocCount++;
-  return realloc(p, sz);
-}
-CMN_FREE_FUNCTION(customFree){
-  gFreeCount++;
-  free(p);
-}
-
-void ResetAllocationCounters()
-{
-  gReallocCount = 0;
-  gMallocCount = 0;
-  gFreeCount = 0;
-}
-
-void SetDefaultGlobalAllocators(){
-  cmn::SetDefaultCustomAllocators(malloc, realloc, free);
-}
-
-void SetCustomGlobalAllocators(){
-  cmn::SetDefaultCustomAllocators(customMalloc, customRealloc, customFree);
-}
-
-void ResetTestEnvironment()
-{
-  ResetAllocationCounters();
-  SetDefaultGlobalAllocators();
-}
-
-/*
-  CMN_N_TREE_TRAVERSE_CALLBAK(Test1VerifyCallback)
-  {
-    verify_int_vec* VerifyVec = (verify_int_vec*) UserData;
-    Assert(VerifyVec.Index == cmn::NodeCount(NTree));
-    int Index = VerifyVec.Index++;
-    int* Val = (int*) cmn::Get(Node);
-    Assert(VerifyVec.Vec[Index] == Val);
-  }
-*/
 
 #include <string>
 #include <iostream>
