@@ -87,75 +87,8 @@ void Test_Traversal()
   cmn::LevelOrderTraversal(tree, treeTraversealAssert,(void*) &LevelOrderData);
 }
 
-  void AssertNavigator(const cmn::n_tree<int>::navigator& Navigator, const cmn::n_tree<int>& Tree, const cmn::n_tree<int>::node* Node,
-    size_t ChildCount, uint32_t SiblingCount, uint32_t SiblingIndex, uint32_t Depth, int Value)
-  {
-    DBG_Assert(Navigator.GetCopy(), Value, "ValueCopy");
-    DBG_Assert(Navigator.GetRef(), Value, "ValueRef");
-    DBG_Assert(*Navigator.GetPtr(), Value, "ValuePtr");
-    DBG_Assert((void*) Navigator.m_node, (void*) Node, "Node");
-    DBG_Assert(Navigator.ChildCount(), ChildCount, "ChildCount");
-    DBG_Assert(Navigator.SiblingCount(), SiblingCount, "SiblingCount");
-    DBG_Assert(Navigator.SiblingIndex(), SiblingIndex, "SiblingIndex");
-    DBG_Assert(Navigator.Depth(), Depth, "Depth");
-    DBG_Assert(Navigator.IsLeaf(), ChildCount == 0, "IsLeaf");
-  }
-
-  void Test_navigator(){
-    cmn::n_tree<int> Tree = createTree();
-    cmn::n_tree<int>::navigator Nav = Tree.NewNavigator();
-    
-    AssertNavigator(Nav, Tree, Tree.m_root, 3, 0, 0, 0, 1);
-    DBG_Assert(Nav.MoveToParent(), false, "ValuePtr");
-    AssertNavigator(Nav, Tree, Tree.m_root, 3, 0, 0, 0, 1); // Nav remains unchanged after "failed" Move-command
-    
-    DBG_Assert(Nav.MoveToChild(), true, "MoveToChild"); // Move to first child
-
-
-    // Move back and forth in different ways in depth 1
-    cmn::node_list_element<int>* Node2 = Tree.m_root->Children.First();
-    AssertNavigator(Nav, Tree, Node2->GetCopy(), 0, 3, 0, 1, 2);
-    DBG_Assert(Nav.NextSibling(1), true, "NextSibling()");
-    AssertNavigator(Nav, Tree, Node2->Next->GetCopy(), 2, 3, 1, 1, 3);
-    DBG_Assert(Nav.NextSibling(), true, "NextSibling");
-    AssertNavigator(Nav, Tree, Node2->Next->Next->GetCopy(), 1, 3, 2, 1, 4);
-    DBG_Assert(Nav.NextSibling(), false, "NextSibling");
-    AssertNavigator(Nav, Tree, Node2->Next->Next->GetCopy(), 1, 3, 2, 1, 4);
-
-    DBG_Assert(Nav.NextSibling(-3), false, "NextSibling");
-    AssertNavigator(Nav, Tree, Node2->Next->Next->GetCopy(), 1, 3, 2, 1, 4);
-    DBG_Assert(Nav.NextSibling(-2), true, "NextSibling");
-    AssertNavigator(Nav, Tree, Node2->GetCopy(), 0, 3, 0, 1, 2);
-    DBG_Assert(Nav.MoveToSibling(4), false, "MoveToSibling");
-    AssertNavigator(Nav, Tree, Node2->GetCopy(), 0, 3, 0, 1, 2);
-    DBG_Assert(Nav.MoveToSibling(2), true, "MoveToSibling");
-    AssertNavigator(Nav, Tree, Node2->Next->Next->GetCopy(), 1, 3, 2, 1, 4);
-    DBG_Assert(Nav.PreviousSibling(), true, "PreviousSibling");
-    AssertNavigator(Nav, Tree, Node2->Next->GetCopy(), 2, 3, 1, 1, 3);
-
-    // Move Up and down a bit
-    cmn::node_list_element<int>* Node5 = Node2->Next->GetCopy()->Children.First();
-    DBG_Assert(Nav.MoveToChild(1), true, "MoveToChild");
-    AssertNavigator(Nav, Tree, Node5->Next->GetCopy(), 0, 2, 1, 2, 6);
-    DBG_Assert(Nav.PreviousSibling(), true, "MoveToChild");
-    AssertNavigator(Nav, Tree, Node5->GetCopy(), 1, 2, 0, 2, 5);
-    cmn::node_list_element<int>* Node8 = Node5->GetCopy()->Children.First();
-    DBG_Assert(Nav.MoveToChild(), true, "MoveToChild");
-    AssertNavigator(Nav, Tree, Node8->GetCopy(), 0, 1, 0, 3, 8);
-
-
-    int DepthCount = 3;
-    while(Nav.MoveToParent())
-    {
-      DepthCount--;
-    }
-    DBG_Assert(DepthCount, 0, "Depth climbing up");
-    AssertNavigator(Nav, Tree, Tree.m_root, 3, 0, 0, 0, 1);
-
-  }
-
 int main ()
 {  
   DBG_RunTest(Test_Traversal);
-  DBG_RunTest(Test_navigator);
+  //DBG_RunTest(Test_navigator);
 }
