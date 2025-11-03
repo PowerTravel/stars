@@ -51,7 +51,7 @@ Also want a traversal which is conidtional Given were on a node, have some funct
 
 cmn::n_tree<int> createTree()
 {
-  cmn::n_tree<int> tree = cmn::n_tree<int>();
+  cmn::n_tree<int> tree = cmn::n_tree<int>::Create();
   DBG_Assert(tree.NodeCount(), 0, "Node Count");
 
   cmn::n_tree<int>::node* Root = tree.NewNode(NULL, 1);
@@ -69,26 +69,39 @@ cmn::n_tree<int> createTree()
 
 void Test_Traversal()
 {
-  cmn::n_tree<int> tree = createTree();
-  
-  int PreOrderBuf[] = {1,2,3,5,8,6,4,7,9};
-  user_data PreOrderData = {};
-  PreOrderData.vec = cmn::vector<int>(ArrayCount(PreOrderBuf), PreOrderBuf);
-  cmn::PreOrderTraversal(tree, treeTraversealAssert,(void*) &PreOrderData);
+  dbg::SetCustomGlobalAllocators();
+  {
+    cmn::n_tree<int> tree = createTree();
+    int PreOrderBuf[] = {1,2,3,5,8,6,4,7,9};
+    user_data PreOrderData = {};
+    PreOrderData.vec = cmn::vector<int>(ArrayCount(PreOrderBuf), PreOrderBuf);
+    cmn::PreOrderTraversal(tree, treeTraversealAssert,(void*) &PreOrderData);
+    tree.Delete();
+  }
+  DBG_Assert(gMallocCount, gFreeCount, "Alloc equal to free");
 
-  int PostOrderBuf[] = {2,8,5,6,3,9,7,4,1};
-  user_data PostOrderData = {};
-  PostOrderData.vec = cmn::vector<int>(ArrayCount(PostOrderBuf), PostOrderBuf);
-  cmn::PostOrderTraversal(tree, treeTraversealAssert,(void*) &PostOrderData);
+  {
+    cmn::n_tree<int> tree = createTree();
+    int PostOrderBuf[] = {2,8,5,6,3,9,7,4,1};
+    user_data PostOrderData = {};
+    PostOrderData.vec = cmn::vector<int>(ArrayCount(PostOrderBuf), PostOrderBuf);
+    cmn::PostOrderTraversal(tree, treeTraversealAssert,(void*) &PostOrderData);
+    tree.Delete();
+  }
+  DBG_Assert(gMallocCount, gFreeCount, "Alloc equal to free");
 
-  int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
-  user_data LevelOrderData = {};
-  LevelOrderData.vec = cmn::vector<int>(ArrayCount(LevelOrderBuf), LevelOrderBuf);
-  cmn::LevelOrderTraversal(tree, treeTraversealAssert,(void*) &LevelOrderData);
+  {
+    cmn::n_tree<int> tree = createTree();
+    int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
+    user_data LevelOrderData = {};
+    LevelOrderData.vec = cmn::vector<int>(ArrayCount(LevelOrderBuf), LevelOrderBuf);
+    cmn::LevelOrderTraversal(tree, treeTraversealAssert,(void*) &LevelOrderData);
+    tree.Delete();
+  }  
+  DBG_Assert(gMallocCount, gFreeCount, "Alloc equal to free");
 }
 
 int main ()
 {  
   DBG_RunTest(Test_Traversal);
-  //DBG_RunTest(Test_navigator);
 }

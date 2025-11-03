@@ -26,6 +26,7 @@ namespace cmn {
       node* PreviousSibling;
       node* FirstChild;
       size_t ChildCount;
+
       node() : Data(0), Parent(0), NextSibling(0), PreviousSibling(0), FirstChild(0){
         TreeNodeInitiate( this );
       }
@@ -103,11 +104,24 @@ namespace cmn {
 
     node* m_root;
 
-    n_tree(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free) : m_malloc(Malloc), m_free(Free), m_root(0)
+    n_tree() = default;
+    
+    static n_tree Create(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free)
     {
-
+      n_tree Result{};
+      Result.m_malloc = Malloc;
+      Result.m_free = Free;
+      return Result;
+    }
+    
+    void Delete()
+    {
+      if(m_root){
+        PostOrderTraversal(*this, DeleteLeafNode, 0);
+      }
     }
 
+  
     n_tree::node* AllocateNode() {
       n_tree::node* Result = new(m_malloc(sizeof(n_tree::node))) n_tree::node();
       return Result;
@@ -255,6 +269,15 @@ size_t n_tree<T>::NodeCount(){
   cmn::LevelOrderTraversal(*this, CountNodes,(void*) &Result);
   return Result;
 };
+
+NodeVisitFunction(DeleteLeafNode){
+  //Tree, Node, UserData;
+  Assert(!Node->FirstChild);
+  Node->Remove();
+  Tree->m_free(Node->Data);
+  Tree->m_free(Node);
+}
+
 
 template struct n_tree<int>;
 } // cmn
