@@ -64,23 +64,25 @@ void BasicPushPop(cmn::vector<int>& v) {
 
 void Test1_BasicPushPop()
 {
-  cmn::vector<int> v = cmn::vector<int>();
+  cmn::vector<int> v = cmn::vector<int>::Create();
   BasicPushPop(v);
+  v.Delete();
 }
 
 
 void Test2_BasicPushPop_GlobalCustomAllocators()
 {
   dbg::SetCustomGlobalAllocators();
-  cmn::vector<int> v1 = cmn::vector<int>();
+  cmn::vector<int> v1 = cmn::vector<int>::Create();
   BasicPushPop(v1);
+  v1.Delete();
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
   DBG_Assert(gReallocCount, 7, "Realloc Call Count");
   DBG_Assert(gFreeCount, 1, "Free Call Count");
 
   // Reset default allocators
   dbg::SetDefaultGlobalAllocators();
-  cmn::vector<int> v2 = cmn::vector<int>();
+  cmn::vector<int> v2 = cmn::vector<int>::Create();
   BasicPushPop(v2);
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
   DBG_Assert(gReallocCount, 7, "Realloc Call Count");
@@ -88,10 +90,12 @@ void Test2_BasicPushPop_GlobalCustomAllocators()
 }
 
 void Test3_BasicPushPop_LocalCustomAllocators(){
-  cmn::vector<int> v1 = cmn::vector<int>();
-  cmn::vector<int> v2 = cmn::vector<int>(0, customMalloc, customRealloc, customFree);
+  cmn::vector<int> v1 = cmn::vector<int>::Create();
+  cmn::vector<int> v2 = cmn::vector<int>::Create(0, customMalloc, customRealloc, customFree);
   BasicPushPop(v1); // Using global allocators 
   BasicPushPop(v2); // Using differen local allocators 
+  v1.Delete();
+  v2.Delete();
 
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
   DBG_Assert(gReallocCount, 7, "Realloc Call Count");
@@ -114,10 +118,8 @@ void TestConstructorDestructor_1()
 void TestConstructorDestructor_2()
 {
   dbg::SetCustomGlobalAllocators();
-  {
-    // No allocations should happen with an empty vector
-    cmn::vector<float> v = cmn::vector<float>(10);
-  }
+  cmn::vector<float> v = cmn::vector<float>::Create(10);
+  v.Delete();
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
   DBG_Assert(gReallocCount, 0, "Realloc Call Count");
   DBG_Assert(gFreeCount, 1, "Free Call Count");
@@ -127,17 +129,17 @@ void TestConstructorDestructor_2()
 void TestRangeConstructor()
 {
   int buf[] = {1,2,3,4,5,6,7,7,8,4,665};
-  cmn::vector<int> v = cmn::vector<int>(ArrayCount(buf),buf);
+  cmn::vector<int> v = cmn::vector<int>::Create(ArrayCount(buf), buf);
   for (int i = 0; i < ArrayCount(buf); ++i)
   {
     DBG_Assert(v[i], buf[i], "v[i]");
   }
 }
 
-void TestCopyConstructor()
+void TestCopy()
 {
   int buf[] = {1,2,3,4,5,6,7,7,8,4,665};
-  cmn::vector<int> v1 = cmn::vector<int>(ArrayCount(buf),buf);
+  cmn::vector<int> v1 = cmn::vector<int>::Create(ArrayCount(buf),buf);
 
   for (int i = 0; i < ArrayCount(buf); ++i)
   {
@@ -145,7 +147,7 @@ void TestCopyConstructor()
   }
 
   // Copy over v1 to v2 and delete v1
-  cmn::vector<int> v2 = cmn::vector<int>(v1);
+  cmn::vector<int> v2 = v1.Copy();
   v1.Delete();
   DBG_Assert(v1.Reserved(), 0, "v1 Reserved");
   DBG_Assert(v1.Size(), 0, "v1 Size");
@@ -157,30 +159,7 @@ void TestCopyConstructor()
   DBG_Assert(v2.Reserved(), ArrayCount(buf), "v2 Reserved");
   DBG_Assert(v2.Size(), ArrayCount(buf), "v2 Size");
   DBG_Assert(v2.Empty(), false, "v2 Empty");
-}
-
-void TestCopyOperator() {  
-  int buf[] = {1,2,3,4,5,6,7,7,8,4,665};
-  cmn::vector<int> v1 = cmn::vector<int>(ArrayCount(buf),buf);
-
-  for (int i = 0; i < ArrayCount(buf); ++i)
-  {
-    DBG_Assert(v1[i], buf[i], "v1[i]");
-  }
-
-  // Copy over v1 to v2 and delete v1
-  cmn::vector<int> v2 = v1;
-  v1.Delete();
-  DBG_Assert(v1.Reserved(), 0, "v1 Reserved");
-  DBG_Assert(v1.Size(), 0, "v1 Size");
-  DBG_Assert(v1.Empty(), true, "v1 Empty");
-
-  for (int i = 0; i < ArrayCount(buf); ++i){
-    DBG_Assert(v2[i], buf[i], "v2[i]");
-  }
-  DBG_Assert(v2.Reserved(), ArrayCount(buf), "v2 Reserved");
-  DBG_Assert(v2.Size(), ArrayCount(buf), "v2 Size");
-  DBG_Assert(v2.Empty(), false, "v2 Empty");
+  v2.Delete();
 }
 
 int main(int argc, char* argv[]){
@@ -188,11 +167,11 @@ int main(int argc, char* argv[]){
   DBG_RunTest(TestConstructorDestructor_1);
   DBG_RunTest(TestConstructorDestructor_2);
   DBG_RunTest(TestRangeConstructor);
-  DBG_RunTest(TestCopyConstructor);
-  DBG_RunTest(TestCopyOperator);
+  DBG_RunTest(TestCopy);
 
   DBG_RunTest(Test1_BasicPushPop);
   DBG_RunTest(Test2_BasicPushPop_GlobalCustomAllocators);
   DBG_RunTest(Test3_BasicPushPop_LocalCustomAllocators);
+  printf("Succeess\n");
   return 0;
 }

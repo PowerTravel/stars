@@ -11,23 +11,41 @@ namespace cmn {
   extern _cmn_malloc* _g_cmn_malloc;
   extern _cmn_realloc* _g_cmn_realloc;
   extern _cmn_free* _g_cmn_free;
-}
 
+  // Transient allocators are those which are assumed to be wiped regularly
+  // This means we can set more efficient custom allocators such as memory arenas
+  // and even have empty versions of free.
+  // Realloc is annoying, since one has to copy, be aware that if you use 
+  // vectors with custom transient allocators, always preallocate them.
+  extern _cmn_malloc*  _g_cmn_transient_malloc;
+  extern _cmn_realloc* _g_cmn_transient_realloc;
+  extern _cmn_free*    _g_cmn_transient_free;
+
+  void SetDefaultCustomAllocators
+  (
+    _cmn_malloc* aMalloc,           _cmn_realloc* aRealloc,          _cmn_free* aFree,
+    _cmn_malloc* aTransientMalloc,  _cmn_realloc* aTransientRealloc, _cmn_free* aTransientFree
+  ) {
+    _g_cmn_malloc = aMalloc;
+    _g_cmn_realloc = aRealloc;
+    _g_cmn_free = aFree;
+    _g_cmn_transient_malloc = aTransientMalloc;
+    _g_cmn_transient_realloc = aTransientRealloc;
+    _g_cmn_transient_free = aTransientFree;
+  }
+} // cmn
+
+// If CMN_ALLOC_FUNCTIONS is not defined, we assume no global allocators have been set and use the C++ library to assign them.
 #ifndef CMN_ALLOC_FUNCTIONS
-#define CMN_ALLOC_FUNCTIONS
 #include <cstdlib>
 
 namespace cmn {
   _cmn_malloc*  _g_cmn_malloc  = malloc;
   _cmn_realloc* _g_cmn_realloc = realloc;
   _cmn_free*    _g_cmn_free    = free;
+  _cmn_malloc*  _g_cmn_transient_malloc  = malloc;  
+  _cmn_realloc* _g_cmn_transient_realloc = realloc; 
+  _cmn_free*    _g_cmn_transient_free    = free;
+} // cmn
 
-
-void SetDefaultCustomAllocators(_cmn_malloc* aMalloc,  _cmn_realloc* aRealloc, _cmn_free* aFree) {
-  _g_cmn_malloc = aMalloc;
-  _g_cmn_realloc = aRealloc;
-  _g_cmn_free = aFree;
-}
-}
-
-#endif // cmn
+#endif // CMN_ALLOC_FUNCTIONS

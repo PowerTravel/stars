@@ -41,33 +41,13 @@ struct list {
 
   size_t Size() const { return m_count; };
 
-  list(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free) : m_malloc(Malloc), m_free(Free), m_count(0), m_sentinel(0)
-  {
+  list() = default;
 
-  };
-
-  // 1 Destructor
-  ~list() {Clear();}
-
-  // 2 Copy Constructor
-  list(const list& List) : list(List.m_malloc, List.m_free) {
-    element* Src = List.m_sentinel->Next;
-    while(Src != List.m_sentinel)
-    {
-      Assert(Src->Data);
-      PushBack(*Src->Data);
-      Src = Src->Next;
-    }
-    Assert(m_count == List.m_count);
-  };
-
-  // 3 Copy Operator
-  list& operator=(const list& Other) {
-    if(this != &Other){
-      Clear();
-      list(Other);
-    }
-    return *this;
+  static inline list Create(_cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_free* aFree = _g_cmn_free){
+    list Result = {};
+    Result.m_malloc = aMalloc;
+    Result.m_free = aFree;
+    return Result;
   }
 
   element* GetSentinel(){
@@ -104,7 +84,6 @@ struct list {
     InsertAfter(GetSentinel(), Data);
   }
 
-
   element* Detach(element* ElementToDetach) {
     if(m_count == 0 || IsEnd(ElementToDetach)){
       return 0;
@@ -115,7 +94,6 @@ struct list {
     return ElementToDetach;
   }
 
-
   void Delete(element* ElementToRemove) {
     if(m_count == 0 || IsEnd(ElementToRemove)){
       return;
@@ -125,7 +103,7 @@ struct list {
     m_free(ElementToRemove);
   }
 
-  void Clear() {
+  void Delete() {
 
     if(m_sentinel)
     {
@@ -160,35 +138,6 @@ struct list {
       Delete(First());
     }
     return Result;
-  }
-
-  // Moves Element into List ElementToMove must be in 'this' list, ListPosition must belong to in List arguments list
-  void MoveInto(list& List, element* ElementToMove, element* ListPosition = 0)
-  {
-    Assert(List.m_free == m_free);
-    ListRemove(ElementToMove);
-    m_count--;
-    if(ListPosition)
-    {
-      ListInsertAfter(ListPosition, ElementToMove);
-    }else{
-      ListInsertBefore(List.GetSentinel(), ElementToMove);
-    }
-    List.m_count++;
-  }
-
-  void MoveInto(list& List)
-  {
-    if(m_sentinel)
-    {
-      element* E = m_sentinel->Next;
-      while(!IsEnd(E))
-      {
-        element* NextE = E->Next;
-        MoveInto(List, E);
-        E = NextE;
-      }
-    }
   }
 
   element* At(size_t Index)

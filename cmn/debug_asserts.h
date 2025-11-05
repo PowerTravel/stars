@@ -39,11 +39,11 @@ namespace dbg{
   }
 
   void SetDefaultGlobalAllocators(){
-    cmn::SetDefaultCustomAllocators(malloc, realloc, free);
+    cmn::SetDefaultCustomAllocators(malloc, realloc, free, malloc, realloc, free);
   }
 
   void SetCustomGlobalAllocators(){
-    cmn::SetDefaultCustomAllocators(customMalloc, customRealloc, customFree);
+    cmn::SetDefaultCustomAllocators(customMalloc, customRealloc, customFree, customMalloc, customRealloc, customFree);
   }
 
   void ResetTestEnvironment()
@@ -122,7 +122,7 @@ namespace dbg{
 #define DBG_AssertFalse(Actual, NotDesired, Name) dbg::jAssertFalse(Actual, NotDesired, Name, __FILE__, __LINE__)
 
 
-std::chrono::time_point<std::chrono::steady_clock> StartTimer()
+std::chrono::time_point<std::chrono:: steady_clock> StartTimer()
 {
   return std::chrono::time_point<std::chrono::steady_clock>(std::chrono::steady_clock::now());
 }
@@ -134,11 +134,12 @@ double Elapsed(std::chrono::time_point<std::chrono::steady_clock>& Clock) {
 #define DBG_RunTest(testfunction) {\
   std::chrono::time_point<std::chrono::steady_clock> Timer = StartTimer();\
   dbg::ResetTestEnvironment();\
-  dbg::Print("\n\t");\
+  dbg::Print("\t");\
   dbg::Print(#testfunction);\
   dbg::Print(":");\
   testfunction();\
   dbg::Print(" success ");\
   std::string Time = std::to_string(Elapsed(Timer));\
   dbg::Print(Time.c_str());\
+  dbg::Print("\n");\
 }
