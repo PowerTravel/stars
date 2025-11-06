@@ -200,7 +200,8 @@ namespace data {
     data::render_level* RenderLevel = PushStruct(&System->Arena, data::render_level);
     ListInsertBefore(&System->RenderSentinel, RenderLevel);
   }
-
+  
+  void DrawRenderTree(asset::render_tree_id RenderTreeId);
 
   // Loading assets to gpu
   u32 GetMeshHandle(const c8* Name);

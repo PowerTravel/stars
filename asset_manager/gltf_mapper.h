@@ -258,6 +258,71 @@ namespace mapper {
     }
   }
 
+  void CopyTransforms2(asset::render_tree_data* Data, gltf::raw_node& RawNode)
+  {
+    switch(RawNode.TransformationType){
+      case gltf::raw_node::transformation_type::TRS:{
+        Data->HasTransform = true;
+        Data->Transform = GetModelMatrix(RawNode.Translation, RawNode.Rotation, RawNode.Scale);
+      }break;
+      case gltf::raw_node::transformation_type::MATRIX:{
+        Data->HasTransform = true;
+        Data->Transform = RawNode.Matrix;
+      }break;
+      default :{
+        Data->HasTransform = false;
+        Data->Transform = M4Identity();
+      } break;
+    }
+  }
+
+  inline asset::render_tree_data CreateRenderTreeData(gltf::raw_node& RawNode, asset::key* LoadedMeshes, asset::key* LoadedCameras) {
+    asset::render_tree_data Result = {};
+    CopyTransforms2(&Result, RawNode);
+    if(RawNode.Mesh)
+    {
+      Result.Mesh = LoadedMeshes[*RawNode.Mesh];
+    }
+    if(RawNode.Camera)
+    {
+      Result.Camera = LoadedCameras[*RawNode.Camera];
+    }
+    return Result;
+  }
+
+  struct node_pair {
+    int RawNodeIndex;
+    asset::render_tree_2::node* Node;
+  };
+
+  asset::render_tree_2 ToRenderTree2(size_t NodeCount, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
+  {
+    asset::render_tree_2 Result = asset::render_tree_2::Create(TransientMalloc, TransientFree);
+    cmn::vector<node_pair> NodeQueue = cmn::vector<node_pair>::CreateTransient(NodeCount);
+    
+    node_pair RootPair = {};
+    RootPair.RawNodeIndex = RawRootNodeIndex;
+    RootPair.Node = Result.NewNode();
+    NodeQueue.PushBack(RootPair);
+
+    while(NodeQueue.Size() > 0)
+    {
+      node_pair NodeIndexPair = NodeQueue.PopBack();
+      gltf::raw_node* RawNode = &RawNodes[NodeIndexPair.RawNodeIndex];
+
+      asset::render_tree_data Data = CreateRenderTreeData(*RawNode, LoadedMeshes, LoadedCameras);
+      Result.SetData(NodeIndexPair.Node,&Data);
+      for (int i = 0; i < RawNode->ChildCount; ++i)
+      {
+        node_pair Pair = {};
+        Pair.RawNodeIndex = RawNode->Children[i];
+        Pair.Node = Result.NewNode(NodeIndexPair.Node);
+        NodeQueue.PushBack(Pair);
+      }
+    }
+
+    return Result;
+  }
 
   asset::render_tree::node* ToNodes(size_t NodeCount, asset::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
   {
@@ -320,6 +385,43 @@ namespace mapper {
     return Result;
   }
 
+  asset::key* ToRenderTrees2(const c8* Name, const c8* Path, gltf::raw_gltf_data* RawGltfData, size_t* RetKeyCount, asset::key* LoadedMeshes, asset::key* LoadedCameras){
+    const size_t RawNodeCount = RawGltfData->RawNodeCount;
+    gltf::raw_node* RawNodes = RawGltfData->RawNodes;
+
+    size_t RootCount = 0;
+    int* RootNodeIndeces = PushArray(GlobalTransientArena,RawNodeCount, int);
+    bool* RootNodeTracker = PushArray(GlobalTransientArena,RawNodeCount, bool);
+    for (int i = 0; i < RawGltfData->RawSceneCount; ++i)
+    {
+      gltf::raw_scene* RawScene = &RawGltfData->RawScenes[i];
+      for (int j = 0; j < RawScene->NodeCount; ++j)
+      {
+        int RootNodeIndex = RawScene->Nodes[j];
+        if(!RootNodeTracker[RootNodeIndex])
+        {
+          RootNodeIndeces[RootCount++] = RootNodeIndex;
+          RootNodeTracker[RootNodeIndex] = true;
+        }
+      }
+    }
+
+    asset::key* Result = PushArray(GlobalTransientArena, RootCount, asset::key);
+    *RetKeyCount = RootCount;
+    for (int i = 0; i < RootCount; ++i)
+    {
+      temporary_memory TempMem = BeginTemporaryMemory(GlobalTransientArena);
+      int RootNodeIndex = RootNodeIndeces[i];
+      size_t NodeCount = GetTreeNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
+      asset::render_tree_2 Tree = ToRenderTree2(NodeCount, RootNodeIndex, RawNodes, LoadedMeshes, LoadedCameras);
+      c8* UnqName = asset::CreateUniqueName("",Name,"", i, RootCount);
+
+      asset::LoadRenderTree2(UnqName, Path, &Tree, &Result[i]);
+      EndTemporaryMemory(TempMem);
+    }
+
+    return Result;
+  }
   // Note: The node hierarchy make up a set of disjoint strict trees which means they are free of cycles and each node must have zero or one parent node.
   //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
   //       I'm assuming this means each child node only appears once.
@@ -504,7 +606,9 @@ namespace mapper {
     }
 
     Package.RenderTrees = ToRenderTrees(UniqueName, Path, RawGltfData, &Package.RenderTreeCount, Package.Meshes, Package.Cameras);
-  
+
+    size_t RetKeyCount = 0;
+    asset::key* Key2  = ToRenderTrees2(UniqueName, Path,  RawGltfData, &RetKeyCount, Package.Meshes, Package.Cameras);  
     asset::package_id Result = 0;
     asset::LoadPackage(UniqueName, Path, &Package, &Result);
 

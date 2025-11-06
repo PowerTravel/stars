@@ -2,6 +2,8 @@
 
 #include "commons/types.h"
 #include "commons/jstring.h"
+#include "cmn/n_tree.h"
+
 
 namespace asset {
 
@@ -22,6 +24,7 @@ namespace asset {
     PHONG_MATERIAL,
     PBR_MATERIAL,
     RENDER_TREE,
+    RENDER_TREE_2,
     CAMERA,
     PACKAGE,
   };
@@ -35,6 +38,7 @@ namespace asset {
       case type::PHONG_MATERIAL: return "PHONG_MATERIAL";
       case type::PBR_MATERIAL:   return "PBR_MATERIAL";
       case type::RENDER_TREE:    return "RENDER_TREE";
+      case type::RENDER_TREE_2:  return "RENDER_TREE_2";
       case type::CAMERA:         return "CAMERA";
       case type::PACKAGE:        return "PACKAGE";  
       default: {
@@ -217,6 +221,15 @@ namespace asset {
       perspective Perspective;
     };
   };
+
+  struct render_tree_data {
+    mesh_id Mesh;
+    camera_id Camera;
+    bool HasTransform;
+    m4 Transform;
+  };
+
+  typedef cmn::n_tree<render_tree_data> render_tree_2;
 
   struct render_tree { // render_asset_id
 

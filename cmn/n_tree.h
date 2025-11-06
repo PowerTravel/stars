@@ -10,6 +10,15 @@
 #define Assert(Expression) if(!(Expression)){ *(int *)0 = 0;}
 #endif
 
+// Note: Having allocators as function pointers messes up live code editing.
+//       When building a new DLL the allocation functions will get new adressess 
+//       ones that are stored here are invalid.
+//       There are workarounds such as 
+//          1: using the funciton pointer pool or
+//          2: Collecting the allocator function pointers into heap-allocated objects.
+//             The objects gets updated on DLL reload to point to the proper function and
+//             those heap allocated objects are what these types use for custom allocators.
+//      
 // Note: Never move nodes between trees which has different allocators
 
 // Interaface

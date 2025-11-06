@@ -60,7 +60,6 @@ struct application_state
   u32 LineRenderProgram;
 
 
-
   // Key is Asset Index
   // Value is u32, Handle from the render system
 
@@ -124,3 +123,4 @@ inline func_ptr_void* _DeclareFunction(func_ptr_void Function, const c8* Name)
 
 #define DeclareFunction(Type, Name) (Type**) _DeclareFunction((func_ptr_void) (&Name), #Name )
 #define CallFunctionPointer(PtrToFunPtr, ... ) (**PtrToFunPtr)(__VA_ARGS__)
+

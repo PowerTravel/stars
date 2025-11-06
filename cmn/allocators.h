@@ -4,6 +4,8 @@
 #define CMN_REALLOC_FUNCTION(name) void* name(void* p, size_t sz)
 #define CMN_FREE_FUNCTION(name)    void  name(void* p)
 
+// Note: Move this to jwin so that it can safely be referenced form jwin_platform
+
 namespace cmn {
   typedef CMN_MALLOC_FUNCTION(_cmn_malloc);
   typedef CMN_REALLOC_FUNCTION(_cmn_realloc);

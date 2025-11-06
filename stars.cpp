@@ -24,6 +24,10 @@
 #include "io/obj.cpp"
 
 
+#include "containers/linked_memory_unit_tests.h"
+
+
+
 #if 0
 
 #define GLTF_IO_FUNCTIONS
@@ -1154,6 +1158,21 @@ ASSET_TREE_TRAVERSAL_CALLBACK(OutputPackages)
   }
 }
 
+void LoadAndRenderGLTFEngine()
+{
+  local_persist asset::package* Package = 0;
+  if(!Package)
+  {
+    asset::package_id PackageID = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
+    Package = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
+  }
+
+  for (int i = 0; i < Package->RenderTreeCount; ++i)
+  {
+    ecs::render::DrawRenderTree(Package->RenderTrees[i]);
+  }
+}
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -1164,6 +1183,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GlobalRenderSystem   = GlobalState->World.RenderSystem;
   GlobalAssetManager   = GlobalState->AssetManager;
   GlobalEntityManager  = GlobalState->World.EntityManager;
+
 
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
@@ -1183,6 +1203,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->World  = InitiateWorld(RenderCommands);
     GlobalRenderSystem  = GlobalState->World.RenderSystem;
     GlobalEntityManager = GlobalState->World.EntityManager;
+
+    LinkedMemoryUnitTests(GlobalTransientArena);
 
 
     ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
@@ -1224,10 +1246,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     GlobalState->Initialized = true;
 
-    {
-      asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
-    }
-
     size_t PackageCount = 0;
     asset::InOrderTraverse(CountPackageTypes, (void*) &PackageCount);
     asset_package_vec Vec = {};
@@ -1243,20 +1261,36 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
    
     { // Create some entities
 
+#if 0
       { // Gltf Engine
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Engine", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,2,0), 0, V3(0,1,0), V3(1,1,1));
+
+
+        
+        asset::package_id PackageId = 1518813639;
+        asset::package* Package = (asset::package*) asset::Find(asset::type::PACKAGE, PackageId);
+
+        for (int i = 0; i < Package->RenderTreeCount; ++i)
+        {
+          asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Package->RenderTrees[i]);
+          int a = 10;
+        }
+
         asset::key HardcodedKey = 3262297436;
         ecs::render::Init2(HardcodedKey, GetRenderComponent(&Entity));
+        
       }
 
       { // Gltf Box
+        seems Init2 is not working
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "BoxTextured", ecs::flag::RENDER);
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,2,0), 0, V3(0,1,0), V3(1,1,1));
         ecs::render::Init2(BoxTextured, GetRenderComponent(&Entity));
       }
+#endif
 
       { // Transparent Cube
         asset::mesh* Mesh = MeshFromTree("Cube");
@@ -1270,6 +1304,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);
       }
+      #if 1
 
       { // Checker Floor
         asset::mesh* Mesh = MeshFromTree("checker_plane_simple");
@@ -1327,7 +1362,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);
       }
-
+#endif
 #if 0
       { // TestBuilding
         asset::LoadObj("C:\\Users\\jh\\Desktop\\Donut\\Donut_grouping.obj", "Test");
@@ -1367,6 +1402,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ecs::render::Begin();
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
+
+  LoadAndRenderGLTFEngine();
+
 
   //Platform.DEBUGPrint("%d, %d, %d\n", Square->EntityID, Square->ChunkListIndex, GetBlockCount(&GlobalState->World.EntityManager->EntityList));
 

@@ -659,6 +659,33 @@ render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const render_t
   return Result;
 }
 
+CMN_MALLOC_FUNCTION(AssetManager_Alloc){
+  return Allocate(&GlobalAssetManager->Memory, sz);
+}
+CMN_REALLOC_FUNCTION(AssetManager_Realloc){
+  Assert(0); // If we use it, we wanna know about it. A realloc is annoying to implement efficiently with memory_arena because we dont know the 
+             //  size of the allocated memory, so we don't know how much to copy.
+  return p;
+}
+CMN_FREE_FUNCTION(AssetManager_Free){
+  FreeMemory(&GlobalAssetManager->Memory, p);
+}
+
+
+render_tree_2* LoadRenderTree2(const c8* UniqueName, const c8* Path, render_tree_2* RenderTree, render_tree_id* ResultKey)
+{
+  midx RenderTreeSize = sizeof(render_tree_2);
+  header* Header = CreateHeader(type::RENDER_TREE_2, UniqueName, UniqueName, Path, RenderTreeSize);
+  render_tree_2* Result = (render_tree_2*) Header->Data;
+  *Result = RenderTree->Copy(AssetManager_Alloc,AssetManager_Free);
+  
+  if(ResultKey)
+  {
+    *ResultKey = Header->Key;
+  }
+  return Result;
+}
+
 size_t GetPackageSize(const package* Package)
 {
   size_t PhongMaterialsSize = sizeof(phong_material_id*) * Package->PhongMaterialCount;

@@ -366,6 +366,16 @@ static asset::mesh_id LoadMesh(const char* UniqueName, obj_loaded_file* Obj, mat
   return ResultKey;
 }
 
+static asset::render_tree CreateRenderTree2(asset::mesh_id MeshId)
+{
+  asset::render_tree Result = {};
+  Result.NodeCount  = 1;
+  Result.Nodes      = PushArray(GlobalTransientArena, Result.NodeCount, asset::render_tree::node);
+  Result.Root       = Result.Nodes;
+  Result.Root->Mesh = MeshId;
+  return Result;
+}
+
 static asset::render_tree CreateRenderTree(asset::mesh_id MeshId)
 {
   asset::render_tree Result = {};

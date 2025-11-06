@@ -17,7 +17,6 @@ struct overlay_object {
   quat Rotation;
 };
 
-
 file_local void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
   u32* HandleMem = (u32*) GetNewBlock(GlobalPersistentArena, &GlobalRenderSystem->RenderHandles);
   *HandleMem = Handle;
@@ -62,7 +61,6 @@ u32 GetMeshHandle(const c8* Name)
   u32 Handle = GetMeshHandle(Tree->Root->Mesh);
   return Handle;
 }
-
 
 static u32 MapTextureFilter(asset::texture::filter Filter)
 {
@@ -496,7 +494,16 @@ void DrawRenderObject(component* Component)
   }
 */
 
+#include "asset_manager/asset_types.h"
 
+void DrawRenderTree(asset::render_tree_id RenderTreeId) {
+  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeId);
+  Assert(Tree);
+
+  
+
+  int a = 10;
+}
 
 void DrawOverlay3DObject(void* Data, void (*RenderFunction)(m4 ProjectionMatrix, m4 ViewMatrix, void* Data)){
   data::render_data RenderData = {};
