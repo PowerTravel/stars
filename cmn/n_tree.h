@@ -183,6 +183,100 @@ namespace cmn {
     cmn::list<node*>   GetLevelOrderList  (_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free);
     cmn::vector<node*> GetLevelOrderVector(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_realloc* Realloc = _g_cmn_realloc, _cmn_free* Free = _g_cmn_free);
     n_tree<T> Copy(_cmn_malloc* Malloc = 0, _cmn_free* Free = 0); // If 0 the allocators of 'this' are used
+
+
+    struct pre_order_iterator {
+
+      struct node_step {
+        cmn::n_tree<T>::node* Node;
+        int SiblingIndex;
+        int SiblingCount;
+      };
+
+      cmn::vector<node_step> NodeLadder;
+      n_tree<T>* Tree;
+
+      cmn::n_tree<T>::node* GetNode(){
+        if(NodeLadder.Size()){
+          return NodeLadder.Back().Node;
+        }
+        return 0;
+      }
+
+      void Delete(){
+        NodeLadder.Delete();
+        *this = {};
+      }
+
+      static bool UpdateWithSibling(node_step* Step)
+      {
+        if(Step && (Step->SiblingIndex+1) < Step->SiblingCount)
+        {
+          Step->Node = Step->Node->NextSibling;
+          Step->SiblingIndex++;
+          return true;
+        }
+        return false;
+      }
+
+      static bool HasChild(node_step* Step){
+        return Step->Node->FirstChild;
+      }
+
+      static inline node_step CreateStep(cmn::n_tree<T>::node* Node, size_t SiblingCount ){
+        node_step Result = {};
+        Result.Node = Node;
+        Result.SiblingIndex = 0;
+        Result.SiblingCount = SiblingCount;
+        return Result;
+      }
+
+      cmn::n_tree<T>::node* Next() {
+
+        if(NodeLadder.Reserved() == 0)
+        {
+          // First step, add root.
+          size_t MaxDepth = Tree->MaxDepth();
+          NodeLadder = cmn::vector<node_step>::CreateTransient(MaxDepth);
+          node_step Step = CreateStep(Tree->m_root, 0);
+          NodeLadder.PushBack(Step);
+        } else {
+          node_step* PreviousStep = NodeLadder.BackPtr();
+          if(HasChild(PreviousStep))
+          {
+            // If Node in Step has a child we add it.
+            node_step NextStep = CreateStep(PreviousStep->Node->FirstChild, PreviousStep->Node->ChildCount);
+            NodeLadder.PushBack(NextStep);
+          }else{
+            // If node does not have a child we are at a leaf,
+            // See if leaf has a sibling
+            if(!UpdateWithSibling(PreviousStep)){
+              // If updating with sibling failed (there are no siblings, or we were at last sibling)
+              while(!NodeLadder.Empty())
+              {
+                node_step PoppedNode = NodeLadder.PopBack();
+                // Step back up the node-ladder untill we find a node with a sibling.
+                // Once UpdateWithSibling succeeds (we are at a new node), break.
+                if(UpdateWithSibling(NodeLadder.BackPtr())) break;
+              }
+            }
+          }
+        }
+
+        cmn::n_tree<T>::node* Result = !NodeLadder.Empty() ? NodeLadder.Back().Node : 0;
+        return Result;
+      }
+
+      bool AtLeaf() {return NodeLadder.Empty() || NodeLadder.Back().Node->FirstChild == 0;}
+      int Depth() { return NodeLadder.Size(); }
+    };
+    
+    pre_order_iterator PreOrderIterator() {
+      pre_order_iterator Result = {};
+      Result.Tree = this;
+      return Result;
+    };
+
   };
 
 #define _NodeVisitFunction(name) void name(typename cmn::n_tree<T>* Tree, typename cmn::n_tree<T>::node* Node, void* UserData)
@@ -472,101 +566,6 @@ n_tree<T> n_tree<T>::Copy(_cmn_malloc* aMalloc, _cmn_free* aFree) {
   return Result;
 }
 
-
-template<typename T, typename U>
-struct pre_order_iterator {
-
-  // Stupid name
-  //template <typename T> 
-  struct node_step {
-    n_tree_node<T>* Node;
-    int SiblingIndex;
-    int SiblingCount;
-  };
-
-  cmn::vector<node_step> NodeLadder;
-  n_tree<T>* Tree;
-
-  static pre_order_iterator Start(cmn::n_tree<T>* Tree) {
-    pre_order_iterator Result = {};
-    Result.Tree = Tree;
-    return Result;
-  }
-
-  n_tree_node<T>* GetNode(){
-    if(NodeLadder.Size()){
-      return NodeLadder.Back().Node;
-    }
-    return 0;
-  }
-
-  void Delete(){
-    NodeLadder.Delete();
-    *this = {};
-  }
-
-  static bool UpdateWithSibling(node_step* Step)
-  {
-    if(Step && (Step->SiblingIndex+1) < Step->SiblingCount)
-    {
-      Step->Node = Step->Node->NextSibling;
-      Step->SiblingIndex++;
-      return true;
-    }
-    return false;
-  }
-
-  static bool HasChild(node_step* Step){
-    return Step->Node->FirstChild;
-  }
-
-  static inline node_step CreateStep(n_tree_node<T>* Node, size_t SiblingCount ){
-    node_step Result = {};
-    Result.Node = Node;
-    Result.SiblingIndex = 0;
-    Result.SiblingCount = SiblingCount;
-    return Result;
-  }
-
-  n_tree_node<T>* Next() {
-
-    if(NodeLadder.Reserved() == 0)
-    {
-      // First step, add root.
-      size_t MaxDepth = Tree->MaxDepth();
-      NodeLadder = cmn::vector<node_step>::CreateTransient(MaxDepth);
-      node_step Step = CreateStep(Tree->m_root, 0);
-      NodeLadder.PushBack(Step);
-    } else {
-      node_step* PreviousStep = NodeLadder.BackPtr();
-      if(HasChild(PreviousStep))
-      {
-        // If Node in Step has a child we add it.
-        node_step NextStep = CreateStep(PreviousStep->Node->FirstChild, PreviousStep->Node->ChildCount);
-        NodeLadder.PushBack(NextStep);
-      }else{
-        // If node does not have a child we are at a leaf,
-        // See if leaf has a sibling
-        if(!UpdateWithSibling(PreviousStep)){
-          // If updating with sibling failed (there are no siblings, or we were at last sibling)
-          while(!NodeLadder.Empty())
-          {
-            node_step PoppedNode = NodeLadder.PopBack();
-            // Step back up the node-ladder untill we find a node with a sibling.
-            // Once UpdateWithSibling succeeds (we are at a new node), break.
-            if(UpdateWithSibling(NodeLadder.BackPtr())) break;
-          }
-        }
-      }
-    }
-
-    n_tree_node<T>* Result = !NodeLadder.Empty() ? NodeLadder.Back().Node : 0;
-    return Result;
-  }
-
-  bool AtLeaf() {return NodeLadder.Empty() || NodeLadder.Back().Node->FirstChild == 0;}
-  int Depth() { return NodeLadder.Size(); }
-};
 
 template struct n_tree<int>;
 } // cmn

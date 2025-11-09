@@ -160,7 +160,7 @@ void Test_PreOrderIterator()
 {
   dbg::SetCustomGlobalAllocators();
   cmn::n_tree<int> Tree = createTree();
-  cmn::pre_order_iterator<int,int> It = cmn::pre_order_iterator<int,int>::Start(&Tree);
+  cmn::n_tree<int>::pre_order_iterator It = Tree.PreOrderIterator();
 
   int GroundTruthDepth[] = {2,4,3,4};
   int GroundTruth[4][4] = { 
@@ -178,7 +178,7 @@ void Test_PreOrderIterator()
       DBG_Assert(It.Depth(), GroundTruthDepth[LeafCount], "Depth");
       for (int i = 0; i < It.NodeLadder.Size(); ++i)
       {
-        cmn::pre_order_iterator<int,int>::node_step Step = It.NodeLadder[i];
+        cmn::n_tree<int>::pre_order_iterator::node_step Step = It.NodeLadder[i];
         DBG_Assert(*(Step.Node->Data),  GroundTruth[LeafCount][i], "Value");
         DBG_Assert(Step.Node->Depth, i, "NodeDepth");
       }
@@ -195,7 +195,7 @@ void Test_Sum()
 {
   dbg::SetCustomGlobalAllocators();
   cmn::n_tree<int> Tree = createTree();
-  cmn::pre_order_iterator<int,int> It = cmn::pre_order_iterator<int,int>::Start(&Tree);
+  cmn::n_tree<int>::pre_order_iterator It = Tree.PreOrderIterator();
 
   int GroundTruthSum[]   = {3,17,10,21};
   int LeafCount = 0;
