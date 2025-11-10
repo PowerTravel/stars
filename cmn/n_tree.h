@@ -286,6 +286,8 @@ template<class T> using n_tree_node_callback = _NodeVisitFunction((*));
 template<class T> using n_tree_node = typename cmn::n_tree<T>::node;
 template<class T> using node_list = cmn::list< n_tree_node<T>* >;
 template<class T> using node_vec = cmn::vector< n_tree_node<T>* >;
+template<class T> using n_tree_pre_order_it = typename cmn::n_tree<T>::pre_order_iterator;
+template<class T> using n_tree_pre_order_step = typename cmn::n_tree<T>::pre_order_iterator::node_step;
 template<typename T>
 
 void PreOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, void* UserData){

@@ -89,7 +89,6 @@ struct vector {
   T  Front()           const {Assert(m_count>0); return m_data[0];};
   T* FrontPtr()              {return m_count ? &m_data[0] : 0;};
 
-
   void PushBack(const T& Value){
     if(m_count >= m_reservedCount)
     {
