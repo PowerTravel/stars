@@ -2563,7 +2563,7 @@ namespace gltf {
 
     for (int i = 0; i < RawGltfData.RawMeshCount; ++i)
     {
-      ExtractPrimitives(RawGltfData.RawMeshes, &RawGltfData);
+      ExtractPrimitives(&RawGltfData.RawMeshes[i], &RawGltfData);
     }
 
     gltf__FreeFileMemory(GltfFile);

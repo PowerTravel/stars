@@ -694,7 +694,8 @@ size_t GetPackageSize(const package* Package)
   size_t ImagesSize = sizeof(image_id*) * Package->ImageCount;
   size_t MeshSize = sizeof(mesh_id*) * Package->MeshCount;
   size_t RenderTreesSize = sizeof(render_tree_id*) * Package->RenderTreeCount;
-  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + MeshSize + RenderTreesSize;
+  size_t RenderTreesSize2 = sizeof(render_tree_id*)* Package->RenderTreeCount2;
+  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + MeshSize + RenderTreesSize + RenderTreesSize2;
   return Result;
 }
 
@@ -735,8 +736,11 @@ void CopyPackage(const package* Src, package* Dst)
  
   MemScan = CopyData(Src->MeshCount, sizeof(mesh_id*), (uint8_t*) Src->Meshes,
                      &Dst->MeshCount, (uint8_t**) &Dst->Meshes,         MemScan);
+  
+  MemScan = CopyData(Src->RenderTreeCount2, sizeof(render_tree_id*), (uint8_t*) Src->RenderTrees2,
+                     &Dst->RenderTreeCount2, (uint8_t**) &Dst->RenderTrees2,         MemScan);
 
-  MemScan = CopyData(Src->RenderTreeCount, sizeof(mesh_id*), (uint8_t*) Src->RenderTrees,
+  MemScan = CopyData(Src->RenderTreeCount, sizeof(render_tree_id*), (uint8_t*) Src->RenderTrees,
                      &Dst->RenderTreeCount, (uint8_t**) &Dst->RenderTrees,         MemScan);
 
   Assert((MemScan - (uint8_t*) Dst) == GetPackageSize(Src));

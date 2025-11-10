@@ -1157,7 +1157,7 @@ ASSET_TREE_TRAVERSAL_CALLBACK(OutputPackages)
     Packages->Packages[Packages->Count++] = Header->Key;
   }
 }
-
+// Mesh ID 3122231961 2 Primitives
 void LoadAndRenderGLTFEngine()
 {
   local_persist asset::package* Package = 0;
@@ -1167,9 +1167,9 @@ void LoadAndRenderGLTFEngine()
     Package = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
   }
 
-  for (int i = 0; i < Package->RenderTreeCount; ++i)
+  for (int i = 0; i < Package->RenderTreeCount2; ++i)
   {
-    ecs::render::DrawRenderTree(Package->RenderTrees[i]);
+    ecs::render::DrawRenderTree(Package->RenderTrees2[i]);
   }
 }
 

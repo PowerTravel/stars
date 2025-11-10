@@ -304,6 +304,9 @@ namespace asset {
     size_t MeshCount;
     mesh_id* Meshes;
 
+    size_t RenderTreeCount2;
+    render_tree_id* RenderTrees2;
+
     size_t DefaultRenderTree;
     size_t RenderTreeCount;
     render_tree_id* RenderTrees;

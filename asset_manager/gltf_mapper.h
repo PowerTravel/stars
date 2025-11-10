@@ -577,10 +577,6 @@ namespace mapper {
       Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
       for (int i = 0; i < Package.MeshCount; ++i)
       {
-        if(i == 23)
-        {
-          int a = 10;
-        }
         gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
         asset::mesh Mesh = ToMesh(RawMesh, Package.PBRMaterials);
 
@@ -607,8 +603,7 @@ namespace mapper {
 
     Package.RenderTrees = ToRenderTrees(UniqueName, Path, RawGltfData, &Package.RenderTreeCount, Package.Meshes, Package.Cameras);
 
-    size_t RetKeyCount = 0;
-    asset::key* Key2  = ToRenderTrees2(UniqueName, Path,  RawGltfData, &RetKeyCount, Package.Meshes, Package.Cameras);  
+    Package.RenderTrees2 = ToRenderTrees2(UniqueName, Path,  RawGltfData, &Package.RenderTreeCount2, Package.Meshes, Package.Cameras);  
     asset::package_id Result = 0;
     asset::LoadPackage(UniqueName, Path, &Package, &Result);
 

@@ -1,6 +1,6 @@
 #include "ecs/systems/system_render.h"
 #include "asset_manager/gl_mapper.h"
-
+#include "cmn/list.h"
 
 extern ecs::render::system* GlobalRenderSystem;
 
@@ -361,6 +361,15 @@ inline file_local chunk_list* GetTransparentObjects()
   return &GlobalRenderSystem->TransparentObjects;
 }
 
+inline file_local chunk_list* GetObjectsToRender()
+{
+  if(!IsInitiated(&GlobalRenderSystem->ObjectsToRender))
+  {
+    GlobalRenderSystem->ObjectsToRender = NewChunkList(&GlobalRenderSystem->Arena, sizeof(mesh_render_struct), 32);
+  }
+  return &GlobalRenderSystem->ObjectsToRender;
+}
+
 inline file_local chunk_list* GetOverlayRenders()
 {
   if(!IsInitiated(&GlobalRenderSystem->OverlayRenders))
@@ -496,15 +505,6 @@ void DrawRenderObject(component* Component)
 
 #include "asset_manager/asset_types.h"
 
-void DrawRenderTree(asset::render_tree_id RenderTreeId) {
-  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeId);
-  Assert(Tree);
-
-  
-
-  int a = 10;
-}
-
 void DrawOverlay3DObject(void* Data, void (*RenderFunction)(m4 ProjectionMatrix, m4 ViewMatrix, void* Data)){
   data::render_data RenderData = {};
   RenderData.Data = Data;
@@ -621,51 +621,69 @@ u32 GetGaussianKernel(u32 BinomialDepth, u32 CutOff, r32* OutOffset, r32* OutWei
   return Size;
 }
 
-void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
-  v3 LightDirection, v3 LightColor, v3 Pos, quat Rot, v3 Scal)
+void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id ID, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
+  v3 LightDirection, v3 LightColor, m4& ModelMat)
 {
-  
-  m4 Scale = GetScaleMatrix(V4(Scal,1));
-  m4 Rotation = GetRotationMatrix(Rot);
-  m4 Translation = GetTranslationMatrix(V4(Pos,1));
-  m4 ModelMat = Translation*Rotation*Scale;
-
-  asset::phong_material* Material = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, asset::ToKey(asset::type::PHONG_MATERIAL, "red_rubber"));
-  v4 Ambient = {};
-  if(Material->Ka){
-    Ambient = *Material->Ka;
-  }
-  v4 Diffuse = {};
-  if(Material->Kd){
-    Diffuse = *Material->Kd;
-  }
-  v4 Specular = {};
-  if(Material->Ks){
-    Specular = *Material->Ks;
-  }
-  r32 Shininess = {};
-  if(Material->Ns){
-    Shininess = *Material->Ns;
-  }
-
-  m4 ModelView = ViewMatrix*ModelMat;
-  m4 NormalView = Transpose(RigidInverse(ModelView));
-
 
   render_object* Object = PushNewRenderObject(RenderGroup);
   Object->ProgramHandle = Program;
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = MeshHandle;
   Object->TextureCount = 0;
+
+  m4 ModelView = ViewMatrix*ModelMat;
+  m4 NormalView = Transpose(RigidInverse(ModelView));
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"), ProjectionMatrix);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"), ModelView);
   PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Ambient);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Diffuse);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
+
+  if(ID == 0)
+  {
+    asset::phong_material* Material = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, asset::ToKey(asset::type::PHONG_MATERIAL, "red_rubber"));
+    v4 Ambient = V4(0.7,0.1,0.1,1);
+    //if(Material->Ka){
+    //  Ambient = *Material->Ka;
+    //  Ambient.W = 1;
+    //}
+    //v4 Diffuse = V4(0.3,0.7,0.3,1);
+    v4 Diffuse = V4(1,0,0,1);
+    //if(Material->Kd){
+    //  Diffuse = *Material->Kd;
+    //}
+    //v4 Specular = V4(0.7,0.7,0.7,1);;
+    v4 Specular = V4(1,1,1,1);
+    //if(Material->Ks){
+    //  Specular = *Material->Ks;
+    //}
+    r32 Shininess = 1;
+    //if(Material->Ns){
+    //  Shininess = *Material->Ns;
+    //}
+    
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Ambient);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Diffuse);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
+  }else{
+    asset::pbr_material* Material = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, ID);
+    Assert(Material->HasMetallicRoughness);
+    asset::pbr_material::metallic_roughness* MetallicRoughness = &Material->MetallicRoughness;
+    
+//    v4 Ambient = V4(0.7,0.1,0.1,1);
+    v4 Diffuse = V4(0,0,0,1);
+    v4 Specular = V4(0,0,0,1);
+    r32 Shininess = 1;
+
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), MetallicRoughness->BaseColorFactor);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Diffuse);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
+    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
+
+  }
 }
 
 static void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
@@ -687,7 +705,7 @@ static void PushRenderObject(render_group* RenderGroup, component* Render, u32 P
     asset::key MeshKey = RenderTree->Root->FirstChild->Mesh;
     Assert(MeshKey);
     //asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::RENDER_TREE, MeshKey);
-    MeshHandle = ecs::render::GetMeshHandle(MeshKey);
+    MeshHandle = GetMeshHandle(MeshKey);
   }
   
   m4 ModelMat = GetModelMatrix(Position);
@@ -855,10 +873,11 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   chunk_list* TransparentObjects = GetTransparentObjects();
   chunk_list* OverlayRenders = GetOverlayRenders();
   chunk_list* LineObjects = GetLineObjects();
+  chunk_list* ObjectsToRender = GetObjectsToRender();
   if(GetBlockCount(SolidObjects) > 0 || GetBlockCount(TransparentObjects) > 0)
   {
-//      render_state* MSAAViewport = PushNewState(RenderGroup);
-//      SetState(MSAAViewport, ViewportState(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio));
+    render_state* MSAAViewport = PushNewState(RenderGroup);
+    SetState(MSAAViewport, ViewportState(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio));
     
     // First draw solid objects
     if(GetBlockCount(SolidObjects) > 0)
@@ -869,6 +888,27 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
         PushRenderObject(RenderGroup, *RenderPtr, GlobalState->PhongProgram, FrameBuffer(data::FRAMEBUFFER_MSAA), ProjectionMatrix, ViewMatrix, LightDirection, LightColor);
       }
       Clear(SolidObjects);
+    }
+
+    // Trying out the new render pipeline
+    if(GetBlockCount(ObjectsToRender) > 0)
+    {
+      chunk_list_iterator It = BeginIterator(ObjectsToRender);
+      while(Valid(&It)) {
+        mesh_render_struct* RenderMesh = (mesh_render_struct*) Next(&It);
+        PushRenderObjectWithoutEntity(
+          RenderMesh->RenderGroup,
+          RenderMesh->GPUMeshHandle,
+          RenderMesh->PbrMaterialID,
+          RenderMesh->ProgramHandle,
+          RenderMesh->FrameBufferHandle, 
+          ProjectionMatrix,
+          ViewMatrix,
+          LightDirection,
+          LightColor,
+          RenderMesh->ModelMatrix);
+      }
+      Clear(ObjectsToRender);
     }
 
    { 
@@ -1029,10 +1069,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
     SetState(ViewportAndBlend, ViewportState(Window->WindowWidth, Window->WindowHeight, Window->ApplicationAspectRatio));
     SetState(ViewportAndBlend, DefaultBlendState());
   }
-    
-
-
-
+  
 
   data::render_level* RenderLevel = GetBotRenderLevel(RenderSystem);
   while(!ListEnd(&RenderSystem->RenderSentinel, RenderLevel))
@@ -1254,6 +1291,9 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   Result->MeshHandleMap    = NewRBTree(GlobalPersistentArena, 64, 64);
   Result->TextureHandleMap = NewRBTree(GlobalPersistentArena, 64, 64);
 
+  Result->MeshHandleMap2      = loaded_meshes::Create();
+//Result->LoadedMeshHandles = cmn::list<loaded_mesh_handle>::Create();
+
   jfont::sdf_atlas* FontAtlas = &Result->Font.FontAtlas;
 
   texture_params FontTexParam = DefaultColorTextureParams();
@@ -1276,6 +1316,7 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   Result->FrameBuffers      = CreateFrameBuffers(RenderGroup, &Result->WindowSize, Result->InternalTextures);
   Result->BlitPlaneHandle   = PushBlitPlaneMesh(Result, RenderGroup);
 
+
   Result->TempMem = BeginTemporaryMemory(&Result->Arena);
 
   return Result;
@@ -1290,6 +1331,7 @@ void Begin()
   GlobalRenderSystem->SolidObjects = {};
   GlobalRenderSystem->OverlayRenders = {};
   GlobalRenderSystem->LineObjects = {};
+  GlobalRenderSystem->ObjectsToRender = {};
 }
 
 void ecs::render::Init(asset::key MeshKey, asset::key MaterialKey, component* Render)
@@ -1333,6 +1375,339 @@ void DrawAABB(aabb3f AABB) {
   DrawLine3D(AABBVertices[1], AABBVertices[5], Color, Thickness);
   DrawLine3D(AABBVertices[2], AABBVertices[6], Color, Thickness);
   DrawLine3D(AABBVertices[3], AABBVertices[7], Color, Thickness);
+}
+
+// Asset MeshID  
+//        Primitive 1
+//           vector<Indeces>
+//           vector<Points>
+//           pbr_material
+//        Primitive 2
+//           vector<Indeces>
+//           vector<Points>
+//           pbr_material
+//        ....
+//        Primitive N
+//           vector<Indeces>
+//           vector<Points>
+//           pbr_material
+//
+
+
+// Asset::MeshID -> List<MeshID_GPU (Primitive),  >
+
+#if 0
+static void RenderMesh(render_group* RenderGroup, asset::mesh_id MeshHandle, m4& ModelMatrix, m4& ProjectionMatrix, m4& ViewMatrix)
+{
+  v3 LightDirection = V3(1,1,1);
+  v3 LightColor = V3(1,1,1);
+  cmn::list<u32>& GPUMeshHandles = GetMeshHandleList(MeshHandle);
+
+  cmn::list<u32>::element* ElementHandle = GPUMeshHandles.First();
+  while (!GPUMeshHandles.IsEnd(ElementHandle))
+  {
+    mesh_render_struct RenderStruct = {};
+    RenderStruct.ProgramHandle = GlobalState->PhongProgram;
+    RenderStruct.FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
+    RenderStruct.RenderGroup = RenderGroup;
+    RenderStruct.GPUMeshHandle = ElementHandle->GetCopy();
+    RenderStruct.ModelMatrix = ModelMatrix;
+    RenderStruct.ProjectionMatrix = ProjectionMatrix;
+    RenderStruct.ViewMatrix = ViewMatrix;
+
+    ElementHandle = ElementHandle->Next;
+  }
+
+  
+  #if 0
+
+  asset::mesh* Mesh = (asset::mesh*) asset::Find(asse::type::PBR_MATERIAL, MeshHandle);
+  Assert(Mesh);
+  Assert(Mesh->PbrMaterial);
+  asset::pbr_material* PbrMaterial = asset::Find(asse::type::PBR_MATERIAL, Mesh->PbrMaterial);
+
+
+  u32 Program = GlobalState->PhongProgram;
+  u32 FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA)
+  
+  m4 ModelMat = ModelMatrix;
+
+  m4 ModelView = ViewMatrix*ModelMat;
+  m4 NormalView = Transpose(RigidInverse(ModelView));
+
+  v4 Ambient = V4(0.2,0.2,0.2,1);
+  v4 Diffuse = V4(0.6,0.6,0.6,1);
+  v4 Specular = V4(1,1,1,1);
+  r32 Shininess = 16;
+  
+  u32 TextureCount = 0;
+  u32 TextureHandle = 0;
+  if(Render->PhongMaterialHandle)
+  {
+    asset::phong_material* PhongMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, Render->PhongMaterialHandle);
+    if(PhongMaterial->Ka){
+      Ambient   = *PhongMaterial->Ka;
+    }
+    if(PhongMaterial->Kd){
+      Diffuse   = *PhongMaterial->Kd;
+    }
+    if(PhongMaterial->Ks){
+      Specular  = *PhongMaterial->Ks;
+    }
+    if(PhongMaterial->Ns){
+      Shininess = *PhongMaterial->Ns;
+    }
+
+    if(PhongMaterial->HasDiffuseTexture)
+    {
+      asset::key ImageHandle = PhongMaterial->DiffuseTexture.Image;
+      asset::image* Image = (asset::image*) Find(asset::type::IMAGE, ImageHandle);
+      TextureCount = 1;
+      TextureHandle = Get32BitTextureHandle(ImageHandle);
+    }
+  }else if (Render->RenderTreeHandle)
+  {
+    asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Render->RenderTreeHandle);
+    Assert(RenderTree->Root->FirstChild->Mesh);
+    asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, RenderTree->Root->FirstChild->Mesh);
+    Assert(Mesh->PrimitiveCount == 1);
+    asset::pbr_material* PbrMaterial = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, Mesh->Primitives[0].PbrMaterial);
+    Assert(PbrMaterial);
+    Assert(PbrMaterial->HasMetallicRoughness);
+    Diffuse = PbrMaterial->MetallicRoughness.BaseColorFactor;
+
+    if(PbrMaterial->MetallicRoughness.HasBaseColorTexture)
+    {
+      asset::texture* Texture = &PbrMaterial->MetallicRoughness.BaseColorTexture;
+      TextureCount = 1;
+      TextureHandle = Get32BitTextureHandle(Texture);
+    }
+  }
+
+  render_object* Object = PushNewRenderObject(RenderGroup);
+  Object->ProgramHandle = Program;
+  Object->FrameBufferHandle = FrameBufferHandle;
+  Object->MeshHandle = MeshHandle;
+  Object->TextureCount = TextureCount;
+  Object->TextureHandles[0] = TextureHandle;
+
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"),    ProjectionMatrix);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"),        ModelView);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"),       NormalView);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"),   LightDirection);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"),       LightColor);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"),  Ambient);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"),  Diffuse);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
+  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"),        Shininess);
+  #endif
+}
+#endif
+
+// Temporary function to handle materials
+void Placeholder_DoSomethingWithPBRMaterial(asset::pbr_material* Material)
+{
+  if(Material->HasMetallicRoughness){
+    asset::pbr_material::metallic_roughness& MetallicRoughness = Material->MetallicRoughness;
+
+    v4 BaseColorFactor = MetallicRoughness.BaseColorFactor;
+    if(MetallicRoughness.HasBaseColorTexture)
+    {
+      asset::texture& BaseColorTexture = MetallicRoughness.BaseColorTexture;
+      Assert(0);  // Just to see when it happens
+    }
+    
+    float MetallicFactor = MetallicRoughness.MetallicFactor;
+    float RoughnessFactor = MetallicRoughness.RoughnessFactor;
+
+    if(MetallicRoughness.HasMetallicRoughnessTexture)
+    {
+      asset::texture& MetallicRoughnessTexture = MetallicRoughness.MetallicRoughnessTexture;
+      Assert(0);  // Just to see when it happens
+    }
+
+    int c = 10;
+  };
+
+  if(Material->HasNormalTexture)
+  {
+    asset::pbr_material::normal_texture& NormalTexture = Material->NormalTexture;
+    Assert(0);  // Just to see when it happens
+  }
+
+  if(Material->HasOcclusionTexture)
+  {
+    asset::pbr_material::occlusion_texture& OcclusionTexture = Material->OcclusionTexture;
+    Assert(0);  // Just to see when it happens
+  }
+
+  if(Material->HasEmissiveTexture)
+  {
+    asset::texture& EmissiveTexture = Material->EmissiveTexture;
+    Assert(0);  // Just to see when it happens
+  }
+
+  v3 EmissiveFactor = Material->EmissiveFactor;
+  cmn::string AlphaMode = Material->AlphaMode;
+  float AlphaCutoff = Material->AlphaCutoff;
+  bool DoubleSided = Material->DoubleSided;
+
+  int b = 10;
+}
+
+// Temporary function to handle materials
+void Placeholder_DoSomethingWithPhongMaterial(asset::phong_material* Material)
+{
+  if(Material->Ka)
+  {
+    v4*  Ka = Material->Ka; // Ambient
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->Kd)
+  {
+    v4*  Kd = Material->Kd; // Diffuse
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->Tf)
+  {
+    v4*  Tf = Material->Tf; // Transmission
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->Ks)
+  {
+    v4*  Ks = Material->Ks; // Spekular
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->Ke)
+  {
+    v4*  Ke = Material->Ke; // Emissive
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->d)
+  {
+    r32* d = Material->d;  // Specifies the dissolve for the current material
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->Ni)
+  {
+    r32* Ni = Material->Ni; // Index of refraction
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->Ns)
+  {
+    r32* Ns = Material->Ns; // Specifies the specular exponent for the current material.
+    Assert(0); // Just to see when it happens
+  }
+  r32 BumpMapBM = Material->BumpMapBM;
+  if(Material->HasBumpMap){
+    asset::texture BumpMap = Material->BumpMap;
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->HasDiffuseTexture){
+    asset::texture DiffuseTexture = Material->DiffuseTexture;
+    Assert(0); // Just to see when it happens
+  }
+  if(Material->HasSpecularTexture){
+    asset::texture SpecularTexture = Material->SpecularTexture;
+    Assert(0); // Just to see when it happens
+  }
+}
+
+static render::loaded_mesh* GetMeshHandleList(asset::mesh_id MeshID)
+{
+  render::loaded_mesh* Result = GlobalRenderSystem->MeshHandleMap2.Find(MeshID);
+  if(!Result)
+  {
+    asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, MeshID);
+    render::loaded_mesh& LoadedMesh =  GlobalRenderSystem->MeshHandleMap2.At(MeshID);
+    Result = &LoadedMesh;
+    LoadedMesh = {};
+    LoadedMesh.MeshID = MeshID;
+    LoadedMesh.LoadedPrimitives = cmn::vector<loaded_primitive>::Create(Mesh->PrimitiveCount);
+
+    for (int i = 0; i < Mesh->PrimitiveCount; ++i)
+    {
+      asset::mesh::primitive* AssetPrimitive = &Mesh->Primitives[i];
+
+      gl_vertex_buffer VertexBuffer = asset::mapper::PrimitiveToGlVertexBuffer(GlobalTransientArena, AssetPrimitive);
+      u32 MeshHandle  = PushNewMesh(GlobalRenderCommands->RenderGroup, VertexBuffer.VertexCount, VertexBuffer.VertexData);
+      u32 IndexHandle = PushNewMeshIndices(GlobalRenderCommands->RenderGroup, MeshHandle, VertexBuffer.IndexCount, VertexBuffer.Indeces);
+
+      LoadedMesh.LoadedPrimitives.PushBack({});
+      loaded_primitive& LoadedPrimitive = LoadedMesh.LoadedPrimitives.Back();
+      LoadedPrimitive.LoadedPrimitiveID = IndexHandle;
+      LoadedPrimitive.Primitive = AssetPrimitive;
+
+  #if 0
+      LoadedPrimitive.LoadedBaseColorTextureID;
+
+      if(AssetPrimitive->PbrMaterial)
+      {
+        asset::pbr_material* PbrMaterial = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, AssetPrimitive->PbrMaterial);
+        if(PbrMaterial->HasBaseColorTexture)
+        {
+          LoadedPrimitive.BaseColorTexture = &PbrMaterial->BaseColorTexture;
+          u32 LoadTextureToGpu(asset::texture* Texture);
+        }
+        Placeholder_DoSomethingWithPBRMaterial(PbrMaterial);
+      }else if(AssetPrimitive->PhongMaterial){
+        asset::phong_material* PhongMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, AssetPrimitive->PhongMaterial);
+        Placeholder_DoSomethingWithPhongMaterial(PhongMaterial);
+      }
+  #endif
+    }
+  }
+
+  return Result;
+}
+
+void DrawMesh( asset::mesh_id ID, const m4& Transform)
+{
+  loaded_mesh* LoadedMeshHandles = GetMeshHandleList(ID);
+  for (int i = 0; i < LoadedMeshHandles->LoadedPrimitives.Size(); ++i)
+  {
+    loaded_primitive* Primitive = &LoadedMeshHandles->LoadedPrimitives[i];
+
+    mesh_render_struct RenderStruct = {};
+    RenderStruct.RenderGroup = GlobalRenderCommands->RenderGroup;
+    RenderStruct.ProgramHandle = GlobalState->PhongProgram;
+    RenderStruct.FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
+    RenderStruct.GPUMeshHandle = Primitive->LoadedPrimitiveID;
+    RenderStruct.PbrMaterialID = Primitive->Primitive->PbrMaterial;
+    RenderStruct.ModelMatrix = Transform;
+
+    Push(&GlobalRenderSystem->Arena, GetObjectsToRender(), (bptr) &RenderStruct);
+  }
+}
+
+void DrawRenderTree(asset::render_tree_id ID) {
+
+  asset::render_tree_2* RenderTree = (asset::render_tree_2*) asset::Find(asset::type::RENDER_TREE_2, ID);
+  if(RenderTree)
+  {
+    cmn::vector<m4> TransformVec = cmn::vector<m4>::CreateTransient(RenderTree->MaxDepth());
+    cmn::n_tree_pre_order_it<asset::render_tree_data> It = RenderTree->PreOrderIterator();
+    while(cmn::n_tree_node<asset::render_tree_data>* Node = It.Next())
+    {
+      int Index = It.Depth() - 1;
+      m4& CurrentTransform = TransformVec[Index];
+      asset::render_tree_data* Data = Node->Data;
+      if(Index == 0)
+      {
+        CurrentTransform = Data->HasTransform ? Data->Transform : M4Identity();
+      }else{
+        if(Data->HasTransform)
+        {
+          CurrentTransform = Data->Transform * TransformVec[Index-1];
+        }
+      }
+
+      if(Data->Mesh)
+      {
+        DrawMesh(Data->Mesh, CurrentTransform);
+      }
+    }
+  }
 }
 
 } // render

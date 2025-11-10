@@ -61,8 +61,15 @@ static void PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mesh::pr
       Primitive->VertexCount,
       Primitive->Vertex,
       Primitive->VertexNormal,
-      Primitive->TextureVertices[0]
+      Primitive->TextureVertices ? Primitive->TextureVertices[0] : 0
     );
+}
+
+gl_vertex_buffer PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mesh::primitive * Primitive)
+{
+  gl_vertex_buffer Result = {};
+  PrimitiveToGlVertexBuffer(Arena,Primitive, &Result);
+  return Result;
 }
 
 opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, const asset::mesh * Mesh)

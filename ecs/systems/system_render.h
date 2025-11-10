@@ -7,6 +7,7 @@
 #include "math/rect2f.h"
 #include "containers/rb_tree.h"
 #include "asset_manager/asset_manager.h"
+#include "cmn/hash_map.h"
 
 struct opengl_buffer_data;
 
@@ -98,6 +99,30 @@ namespace data {
     r32 MSAA;
   };
 
+  struct mesh_render_struct {
+    render_group* RenderGroup;
+    asset::pbr_material_id PbrMaterialID;
+    u32 ProgramHandle;
+    u32 FrameBufferHandle;
+    u32 GPUMeshHandle;
+    m4 ModelMatrix;
+  };
+  
+
+  struct loaded_primitive {
+    u32 LoadedPrimitiveID;
+    u32 LoadedBaseColorTextureID;
+    asset::mesh::primitive* Primitive;
+    asset::texture* BaseColorTexture;
+  };
+
+  struct loaded_mesh {
+    asset::mesh_id MeshID;
+    cmn::vector<loaded_primitive> LoadedPrimitives;
+  };
+
+  typedef cmn::hash_map<asset::mesh_id, render::loaded_mesh> loaded_meshes;
+
   struct system {
     memory_arena Arena;
     render_group* RenderGroup;
@@ -107,7 +132,8 @@ namespace data {
     // Value is u32, Handle from the render system
     rb_tree MeshHandleMap;
     rb_tree TextureHandleMap;
-    
+    loaded_meshes MeshHandleMap2;
+
     u32* InternalTextures;
     u32* FrameBuffers;
 
@@ -118,6 +144,9 @@ namespace data {
     chunk_list TransparentObjects;
     chunk_list OverlayRenders;     // render_data
     chunk_list LineObjects;
+
+    chunk_list ObjectsToRender;  // mesh_render_struct
+
     data::render_level RenderSentinel;
     rect2f UnitDrawRegion; // UnitCoordinate [0,0,1,1], Percentage of applicationWidth/Height
     window_size_pixel WindowSize;
@@ -201,7 +230,6 @@ namespace data {
     ListInsertBefore(&System->RenderSentinel, RenderLevel);
   }
   
-  void DrawRenderTree(asset::render_tree_id RenderTreeId);
 
   // Loading assets to gpu
   u32 GetMeshHandle(const c8* Name);
@@ -219,5 +247,9 @@ namespace data {
   // Draw basic shapes
   void DrawLine3D(v3 Start, v3 End, v4 Color, r32 Thickness);
   void DrawAABB(aabb3f AABB);
+
+
+  void DrawRenderTree(asset::render_tree_id RenderTreeId);
+
 }
 }
