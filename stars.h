@@ -58,7 +58,7 @@ struct application_state
   u32 ColoredSquareOverlayProgram;
   u32 TexturedSquareOverlayProgram;
   u32 LineRenderProgram;
-
+  u32 BRDFProgram;
 
   // Key is Asset Index
   // Value is u32, Handle from the render system

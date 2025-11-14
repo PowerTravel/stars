@@ -87,12 +87,7 @@ static u32 MapTextureWrap(asset::texture::wrap Wrap)
   return OPEN_GL_LINEAR;
 }
 
-// Pass texture here!
-u32 LoadTextureToGpu(asset::texture* Texture) {
-  asset::image* Image = (asset::image*) asset::Find(asset::type::IMAGE, Texture->Image);
-  Assert(Image);
-  Assert(Image->Channels == 4);
-
+inline file_local texture_params GetTextureParams(asset::texture* Texture){
   texture_params Result = {};
   Result.TextureFormat = texture_format::RGBA_F32;
   Result.InputDataType = OPEN_GL_FLOAT;
@@ -100,12 +95,35 @@ u32 LoadTextureToGpu(asset::texture* Texture) {
   SetParam(&Result, OPEN_GL_TEXTURE_MIN_FILTER, MapTextureFilter(Texture->MinFilter));
   SetParam(&Result, OPEN_GL_TEXTURE_WRAP_S,     MapTextureWrap(Texture->WrapS));
   SetParam(&Result, OPEN_GL_TEXTURE_WRAP_T,     MapTextureWrap(Texture->WrapT));
+  return Result;
+}
+
+u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams) {
+  Assert(Image);
+  Assert(Image->Channels == 4);
   
   // TODO: Set params based on texture
   texture_params Params = DefaultColorTextureParams();
   Params.TextureFormat = texture_format::RGBA_U8;
   Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
   u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, Params, Image->Pixels);
+
+  return Handle;
+}
+
+u32 LoadTextureToGpuAndSetHandle(asset::texture* Texture) {
+
+  #if 0
+  texture_params Params = GetTextureParams(Texture);
+  #else
+  texture_params Params = DefaultColorTextureParams();
+  Params.TextureFormat = texture_format::RGBA_U8;
+  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
+  #endif
+
+  asset::image* Image = (asset::image*) asset::Find(asset::type::IMAGE, Texture->Image);
+  
+  u32 Handle = LoadImageToGpu(Image, Params);
   SetHandle(&GlobalRenderSystem->TextureHandleMap, Texture->Image, Handle);
   return Handle;
 }
@@ -120,7 +138,7 @@ u32 Get32BitTextureHandle(asset::key Image)
     Result = *Handle;
   }else{
     asset::texture Texture = asset::DefaultTexture(Image);
-    Result = LoadTextureToGpu(&Texture);
+    Result = LoadTextureToGpuAndSetHandle(&Texture);
   }
 
   return Result;
@@ -134,7 +152,7 @@ u32 Get32BitTextureHandle(asset::texture* Texture)
   {
     Result = *Handle;
   }else{
-    Result = LoadTextureToGpu(Texture);
+    Result = LoadTextureToGpuAndSetHandle(Texture);
   }
 
   return Result;
@@ -633,9 +651,9 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, as
 
   m4 ModelView = ViewMatrix*ModelMat;
   m4 NormalView = Transpose(RigidInverse(ModelView));
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"), ProjectionMatrix);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"), ModelView);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"), NormalView);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ProjectionMat"), ProjectionMatrix);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ModelView"), ModelView);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalView"), NormalView);
 
   if(ID == 0)
   {
@@ -660,12 +678,12 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, as
     //  Shininess = *Material->Ns;
     //}
     
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), Ambient);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Diffuse);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightDirection"), LightDirection);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightColor"), LightColor);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialAmbient"), Ambient);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialDiffuse"), Diffuse);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialSpecular"), Specular);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Shininess"), Shininess);
   }else{
     asset::pbr_material* Material = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, ID);
     Assert(Material->HasMetallicRoughness);
@@ -676,16 +694,53 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, as
     v4 Specular = V4(0,0,0,1);
     r32 Shininess = 1;
 
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"), LightDirection);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"), LightColor);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"), MetallicRoughness->BaseColorFactor);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"), Diffuse);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
-    PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"), Shininess);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightDirection"), LightDirection);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightColor"), LightColor);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialAmbient"), MetallicRoughness->BaseColorFactor);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialDiffuse"), Diffuse);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialSpecular"), Specular);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Shininess"), Shininess);
 
   }
 }
 
+void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id ID, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
+  v3 LightDirection, v3 LightColor, m4& ModelMat)
+{
+  Assert(ID);
+  render_object* Object = PushNewRenderObject(RenderGroup);
+  Object->ProgramHandle = Program;
+  Object->FrameBufferHandle = FrameBuffer;
+  Object->MeshHandle = MeshHandle;
+  Object->TextureCount = 0;
+
+  m4 ModelView = ViewMatrix*ModelMat;
+  m4 NormalView = Transpose(RigidInverse(ModelView));
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ProjectionMat"), ProjectionMatrix);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ModelView"), ModelView);
+
+
+  asset::pbr_material* Material = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, ID);
+  Assert(Material);
+  Assert(Material->HasMetallicRoughness);
+  asset::pbr_material::metallic_roughness* MetallicRoughness = &Material->MetallicRoughness;
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "BaseColor"),  MetallicRoughness->BaseColorFactor);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Metalness"),  MetallicRoughness->MetallicFactor);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Roughness"),  MetallicRoughness->RoughnessFactor);
+
+  // TODO: Statically Load several textures into the GPU and just draw each of them in turn. Switching in the shader based on some counter value.
+  // Textures:
+  //    ALBEDO
+  //    NORMAL
+  //    METALLIC
+  //    ROUGHNESS
+  //    AMBIENT_OCCLUTION
+  
+
+
+  Object->TextureCount = 1;
+  Object->TextureHandles[0] = GlobalState->ImguiContext.Icons.Atlas;
+}
 static void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
   v3 LightDirection, v3 LightColor)
 {
@@ -896,7 +951,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       chunk_list_iterator It = BeginIterator(ObjectsToRender);
       while(Valid(&It)) {
         mesh_render_struct* RenderMesh = (mesh_render_struct*) Next(&It);
-        PushRenderObjectWithoutEntity(
+        PushPBR( 
           RenderMesh->RenderGroup,
           RenderMesh->GPUMeshHandle,
           RenderMesh->PbrMaterialID,
@@ -1647,7 +1702,7 @@ static render::loaded_mesh* GetMeshHandleList(asset::mesh_id MeshID)
         if(PbrMaterial->HasBaseColorTexture)
         {
           LoadedPrimitive.BaseColorTexture = &PbrMaterial->BaseColorTexture;
-          u32 LoadTextureToGpu(asset::texture* Texture);
+          u32 LoadTextureToGpuAndSetHandle(asset::texture* Texture);
         }
         Placeholder_DoSomethingWithPBRMaterial(PbrMaterial);
       }else if(AssetPrimitive->PhongMaterial){
@@ -1670,7 +1725,7 @@ void DrawMesh( asset::mesh_id ID, const m4& Transform)
 
     mesh_render_struct RenderStruct = {};
     RenderStruct.RenderGroup = GlobalRenderCommands->RenderGroup;
-    RenderStruct.ProgramHandle = GlobalState->PhongProgram;
+    RenderStruct.ProgramHandle = GlobalState->BRDFProgram;
     RenderStruct.FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
     RenderStruct.GPUMeshHandle = Primitive->LoadedPrimitiveID;
     RenderStruct.PbrMaterialID = Primitive->Primitive->PbrMaterial;

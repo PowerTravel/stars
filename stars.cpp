@@ -201,6 +201,22 @@ u32 CreatePhongTransparentProgram(render_group* RenderGroup)
   return ProgramHandle;
 }
 
+
+u32 CreateBRDFProgram(render_group* RenderGroup)
+{
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "BRDFProgram");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ProjectionMat");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ModelView");
+  AddUniform(RenderGroup, UniformType::V4, ProgramHandle,  "BaseColor");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Metalness");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Roughness");
+  CompileShader(RenderGroup, ProgramHandle,
+     1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFVertex.glsl"),
+     1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFFragment.glsl"));
+  return ProgramHandle;
+}
+
+
 u32 CreatePlaneStarProgram(render_group* RenderGroup)
 {
   u32 ProgramHandle = NewShaderProgram(RenderGroup, "StarPlane");
@@ -1163,7 +1179,8 @@ void LoadAndRenderGLTFEngine()
   local_persist asset::package* Package = 0;
   if(!Package)
   {
-    asset::package_id PackageID = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
+    //asset::package_id PackageID = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
+    asset::package_id PackageID = asset::Load("..\\data\\gltf\\testbox\\box.gltf", "testbox");
     Package = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
   }
 
@@ -1213,6 +1230,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     // This memory only needs to exist until the data is loaded to the GPU
     GlobalState->PhongProgram = CreatePhongProgram(RenderGroup);
     GlobalState->PhongProgramTransparent = CreatePhongTransparentProgram(RenderGroup);
+    GlobalState->BRDFProgram = CreateBRDFProgram(RenderGroup);
     GlobalState->PlaneStarProgram = CreatePlaneStarProgram(RenderGroup);
     GlobalState->SolidColorProgram = CreateSolidColorProgram(RenderGroup);
     GlobalState->EruptionBandProgram = CreateEruptionBandProgram(RenderGroup);
