@@ -29,18 +29,48 @@ struct vector {
   size_t m_count;         // The number of stored elements using Push and Pop functions.
   T* m_data;              // A byte array of count elementSize * reservedCount bytes.
 
+  bool m_transient;      // TODO: Fix so we have two different classes for Transient and not transiend so we don't have to do late state if/else.
+
   vector() = default;
 
+
+  void* Malloc(size_t sz)
+  {
+    if(m_transient){
+      return _g_cmn_transient_malloc(sz);
+    }
+    return _g_cmn_malloc(sz);
+  }
+
+  void* Realloc(void * p, size_t sz)
+  {
+    if(m_transient){
+      return _g_cmn_transient_realloc(p,sz);
+    }
+    return _g_cmn_realloc(p, sz);
+  }
+
+  void Free(void * p)
+  {
+    if(m_transient){
+      _g_cmn_transient_free(p);
+    }else{
+      _g_cmn_free(p);
+    }
+  }
+
+
   // Reserved initialization
-  static inline vector Create( size_t reservedCount = 0, _cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_realloc* aRealloc = _g_cmn_realloc, _cmn_free* aFree = _g_cmn_free) {
+  static inline vector Create(size_t reservedCount = 0, bool Transient = false, _cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_realloc* aRealloc = _g_cmn_realloc, _cmn_free* aFree = _g_cmn_free) {
     vector<T> Result = {};
     Result.m_malloc  = aMalloc;
     Result.m_realloc = aRealloc;
     Result.m_free    = aFree;
     Result.m_reservedCount = reservedCount;
+    Result.m_transient = Transient;
     if(Result.m_reservedCount)
     {
-      Result.m_data = (T*) Result.m_malloc(Result.m_reservedCount * sizeof(T));
+      Result.m_data = (T*) Result.Malloc(Result.m_reservedCount * sizeof(T));
 
       cmn::utils::Zero(Result.m_reservedCount * sizeof(T), (uint8_t*) Result.m_data);
     }
@@ -49,13 +79,13 @@ struct vector {
 
   static inline vector CreateTransient(size_t reservedCount = 0)
   {
-    return Create(reservedCount, _g_cmn_transient_malloc, _g_cmn_transient_realloc, _g_cmn_transient_free);
+    return Create(reservedCount, true, _g_cmn_transient_malloc, _g_cmn_transient_realloc, _g_cmn_transient_free);
   }
 
   // Array initialization
-  static inline vector Create(size_t Count, const T* Data, _cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_realloc* aRealloc = _g_cmn_realloc, _cmn_free* aFree = _g_cmn_free)
+  static inline vector Create(size_t Count, const T* Data, bool Transient = false, _cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_realloc* aRealloc = _g_cmn_realloc, _cmn_free* aFree = _g_cmn_free)
   {
-    vector Result = vector::Create(Count);
+    vector Result = vector::Create(Count, Transient);
     Result.m_count = Count;
     utils::Copy(Count*sizeof(T), Data, Result.m_data);
     return Result;
@@ -97,9 +127,9 @@ struct vector {
       size_t newMemSizeBytes = m_reservedCount*sizeof(T);
       if(m_data)
       {
-        m_data = (T*) m_realloc((void*)m_data, newMemSizeBytes);
+        m_data = (T*) Realloc((void*)m_data, newMemSizeBytes);
       }else{
-        m_data = (T*) m_malloc(newMemSizeBytes);
+        m_data = (T*) Malloc(newMemSizeBytes);
       }
     }
     m_data[m_count++] = Value;
@@ -113,12 +143,12 @@ struct vector {
 
   vector Copy(_cmn_malloc* aMalloc,_cmn_realloc* aRealloc,_cmn_free* aFree)
   {
-    vector Result = vector::Create(m_reservedCount, aMalloc, aRealloc, aFree);
+    vector Result = vector::Create(m_reservedCount, m_transient, aMalloc, aRealloc, aFree);
     if(m_count)
     {
       Result.m_count = m_count;
       size_t MemSize = sizeof(T) * m_reservedCount;
-      Result.m_data = (T*) Result.m_malloc(MemSize);
+      Result.m_data = (T*) Result.Malloc(MemSize);
       utils::Copy(MemSize, (void*) m_data, (void*) Result.m_data);
     }
     return Result;

@@ -677,7 +677,7 @@ render_tree_2* LoadRenderTree2(const c8* UniqueName, const c8* Path, render_tree
   midx RenderTreeSize = sizeof(render_tree_2);
   header* Header = CreateHeader(type::RENDER_TREE_2, UniqueName, UniqueName, Path, RenderTreeSize);
   render_tree_2* Result = (render_tree_2*) Header->Data;
-  *Result = RenderTree->Copy(AssetManager_Alloc,AssetManager_Free);
+  *Result = RenderTree->Copy(false, AssetManager_Alloc,AssetManager_Free);
   
   if(ResultKey)
   {

@@ -297,7 +297,7 @@ namespace mapper {
 
   asset::render_tree_2 ToRenderTree2(size_t NodeCount, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
   {
-    asset::render_tree_2 Result = asset::render_tree_2::Create(TransientMalloc, TransientFree);
+    asset::render_tree_2 Result = asset::render_tree_2::Create(true,TransientMalloc, TransientFree);
     cmn::vector<node_pair> NodeQueue = cmn::vector<node_pair>::CreateTransient(NodeCount);
     
     node_pair RootPair = {};

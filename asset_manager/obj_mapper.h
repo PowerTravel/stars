@@ -368,7 +368,7 @@ static asset::mesh_id LoadMesh(const char* UniqueName, obj_loaded_file* Obj, mat
 
 static asset::render_tree_2 CreateRenderTree2(asset::mesh_id MeshId)
 {
-  asset::render_tree_2 Result = asset::render_tree_2::Create(TransientMalloc, TransientFree);
+  asset::render_tree_2 Result = asset::render_tree_2::Create(true, TransientMalloc, TransientFree);
   asset::render_tree_data Data = {};
   Data.Mesh = MeshId;
   Result.NewNode(NULL, Data);

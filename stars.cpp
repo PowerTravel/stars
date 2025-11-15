@@ -1218,18 +1218,18 @@ ASSET_TREE_TRAVERSAL_CALLBACK(OutputPackages)
 // Mesh ID 3122231961 2 Primitives
 void LoadAndRenderGLTFEngine()
 {
-  local_persist asset::package* Package = 0;
-  if(!Package)
+
+  if(!GlobalState->DebugPackage)
   {
     //asset::package_id PackageID = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
     //asset::package_id PackageID = asset::Load("..\\data\\gltf\\testbox\\box.gltf", "testbox");
     asset::package_id PackageID = asset::Load("..\\data\\gltf\\testsphere\\testsphere.gltf", "testsphere");
-    Package = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
+    GlobalState->DebugPackage = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
   }
 
-  for (int i = 0; i < Package->RenderTreeCount2; ++i)
+  for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount2; ++i)
   {
-    ecs::render::DrawRenderTree(Package->RenderTrees2[i]);
+    ecs::render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees2[i]);
   }
 }
 

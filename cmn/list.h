@@ -35,12 +35,32 @@ struct list {
   _cmn_malloc*  m_malloc;
   _cmn_free*    m_free;
 
+  bool m_transient;
+
+  void* Malloc(size_t sz)
+  {
+    if(m_transient){
+      return _g_cmn_transient_malloc(sz);
+    }
+    return _g_cmn_malloc(sz);
+  }
+
+  void Free(void * p)
+  {
+    if(m_transient){
+      _g_cmn_transient_free(p);
+    }else{
+      _g_cmn_free(p);
+    }
+  }
+
+
   size_t m_count;
   element* m_sentinel;
 
   element* NewElement(const T& Data) {
-    element* Result = (element*)m_malloc(sizeof(element));
-    Result->Data = (T*)m_malloc(sizeof(T));
+    element* Result = (element*)Malloc(sizeof(element));
+    Result->Data = (T*)Malloc(sizeof(T));
     utils::Copy(sizeof(T), (void*) &Data, (void*) Result->Data);
     m_count++;
     return Result;
@@ -50,16 +70,17 @@ struct list {
 
   list() = default;
 
-  static inline list Create(_cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_free* aFree = _g_cmn_free){
+  static inline list Create(bool aTransient = false, _cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_free* aFree = _g_cmn_free){
     list Result = {};
     Result.m_malloc = aMalloc;
     Result.m_free = aFree;
+    Result.m_transient = aTransient;
     return Result;
   }
 
   element* GetSentinel(){
     if(!m_sentinel){
-      m_sentinel =  (element*) m_malloc(sizeof(element));
+      m_sentinel =  (element*) Malloc(sizeof(element));
       *m_sentinel = {};
       ListInitiate(m_sentinel);
     }
@@ -106,8 +127,8 @@ struct list {
       return;
     }
     ElementToRemove = Detach(ElementToRemove);
-    m_free(ElementToRemove->Data);
-    m_free(ElementToRemove);
+    Free(ElementToRemove->Data);
+    Free(ElementToRemove);
   }
 
   void Delete() {
@@ -118,12 +139,12 @@ struct list {
       while(e != m_sentinel)
       {
         element* eNext = e->Next;
-        m_free(e->Data);
-        m_free(e);
+        Free(e->Data);
+        Free(e);
         e = eNext;
       }
       
-      m_free(m_sentinel);
+      Free(m_sentinel);
       m_sentinel = 0;
       m_count = 0;
     }

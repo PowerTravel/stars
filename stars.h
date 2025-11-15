@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include "externals\json.hpp"
 
 #define STBI_ONLY_PNG
@@ -79,6 +80,8 @@ struct application_state
   application_imgui ApplicationImgui;
 
   ecs::entity_id* DebugSquare;
+
+  asset::package* DebugPackage;
 };
 
 global_variable ecs::entity_manager* GlobalEntityManager = 0;

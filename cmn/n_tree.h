@@ -114,24 +114,44 @@ namespace cmn {
     _cmn_malloc*  m_malloc;
     _cmn_free*    m_free;
 
+
+    void* Malloc(size_t sz)
+    {
+      if(m_transient){
+        return _g_cmn_transient_malloc(sz);
+      }
+      return _g_cmn_malloc(sz);
+    }
+
+    void Free(void * p)
+    {
+      if(m_transient){
+        _g_cmn_transient_free(p);
+      }else{
+        _g_cmn_free(p);
+      }
+    }
+
+    bool m_transient;
     node* m_root;
     size_t m_nodeCount;
     size_t m_maxDepth;
 
     n_tree() = default;
     
-    static n_tree Create(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free)
+    static n_tree Create(bool Transient = false, _cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free)
     {
       n_tree Result{};
       Result.m_malloc = Malloc;
       Result.m_free = Free;
+      Result.m_transient = Transient;
       return Result;
     }
     
     void Delete();
   
     n_tree::node* AllocateNode() {
-      n_tree::node* Result = new(m_malloc(sizeof(n_tree::node))) n_tree::node();
+      n_tree::node* Result = new(Malloc(sizeof(n_tree::node))) n_tree::node();
 
       m_nodeCount++;
       return Result;
@@ -141,7 +161,7 @@ namespace cmn {
     {
       if(!Node->Data)
       {
-        Node->Data = (T*) m_malloc(sizeof(T));
+        Node->Data = (T*) Malloc(sizeof(T));
       }
       utils::Copy(sizeof(T), Data, Node->Data);
       return Node->Data;
@@ -181,8 +201,8 @@ namespace cmn {
 
     // Create a copy of Tree
     cmn::list<node*>   GetLevelOrderList  (_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free);
-    cmn::vector<node*> GetLevelOrderVector(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_realloc* Realloc = _g_cmn_realloc, _cmn_free* Free = _g_cmn_free);
-    n_tree<T> Copy(_cmn_malloc* Malloc = 0, _cmn_free* Free = 0); // If 0 the allocators of 'this' are used
+    cmn::vector<node*> GetLevelOrderVector(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_realloc* Realloc = _g_cmn_realloc, _cmn_free* Free = _g_cmn_free, bool m_transient = false);
+    n_tree<T> Copy(bool Transient, _cmn_malloc* Malloc = 0, _cmn_free* Free = 0); // If 0 the allocators of 'this' are used
 
 
     struct pre_order_iterator {
@@ -318,7 +338,7 @@ template<typename T>
 void LevelOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, void* UserData) {
   if(!Tree.m_root) return;
 
-  node_list<T> NodeQueue = node_list<T>::Create(_g_cmn_transient_malloc, _g_cmn_transient_free);
+  node_list<T> NodeQueue = node_list<T>::Create(true ,_g_cmn_transient_malloc, _g_cmn_transient_free);
   NodeQueue.PushBack(Tree.m_root);
 
   while(!NodeQueue.Empty())
@@ -446,7 +466,7 @@ NodeVisitFunction(LevelOrderNodeList){
 
 template <typename T>
 node_list<T> n_tree<T>::GetLevelOrderList(_cmn_malloc* Malloc, _cmn_free* Free) {
-  node_list<T> NodeList = node_list<T>::Create(Malloc, Free);
+  node_list<T> NodeList = node_list<T>::Create(false, Malloc, Free);
   LevelOrderTraversal(*this, LevelOrderNodeList, (void*) &NodeList);
   return NodeList;
 }
@@ -458,9 +478,9 @@ NodeVisitFunction(LevelOrderNodeVec){
 }
 
 template <typename T>
-node_vec<T> n_tree<T>::GetLevelOrderVector(_cmn_malloc* Malloc, _cmn_realloc* Realloc, _cmn_free* Free) {
+node_vec<T> n_tree<T>::GetLevelOrderVector(_cmn_malloc* Malloc, _cmn_realloc* Realloc, _cmn_free* Free, bool transient) {
   size_t NodeCount = this->NodeCount();
-  node_vec<T> NodeVec = node_vec<T>::Create(NodeCount, Malloc, Realloc, Free);
+  node_vec<T> NodeVec = node_vec<T>::Create(NodeCount, transient, Malloc, Realloc, Free);
   LevelOrderTraversal(*this, LevelOrderNodeVec, (void*) &NodeVec);
 
   return NodeVec;
@@ -551,13 +571,11 @@ NodeVisitFunction(CopyTreeFun){
 }
 
 template <typename T>
-n_tree<T> n_tree<T>::Copy(_cmn_malloc* aMalloc, _cmn_free* aFree) {
+n_tree<T> n_tree<T>::Copy(bool Transient, _cmn_malloc* aMalloc, _cmn_free* aFree) {
   // Both or None of the allocators need to be defined in this function
   Assert((aMalloc==0 && aFree==0) || (aMalloc!=0 && aFree!=0));
 
-  _cmn_malloc* Malloc = aMalloc ? aMalloc : this->m_malloc;
-  _cmn_free* Free = aFree ? aFree : this->m_free;
-  n_tree<T> Result = n_tree<T>::Create(Malloc, Free);
+  n_tree<T> Result = n_tree<T>::Create(Transient, aMalloc, aFree);
   
   size_t nodeCount = NodeCount();
   size_t VecSize = utils::GetNextPowerOfTwo(nodeCount);
