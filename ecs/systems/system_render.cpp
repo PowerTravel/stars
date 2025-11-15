@@ -765,58 +765,37 @@ void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id I
   Object->TextureHandles[1] = DisplacementHandle;
   Object->TextureHandles[2] = NormalHandle;
   Object->TextureHandles[3] = RoughnessHandle;
+  Object->TextureHandles[3] = RoughnessHandle;
 
-  m4 ModelView = ViewMatrix*ModelMat;
-  m4 NormalView = Transpose(RigidInverse(ModelView));
+  m4 NormalModel = Transpose(RigidInverse(ModelMat));
+
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ProjectionMat"), ProjectionMatrix);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ModelView"), ModelView);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "View"), ViewMatrix);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Model"), ModelMat);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalModel"), NormalModel);
 
+  // Material properties as per model Constants
+  v3 Albedo = V3(0.5,0.8,0.3);
+  float Metalness = 0.0;
+  float Roughness = 0.0;
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Albedo"), Albedo);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Metalness"),  Metalness);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Roughness"),  Roughness);
 
+  // Material properties as Textures
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AlbedoMap"),  (u32) 0);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MetalnessMap"),  (u32) 1);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "DisplacementMap"),  (u32) 1);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalMap"),  (u32) 2);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "RoughnessMap"),  (u32) 3);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AmbientOcclusionMap"),  (u32) 4);
 
+/*
   asset::pbr_material* Material = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, ID);
   Assert(Material);
   Assert(Material->HasMetallicRoughness);
   asset::pbr_material::metallic_roughness* MetallicRoughness = &Material->MetallicRoughness;
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "BaseColor"),  MetallicRoughness->BaseColorFactor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Metalness"),  MetallicRoughness->MetallicFactor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Roughness"),  MetallicRoughness->RoughnessFactor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AlbedoMap"),  (u32) 0);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "DisplacementMap"),  (u32) 1);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalMap"),  (u32) 2);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "RoughnessMap"),  (u32) 3);
-
-  local_persist u32 T = 0;
-  u32 MaxT = 480;
-  u32 ImageCount = 4;
-
-  u32 Toggle = 0;
-  if(T <= 1*MaxT/ImageCount)
-  {
-    Toggle = 0;
-  }else if(T < 2*MaxT/ImageCount){
-    Toggle = 1;
-  }else if(T < 3*MaxT/ImageCount){
-    Toggle = 2;
-  }else if(T < 4*MaxT/ImageCount){
-    Toggle = 3;
-  }else{
-    T = 0;
-  }
-  T++;
-  Platform.DEBUGPrint("Toggle %d\n", Toggle);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Toggle"),  (u32) Toggle );
-  
-
-
-
-  // TODO: Statically Load several textures into the GPU and just draw each of them in turn. Switching in the shader based on some counter value.
-  // Textures:
-  //    ALBEDO
-  //    NORMAL
-  //    METALLIC
-  //    ROUGHNESS
-  //    AMBIENT_OCCLUTION
-  
+*/
 
 
   

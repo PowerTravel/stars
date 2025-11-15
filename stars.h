@@ -2,6 +2,12 @@
 
 #include "externals\json.hpp"
 
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STB_IMAGE_IMPLEMENTATION
+//#define STBI_NO_FAILURE_STRINGS
+#include "externals/stb_image.h"
+#undef STB_IMAGE_IMPLEMENTATION
 
 #include "platform/jwin_platform.h"
 #include "platform/jfont.h"

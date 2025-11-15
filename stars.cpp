@@ -204,17 +204,53 @@ u32 CreatePhongTransparentProgram(render_group* RenderGroup)
 
 u32 CreateBRDFProgram(render_group* RenderGroup)
 {
+  /*
+
+Vertex Shader uniforms 
+uniform mat4 ProjectionMat;
+uniform mat4 View;
+uniform mat4 Model;
+uniform mat4 NormalModel;
+
+
+Fragment Shader uniforms 
+  uniform CamPos; // WorldSpace 
+  uniform LightPos; // WorldSpace
+
+  uniform vec3  Albedo;
+  uniform float Metalness;
+  uniform float Roughness;
+  uniform float Displacement;
+  uniform float AmbientOcclusion;
+
+  uniform sampler2D AlbedoMap;
+  uniform sampler2D MetalnessMap;
+  uniform sampler2D DisplacementMap;
+  uniform sampler2D NormalMap;
+  uniform sampler2D RoughnessMap;
+  uniform sampler2D AmbientOcclusionMap;
+  */
+
   u32 ProgramHandle = NewShaderProgram(RenderGroup, "BRDFProgram");
+
   AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ProjectionMat");
-  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ModelView");
-  AddUniform(RenderGroup, UniformType::V4, ProgramHandle,  "BaseColor");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "View");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "Model");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "NormalModel");
+
+  // Material properties as per model Constants
+  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "Albedo");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Metalness");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Roughness");
+
+  // Material properties as Textures
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AlbedoMap");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "MetalnessMap");
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "DisplacementMap");
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "NormalMap");
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RoughnessMap");
-  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "Toggle");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AmbientOcclusionMap");
+
   CompileShader(RenderGroup, ProgramHandle,
      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFVertex.glsl"),
      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFFragment.glsl"));
