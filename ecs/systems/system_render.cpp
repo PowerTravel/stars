@@ -732,42 +732,51 @@ file_local inline u32 DEBUGLoadImageFromDiskToGPU(const char* Path)
 }
 
 
-void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id ID, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
-  v3 LightDirection, v3 LightColor, m4& ModelMat)
+void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id ID, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix, m4& ModelMat)
 {
 
-
   local_persist bool Loaded = false;
+
   local_persist u32 AlbedoHandle = 0;
+  #if 0
+  local_persist u32 MetalnessHandle = 0;
   local_persist u32 DisplacementHandle = 0;
   local_persist u32 NormalHandle = 0;
   local_persist u32 RoughnessHandle = 0;
-  local_persist u32 KekHandle = 0;
+  local_persist u32 AmbientOcclusionHandle = 0;
+  #endif
+
+
   if(!Loaded)
   {
     AlbedoHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Color.jpg");
+    #if 0
+    MetalnessHandle = 0;
     DisplacementHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Displacement.jpg");
     NormalHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_NormalGL.jpg");    
-    RoughnessHandle =  DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Roughness.jpg");
-    KekHandle =  DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\kek.jpg");
+    RoughnessHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Roughness.jpg");
+    AmbientOcclusionHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_AmbientOcclusion.jpg");
+    #endif
+
     Loaded = true;
   }
 
 
-  Assert(ID);
   render_object* Object = PushNewRenderObject(RenderGroup);
   Object->ProgramHandle = Program;
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = MeshHandle;
   
-  Object->TextureCount = 4;
+  Object->TextureCount = 1;
   Object->TextureHandles[0] = AlbedoHandle;
-  Object->TextureHandles[1] = DisplacementHandle;
-  Object->TextureHandles[2] = NormalHandle;
-  Object->TextureHandles[3] = RoughnessHandle;
-  Object->TextureHandles[3] = RoughnessHandle;
-
+  //Object->TextureHandles[1] = MetalnessHandle;
+  //Object->TextureHandles[2] = DisplacementHandle;
+  //Object->TextureHandles[3] = NormalHandle;
+  //Object->TextureHandles[4] = RoughnessHandle;
+  //Object->TextureHandles[5] = AmbientOcclusionHandle;
+  
   m4 NormalModel = Transpose(RigidInverse(ModelMat));
+
 
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ProjectionMat"), ProjectionMatrix);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "View"), ViewMatrix);
@@ -775,22 +784,44 @@ void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id I
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalModel"), NormalModel);
 
   // Material properties as per model Constants
-  v3 Albedo = V3(0.5,0.8,0.3);
+
+  float Period = 4; // Seconds
+  float Freq = GlobalTime * Tau32;
+  float Phase = Pi32*0.5;
+  float Amplitude = 1;
+
+  float s = Amplitude*0.5*(1+Sin(Freq / Period - Phase));
+  
+
+
+  float LightIntensity = 100;
+  v3 LightPos   = V3(10,10,10);
+  m4 CamToWorld = RigidInverse(ViewMatrix);
+  v3 CamPos = V3(Column(CamToWorld,3));
+
+  //Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f, %1.2f, %1.2f\n", GlobalTime, s, CamPos.X,CamPos.Y,CamPos.Z);
+  v3 Albedo     = V3(0.5,0.8,0.3);
   float Metalness = 0.0;
-  float Roughness = 0.0;
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Albedo"), Albedo);
+  float Roughness = 1;
+
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "CamPos"),     CamPos);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightPos"),   LightPos);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Albedo"),     Albedo);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Metalness"),  Metalness);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Roughness"),  Roughness);
 
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AlbedoMap"),           (u32) 0);
+  #if 0
   // Material properties as Textures
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AlbedoMap"),  (u32) 0);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MetalnessMap"),  (u32) 1);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "DisplacementMap"),  (u32) 1);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalMap"),  (u32) 2);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "RoughnessMap"),  (u32) 3);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AmbientOcclusionMap"),  (u32) 4);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MetalnessMap"),        (u32) 1);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "DisplacementMap"),     (u32) 2);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalMap"),           (u32) 3);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "RoughnessMap"),        (u32) 4);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AmbientOcclusionMap"), (u32) 5);
+  #endif
 
 /*
+  Assert(ID);
   asset::pbr_material* Material = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, ID);
   Assert(Material);
   Assert(Material->HasMetallicRoughness);
@@ -1018,8 +1049,6 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
           RenderMesh->FrameBufferHandle, 
           ProjectionMatrix,
           ViewMatrix,
-          LightDirection,
-          LightColor,
           RenderMesh->ModelMatrix);
       }
       Clear(ObjectsToRender);

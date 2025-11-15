@@ -61,8 +61,6 @@ void __jwin__FreeFileMemory(void* FileDataToFree)
 
 #define SPOTCOUNT 200
 
-global_variable r32 g_t = 0;
-
 file_local inline void Initiate(asset::key RenderTreeKey, ecs::render::component* Render)
 {
   asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeKey);
@@ -207,10 +205,10 @@ u32 CreateBRDFProgram(render_group* RenderGroup)
   /*
 
 Vertex Shader uniforms 
-uniform mat4 ProjectionMat;
-uniform mat4 View;
-uniform mat4 Model;
-uniform mat4 NormalModel;
+  uniform mat4 ProjectionMat;
+  uniform mat4 View;
+  uniform mat4 Model;
+  uniform mat4 NormalModel;
 
 
 Fragment Shader uniforms 
@@ -239,17 +237,20 @@ Fragment Shader uniforms
   AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "NormalModel");
 
   // Material properties as per model Constants
+  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "CamPos");
+  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "LightPos");
   AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "Albedo");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Metalness");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Roughness");
 
+
   // Material properties as Textures
   AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AlbedoMap");
-  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "MetalnessMap");
-  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "DisplacementMap");
-  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "NormalMap");
-  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RoughnessMap");
-  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AmbientOcclusionMap");
+  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "MetalnessMap");
+  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "DisplacementMap");
+  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "NormalMap");
+  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RoughnessMap");
+  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AmbientOcclusionMap");
 
   CompileShader(RenderGroup, ProgramHandle,
      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFVertex.glsl"),
@@ -1221,7 +1222,8 @@ void LoadAndRenderGLTFEngine()
   if(!Package)
   {
     //asset::package_id PackageID = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
-    asset::package_id PackageID = asset::Load("..\\data\\gltf\\testbox\\box.gltf", "testbox");
+    //asset::package_id PackageID = asset::Load("..\\data\\gltf\\testbox\\box.gltf", "testbox");
+    asset::package_id PackageID = asset::Load("..\\data\\gltf\\testsphere\\testsphere.gltf", "testsphere");
     Package = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
   }
 
@@ -1246,7 +1248,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   ImguiBegin(Input);
-  g_t = Input->Time;
+  GlobalTime = Input->Time;
 
   asset::key BoxTextured = {};
 
@@ -1528,6 +1530,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     CompileShader(RenderGroup, GlobalState->LineRenderProgram,
       1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramVertex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramFragment.glsl"));
+    CompileShader(RenderGroup, GlobalState->BRDFProgram,
+      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFVertex.glsl"),
+      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFFragment.glsl"));
   }
 
 

@@ -88,6 +88,7 @@ global_variable jwin::device_input* GlobalInput = 0;
 global_variable imgui_context* GlobalImguiContext = 0;
 global_variable asset::manager* GlobalAssetManager = 0;
 global_variable ecs::render::system* GlobalRenderSystem = 0;
+global_variable float GlobalTime = 0;
 
 // Global Singleton Getters
 inline ecs::render::system* GetRenderSystem() {

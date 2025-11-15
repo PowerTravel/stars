@@ -483,8 +483,13 @@ namespace mapper {
       Primitive->TextureVertices       = ExtractedPrimitive->vt;
       Primitive->Topology              = ModeToTopology(ExtractedPrimitive->Mode);
       Primitive->AABB                  = AABB3f(ExtractedPrimitive->vMin,ExtractedPrimitive->vMax);
-      Assert(ExtractedPrimitive->MaterialIndex); // Not required but fix once we find a mesh without material
-      Primitive->PbrMaterial           = LoadedMaterials[*ExtractedPrimitive->MaterialIndex];
+      //Assert(ExtractedPrimitive->MaterialIndex); // Not required but fix once we find a mesh without material
+      if(ExtractedPrimitive->MaterialIndex)
+      {
+        Primitive->PbrMaterial           = LoadedMaterials[*ExtractedPrimitive->MaterialIndex];
+      }else{
+        Primitive->PbrMaterial = 0;
+      }
     }
     return Result;
   }
