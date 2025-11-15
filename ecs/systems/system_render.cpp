@@ -704,20 +704,73 @@ void PushRenderObjectWithoutEntity(render_group* RenderGroup, u32 MeshHandle, as
   }
 }
 
+#include "externals/stb_image.h"
+
+file_local inline asset::image DEBUGLoadImageFromDisk(const char* Path)
+{
+  asset::image Result = {};
+
+  int DesiredChannels = STBI_rgb_alpha; // Regardless of image type, today we only support RGBA images.
+  int NativeChannels = 0; // Unused
+  unsigned char* ImageData = stbi_load(Path, &Result.Width, &Result.Height, &NativeChannels, DesiredChannels);
+  Result.Channels = STBI_rgb_alpha;
+  size_t ImageByteSize = Result.Width * Result.Height * Result.Channels;
+  Result.Pixels = (uint8_t*) PushSize(GlobalTransientArena, ImageByteSize);
+  utils::Copy(ImageByteSize, (uint8_t*) ImageData, (uint8_t*) Result.Pixels);
+  stbi_image_free(ImageData);
+  return Result;
+}
+
+file_local inline u32 DEBUGLoadImageFromDiskToGPU(const char* Path)
+{
+  asset::image AlbedoImage = DEBUGLoadImageFromDisk(Path);
+  texture_params Params = DefaultColorTextureParams();
+  Params.TextureFormat = texture_format::RGBA_U8;
+  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;  
+  u32 Result = LoadImageToGpu(&AlbedoImage, Params);
+  return Result;
+}
+
+
 void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id ID, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
   v3 LightDirection, v3 LightColor, m4& ModelMat)
 {
+
+
+  local_persist bool Loaded = false;
+  local_persist u32 AlbedoHandle = 0;
+  local_persist u32 DisplacementHandle = 0;
+  local_persist u32 NormalHandle = 0;
+  local_persist u32 RoughnessHandle = 0;
+  local_persist u32 KekHandle = 0;
+  if(!Loaded)
+  {
+    AlbedoHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Color.jpg");
+    DisplacementHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Displacement.jpg");
+    NormalHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_NormalGL.jpg");    
+    RoughnessHandle =  DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Roughness.jpg");
+    KekHandle =  DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\kek.jpg");
+    Loaded = true;
+  }
+
+
   Assert(ID);
   render_object* Object = PushNewRenderObject(RenderGroup);
   Object->ProgramHandle = Program;
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = MeshHandle;
-  Object->TextureCount = 0;
+  
+  Object->TextureCount = 4;
+  Object->TextureHandles[0] = AlbedoHandle;
+  Object->TextureHandles[1] = DisplacementHandle;
+  Object->TextureHandles[2] = NormalHandle;
+  Object->TextureHandles[3] = RoughnessHandle;
 
   m4 ModelView = ViewMatrix*ModelMat;
   m4 NormalView = Transpose(RigidInverse(ModelView));
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ProjectionMat"), ProjectionMatrix);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ModelView"), ModelView);
+
 
 
   asset::pbr_material* Material = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, ID);
@@ -727,6 +780,34 @@ void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id I
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "BaseColor"),  MetallicRoughness->BaseColorFactor);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Metalness"),  MetallicRoughness->MetallicFactor);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Roughness"),  MetallicRoughness->RoughnessFactor);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AlbedoMap"),  (u32) 0);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "DisplacementMap"),  (u32) 1);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalMap"),  (u32) 2);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "RoughnessMap"),  (u32) 3);
+
+  local_persist u32 T = 0;
+  u32 MaxT = 480;
+  u32 ImageCount = 4;
+
+  u32 Toggle = 0;
+  if(T <= 1*MaxT/ImageCount)
+  {
+    Toggle = 0;
+  }else if(T < 2*MaxT/ImageCount){
+    Toggle = 1;
+  }else if(T < 3*MaxT/ImageCount){
+    Toggle = 2;
+  }else if(T < 4*MaxT/ImageCount){
+    Toggle = 3;
+  }else{
+    T = 0;
+  }
+  T++;
+  Platform.DEBUGPrint("Toggle %d\n", Toggle);
+  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Toggle"),  (u32) Toggle );
+  
+
+
 
   // TODO: Statically Load several textures into the GPU and just draw each of them in turn. Switching in the shader based on some counter value.
   // Textures:
@@ -738,8 +819,7 @@ void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id I
   
 
 
-  Object->TextureCount = 1;
-  Object->TextureHandles[0] = GlobalState->ImguiContext.Icons.Atlas;
+  
 }
 static void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
   v3 LightDirection, v3 LightColor)

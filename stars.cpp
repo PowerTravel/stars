@@ -210,6 +210,11 @@ u32 CreateBRDFProgram(render_group* RenderGroup)
   AddUniform(RenderGroup, UniformType::V4, ProgramHandle,  "BaseColor");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Metalness");
   AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Roughness");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AlbedoMap");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "DisplacementMap");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "NormalMap");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RoughnessMap");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "Toggle");
   CompileShader(RenderGroup, ProgramHandle,
      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFVertex.glsl"),
      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFFragment.glsl"));
