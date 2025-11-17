@@ -102,7 +102,6 @@ namespace data {
   struct mesh_render_struct {
     render_group* RenderGroup;
     asset::pbr_material_id PbrMaterialID;
-    u32 ProgramHandle;
     u32 FrameBufferHandle;
     u32 GPUMeshHandle;
     m4 ModelMatrix;
@@ -132,6 +131,7 @@ namespace data {
     // Value is u32, Handle from the render system
     rb_tree MeshHandleMap;
     rb_tree TextureHandleMap;
+    rb_tree ProgramHandleMap;
     loaded_meshes MeshHandleMap2;
 
     u32* InternalTextures;

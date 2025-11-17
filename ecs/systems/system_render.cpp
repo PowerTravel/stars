@@ -1,6 +1,7 @@
 #include "ecs/systems/system_render.h"
 #include "asset_manager/gl_mapper.h"
 #include "cmn/list.h"
+#include "utils.h"
 
 extern ecs::render::system* GlobalRenderSystem;
 
@@ -726,109 +727,191 @@ file_local inline u32 DEBUGLoadImageFromDiskToGPU(const char* Path)
   asset::image AlbedoImage = DEBUGLoadImageFromDisk(Path);
   texture_params Params = DefaultColorTextureParams();
   Params.TextureFormat = texture_format::RGBA_U8;
-  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;  
+  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
   u32 Result = LoadImageToGpu(&AlbedoImage, Params);
   return Result;
 }
 
+struct pbr_program_definition {
+  bool AlbedoMap;
+  bool MetallicRoughnessMap;
+};
 
-void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id ID, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix, m4& ModelMat)
+int GetPBRProgramName(pbr_program_definition ProgramDefinition, size_t BufferSize, char* Buffer)
 {
+  int CharCount = FormatString(Buffer, BufferSize, "BRDF_%s",
+    ProgramDefinition.AlbedoMap ? "AlbedoMap" : "Albedo");
+  return CharCount;
+}
 
-  local_persist bool Loaded = false;
+u32 CreateBRDFProgram(render_group* RenderGroup, pbr_program_definition ProgramDefinition)
+{
+  char* ProgramName = PushArray(GlobalTransientArena, 1024, char);
+  GetPBRProgramName(ProgramDefinition, 1024*sizeof(char), ProgramName);
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, ProgramName);
 
-  local_persist u32 AlbedoHandle = 0;
-  #if 0
-  local_persist u32 MetalnessHandle = 0;
-  local_persist u32 DisplacementHandle = 0;
-  local_persist u32 NormalHandle = 0;
-  local_persist u32 RoughnessHandle = 0;
-  local_persist u32 AmbientOcclusionHandle = 0;
-  #endif
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ProjectionMat");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "View");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "Model");
+  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "NormalModel");
 
+  // Material properties as per model Constants
+  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "CamPos");
+  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "LightPos");
 
-  if(!Loaded)
-  {
-    AlbedoHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Color.jpg");
-    #if 0
-    MetalnessHandle = 0;
-    DisplacementHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Displacement.jpg");
-    NormalHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_NormalGL.jpg");    
-    RoughnessHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_Roughness.jpg");
-    AmbientOcclusionHandle = DEBUGLoadImageFromDiskToGPU("C:\\Users\\jh\\Documents\\dev\\stars\\data\\Materials\\paving_stones\\PavingStones150_1K-JPG_AmbientOcclusion.jpg");
-    #endif
+  char* Defines = PushArray(GlobalTransientArena, 1024, char);
+  FormatString(Defines, 1024*sizeof(char), 
+    "#version 330 core\n"
+    "#define ALBEDO_MAP %d\n"
+    "#define METALLIC_ROUGHNESS_MAP %d\n",
+    ProgramDefinition.AlbedoMap,
+    ProgramDefinition.MetallicRoughnessMap);
 
-    Loaded = true;
+  if(ProgramDefinition.AlbedoMap){
+    AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AlbedoMap");
+  }else{
+    AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "Albedo");
   }
+
+  if(ProgramDefinition.MetallicRoughnessMap)
+  { 
+    AddUniform(RenderGroup, UniformType::U32,  ProgramHandle, "MetallicRoughnessMap");
+  }else{
+    AddUniform(RenderGroup, UniformType::R32,  ProgramHandle, "Metalness");
+    AddUniform(RenderGroup, UniformType::R32,  ProgramHandle, "Roughness");
+  }
+
+  char* VertexHeaders = PushArray(GlobalTransientArena, 1, char);
+  *VertexHeaders = '\n';
+
+  char** VertexShaderCode = PushArray(GlobalTransientArena, 3, char*);
+  VertexShaderCode[0] = Defines;
+  VertexShaderCode[1] = VertexHeaders;
+  VertexShaderCode[2] = *LoadFileFromDisk("..\\jwin\\shaders\\BRDFVertex.glsl");
+  
+  char* FragmentHeaers = PushArray(GlobalTransientArena, 1, char);
+  *FragmentHeaers = '\n';
+
+  char** FragmentShaderCode = PushArray(GlobalTransientArena, 3, char*);
+  FragmentShaderCode[0] = Defines;
+  FragmentShaderCode[1] = FragmentHeaers;
+  FragmentShaderCode[2] = *LoadFileFromDisk("..\\jwin\\shaders\\BRDFFragment.glsl");
+
+  CompileShader(RenderGroup, ProgramHandle,
+     3,  VertexShaderCode,
+     3,  FragmentShaderCode);
+  return ProgramHandle;
+}
+
+u32 GetOrCreatePBRProgram(render_group* RenderGroup, pbr_program_definition PBRDefinition)
+{
+  char ProgramName[1024] = {};
+  u32 Result = 0;
+  u32 ProgramHash = cmn::utils::SuperFastHash( (char*) &PBRDefinition, sizeof(pbr_program_definition));
+  u32* ProgramHandlePtr = (u32*) Find(&GlobalRenderSystem->ProgramHandleMap, ProgramHash);
+  if(!ProgramHandlePtr)
+  {
+    Result = CreateBRDFProgram(RenderGroup, PBRDefinition);
+    SetHandle(&GlobalRenderSystem->ProgramHandleMap, ProgramHash, Result);
+  }else{
+    Result = *ProgramHandlePtr;
+  }
+  return Result;
+}
+
+pbr_program_definition GetPBRProgramDefinitionFromPBRMaterial(asset::pbr_material* Material)
+{
+  pbr_program_definition Definition = {};
+  if(Material)
+  {
+    if(Material->HasMetallicRoughness)
+    {
+      if(Material->MetallicRoughness.HasBaseColorTexture)
+      {
+        Definition.AlbedoMap = true;
+      }
+
+      if(Material->MetallicRoughness.HasMetallicRoughnessTexture)
+      {
+        Definition.MetallicRoughnessMap = true;
+      }
+    }
+  }
+
+  return Definition;
+}
+
+void SetMaterialUniforms(render_group* RenderGroup, render_object* Object, asset::pbr_material* Material)
+{
+  
+  float v =  (1 + Sin(GlobalTime/Tau32))*0.5;
+  float s =  (1 + Cos(GlobalTime/Tau32))*0.5;
+
+
+
+  Object->TextureCount = 0;
+  if(!Material)
+  {
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Albedo"),     V3(0.7, 1, 0.7));
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Metalness"),  (r32) 0.5);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Roughness"),  (r32) 0.5);
+  }else{
+    Assert(Material);
+    if(Material->HasMetallicRoughness)
+    {
+      asset::pbr_material::metallic_roughness* MetallicRoughness = &Material->MetallicRoughness;
+
+      if(MetallicRoughness->HasBaseColorTexture) {
+        u32 AlbedoHandle = Get32BitTextureHandle(&MetallicRoughness->BaseColorTexture);
+        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AlbedoMap"), (u32) Object->TextureCount);
+        Object->TextureHandles[Object->TextureCount] = AlbedoHandle;
+        Object->TextureCount++;
+      }else{
+        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Albedo"),  MetallicRoughness->BaseColorFactor);
+      }
+
+      if(MetallicRoughness->HasMetallicRoughnessTexture)
+      {
+        u32 MetallicRoughnessTextureHandle = Get32BitTextureHandle(&MetallicRoughness->BaseColorTexture);
+        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MetallicRoughnessMap"), (u32) Object->TextureCount);
+        Object->TextureHandles[Object->TextureCount] = MetallicRoughnessTextureHandle;
+        Object->TextureCount++;
+      } else {
+        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Metalness"),  MetallicRoughness->MetallicFactor);
+        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Roughness"),  MetallicRoughness->RoughnessFactor);
+      }
+    }
+  }
+}
+
+void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id ID, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix, m4& ModelMat)
+{
+  asset::pbr_material* Material = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, ID);
+
+  pbr_program_definition PBRDefinition = GetPBRProgramDefinitionFromPBRMaterial(Material);
+
+  u32 ProgramHandle = GetOrCreatePBRProgram(RenderGroup, PBRDefinition);
 
 
   render_object* Object = PushNewRenderObject(RenderGroup);
-  Object->ProgramHandle = Program;
+  Object->ProgramHandle = ProgramHandle;
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = MeshHandle;
-  
-  Object->TextureCount = 1;
-  Object->TextureHandles[0] = AlbedoHandle;
-  //Object->TextureHandles[1] = MetalnessHandle;
-  //Object->TextureHandles[2] = DisplacementHandle;
-  //Object->TextureHandles[3] = NormalHandle;
-  //Object->TextureHandles[4] = RoughnessHandle;
-  //Object->TextureHandles[5] = AmbientOcclusionHandle;
-  
+
   m4 NormalModel = Transpose(RigidInverse(ModelMat));
-
-
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "ProjectionMat"), ProjectionMatrix);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "View"), ViewMatrix);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Model"), ModelMat);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalModel"), NormalModel);
 
-  // Material properties as per model Constants
+  SetMaterialUniforms(RenderGroup, Object, Material);
 
-  float Period = 4; // Seconds
-  float Freq = GlobalTime * Tau32;
-  float Phase = Pi32*0.5;
-  float Amplitude = 1;
-
-  float s = Amplitude*0.5*(1+Sin(Freq / Period - Phase));
-  
-
-
-  float LightIntensity = 100;
   v3 LightPos   = V3(10,10,10);
   m4 CamToWorld = RigidInverse(ViewMatrix);
   v3 CamPos = V3(Column(CamToWorld,3));
 
-  //Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f, %1.2f, %1.2f\n", GlobalTime, s, CamPos.X,CamPos.Y,CamPos.Z);
-  v3 Albedo     = V3(0.5,0.8,0.3);
-  float Metalness = 0.0;
-  float Roughness = 1;
-
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "CamPos"),     CamPos);
   PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightPos"),   LightPos);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Albedo"),     Albedo);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Metalness"),  Metalness);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Roughness"),  Roughness);
-
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AlbedoMap"),           (u32) 0);
-  #if 0
-  // Material properties as Textures
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MetalnessMap"),        (u32) 1);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "DisplacementMap"),     (u32) 2);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalMap"),           (u32) 3);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "RoughnessMap"),        (u32) 4);
-  PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "AmbientOcclusionMap"), (u32) 5);
-  #endif
-
-/*
-  Assert(ID);
-  asset::pbr_material* Material = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, ID);
-  Assert(Material);
-  Assert(Material->HasMetallicRoughness);
-  asset::pbr_material::metallic_roughness* MetallicRoughness = &Material->MetallicRoughness;
-*/
-
-
   
 }
 static void PushRenderObject(render_group* RenderGroup, component* Render, u32 Program, u32 FrameBuffer, m4& ProjectionMatrix, m4& ViewMatrix,
@@ -1045,7 +1128,6 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
           RenderMesh->RenderGroup,
           RenderMesh->GPUMeshHandle,
           RenderMesh->PbrMaterialID,
-          RenderMesh->ProgramHandle,
           RenderMesh->FrameBufferHandle, 
           ProjectionMatrix,
           ViewMatrix,
@@ -1433,6 +1515,7 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   Result->RenderHandles    = NewChunkList(GlobalPersistentArena, sizeof(u32), 128);
   Result->MeshHandleMap    = NewRBTree(GlobalPersistentArena, 64, 64);
   Result->TextureHandleMap = NewRBTree(GlobalPersistentArena, 64, 64);
+  Result->ProgramHandleMap = NewRBTree(GlobalPersistentArena, 64, 64);
 
   Result->MeshHandleMap2      = loaded_meshes::Create();
 //Result->LoadedMeshHandles = cmn::list<loaded_mesh_handle>::Create();
@@ -1813,7 +1896,6 @@ void DrawMesh( asset::mesh_id ID, const m4& Transform)
 
     mesh_render_struct RenderStruct = {};
     RenderStruct.RenderGroup = GlobalRenderCommands->RenderGroup;
-    RenderStruct.ProgramHandle = GlobalState->BRDFProgram;
     RenderStruct.FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
     RenderStruct.GPUMeshHandle = Primitive->LoadedPrimitiveID;
     RenderStruct.PbrMaterialID = Primitive->Primitive->PbrMaterial;

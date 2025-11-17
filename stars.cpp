@@ -199,66 +199,6 @@ u32 CreatePhongTransparentProgram(render_group* RenderGroup)
   return ProgramHandle;
 }
 
-
-u32 CreateBRDFProgram(render_group* RenderGroup)
-{
-  /*
-
-Vertex Shader uniforms 
-  uniform mat4 ProjectionMat;
-  uniform mat4 View;
-  uniform mat4 Model;
-  uniform mat4 NormalModel;
-
-
-Fragment Shader uniforms 
-  uniform CamPos; // WorldSpace 
-  uniform LightPos; // WorldSpace
-
-  uniform vec3  Albedo;
-  uniform float Metalness;
-  uniform float Roughness;
-  uniform float Displacement;
-  uniform float AmbientOcclusion;
-
-  uniform sampler2D AlbedoMap;
-  uniform sampler2D MetalnessMap;
-  uniform sampler2D DisplacementMap;
-  uniform sampler2D NormalMap;
-  uniform sampler2D RoughnessMap;
-  uniform sampler2D AmbientOcclusionMap;
-  */
-
-  u32 ProgramHandle = NewShaderProgram(RenderGroup, "BRDFProgram");
-
-  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "ProjectionMat");
-  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "View");
-  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "Model");
-  AddUniform(RenderGroup, UniformType::M4, ProgramHandle, "NormalModel");
-
-  // Material properties as per model Constants
-  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "CamPos");
-  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "LightPos");
-  AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "Albedo");
-  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Metalness");
-  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "Roughness");
-
-
-  // Material properties as Textures
-  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AlbedoMap");
-  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "MetalnessMap");
-  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "DisplacementMap");
-  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "NormalMap");
-  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "RoughnessMap");
-  //AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "AmbientOcclusionMap");
-
-  CompileShader(RenderGroup, ProgramHandle,
-     1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFVertex.glsl"),
-     1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFFragment.glsl"));
-  return ProgramHandle;
-}
-
-
 u32 CreatePlaneStarProgram(render_group* RenderGroup)
 {
   u32 ProgramHandle = NewShaderProgram(RenderGroup, "StarPlane");
@@ -1244,7 +1184,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GlobalAssetManager   = GlobalState->AssetManager;
   GlobalEntityManager  = GlobalState->World.EntityManager;
 
-
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
   ImguiBegin(Input);
@@ -1266,14 +1205,12 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
     LinkedMemoryUnitTests(GlobalTransientArena);
 
-
     ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
 
     render_group* RenderGroup = RenderCommands->RenderGroup;
     // This memory only needs to exist until the data is loaded to the GPU
     GlobalState->PhongProgram = CreatePhongProgram(RenderGroup);
     GlobalState->PhongProgramTransparent = CreatePhongTransparentProgram(RenderGroup);
-    GlobalState->BRDFProgram = CreateBRDFProgram(RenderGroup);
     GlobalState->PlaneStarProgram = CreatePlaneStarProgram(RenderGroup);
     GlobalState->SolidColorProgram = CreateSolidColorProgram(RenderGroup);
     GlobalState->EruptionBandProgram = CreateEruptionBandProgram(RenderGroup);
@@ -1530,9 +1467,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     CompileShader(RenderGroup, GlobalState->LineRenderProgram,
       1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramVertex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramFragment.glsl"));
-    CompileShader(RenderGroup, GlobalState->BRDFProgram,
-      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFVertex.glsl"),
-      1, LoadFileFromDisk("..\\jwin\\shaders\\BRDFFragment.glsl"));
   }
 
 
