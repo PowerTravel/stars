@@ -1293,6 +1293,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       }
 #endif
 
+
       { // Transparent Cube
         asset::mesh* Mesh = MeshFromTree("Cube");
 

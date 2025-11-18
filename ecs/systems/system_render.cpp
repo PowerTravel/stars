@@ -34,7 +34,7 @@ static u32 LoadMeshToGpu(u32 AssetKey, opengl_buffer_data* BufferDataPtr) {
   return IndexHandle;
 }
 
-static u32 GetMeshHandle(asset::key AssetKey)
+u32 GetMeshHandle(asset::key AssetKey)
 {
   u32* Handle = (u32*) Find(&GlobalRenderSystem->MeshHandleMap, AssetKey);
   u32 Result = 0;
@@ -51,15 +51,17 @@ static u32 GetMeshHandle(asset::key AssetKey)
     opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Mesh);
     Result = ecs::render::LoadMeshToGpu(AssetKey, &glBufferData);
   }
+  Assert(Result);
   return Result;
 }
 
 u32 GetMeshHandle(const c8* Name)
 {
-  u32 AssetKey = asset::ToKey(asset::type::RENDER_TREE, Name);
-  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
-  Assert(Tree->NodeCount == 1);
-  u32 Handle = GetMeshHandle(Tree->Root->Mesh);
+  u32 AssetKey = asset::ToKey(asset::type::RENDER_TREE_2, Name);
+  asset::render_tree_2* Tree = (asset::render_tree_2*) asset::Find(asset::type::RENDER_TREE_2, Name);
+  Assert(Tree->NodeCount() == 1);
+  u32 Handle = GetMeshHandle(Tree->m_root->Data->Mesh);
+  Assert(Handle);
   return Handle;
 }
 
@@ -552,7 +554,7 @@ void DrawIconPixelSpace(system* System, rect2f PixelRect, v4 TextureCoords, v4 C
   Quad.Color = Color;
   Quad.ModelMatrix = ModelMatrix;
  
-  data::render_level* RenderLevel = GetTopRenderLevel(System); 
+  data::render_level* RenderLevel = GetTopRenderLevel(System);
   chunk_list* QuadBuffer = GetOverlayIcon(System, RenderLevel);
   Push(&System->Arena, QuadBuffer, (bptr)&Quad);
 }
@@ -918,20 +920,8 @@ static void PushRenderObject(render_group* RenderGroup, component* Render, u32 P
   entity_id EntityId = GetEntityIDFromComponent( (bptr) Render );
   ecs::position::component* Position =  GetPositionComponent(&EntityId);
 
-  u32 MeshHandle = 0;
-  if(Render->MeshHandle)
-  {
-    MeshHandle = Render->MeshHandle;
-    
-  }else if (Render->RenderTreeHandle)
-  {
-    asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Render->RenderTreeHandle);
-    // Todo: This is just to make 1 gltf-file work.
-    asset::key MeshKey = RenderTree->Root->FirstChild->Mesh;
-    Assert(MeshKey);
-    //asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::RENDER_TREE, MeshKey);
-    MeshHandle = GetMeshHandle(MeshKey);
-  }
+  u32 MeshHandle = Render->MeshHandle;
+  Assert(Render->MeshHandle);
   
   m4 ModelMat = GetModelMatrix(Position);
 
@@ -945,6 +935,7 @@ static void PushRenderObject(render_group* RenderGroup, component* Render, u32 P
   
   u32 TextureCount = 0;
   u32 TextureHandle = 0;
+  Assert(Render->PhongMaterialHandle);
   if(Render->PhongMaterialHandle)
   {
     asset::phong_material* PhongMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, Render->PhongMaterialHandle);
@@ -967,23 +958,6 @@ static void PushRenderObject(render_group* RenderGroup, component* Render, u32 P
       asset::image* Image = (asset::image*) Find(asset::type::IMAGE, ImageHandle);
       TextureCount = 1;
       TextureHandle = Get32BitTextureHandle(ImageHandle);
-    }
-  }else if (Render->RenderTreeHandle)
-  {
-    asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Render->RenderTreeHandle);
-    Assert(RenderTree->Root->FirstChild->Mesh);
-    asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, RenderTree->Root->FirstChild->Mesh);
-    Assert(Mesh->PrimitiveCount == 1);
-    asset::pbr_material* PbrMaterial = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, Mesh->Primitives[0].PbrMaterial);
-    Assert(PbrMaterial);
-    Assert(PbrMaterial->HasMetallicRoughness);
-    Diffuse = PbrMaterial->MetallicRoughness.BaseColorFactor;
-
-    if(PbrMaterial->MetallicRoughness.HasBaseColorTexture)
-    {
-      asset::texture* Texture = &PbrMaterial->MetallicRoughness.BaseColorTexture;
-      TextureCount = 1;
-      TextureHandle = Get32BitTextureHandle(Texture);
     }
   }
 

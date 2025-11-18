@@ -210,54 +210,6 @@ namespace mapper {
     return asset::mesh::primitive::topology::TRIANGLES;
   }
 
-  void MapChildNodes(
-    size_t NodeIndex,
-    size_t ChildCount,
-    asset::render_tree::node* NodeArray,
-    asset::render_tree::node* Parent) 
-  {
-
-    u32 FirstChildIndex = NodeIndex;
-    u32 LastChildIndex  = NodeIndex + ChildCount;
-
-    for (int i = FirstChildIndex; i < LastChildIndex; ++i)
-    {
-      asset::render_tree::node* Child = &NodeArray[i];
-      Child->Parent = Parent;
-      if(i == FirstChildIndex)
-      {
-        Child->Parent->FirstChild = Child;
-      }
-      if(i < LastChildIndex-1)
-      {
-        Child->NextSibling = &NodeArray[i];
-        Child->NextSibling->PreviousSibling = Child;
-      }
-      if(i == FirstChildIndex-1)
-      {
-        Child->PreviousSibling = &NodeArray[i-1];
-      }
-    }
-  }
-
-  void CopyTransforms(asset::render_tree::node* Node, gltf::raw_node* RawNode)
-  {
-    switch(RawNode->TransformationType){
-      case gltf::raw_node::transformation_type::TRS:{
-        Node->HasTransform = true;
-        Node->Transform = GetModelMatrix(RawNode->Translation, RawNode->Rotation, RawNode->Scale);
-      }break;
-      case gltf::raw_node::transformation_type::MATRIX:{
-        Node->HasTransform = true;
-        Node->Transform = RawNode->Matrix;
-      }break;
-      default :{
-        Node->HasTransform = false;
-        Node->Transform = M4Identity();
-      } break;
-    }
-  }
-
   void CopyTransforms2(asset::render_tree_data* Data, gltf::raw_node& RawNode)
   {
     switch(RawNode.TransformationType){
@@ -322,47 +274,6 @@ namespace mapper {
     }
 
     return Result;
-  }
-
-  asset::render_tree::node* ToNodes(size_t NodeCount, asset::render_tree::node* Nodes, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
-  {
-    node_queue Queue = NodeQueue(NodeCount);
-    Push(Queue, RawRootNodeIndex, 0);
-    
-    size_t NodeHeadIndex = 1;
-    while(!IsEmpty(Queue))
-    {
-      node_queue::pair NodeIndexPair = Pop(Queue);
-      int RawNodeIndex = NodeIndexPair.RawNodeIndex;
-      gltf::raw_node* RawNode = &RawNodes[RawNodeIndex];
-
-      int NodeIndex = NodeIndexPair.NodeIndex;
-      asset::render_tree::node* Node = &Nodes[NodeIndex];
-
-      CopyTransforms(Node,RawNode);
-      if(RawNode->Mesh)
-      {
-        Node->Mesh = LoadedMeshes[*RawNode->Mesh];
-      }
-
-      if(RawNode->Camera)
-      {
-        Node->Camera = LoadedCameras[*RawNode->Camera];
-      }
-
-      Node->ChildCount = RawNode->ChildCount;
-      InitiateChildNodes(Node, Node->ChildCount, Nodes+NodeHeadIndex);
-
-      
-
-      for (int i = 0; i < RawNode->ChildCount; ++i)
-      {
-        int RawChildIndex = RawNode->Children[i];
-        Push(Queue, RawChildIndex, NodeHeadIndex++);
-      }
-    }
-
-    return Nodes;
   }
 
   size_t GetTreeNodeCount(int RootNodeIndex, size_t RawNodeCount, gltf::raw_node* RawNodes)

@@ -231,61 +231,6 @@ namespace asset {
 
   typedef cmn::n_tree<render_tree_data> render_tree_2;
 
-  struct render_tree { // render_asset_id
-
-    struct node {
-
-      size_t ChildCount;
-      node* Parent;
-      node* NextSibling;
-      node* PreviousSibling;
-      node* FirstChild;
-
-      mesh_id Mesh;
-      camera_id Camera;
-
-      bool HasTransform;
-      m4 Transform;
-    };
-
-    size_t NodeCount;
-    node* Nodes;
-
-    node* Root;
-  };
-
-  void InitiateChildNodes(render_tree::node* Parent, size_t ChildCount, render_tree::node* Children)
-  {  
-    if(ChildCount == 0) {
-      return;
-    }
-    else if(ChildCount == 1)
-    {
-      Parent->FirstChild = Children;
-      Parent->FirstChild->Parent = Parent;
-    }
-    else
-    {
-      Parent->FirstChild = Children;
-      for (int i = 0; i < ChildCount; ++i)
-      {
-        render_tree::node* Child = &Children[i];
-        Child->Parent = Parent;
-
-        if(i > 0)
-        {
-          Child->PreviousSibling = &Children[i-1];
-        }
-
-        if(i < ChildCount-1)
-        {
-          Child->NextSibling = &Children[i+1];
-        }
-      }
-    }
-  }
-
-
   // A package is a collection of assets grouped by being loaded by the same base file such as OBJ or GLTF.
   // Files like PNGs or similar do not get a package file.
   struct package {

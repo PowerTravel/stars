@@ -543,16 +543,6 @@ camera* LoadCamera(const c8* UniqueName, const camera* Camera, key* ResultKey)
   return Result;
 }
 
-static size_t GetRenderTreeSize(const render_tree* RenderTree)
-{
-  size_t StructSize = sizeof(render_tree);
-  size_t NodeSize = RenderTree->NodeCount * sizeof(render_tree::node);
-  size_t Result = StructSize + NodeSize;
-  return Result;
-}
-
-
-
 CMN_MALLOC_FUNCTION(AssetManager_Alloc){
   return Allocate(&GlobalAssetManager->Memory, sz);
 }

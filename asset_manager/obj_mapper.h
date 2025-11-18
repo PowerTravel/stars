@@ -375,16 +375,6 @@ static asset::render_tree_2 CreateRenderTree2(asset::mesh_id MeshId)
   return Result;
 }
 
-static asset::render_tree CreateRenderTree(asset::mesh_id MeshId)
-{
-  asset::render_tree Result = {};
-  Result.NodeCount  = 1;
-  Result.Nodes      = PushArray(GlobalTransientArena, Result.NodeCount, asset::render_tree::node);
-  Result.Root       = Result.Nodes;
-  Result.Root->Mesh = MeshId;
-  return Result;
-}
-
 static void* TransientAllocator(uint32_t MemorySize) {
   void* Result = PushSize(GlobalTransientArena, MemorySize);
   return Result;
@@ -426,12 +416,6 @@ asset::package_id LoadObj(const c8* Path, const c8* UniqueName)
   asset::render_tree_2 RenderTree2 = CreateRenderTree2(Package.Meshes[0]);
   asset::LoadRenderTree2(UniqueName, Path, &RenderTree2, Package.RenderTrees2);
   
-#if 0
-  Package.RenderTreeCount = 1;
-  Package.RenderTrees = PushArray(GlobalTransientArena, Package.RenderTreeCount, asset::render_tree_id);
-  asset::render_tree RenderTree = CreateRenderTree(Package.Meshes[0]);
-  asset::LoadRenderTree(UniqueName, Path, &RenderTree, Package.RenderTrees);
-#endif
   asset::package_id ResultKey = 0;
   asset::LoadPackage(UniqueName, Path, &Package, &ResultKey);
 

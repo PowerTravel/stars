@@ -63,10 +63,6 @@ header* ToHeader(phong_material* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
-header* ToHeader(render_tree* Asset) {
-  return (header*) RetreatByType(Asset, header);
-}
-
 c8* CreateUniqueName(const c8* Prefix, const c8* Name, const c8* Postfix, u32 Index = 0, u32 MaxCount = 0);
 key ToKey(type Type, const c8* UniqueName);
 void* Find(type Type, key Key);
