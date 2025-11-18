@@ -553,112 +553,6 @@ static size_t GetRenderTreeSize(const render_tree* RenderTree)
 
 
 
-struct node_queue {
-  size_t Count;
-  size_t TotCount;
-  render_tree::node** Queue;
-};
-
-node_queue NodeQueue(size_t Size)
-{
-  node_queue Result = {}; 
-  Result.Count = 0;
-  Result.TotCount = Size; 
-  Result.Queue = PushArray(GlobalTransientArena, Size, render_tree::node*);
-  return Result;
-}
-
-bool IsEmpty(node_queue& Queue)
-{
-  bool Result = Queue.Count == 0;
-  return Result;
-}
-
-void Push(node_queue& Queue, render_tree::node* Value)
-{
-  Queue.Queue[Queue.Count++] = Value;
-}
-
-render_tree::node* Pop(node_queue& Queue)
-{
-  Assert(Queue.Count > 0);
-  if(Queue.Count == 0) return 0;
-  render_tree::node* Result = Queue.Queue[--Queue.Count];
-  Queue.Queue[Queue.Count+1] = 0;
-  return Result;
-}
-
-void CopyTransforms(render_tree::node* Src, render_tree::node* Dst)
-{
-  Dst->HasTransform = Src->HasTransform;
-  Dst->Transform    = Src->Transform;
-}
-
-void CopyRenderTree(const render_tree* Src, render_tree* Dst, size_t RenderTreeSize)
-{
-  bptr MemScan = AdvanceBytePointer(Dst, sizeof(render_tree));
-  
-  size_t NodeCount = Src->NodeCount;
-  Dst->NodeCount = NodeCount;
-  Dst->Nodes = (render_tree::node*) MemScan;
-  size_t NodesSize = NodeCount * sizeof(render_tree::node);
-  MemScan = AdvanceBytePointer(MemScan, NodesSize);
-
-  Assert((MemScan - ((bptr) Dst)) == RenderTreeSize);
-
-  Dst->Root = &Dst->Nodes[0];
-  node_queue SrcQueue = NodeQueue(NodeCount);
-  node_queue DstQueue = NodeQueue(NodeCount);
-  Push(SrcQueue, Src->Root);
-  Push(DstQueue, Dst->Root);
-  
-  size_t NodeHeadIndex = 1;
-  while(!IsEmpty(SrcQueue) && !IsEmpty(DstQueue))
-  {
-    render_tree::node* DstNode = Pop(DstQueue);
-    render_tree::node* SrcNode = Pop(SrcQueue);
-
-    DstNode->ChildCount = SrcNode->ChildCount;
-    DstNode->Mesh = SrcNode->Mesh;
-    DstNode->Camera = SrcNode->Camera;
-    CopyTransforms(SrcNode, DstNode);
-
-    InitiateChildNodes(DstNode, DstNode->ChildCount, Dst->Nodes + NodeHeadIndex);
-    NodeHeadIndex += DstNode->ChildCount;
-
-    render_tree::node* SrcChild = SrcNode->FirstChild;
-    while(SrcChild)
-    {
-      Push(SrcQueue,SrcChild);
-      SrcChild = SrcChild->NextSibling;
-    }
-
-    render_tree::node* DstChild = DstNode->FirstChild;
-    while(DstChild)
-    {
-      Push(DstQueue, DstChild);
-      DstChild = DstChild->NextSibling;
-    }
-  }
-
-  Assert(IsEmpty(SrcQueue) && IsEmpty(DstQueue));
-}
-
-render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, const render_tree* RenderTree, key* ResultKey)
-{
-  midx RenderTreeSize = GetRenderTreeSize(RenderTree);
-  header* Header = CreateHeader(type::RENDER_TREE, UniqueName, UniqueName, Path, RenderTreeSize);
-  render_tree* Result = (render_tree*) Header->Data;
-
-  CopyRenderTree(RenderTree, Result, RenderTreeSize);
-  
-  if(ResultKey)
-  {
-    *ResultKey = Header->Key;
-  }
-  return Result;
-}
-
 CMN_MALLOC_FUNCTION(AssetManager_Alloc){
   return Allocate(&GlobalAssetManager->Memory, sz);
 }
@@ -693,9 +587,8 @@ size_t GetPackageSize(const package* Package)
   size_t CamerasSize = sizeof(camera_id*) * Package->CameraCount;
   size_t ImagesSize = sizeof(image_id*) * Package->ImageCount;
   size_t MeshSize = sizeof(mesh_id*) * Package->MeshCount;
-  size_t RenderTreesSize = sizeof(render_tree_id*) * Package->RenderTreeCount;
   size_t RenderTreesSize2 = sizeof(render_tree_id*)* Package->RenderTreeCount2;
-  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + MeshSize + RenderTreesSize + RenderTreesSize2;
+  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + MeshSize + RenderTreesSize2;
   return Result;
 }
 
@@ -739,9 +632,6 @@ void CopyPackage(const package* Src, package* Dst)
   
   MemScan = CopyData(Src->RenderTreeCount2, sizeof(render_tree_id*), (uint8_t*) Src->RenderTrees2,
                      &Dst->RenderTreeCount2, (uint8_t**) &Dst->RenderTrees2,         MemScan);
-
-  MemScan = CopyData(Src->RenderTreeCount, sizeof(render_tree_id*), (uint8_t*) Src->RenderTrees,
-                     &Dst->RenderTreeCount, (uint8_t**) &Dst->RenderTrees,         MemScan);
 
   Assert((MemScan - (uint8_t*) Dst) == GetPackageSize(Src));
 }

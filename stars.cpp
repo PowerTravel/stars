@@ -61,18 +61,18 @@ void __jwin__FreeFileMemory(void* FileDataToFree)
 
 #define SPOTCOUNT 200
 
-file_local inline void Initiate(asset::key RenderTreeKey, ecs::render::component* Render)
+file_local inline void Initiate(asset::render_tree_id RenderTreeKey, ecs::render::component* Render)
 {
-  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeKey);
-  Assert(Tree->NodeCount == 1); // We don't support rendering big node hierarchy (yet)
-  Assert(Tree->Root->Mesh);
+  asset::render_tree_2* Tree = (asset::render_tree_2*) asset::Find(asset::type::RENDER_TREE_2, RenderTreeKey);
+  Assert(Tree->NodeCount() == 1); // We don't support rendering big node hierarchy (yet)
+  Assert(Tree->m_root->Data->Mesh);
 
-  asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
+  asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, Tree->m_root->Data->Mesh);
 
   Assert(Mesh->PrimitiveCount == 1);
   if(Mesh->Primitives->PhongMaterial)
   {
-    ecs::render::Init(Tree->Root->Mesh, Mesh->Primitives->PhongMaterial, Render);
+    ecs::render::Init(Tree->m_root->Data->Mesh, Mesh->Primitives->PhongMaterial, Render);
   }else if(Mesh->Primitives->PbrMaterial){
     ecs::render::Init2(RenderTreeKey, Render);
   }
@@ -757,6 +757,7 @@ world InitiateWorld(application_render_commands* RenderCommands)
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
   Result.RenderSystem = ecs::render::CreateRenderSystem(RenderCommands->RenderGroup, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height, RenderCommands);
+  Result.Renderer = render::Create(RenderCommands->RenderGroup);
 
   return Result;
 }
@@ -998,9 +999,10 @@ void DrawAllRenderObjects()
 
 asset::mesh* MeshFromTree(const c8* Name)
 {
-  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
-  Assert(Tree->NodeCount == 1); // other thhings not supported yet
-  asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, Tree->Root->Mesh);
+  asset::package* Package = (asset::package*) asset::Find(asset::type::PACKAGE, Name);
+  asset::render_tree_2* Tree = (asset::render_tree_2*) asset::Find(asset::type::RENDER_TREE_2, Name);
+  Assert(Tree->NodeCount() == 1);
+  asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, Tree->m_root->Data->Mesh);
   return Mesh;
 }
 
@@ -1312,7 +1314,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
       
-        Initiate(asset::ToKey(asset::type::RENDER_TREE, "checker_plane_simple"), GetRenderComponent(&Entity));
+        Initiate(asset::ToKey(asset::type::RENDER_TREE_2, "checker_plane_simple"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);

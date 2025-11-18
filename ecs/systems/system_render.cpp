@@ -1515,7 +1515,6 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   Result->ProgramHandleMap = NewRBTree(GlobalPersistentArena, 64, 64);
 
   Result->MeshHandleMap2      = loaded_meshes::Create();
-//Result->LoadedMeshHandles = cmn::list<loaded_mesh_handle>::Create();
 
   jfont::sdf_atlas* FontAtlas = &Result->Font.FontAtlas;
 

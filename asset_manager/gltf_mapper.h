@@ -422,48 +422,6 @@ namespace mapper {
 
     return Result;
   }
-  // Note: The node hierarchy make up a set of disjoint strict trees which means they are free of cycles and each node must have zero or one parent node.
-  //       Nodes with 0 parents are root nodes. The same root node may appear in multiple scenes.
-  //       I'm assuming this means each child node only appears once.
-  asset::key* ToRenderTrees(const c8* Name, const c8* Path, gltf::raw_gltf_data* RawGltfData, size_t* RetKeyCount, asset::key* LoadedMeshes, asset::key* LoadedCameras)
-  {
-    const size_t RawNodeCount = RawGltfData->RawNodeCount;
-    gltf::raw_node* RawNodes = RawGltfData->RawNodes;
-
-    size_t RootCount = 0;
-    int* RootNodeIndeces = PushArray(GlobalTransientArena,RawNodeCount, int);
-    bool* RootNodeTracker = PushArray(GlobalTransientArena,RawNodeCount, bool);
-    for (int i = 0; i < RawGltfData->RawSceneCount; ++i)
-    {
-      gltf::raw_scene* RawScene = &RawGltfData->RawScenes[i];
-      for (int j = 0; j < RawScene->NodeCount; ++j)
-      {
-        int RootNodeIndex = RawScene->Nodes[j];
-        if(!RootNodeTracker[RootNodeIndex])
-        {
-          RootNodeIndeces[RootCount++] = RootNodeIndex;
-          RootNodeTracker[RootNodeIndex] = true;
-        }
-      }
-    }
-
-    asset::key* Result = PushArray(GlobalTransientArena, RootCount, asset::key);
-    *RetKeyCount = RootCount;
-    for (int i = 0; i < RootCount; ++i)
-    {
-      asset::render_tree Tree = {};
-      int RootNodeIndex = RootNodeIndeces[i];
-      Tree.NodeCount   = GetTreeNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
-      Tree.Nodes       = PushArray(GlobalTransientArena,Tree.NodeCount, asset::render_tree::node);
-      Tree.Root        = ToNodes(Tree.NodeCount, Tree.Nodes, RootNodeIndex, RawNodes, LoadedMeshes, LoadedCameras);
-
-      c8* UnqName = asset::CreateUniqueName("",Name,"", i, RootCount);
-
-      asset::LoadRenderTree(UnqName, Path, &Tree, &Result[i]);
-    }
-
-    return Result;
-  }
 
   asset::mesh ToMesh(gltf::raw_mesh* RawMesh, asset::key* LoadedMaterials){
     
@@ -605,8 +563,6 @@ namespace mapper {
         asset::LoadCamera(Name, &Camera, &Package.Cameras[i]);
       }
     }
-
-    Package.RenderTrees = ToRenderTrees(UniqueName, Path, RawGltfData, &Package.RenderTreeCount, Package.Meshes, Package.Cameras);
 
     Package.RenderTrees2 = ToRenderTrees2(UniqueName, Path,  RawGltfData, &Package.RenderTreeCount2, Package.Meshes, Package.Cameras);  
     asset::package_id Result = 0;

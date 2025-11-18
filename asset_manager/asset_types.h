@@ -308,7 +308,5 @@ namespace asset {
     render_tree_id* RenderTrees2;
 
     size_t DefaultRenderTree;
-    size_t RenderTreeCount;
-    render_tree_id* RenderTrees;
   };
 }
