@@ -24,7 +24,6 @@ namespace asset {
     PHONG_MATERIAL,
     PBR_MATERIAL,
     RENDER_TREE,
-    RENDER_TREE_2,
     CAMERA,
     PACKAGE,
   };
@@ -37,8 +36,7 @@ namespace asset {
       case type::MESH:           return "MESH";
       case type::PHONG_MATERIAL: return "PHONG_MATERIAL";
       case type::PBR_MATERIAL:   return "PBR_MATERIAL";
-      case type::RENDER_TREE:    return "RENDER_TREE";
-      case type::RENDER_TREE_2:  return "RENDER_TREE_2";
+      case type::RENDER_TREE:  return "RENDER_TREE";
       case type::CAMERA:         return "CAMERA";
       case type::PACKAGE:        return "PACKAGE";  
       default: {
@@ -77,10 +75,10 @@ namespace asset {
     enum class wrap {
       CLAMP_TO_EDGE,
       MIRRORED_REPEAT,
-      REPEAT,
+      REPEAT
     };
 
-    image_id Image; // required // TODO: Change back to using a imgage handle.
+    image_id Image;
     //            Reason: Since the asset-api works such that it takes a loadable asset and copies the struct into the asset_manager memory,
     //                    we don't know if this image is loaded into _our_ memory or not unless we use a handle.
     int TexCoord; // required - References the mesh the material is attached to
@@ -229,7 +227,7 @@ namespace asset {
     m4 Transform;
   };
 
-  typedef cmn::n_tree<render_tree_data> render_tree_2;
+  typedef cmn::n_tree<render_tree_data> render_tree;
 
   // A package is a collection of assets grouped by being loaded by the same base file such as OBJ or GLTF.
   // Files like PNGs or similar do not get a package file.
@@ -249,8 +247,8 @@ namespace asset {
     size_t MeshCount;
     mesh_id* Meshes;
 
-    size_t RenderTreeCount2;
-    render_tree_id* RenderTrees2;
+    size_t RenderTreeCount;
+    render_tree_id* RenderTrees;
 
     size_t DefaultRenderTree;
   };

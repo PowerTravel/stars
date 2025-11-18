@@ -129,9 +129,6 @@ void FreeAsset(header* Header)
       // LoadGLVertexBuffer allocates the whole mesh as a contious block
       FreeMemory(&GlobalAssetManager->Memory, Header);
     }break;
-    case type::RENDER_TREE: {
-      
-    }break;
     default: {
       INVALID_CODE_PATH
     };
@@ -556,11 +553,11 @@ CMN_FREE_FUNCTION(AssetManager_Free){
 }
 
 
-render_tree_2* LoadRenderTree2(const c8* UniqueName, const c8* Path, render_tree_2* RenderTree, render_tree_id* ResultKey)
+render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, render_tree* RenderTree, render_tree_id* ResultKey)
 {
-  midx RenderTreeSize = sizeof(render_tree_2);
-  header* Header = CreateHeader(type::RENDER_TREE_2, UniqueName, UniqueName, Path, RenderTreeSize);
-  render_tree_2* Result = (render_tree_2*) Header->Data;
+  midx RenderTreeSize = sizeof(render_tree);
+  header* Header = CreateHeader(type::RENDER_TREE, UniqueName, UniqueName, Path, RenderTreeSize);
+  render_tree* Result = (render_tree*) Header->Data;
   *Result = RenderTree->Copy(false, AssetManager_Alloc,AssetManager_Free);
   
   if(ResultKey)
@@ -577,8 +574,8 @@ size_t GetPackageSize(const package* Package)
   size_t CamerasSize = sizeof(camera_id*) * Package->CameraCount;
   size_t ImagesSize = sizeof(image_id*) * Package->ImageCount;
   size_t MeshSize = sizeof(mesh_id*) * Package->MeshCount;
-  size_t RenderTreesSize2 = sizeof(render_tree_id*)* Package->RenderTreeCount2;
-  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + MeshSize + RenderTreesSize2;
+  size_t RenderTreesSize = sizeof(render_tree_id*)* Package->RenderTreeCount;
+  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + MeshSize + RenderTreesSize;
   return Result;
 }
 
@@ -620,8 +617,8 @@ void CopyPackage(const package* Src, package* Dst)
   MemScan = CopyData(Src->MeshCount, sizeof(mesh_id*), (uint8_t*) Src->Meshes,
                      &Dst->MeshCount, (uint8_t**) &Dst->Meshes,         MemScan);
   
-  MemScan = CopyData(Src->RenderTreeCount2, sizeof(render_tree_id*), (uint8_t*) Src->RenderTrees2,
-                     &Dst->RenderTreeCount2, (uint8_t**) &Dst->RenderTrees2,         MemScan);
+  MemScan = CopyData(Src->RenderTreeCount, sizeof(render_tree_id*), (uint8_t*) Src->RenderTrees,
+                     &Dst->RenderTreeCount, (uint8_t**) &Dst->RenderTrees,         MemScan);
 
   Assert((MemScan - (uint8_t*) Dst) == GetPackageSize(Src));
 }

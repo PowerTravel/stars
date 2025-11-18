@@ -366,9 +366,9 @@ static asset::mesh_id LoadMesh(const char* UniqueName, obj_loaded_file* Obj, mat
   return ResultKey;
 }
 
-static asset::render_tree_2 CreateRenderTree2(asset::mesh_id MeshId)
+static asset::render_tree CreateRenderTree(asset::mesh_id MeshId)
 {
-  asset::render_tree_2 Result = asset::render_tree_2::Create(true, TransientMalloc, TransientFree);
+  asset::render_tree Result = asset::render_tree::Create(true, TransientMalloc, TransientFree);
   asset::render_tree_data Data = {};
   Data.Mesh = MeshId;
   Result.NewNode(NULL, Data);
@@ -411,10 +411,10 @@ asset::package_id LoadObj(const c8* Path, const c8* UniqueName)
   Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
   Package.Meshes[0] = LoadMesh(UniqueName, Obj, &MaterialMap);
 
-  Package.RenderTreeCount2 = 1;
-  Package.RenderTrees2 = PushArray(GlobalTransientArena, Package.RenderTreeCount2, asset::render_tree_id);
-  asset::render_tree_2 RenderTree2 = CreateRenderTree2(Package.Meshes[0]);
-  asset::LoadRenderTree2(UniqueName, Path, &RenderTree2, Package.RenderTrees2);
+  Package.RenderTreeCount = 1;
+  Package.RenderTrees = PushArray(GlobalTransientArena, Package.RenderTreeCount, asset::render_tree_id);
+  asset::render_tree RenderTree = CreateRenderTree(Package.Meshes[0]);
+  asset::LoadRenderTree(UniqueName, Path, &RenderTree, Package.RenderTrees);
   
   asset::package_id ResultKey = 0;
   asset::LoadPackage(UniqueName, Path, &Package, &ResultKey);

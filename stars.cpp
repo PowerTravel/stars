@@ -63,7 +63,7 @@ void __jwin__FreeFileMemory(void* FileDataToFree)
 
 file_local inline void Initiate(asset::render_tree_id RenderTreeKey, ecs::render::component* Render)
 {
-  asset::render_tree_2* Tree = (asset::render_tree_2*) asset::Find(asset::type::RENDER_TREE_2, RenderTreeKey);
+  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeKey);
   Assert(Tree->NodeCount() == 1); // We don't support rendering big node hierarchy (yet)
   Assert(Tree->m_root->Data->Mesh);
 
@@ -1000,7 +1000,7 @@ void DrawAllRenderObjects()
 asset::mesh* MeshFromTree(const c8* Name)
 {
   asset::package* Package = (asset::package*) asset::Find(asset::type::PACKAGE, Name);
-  asset::render_tree_2* Tree = (asset::render_tree_2*) asset::Find(asset::type::RENDER_TREE_2, Name);
+  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
   Assert(Tree->NodeCount() == 1);
   asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, Tree->m_root->Data->Mesh);
   return Mesh;
@@ -1170,9 +1170,9 @@ void LoadAndRenderGLTFEngine()
     GlobalState->DebugPackage = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
   }
 
-  for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount2; ++i)
+  for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
   {
-    ecs::render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees2[i]);
+    ecs::render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
   }
 }
 
@@ -1315,7 +1315,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::component* Position = GetPositionComponent(&Entity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
       
-        Initiate(asset::ToKey(asset::type::RENDER_TREE_2, "checker_plane_simple"), GetRenderComponent(&Entity));
+        Initiate(asset::ToKey(asset::type::RENDER_TREE, "checker_plane_simple"), GetRenderComponent(&Entity));
 
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);

@@ -57,8 +57,8 @@ u32 GetMeshHandle(asset::key AssetKey)
 
 u32 GetMeshHandle(const c8* Name)
 {
-  u32 AssetKey = asset::ToKey(asset::type::RENDER_TREE_2, Name);
-  asset::render_tree_2* Tree = (asset::render_tree_2*) asset::Find(asset::type::RENDER_TREE_2, Name);
+  u32 AssetKey = asset::ToKey(asset::type::RENDER_TREE, Name);
+  asset::render_tree* Tree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Name);
   Assert(Tree->NodeCount() == 1);
   u32 Handle = GetMeshHandle(Tree->m_root->Data->Mesh);
   Assert(Handle);
@@ -1877,7 +1877,7 @@ void DrawMesh( asset::mesh_id ID, const m4& Transform)
 
 void DrawRenderTree(asset::render_tree_id ID) {
 
-  asset::render_tree_2* RenderTree = (asset::render_tree_2*) asset::Find(asset::type::RENDER_TREE_2, ID);
+  asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, ID);
   if(RenderTree)
   {
     cmn::vector<m4> TransformVec = cmn::vector<m4>::CreateTransient(RenderTree->MaxDepth());

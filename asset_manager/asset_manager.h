@@ -78,7 +78,7 @@ pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, p
 phong_material* LoadPhongMaterial(const c8* UniqueName, const phong_material* Material, phong_material_id* ResultKey = 0);
 mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, mesh_id* ResultKey = 0);
 camera* LoadCamera(const c8* UniqueName, const camera* Camera, camera_id* ResultKey = 0);
-render_tree_2* LoadRenderTree2(const c8* UniqueName, const c8* Path, render_tree_2* RenderTree, render_tree_id* ResultKey = 0);
+render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, render_tree* RenderTree, render_tree_id* ResultKey = 0);
 package* LoadPackage(const c8* UniqueName, const c8* Path, const package* RenderTree, package_id* ResultKey = 0);
 
 

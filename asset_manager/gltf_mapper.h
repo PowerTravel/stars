@@ -244,12 +244,12 @@ namespace mapper {
 
   struct node_pair {
     int RawNodeIndex;
-    asset::render_tree_2::node* Node;
+    asset::render_tree::node* Node;
   };
 
-  asset::render_tree_2 ToRenderTree2(size_t NodeCount, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
+  asset::render_tree ToRenderTree(size_t NodeCount, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
   {
-    asset::render_tree_2 Result = asset::render_tree_2::Create(true,TransientMalloc, TransientFree);
+    asset::render_tree Result = asset::render_tree::Create(true,TransientMalloc, TransientFree);
     cmn::vector<node_pair> NodeQueue = cmn::vector<node_pair>::CreateTransient(NodeCount);
     
     node_pair RootPair = {};
@@ -296,7 +296,7 @@ namespace mapper {
     return Result;
   }
 
-  asset::key* ToRenderTrees2(const c8* Name, const c8* Path, gltf::raw_gltf_data* RawGltfData, size_t* RetKeyCount, asset::key* LoadedMeshes, asset::key* LoadedCameras){
+  asset::key* ToRenderTrees(const c8* Name, const c8* Path, gltf::raw_gltf_data* RawGltfData, size_t* RetKeyCount, asset::key* LoadedMeshes, asset::key* LoadedCameras){
     const size_t RawNodeCount = RawGltfData->RawNodeCount;
     gltf::raw_node* RawNodes = RawGltfData->RawNodes;
 
@@ -324,10 +324,10 @@ namespace mapper {
       temporary_memory TempMem = BeginTemporaryMemory(GlobalTransientArena);
       int RootNodeIndex = RootNodeIndeces[i];
       size_t NodeCount = GetTreeNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
-      asset::render_tree_2 Tree = ToRenderTree2(NodeCount, RootNodeIndex, RawNodes, LoadedMeshes, LoadedCameras);
+      asset::render_tree Tree = ToRenderTree(NodeCount, RootNodeIndex, RawNodes, LoadedMeshes, LoadedCameras);
       c8* UnqName = asset::CreateUniqueName("",Name,"", i, RootCount);
 
-      asset::LoadRenderTree2(UnqName, Path, &Tree, &Result[i]);
+      asset::LoadRenderTree(UnqName, Path, &Tree, &Result[i]);
       EndTemporaryMemory(TempMem);
     }
 
@@ -475,7 +475,7 @@ namespace mapper {
       }
     }
 
-    Package.RenderTrees2 = ToRenderTrees2(UniqueName, Path,  RawGltfData, &Package.RenderTreeCount2, Package.Meshes, Package.Cameras);  
+    Package.RenderTrees = ToRenderTrees(UniqueName, Path,  RawGltfData, &Package.RenderTreeCount, Package.Meshes, Package.Cameras);  
     asset::package_id Result = 0;
     asset::LoadPackage(UniqueName, Path, &Package, &Result);
 
