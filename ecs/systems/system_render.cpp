@@ -846,9 +846,6 @@ void SetMaterialUniforms(render_group* RenderGroup, render_object* Object, asset
   
   float v =  (1 + Sin(GlobalTime/Tau32))*0.5;
   float s =  (1 + Cos(GlobalTime/Tau32))*0.5;
-
-
-
   Object->TextureCount = 0;
   if(!Material)
   {
@@ -867,7 +864,7 @@ void SetMaterialUniforms(render_group* RenderGroup, render_object* Object, asset
         Object->TextureHandles[Object->TextureCount] = AlbedoHandle;
         Object->TextureCount++;
       }else{
-        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Albedo"),  MetallicRoughness->BaseColorFactor);
+        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Albedo"), V3(MetallicRoughness->BaseColorFactor));
       }
 
       if(MetallicRoughness->HasMetallicRoughnessTexture)
@@ -890,10 +887,10 @@ void PushPBR(render_group* RenderGroup, u32 MeshHandle, asset::pbr_material_id I
 
   pbr_program_definition PBRDefinition = GetPBRProgramDefinitionFromPBRMaterial(Material);
 
-  u32 ProgramHandle = GetOrCreatePBRProgram(RenderGroup, PBRDefinition);
-
+  
 
   render_object* Object = PushNewRenderObject(RenderGroup);
+  u32 ProgramHandle = GetOrCreatePBRProgram(RenderGroup, PBRDefinition);
   Object->ProgramHandle = ProgramHandle;
   Object->FrameBufferHandle = FrameBuffer;
   Object->MeshHandle = MeshHandle;
@@ -1921,10 +1918,7 @@ void DrawRenderTree(asset::render_tree_id ID) {
       {
         CurrentTransform = Data->HasTransform ? Data->Transform : M4Identity();
       }else{
-        if(Data->HasTransform)
-        {
-          CurrentTransform = Data->Transform * TransformVec[Index-1];
-        }
+        CurrentTransform = Data->HasTransform ? CurrentTransform * TransformVec[Index-1] : TransformVec[Index-1];
       }
 
       if(Data->Mesh)

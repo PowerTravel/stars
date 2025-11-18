@@ -568,7 +568,7 @@ namespace mapper {
       for (int i = 0; i < Package.PBRMaterialCount; ++i)
       {
         gltf::raw_material* RawMaterial = &RawGltfData->RawMaterials[i];
-        asset::pbr_material TmpMaterial = MapMaterial(RawMaterial, RawGltfData, &Package.PBRMaterials[i]);
+        asset::pbr_material TmpMaterial = MapMaterial(RawMaterial, RawGltfData, Package.Images);
 
         c8* Name = SetName(UniqueName, RawMaterial->Name, "material", i, Package.PBRMaterialCount);
 
