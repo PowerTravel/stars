@@ -22,6 +22,7 @@
 #include "imgui/imgui.h"
 #include "imgui/application_imgui.h"
 #include "asset_manager/asset_manager.h"
+#include "render/render.h"
 typedef void(*func_ptr_void)(void); 
 
 #define DEBUGPrintRect(Rect) Platform.DEBUGPrint("%1.2f,%1.2f,%1.2f,%1.2f\n",(Rect).X, (Rect).Y ,(Rect).W, (Rect).H);
@@ -41,6 +42,7 @@ struct function_pool
 struct world {
   ecs::entity_manager* EntityManager;
   ecs::render::system* RenderSystem;
+  render::renderer Renderer;
 };
 
 struct application_state
@@ -90,11 +92,16 @@ global_variable jwin::device_input* GlobalInput = 0;
 global_variable imgui_context* GlobalImguiContext = 0;
 global_variable asset::manager* GlobalAssetManager = 0;
 global_variable ecs::render::system* GlobalRenderSystem = 0;
+global_variable render::renderer* GlobalRenderer = 0;
 global_variable float GlobalTime = 0;
 
 // Global Singleton Getters
 inline ecs::render::system* GetRenderSystem() {
   return GlobalState->World.RenderSystem;
+}
+
+inline render::renderer* GetRenderer() {
+  return &GlobalState->World.Renderer;
 }
 
 inline ecs::entity_manager* GetEntityManager() {

@@ -37,7 +37,7 @@ u32 PushUnique( u8* Array, const u32 ElementCount, const u32 ElementByteSize,
   return ElementCount;
 }
 
-
+#if 0
 gl_vertex_buffer CreateGLVertexBuffer(memory_arena* TemporaryMemory,
                      const u32 IndexCount,
                      const u32* VerticeIndeces, const u32* TextureIndeces, const u32* NormalIndeces,
@@ -121,3 +121,4 @@ opengl_buffer_data MapObjToOpenGLMesh(memory_arena* Arena, obj_loaded_file* Obj)
 
   return Result;
 }
+#endif

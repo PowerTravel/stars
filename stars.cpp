@@ -22,6 +22,7 @@
 #include "dynamic_aabb_tree.cpp"
 #include "ecs/components/component_collider.h"
 #include "io/obj.cpp"
+#include "render/render.cpp"
 
 
 #include "containers/linked_memory_unit_tests.h"
@@ -757,7 +758,7 @@ world InitiateWorld(application_render_commands* RenderCommands)
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
   Result.RenderSystem = ecs::render::CreateRenderSystem(RenderCommands->RenderGroup, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height, RenderCommands);
-  Result.Renderer = render::Create(RenderCommands->RenderGroup);
+  Result.Renderer = render::Create(RenderCommands->RenderGroup, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height, RenderCommands);
 
   return Result;
 }
@@ -992,8 +993,29 @@ void DrawAllRenderObjects()
   ecs::filtered_entity_iterator EntityIterator = GetComponentsOfType(GlobalEntityManager, ecs::flag::RENDER);
   while(Next(&EntityIterator))
   {
+    ecs::entity_id EntityID = ecs::GetEntityID(&EntityIterator);
     ecs::render::component* Component = GetRenderComponent(&EntityIterator);
     DrawRenderObject(Component);
+    if(Component->RenderTreeHandle)
+    {
+      render::DrawRenderTree(Component->RenderTreeHandle, EntityID);
+    }else if(Component->MeshHandle){
+
+      asset::mesh* Mesh = (asset::mesh*) Find(asset::type::MESH, Component->MeshID);
+      asset::phong_material* PhongMaterial = (asset::phong_material*) Find(asset::type::PHONG_MATERIAL, Component->PhongMaterialHandle);
+
+      ecs::position::component* Position = GetPositionComponent(&EntityIterator);
+      m4 Transform = M4Identity();
+      if(Position)
+      {
+        Transform = GetModelMatrix(Position);
+      }
+      for (int i = 0; i < Mesh->PrimitiveCount; ++i)
+      {
+        render::DrawAssetRenderObject(Mesh->Primitives + i, PhongMaterial, Transform, EntityID);
+      }
+    }
+    
   }
 }
 
@@ -1184,6 +1206,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GlobalImguiContext   = &GlobalState->ImguiContext;
   GlobalRenderCommands = RenderCommands;
   GlobalRenderSystem   = GlobalState->World.RenderSystem;
+  GlobalRenderer       = &GlobalState->World.Renderer;
   GlobalAssetManager   = GlobalState->AssetManager;
   GlobalEntityManager  = GlobalState->World.EntityManager;
 
@@ -1205,6 +1228,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->World  = InitiateWorld(RenderCommands);
     GlobalRenderSystem  = GlobalState->World.RenderSystem;
     GlobalEntityManager = GlobalState->World.EntityManager;
+    GlobalRenderer       = &GlobalState->World.Renderer;
 
     LinkedMemoryUnitTests(GlobalTransientArena);
 
@@ -1321,8 +1345,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::collider::Init(Collider, Mesh);
       }
 
-
-      
       { // Transparent Cone
         asset::mesh* Mesh = MeshFromTree("Cone");
 
@@ -1402,6 +1424,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     
   }else{
     ecs::render::Begin();
+    render::Begin();
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
 
@@ -1490,6 +1513,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 #else
   ecs::render::SetDrawWindow(GetRenderSystem(), Rect2f(0,0,1,1));
   DrawAllRenderObjects();
+
   // Note: This function cold-calls a asset named "Cube" which does not always exist.
   // If we want to cold-call a mesh we should maybe have a set of basic primitives that we load on startup, similar to the BlitPlane and 
   // refer to them by enum or something. Not frikkin string.
@@ -1503,6 +1527,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   DrawEntityList(&GlobalState->ApplicationImgui);
   #endif
   ImguiEnd();
+  //render::RenderScene(GetRenderer(), GlobalState->Camera.P, GlobalState->Camera.V);
   ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
   int _a = 10;
 } 

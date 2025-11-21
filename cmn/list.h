@@ -78,6 +78,10 @@ struct list {
     return Result;
   }
 
+  static inline list CreateTransient(){
+    return list::Create(true);
+  }
+
   element* GetSentinel(){
     if(!m_sentinel){
       m_sentinel =  (element*) Malloc(sizeof(element));

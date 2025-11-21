@@ -18,6 +18,85 @@ struct overlay_object {
   quat Rotation;
 };
 
+struct gl_vertex_buffer
+{
+  u32 IndexCount;
+  u32* Indeces;
+  u32 VertexCount;
+  opengl_vertex* VertexData;
+};
+
+struct opengl_buffer_data{
+  u32 BufferCount;
+  gl_vertex_buffer* BufferData;
+};
+   
+
+gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
+                     const int IndexCount, const int* Indeces, const int VertexCount,
+                     const v3* VerticeData, const v3* NormalData, const v2* TextureData)
+{
+  int* GLIndexArray         = PushArray(Arena, IndexCount, int);
+  opengl_vertex* VertexData = PushArray(Arena, VertexCount, opengl_vertex);
+  opengl_vertex* Vertice = VertexData;
+  utils::Copy(IndexCount*sizeof(int), (void*) Indeces, (void*)GLIndexArray);
+
+  for (int i = 0; i < VertexCount; ++i)
+  {
+    opengl_vertex* GlVertice = &VertexData[i];
+    Vertice->v  = VerticeData[i];
+    Vertice->vt = TextureData ? TextureData[i] : V2(0,0);
+    Vertice->vn = NormalData  ? NormalData[i]  : V3(0,0,0);
+    ++Vertice;
+  }
+  
+  gl_vertex_buffer Result = {};
+  Result.IndexCount = IndexCount;
+  Result.Indeces =  (u32*) GLIndexArray;
+  Result.VertexCount = VertexCount;
+  Result.VertexData = VertexData;
+  return Result;
+}
+
+static void PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mesh::primitive * Primitive, gl_vertex_buffer* Result)
+{
+  Assert(Primitive->IndexCount && Primitive->Indeces && Primitive->VertexCount && Primitive->Vertex);
+  // We are only handling 1 set of texture vertices atm. Increase if we find the need
+  Assert(Primitive->TextureVertexSetCount== 0 || Primitive->TextureVertexSetCount ==1);
+  *Result = CreateGLVertexBuffer(
+      Arena,
+      Primitive->IndexCount,
+      Primitive->Indeces,
+      Primitive->VertexCount,
+      Primitive->Vertex,
+      Primitive->VertexNormal,
+      Primitive->TextureVertices ? Primitive->TextureVertices[0] : 0
+    );
+}
+
+gl_vertex_buffer PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mesh::primitive * Primitive)
+{
+  gl_vertex_buffer Result = {};
+  PrimitiveToGlVertexBuffer(Arena,Primitive, &Result);
+  return Result;
+}
+
+opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, const asset::mesh * Mesh)
+{ 
+  opengl_buffer_data Result = {};
+  Assert(Mesh->PrimitiveCount == 1); // Deal wiht several primitives per mesh when we run into them.
+  Result.BufferCount = Mesh->PrimitiveCount;
+  Result.BufferData  = PushArray(Arena, Result.BufferCount, gl_vertex_buffer);
+  for (int i = 0; i < Result.BufferCount; ++i)
+  {
+    PrimitiveToGlVertexBuffer(Arena, &Mesh->Primitives[i], &Result.BufferData[i]);
+  }
+
+  return Result;
+}
+
+
+
 file_local void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
   u32* HandleMem = (u32*) GetNewBlock(GlobalPersistentArena, &GlobalRenderSystem->RenderHandles);
   *HandleMem = Handle;
@@ -48,7 +127,7 @@ u32 GetMeshHandle(asset::key AssetKey)
     // There is a one to many relationship between mesh-handles and the rendersystems ptimitive-handles which were not handling atm
     // This assert is here to catch the cases when we need to deal with that.
     Assert(Mesh->PrimitiveCount == 1);
-    opengl_buffer_data glBufferData = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, Mesh);
+    opengl_buffer_data glBufferData = MeshToGlVertexBuffer(GlobalTransientArena, Mesh);
     Result = ecs::render::LoadMeshToGpu(AssetKey, &glBufferData);
   }
   Assert(Result);
@@ -845,7 +924,6 @@ pbr_program_definition GetPBRProgramDefinitionFromPBRMaterial(asset::pbr_materia
 
 void SetMaterialUniforms(render_group* RenderGroup, render_object* Object, asset::pbr_material* Material)
 {
-  
   float v =  (1 + Sin(GlobalTime/Tau32))*0.5;
   float s =  (1 + Cos(GlobalTime/Tau32))*0.5;
   Object->TextureCount = 0;
@@ -1172,7 +1250,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       // Then composit the solid and transparent objects into a single image
       render_object* CompositionObject = PushNewRenderObject(RenderGroup);
       CompositionObject->ProgramHandle = GlobalState->TransparentCompositionProgram;
-      CompositionObject->MeshHandle =  RenderSystem->BlitPlaneHandle;
+      CompositionObject->MeshHandle    =  RenderSystem->BlitPlaneHandle;
       CompositionObject->FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
       CompositionObject->TextureHandles[0] = InternalTexture(data::INT_TEX_ACCUM);
       CompositionObject->TextureHandles[1] = InternalTexture(data::INT_TEX_REVEAL);
@@ -1423,7 +1501,7 @@ opengl_buffer_data GetBlitPlane()
   Assert(! asset::Find(asset::type::MESH, "BlitPlane"));
 
   asset::mesh* LoadedMesh = asset::LoadMesh("BlitPlane", &Mesh);
-  opengl_buffer_data Result = asset::mapper::MeshToGlVertexBuffer(GlobalTransientArena, LoadedMesh);
+  opengl_buffer_data Result = MeshToGlVertexBuffer(GlobalTransientArena, LoadedMesh);
   return Result;
 }
 
@@ -1534,6 +1612,7 @@ void ecs::render::Init(asset::key MeshKey, asset::key MaterialKey, component* Re
 {
   asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, MeshKey);
   Render->MeshHandle = ecs::render::GetMeshHandle(MeshKey);
+  Render->MeshID = MeshKey;
 
   Assert(Mesh->PrimitiveCount == 1); // We don't support multi primitive mesh rendering (yet)
   Render->PhongMaterialHandle = MaterialKey;
@@ -1572,133 +1651,6 @@ void DrawAABB(aabb3f AABB) {
   DrawLine3D(AABBVertices[2], AABBVertices[6], Color, Thickness);
   DrawLine3D(AABBVertices[3], AABBVertices[7], Color, Thickness);
 }
-
-// Asset MeshID  
-//        Primitive 1
-//           vector<Indeces>
-//           vector<Points>
-//           pbr_material
-//        Primitive 2
-//           vector<Indeces>
-//           vector<Points>
-//           pbr_material
-//        ....
-//        Primitive N
-//           vector<Indeces>
-//           vector<Points>
-//           pbr_material
-//
-
-
-// Asset::MeshID -> List<MeshID_GPU (Primitive),  >
-
-#if 0
-static void RenderMesh(render_group* RenderGroup, asset::mesh_id MeshHandle, m4& ModelMatrix, m4& ProjectionMatrix, m4& ViewMatrix)
-{
-  v3 LightDirection = V3(1,1,1);
-  v3 LightColor = V3(1,1,1);
-  cmn::list<u32>& GPUMeshHandles = GetMeshHandleList(MeshHandle);
-
-  cmn::list<u32>::element* ElementHandle = GPUMeshHandles.First();
-  while (!GPUMeshHandles.IsEnd(ElementHandle))
-  {
-    mesh_render_struct RenderStruct = {};
-    RenderStruct.ProgramHandle = GlobalState->PhongProgram;
-    RenderStruct.FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA);
-    RenderStruct.RenderGroup = RenderGroup;
-    RenderStruct.GPUMeshHandle = ElementHandle->GetCopy();
-    RenderStruct.ModelMatrix = ModelMatrix;
-    RenderStruct.ProjectionMatrix = ProjectionMatrix;
-    RenderStruct.ViewMatrix = ViewMatrix;
-
-    ElementHandle = ElementHandle->Next;
-  }
-
-  
-  #if 0
-
-  asset::mesh* Mesh = (asset::mesh*) asset::Find(asse::type::PBR_MATERIAL, MeshHandle);
-  Assert(Mesh);
-  Assert(Mesh->PbrMaterial);
-  asset::pbr_material* PbrMaterial = asset::Find(asse::type::PBR_MATERIAL, Mesh->PbrMaterial);
-
-
-  u32 Program = GlobalState->PhongProgram;
-  u32 FrameBufferHandle = FrameBuffer(data::FRAMEBUFFER_MSAA)
-  
-  m4 ModelMat = ModelMatrix;
-
-  m4 ModelView = ViewMatrix*ModelMat;
-  m4 NormalView = Transpose(RigidInverse(ModelView));
-
-  v4 Ambient = V4(0.2,0.2,0.2,1);
-  v4 Diffuse = V4(0.6,0.6,0.6,1);
-  v4 Specular = V4(1,1,1,1);
-  r32 Shininess = 16;
-  
-  u32 TextureCount = 0;
-  u32 TextureHandle = 0;
-  if(Render->PhongMaterialHandle)
-  {
-    asset::phong_material* PhongMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, Render->PhongMaterialHandle);
-    if(PhongMaterial->Ka){
-      Ambient   = *PhongMaterial->Ka;
-    }
-    if(PhongMaterial->Kd){
-      Diffuse   = *PhongMaterial->Kd;
-    }
-    if(PhongMaterial->Ks){
-      Specular  = *PhongMaterial->Ks;
-    }
-    if(PhongMaterial->Ns){
-      Shininess = *PhongMaterial->Ns;
-    }
-
-    if(PhongMaterial->HasDiffuseTexture)
-    {
-      asset::key ImageHandle = PhongMaterial->DiffuseTexture.Image;
-      asset::image* Image = (asset::image*) Find(asset::type::IMAGE, ImageHandle);
-      TextureCount = 1;
-      TextureHandle = Get32BitTextureHandle(ImageHandle);
-    }
-  }else if (Render->RenderTreeHandle)
-  {
-    asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, Render->RenderTreeHandle);
-    Assert(RenderTree->Root->FirstChild->Mesh);
-    asset::mesh* Mesh = (asset::mesh*) asset::Find(asset::type::MESH, RenderTree->Root->FirstChild->Mesh);
-    Assert(Mesh->PrimitiveCount == 1);
-    asset::pbr_material* PbrMaterial = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, Mesh->Primitives[0].PbrMaterial);
-    Assert(PbrMaterial);
-    Assert(PbrMaterial->HasMetallicRoughness);
-    Diffuse = PbrMaterial->MetallicRoughness.BaseColorFactor;
-
-    if(PbrMaterial->MetallicRoughness.HasBaseColorTexture)
-    {
-      asset::texture* Texture = &PbrMaterial->MetallicRoughness.BaseColorTexture;
-      TextureCount = 1;
-      TextureHandle = Get32BitTextureHandle(Texture);
-    }
-  }
-
-  render_object* Object = PushNewRenderObject(RenderGroup);
-  Object->ProgramHandle = Program;
-  Object->FrameBufferHandle = FrameBufferHandle;
-  Object->MeshHandle = MeshHandle;
-  Object->TextureCount = TextureCount;
-  Object->TextureHandles[0] = TextureHandle;
-
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ProjectionMat"),    ProjectionMatrix);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "ModelView"),        ModelView);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "NormalView"),       NormalView);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightDirection"),   LightDirection);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "LightColor"),       LightColor);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialAmbient"),  Ambient);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialDiffuse"),  Diffuse);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "MaterialSpecular"), Specular);
-  PushUniform(Object, GetUniformHandle(RenderGroup, GlobalState->PhongProgram, "Shininess"),        Shininess);
-  #endif
-}
-#endif
 
 // Temporary function to handle materials
 void Placeholder_DoSomethingWithPBRMaterial(asset::pbr_material* Material)
@@ -1809,6 +1761,7 @@ void Placeholder_DoSomethingWithPhongMaterial(asset::phong_material* Material)
   }
 }
 
+
 static render::loaded_mesh* GetMeshHandleList(asset::mesh_id MeshID)
 {
   render::loaded_mesh* Result = GlobalRenderSystem->MeshHandleMap2.Find(MeshID);
@@ -1825,7 +1778,7 @@ static render::loaded_mesh* GetMeshHandleList(asset::mesh_id MeshID)
     {
       asset::mesh::primitive* AssetPrimitive = &Mesh->Primitives[i];
 
-      gl_vertex_buffer VertexBuffer = asset::mapper::PrimitiveToGlVertexBuffer(GlobalTransientArena, AssetPrimitive);
+      gl_vertex_buffer VertexBuffer = PrimitiveToGlVertexBuffer(GlobalTransientArena, AssetPrimitive);
       u32 MeshHandle  = PushNewMesh(GlobalRenderCommands->RenderGroup, VertexBuffer.VertexCount, VertexBuffer.VertexData);
       u32 IndexHandle = PushNewMeshIndices(GlobalRenderCommands->RenderGroup, MeshHandle, VertexBuffer.IndexCount, VertexBuffer.Indeces);
 
@@ -1833,24 +1786,6 @@ static render::loaded_mesh* GetMeshHandleList(asset::mesh_id MeshID)
       loaded_primitive& LoadedPrimitive = LoadedMesh.LoadedPrimitives.Back();
       LoadedPrimitive.LoadedPrimitiveID = IndexHandle;
       LoadedPrimitive.Primitive = AssetPrimitive;
-
-  #if 0
-      LoadedPrimitive.LoadedBaseColorTextureID;
-
-      if(AssetPrimitive->PbrMaterial)
-      {
-        asset::pbr_material* PbrMaterial = (asset::pbr_material*) asset::Find(asset::type::PBR_MATERIAL, AssetPrimitive->PbrMaterial);
-        if(PbrMaterial->HasBaseColorTexture)
-        {
-          LoadedPrimitive.BaseColorTexture = &PbrMaterial->BaseColorTexture;
-          u32 LoadTextureToGpuAndSetHandle(asset::texture* Texture);
-        }
-        Placeholder_DoSomethingWithPBRMaterial(PbrMaterial);
-      }else if(AssetPrimitive->PhongMaterial){
-        asset::phong_material* PhongMaterial = (asset::phong_material*) asset::Find(asset::type::PHONG_MATERIAL, AssetPrimitive->PhongMaterial);
-        Placeholder_DoSomethingWithPhongMaterial(PhongMaterial);
-      }
-  #endif
     }
   }
 
