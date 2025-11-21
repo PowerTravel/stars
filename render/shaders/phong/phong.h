@@ -106,26 +106,53 @@ definition GetProgramDefinition(asset::phong_material* Material)
 void SetMaterialUniforms(render_group* RenderGroup, render_object* Object, asset::phong_material* Material)
 {
   Object->TextureCount = 0;
+
+  v4 Ambient = V4(0.2,0.2,0.2,1);
+  v4 Diffuse = V4(0.6,0.6,0.6,1);
+  v4 Specular = V4(1,1,1,1);
+  r32 Shininess = 16;
+
   if(!Material)
   {
-    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialDiffuse"),   V4(0.7, 0.7, 0.7, 1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialAmbient"),   V4(0.7, 0.7, 0.7, 1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialSpecular"),  V4(0.7, 0.7, 0.7, 1));
-    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Shininess"),         (r32)124.0);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialAmbient"),   Ambient);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialDiffuse"),   Diffuse);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialSpecular"),  Specular);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Shininess"),         Shininess);
   }else{
-    if(Material->HasDiffuseTexture)
-    {
-      PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "DiffuseTexture"), (u32) Object->TextureCount);
-      u32 DiffuseTextureHandle = GetOrCreateTexture(&Material->DiffuseTexture);
-      Object->TextureHandles[Object->TextureCount] = DiffuseTextureHandle;
-      Object->TextureCount++;
-    }else{
-      PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialDiffuse"), *Material->Kd);
+    if(Material->Ka){
+      Ambient   = *Material->Ka;
+    }
+    if(Material->Kd){
+      Diffuse   = *Material->Kd;
+    }
+    if(Material->Ks){
+      Specular  = *Material->Ks;
+    }
+    if(Material->Ns){
+      Shininess = *Material->Ns;
     }
 
-    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialAmbient"),   *Material->Ka);
-    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialSpecular"),  *Material->Ks);
-    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Shininess"),         *Material->Ns);
+    if(Material->HasDiffuseTexture)
+    {
+      asset::image* Image = (asset::image*) asset::Find(asset::type::IMAGE, Material->DiffuseTexture.Image);
+      if(Image->Width == 1 && Image->Height == 1)
+      {
+        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialDiffuse"), Diffuse);
+      }else{
+        PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "DiffuseTexture"), (u32) Object->TextureCount);
+        u32 DiffuseTextureHandle = GetOrCreateTexture(&Material->DiffuseTexture);
+        Object->TextureHandles[Object->TextureCount] = DiffuseTextureHandle;
+        Object->TextureCount++;
+      }
+    }else{
+      //PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialDiffuse"), (v4) *Material->Kd);
+      PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialDiffuse"), Diffuse);
+    }
+
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialAmbient"),   Ambient);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "MaterialSpecular"),  Specular);
+    PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "Shininess"),         Shininess);
+
   }
 } 
 

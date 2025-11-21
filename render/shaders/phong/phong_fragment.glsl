@@ -98,20 +98,27 @@ float w10(float depth, float alpha)
 
 void main() 
 {
+  vec4 AmbientColor = MaterialAmbient;
+  vec4 SpecularColor = MaterialSpecular;
+
   #if DIFFUSE_TEXTURE
-  vec4 DiffuseColor = texture(DiffuseTexture, tc);
+  vec4 DiffuseColor = vec4(1);
+  vec4 DiffuseSample = texture(DiffuseTexture, tc);
   #else
   vec4 DiffuseColor = MaterialDiffuse;
+  vec4 DiffuseSample = vec4(1);
   #endif
+
+  
 
   vec3 lightDir = normalize(LightDirection);
   vec3 viewDir = normalize(-vertPos);
   vec3 n = normalize(fn);
-  vec3 radiance = MaterialAmbient.rgb;
+  vec3 radiance = AmbientColor.rgb;
   
   float irradiance = max(dot(lightDir, n), 0.0) * irradiPerp;
   if(irradiance > 0.0) {
-    vec3 brdf = phongBRDF(lightDir, viewDir, n, DiffuseColor.rgb, MaterialSpecular.rgb, Shininess);
+    vec3 brdf = phongBRDF(lightDir, viewDir, n, DiffuseColor.rgb, SpecularColor.rgb, Shininess);
     radiance += brdf * irradiance * LightColor.rgb;
   }
 
@@ -119,11 +126,11 @@ void main()
   
   vec3 fColor = radiance;
 #if TRANSPARENT
-  float alpha = MaterialAmbient.a;
+  float alpha = AmbientColor.a;
   AccumTexOut  = vec4(fColor.xyz * alpha, alpha) * w8(length(vertPos), alpha);
   RevealTexOut = vec4(alpha);
 #else 
-  fragColor.rgb = radiance;
-  fragColor.a = MaterialAmbient.a;
+  fragColor.rgb = radiance * DiffuseSample.rgb;
+  fragColor.a = AmbientColor.a;
 #endif
 }

@@ -94,21 +94,6 @@ gl_vertex_buffer PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mes
   return Result;
 }
 
-opengl_buffer_data MeshToGlVertexBuffer(memory_arena* Arena, const asset::mesh * Mesh)
-{ 
-  render::opengl_buffer_data Result = {};
-  Assert(Mesh->PrimitiveCount == 1); // Deal wiht several primitives per mesh when we run into them.
-  Result.BufferCount = Mesh->PrimitiveCount;
-  Result.BufferData  = PushArray(Arena, Result.BufferCount, render::gl_vertex_buffer);
-  for (int i = 0; i < Result.BufferCount; ++i)
-  {
-    PrimitiveToGlVertexBuffer(Arena, &Mesh->Primitives[i], &Result.BufferData[i]);
-  }
-
-  return Result;
-}
-
-
 file_local u32* CreateInternalTextures(render_group* RenderGroup, window_size_pixel* Window)
 {    
   texture_params DefaultColor = DefaultColorTextureParams();
@@ -190,11 +175,10 @@ renderer Create(render_group* RenderGroup, r32 ApplicationWidth, r32 Application
   renderer Result = {};
   Result.RenderGroup = RenderGroup;
   Result.RenderHandles    = NewChunkList(GlobalPersistentArena, sizeof(u32), 128);
-  Result.LoadedTextures = NewRBTree(GlobalPersistentArena, 64, 64);
-  Result.LoadedPrograms = NewRBTree(GlobalPersistentArena, 64, 64);
+  Result.LoadedTextures   = NewRBTree(GlobalPersistentArena, 64, 64);
+  Result.LoadedPrograms   = NewRBTree(GlobalPersistentArena, 64, 64);
   Result.LoadedPrimitives = NewRBTree(GlobalPersistentArena, 64, 64);
   Result.RenderList = render_list::CreateTransient();
-  Result.RenderList2 = render_list_2::CreateTransient();
 
 
   Result.WindowSize.WindowWidth       = (r32) RenderCommands->WindowInfo.Width;
@@ -220,7 +204,6 @@ void Begin()
 {
   Assert(GlobalRenderer);
   GlobalRenderer->RenderList = render_list::CreateTransient();
-  GlobalRenderer->RenderList2 = render_list_2::CreateTransient();
 }
 
 void SetWindowSize(application_render_commands* RenderCommands)
@@ -301,10 +284,6 @@ file_local inline void ClearRenderState(renderer* Renderer) {
   TransparenClearOp1->FrameBufferHandle = FrameBuffer(FRAMEBUFFER_TRANSPARENT);
   TransparenClearOp1->TextureIndex = 1;
   TransparenClearOp1->Color = V4(1,0,0,0);
-
-
-  //render_state* DefaultState = PushNewState(RenderGroup);
-  //*DefaultState = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
 }
 
 
@@ -344,7 +323,7 @@ file_local inline bool IsTransparent(asset_render_object* AssetRenderObject)
   return false;
 }
 
-file_local void SetHandle(rb_tree* HandleTree, u32 Key, u32 Handle){
+file_local void SetHandle(rb_tree* HandleTree, size_t Key, u32 Handle){
   u32* HandleMem = (u32*) GetNewBlock(GlobalPersistentArena, &GlobalRenderer->RenderHandles);
   *HandleMem = Handle;
   Insert(HandleTree, Key, (void*) HandleMem);
@@ -378,10 +357,10 @@ file_local u32 GetOrCreateProgram(render_group* RenderGroup, asset_render_object
       asset::phong_material* Material = AssetRenderObject->PhongMaterial;
       phong::definition Definition = phong::GetProgramDefinition(Material);
       u32 ProgramHash = GetProgramHash(ShaderType, sizeof(phong::definition), (char*) &Definition);
-      Platform.DEBUGPrint("Program Hash: %u, Dfac = %s, Tras = %s\n",
-        ProgramHash,
-        Definition.HasDiffuseTexture ? "True" : "False",
-        Definition.Transparent       ? "True" : "False");
+      //Platform.DEBUGPrint("Program Hash: %u, Dfac = %s, Tras = %s\n",
+      //  ProgramHash,
+      //  Definition.HasDiffuseTexture ? "True" : "False",
+      //  Definition.Transparent       ? "True" : "False");
       u32* ProgramHandlePtr = (u32*) Find(&GlobalRenderer->LoadedPrograms, ProgramHash);
       if(!ProgramHandlePtr)
       {
@@ -510,8 +489,7 @@ file_local void DrawPrimitive(render_group* RenderGroup, primitive* Primitive, m
       PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalModel"),   NormalModel);
       PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "CamPos"),        CamPos);
       PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightPos"),      LightPos);
-      asset::pbr_material* PbrMaterial = (asset::pbr_material*) Find(asset::type::PBR_MATERIAL,Primitive->Primitive->PbrMaterial);
-      pbr::SetMaterialUniforms(RenderGroup, Object, PbrMaterial);
+      pbr::SetMaterialUniforms(RenderGroup, Object, Primitive->PbrMaterial);
     }break;
     case shader_type::PHONG: {
       v3 LightDirection = V3(Transpose(RigidInverse(ViewMatrix)) * V4(LightPos,0));
@@ -530,8 +508,8 @@ file_local void DrawPrimitive(render_group* RenderGroup, primitive* Primitive, m
       PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "NormalView"),     NormalView);
       PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightDirection"), LightDirection);
       PushUniform(Object, GetUniformHandle(RenderGroup, Object->ProgramHandle, "LightColor"),     LightColor);
-      asset::phong_material* PhongMaterial = (asset::phong_material*) Find(asset::type::PHONG_MATERIAL, Primitive->Primitive->PhongMaterial);
-      phong::SetMaterialUniforms(RenderGroup, Object, PhongMaterial);
+      phong::SetMaterialUniforms(RenderGroup, Object, Primitive->PhongMaterial);
+      int a = 10;
     } break;
   }
 }
@@ -545,8 +523,8 @@ file_local void ScaleViewport(render_group* RenderGroup, u32 Width, u32 Height, 
 file_local void BlitBuffers(render_group* RenderGroup, u32 SrcBuffer, u32 DstBuffer, rect2f DrawRegion)
 {
   blit_operation* BlitOperation = PushNewBlitOperation(RenderGroup);
-  BlitOperation->ReadFrameBufferHandle = FrameBuffer(FRAMEBUFFER_MSAA);
-  BlitOperation->DrawFrameBufferHandle = FrameBuffer(FRAMEBUFFER_DEFAULT);
+  BlitOperation->ReadFrameBufferHandle = SrcBuffer;
+  BlitOperation->DrawFrameBufferHandle = DstBuffer;
   BlitOperation->DrawRegionUnitCoord = DrawRegion;
 }
 
@@ -555,7 +533,7 @@ file_local void GaussianBlur(render_group* RenderGroup, u32 BlurCount, u32 SrcBu
   r32* KernelOffset = PushArray(GlobalTransientArena, 64, r32);
   r32* KernelWeight = PushArray(GlobalTransientArena, 64, r32);
   u32 KernelSize    = gaussian_blur::Kernel(12, 2, KernelOffset, KernelWeight);
-  BlitBuffers(RenderGroup, FrameBuffer(SrcBuffer), FrameBuffer(FRAMEBUFFER_GAUSSIAN_A), Rect2f(0,0,1,1));
+  BlitBuffers(RenderGroup, SrcBuffer, FrameBuffer(FRAMEBUFFER_GAUSSIAN_A), Rect2f(0,0,1,1));
   v2 SideSize = V2(ApplicationWidth, ApplicationHeight);
   for (int i = 0; i < BlurCount; ++i)
   {
@@ -585,8 +563,9 @@ file_local void GaussianBlur(render_group* RenderGroup, u32 BlurCount, u32 SrcBu
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "RenderedTexture"), (u32) 0);
     PushUniform(GaussianBlurY, GetUniformHandle(RenderGroup, GaussianBlurY->ProgramHandle, "sideSize"), SideSize);
   }
-  BlitBuffers(RenderGroup, FrameBuffer(FRAMEBUFFER_GAUSSIAN_B), FrameBuffer(DstBuffer), {});
+  BlitBuffers(RenderGroup, FrameBuffer(FRAMEBUFFER_GAUSSIAN_B), DstBuffer,  Rect2f(0,0,1,1));
 }
+
 
 void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix)
 {
@@ -603,12 +582,12 @@ void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix)
 
   cmn::list<primitive> SolidMesh = cmn::list<primitive>::CreateTransient();
   cmn::list<primitive> TransparentMesh = cmn::list<primitive>::CreateTransient();
-  render_list_element_2* Element = Renderer->RenderList2.First();
-  while (!Renderer->RenderList2.IsEnd(Element))
+  render_list_element* Element = Renderer->RenderList.First();
+  while (!Renderer->RenderList.IsEnd(Element))
   {
     asset_render_object* AssetRenderObject = Element->Data;
 
-    Platform.DEBUGPrint("Rendering Entity: %s\n",  ecs::GetName(GlobalEntityManager, &AssetRenderObject->EntityID));
+    //Platform.DEBUGPrint("Rendering Entity: %s\n",  ecs::GetName(GlobalEntityManager, &AssetRenderObject->EntityID));
 
     
     primitive LoadedPrimitive  = {};
@@ -617,6 +596,11 @@ void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix)
     LoadedPrimitive.Transparent = IsTransparent(AssetRenderObject);
     LoadedPrimitive.ProgramID   = GetOrCreateProgram(RenderGroup, AssetRenderObject);
     LoadedPrimitive.Primitive   = AssetRenderObject->Primitive;
+    if(LoadedPrimitive.ShaderType == shader_type::PBR){
+      LoadedPrimitive.PbrMaterial = AssetRenderObject->PbrMaterial;
+    }else if(LoadedPrimitive.ShaderType == shader_type::PHONG){
+      LoadedPrimitive.PhongMaterial = AssetRenderObject->PhongMaterial;
+    }
     LoadedPrimitive.Transform   = &AssetRenderObject->Transform;
     if(LoadedPrimitive.Transparent)
     {
@@ -654,6 +638,7 @@ void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix)
   GaussianBlur(RenderGroup, 4, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Window->ApplicationWidth, Window->ApplicationHeight);
   #endif
   
+  //BlitBuffers(RenderGroup, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Rect2f(0,0,1,1));
   #if 0
 
   render_level* RenderLevel = GetBotRenderLevel(RenderSystem);
@@ -825,8 +810,8 @@ void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_mater
   Object.PhongMaterial = Material;
   Object.Transform = Transform;
   Object.EntityID = EntityID;
-  Platform.DEBUGPrint("Drawing Phong Entity: %s\n",  ecs::GetName(GlobalEntityManager, &EntityID));
-  GlobalRenderer->RenderList2.PushBack(Object);
+  ///Platform.DEBUGPrint("Drawing Phong Entity: %s\n",  ecs::GetName(GlobalEntityManager, &EntityID));
+  GlobalRenderer->RenderList.PushBack(Object);
 }
 // Note:: EntityID is for debug purposes, remove later
 void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::pbr_material* Material, m4 Transform, ecs::entity_id EntityID)
@@ -837,15 +822,27 @@ void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::pbr_materia
   Object.PbrMaterial = Material;
   Object.Transform = Transform;
   Object.EntityID = EntityID;
-  Platform.DEBUGPrint("Drawing PBR Entity: %s\n",  ecs::GetName(GlobalEntityManager, &EntityID));
-  GlobalRenderer->RenderList2.PushBack(Object);
+  //Platform.DEBUGPrint("Drawing PBR Entity: %s\n",  ecs::GetName(GlobalEntityManager, &EntityID));
+  GlobalRenderer->RenderList.PushBack(Object);
 }
 
 
 // TODO: Remove these. Should only use DrawAssetRenderObject
 void DrawMesh( asset::mesh_id ID, const m4& Transform, ecs::entity_id EntityID)
 {
-  GlobalRenderer->RenderList.PushBack({ID, Transform, EntityID});
+  asset::mesh* Mesh = (asset::mesh*) Find(asset::type::MESH, ID);
+  for (int i = 0; i < Mesh->PrimitiveCount; ++i)
+  {
+    asset::mesh::primitive* Primitive = &Mesh->Primitives[i];
+    if(Primitive->PbrMaterial)
+    {
+      asset::pbr_material* Material = (asset::pbr_material*) Find(asset::type::PBR_MATERIAL, Primitive->PbrMaterial);
+      DrawAssetRenderObject(Primitive, Material, Transform, EntityID);
+    }else if(Primitive->PhongMaterial){
+      asset::phong_material* Material = (asset::phong_material*) Find(asset::type::PHONG_MATERIAL, Primitive->PhongMaterial);
+      DrawAssetRenderObject(Primitive, Material, Transform, EntityID);
+    }
+  }
 }
 
 void DrawRenderTree(asset::render_tree_id ID, ecs::entity_id EntityID) {
@@ -874,5 +871,9 @@ void DrawRenderTree(asset::render_tree_id ID, ecs::entity_id EntityID) {
   }
 }
 
+void RecompileAllPrograms()
+{
+  
+}
 
 } // namespace render 

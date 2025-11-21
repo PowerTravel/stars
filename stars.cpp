@@ -1194,7 +1194,7 @@ void LoadAndRenderGLTFEngine()
 
   for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
   {
-    ecs::render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
+    render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i], {});
   }
 }
 
@@ -1440,7 +1440,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 */
   ecs::render::window_size_pixel* Window = &GlobalState->World.RenderSystem->WindowSize;
   ecs::render::SetWindowSize(GlobalState->World.RenderSystem, RenderCommands);
-  CreateFrameBuffer(RenderCommands->RenderGroup, ecs::render::FrameBuffer(ecs::render::data::FRAMEBUFFER_DEFAULT),  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
+  //CreateFrameBuffer(RenderCommands->RenderGroup, ecs::render::FrameBuffer(ecs::render::data::FRAMEBUFFER_DEFAULT),  Window->WindowWidth, Window->WindowHeight, 0, 0, 0, 0);
   
   if((ImguiNoneSelected() && ImguiIsInactive())|| ImguiIsDragging())
   {
@@ -1450,7 +1450,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   aabb_tree aabbTree = BuildBroadPhaseTree();
   
 
-
+#if 0
   render_group* RenderGroup = RenderCommands->RenderGroup;
   if(( jwin::Pushed(Input->Keyboard.Key_ENTER) && jwin::Active(Input->Keyboard.Key_LSHIFT) && jwin::Active(Input->Keyboard.Key_LCTRL) ) || Input->ExecutableReloaded)
   {
@@ -1495,8 +1495,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramVertex.glsl"),
       1, LoadFileFromDisk("..\\jwin\\shaders\\SolidLineProgramFragment.glsl"));
   }
-
-
+#endif
+  if(( jwin::Pushed(Input->Keyboard.Key_ENTER) && jwin::Active(Input->Keyboard.Key_LSHIFT) && jwin::Active(Input->Keyboard.Key_LCTRL) ) || Input->ExecutableReloaded)
+  {
+    render::RecompileAllPrograms();
+  }
 
   ecs::position::UpdatePositions(GetEntityManager());
   
@@ -1520,14 +1523,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   //DrawOverlayObjects(); 
   ecs::render::DrawLine3D(V3(0,0,0), V3(1,1,1), V4(0,1,0,1), 0.1);
 #endif
-  #if 1
+  #if 0
   ecs::render::NewRenderLevel(GetRenderSystem());
   DrawColorList(&GlobalState->ApplicationImgui);
   ecs::render::NewRenderLevel(GetRenderSystem());
   DrawEntityList(&GlobalState->ApplicationImgui);
   #endif
   ImguiEnd();
-  //render::RenderScene(GetRenderer(), GlobalState->Camera.P, GlobalState->Camera.V);
-  ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
+  render::RenderScene(GetRenderer(), GlobalState->Camera.P, GlobalState->Camera.V);
+  //ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
   int _a = 10;
 } 
+

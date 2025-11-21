@@ -22,19 +22,12 @@ namespace render {
     bool Transparent;
     shader_type ShaderType;
     asset::mesh::primitive* Primitive;
+    union{
+      asset::pbr_material* PbrMaterial;
+      asset::phong_material* PhongMaterial;
+    };
     m4* Transform;
   };
-
-  typedef cmn::hash_map<asset::mesh_id, cmn::vector<primitive> > mesh_handle_map;
-
-  struct mesh_transform_pair {
-    asset::mesh_id MeshID;
-    m4 Transform;
-    ecs::entity_id EntityID;
-  };
-
-  typedef cmn::list<mesh_transform_pair> render_list;
-  typedef render_list::element render_list_element;
 
   struct window_size_pixel {
     r32 WindowWidth;
@@ -73,8 +66,8 @@ namespace render {
     ecs::entity_id EntityID;
   };
 
-  typedef cmn::list<asset_render_object> render_list_2;
-  typedef render_list_2::element render_list_element_2;
+  typedef cmn::list<asset_render_object> render_list;
+  typedef render_list::element render_list_element;
 
 
   struct renderer {
@@ -82,13 +75,10 @@ namespace render {
     rb_tree LoadedTextures;
     rb_tree LoadedPrograms;
     rb_tree LoadedPrimitives;
-    mesh_handle_map LoadedMeshAssets; // Meshes that are loaded via the asset manager. They follow the normal Phong / PBR pipeleine
-
 
     render_group* RenderGroup;
 
     render_list RenderList;
-    render_list_2 RenderList2;
     
     window_size_pixel WindowSize;
     u32* InternalTextures;
@@ -111,4 +101,7 @@ namespace render {
   u32 LoadMeshPrimitiveToGPU(asset::mesh::primitive* AssetPrimitive);
   u32 GetOrCreateTexture(asset::texture* Texture);
   cmn::vector<primitive>& GetOrCreateMeshHandle(render_group* RenderGroup, asset::mesh_id MeshID);
+
+  void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix);
+  void RecompileAllPrograms();
 } // namespace render
