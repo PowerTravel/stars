@@ -43,7 +43,7 @@ namespace pbr {
 
   u32 CreateProgram(render_group* RenderGroup, definition Definition)
   {
-    char* ProgramName = PushArray(GlobalTransientArena, 1024, char);
+    char* ProgramName = PushArray(&GlobalRenderer->RenderTransientArena, 1024, char);
     GetProgramName(Definition, 1024*sizeof(char), ProgramName);
     u32 ProgramHandle = NewShaderProgram(RenderGroup, ProgramName);
     Platform.DEBUGPrint("Creating Program %d '%s'\n",ProgramHandle, ProgramName);
@@ -56,7 +56,7 @@ namespace pbr {
     AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "CamPos");
     AddUniform(RenderGroup, UniformType::V3,  ProgramHandle, "LightPos");
 
-    char* Defines = PushArray(GlobalTransientArena, 1024, char);
+    char* Defines = PushArray(&GlobalRenderer->RenderTransientArena, 1024, char);
     FormatString(Defines, 1024*sizeof(char), 
       "#version 330 core\n"
       "#define ALBEDO_MAP %d\n"
@@ -78,18 +78,18 @@ namespace pbr {
       AddUniform(RenderGroup, UniformType::R32,  ProgramHandle, "Roughness");
     }
 
-    char* VertexHeaders = PushArray(GlobalTransientArena, 1, char);
-    *VertexHeaders = '\n';
+    char* VertexHeaders = PushArray(&GlobalRenderer->RenderTransientArena, 1, char);
+    VertexHeaders[0] = '\0';
 
-    char** VertexShaderCode = PushArray(GlobalTransientArena, 3, char*);
+    char** VertexShaderCode = PushArray(&GlobalRenderer->RenderTransientArena, 3, char*);
     VertexShaderCode[0] = Defines;
     VertexShaderCode[1] = VertexHeaders;
     VertexShaderCode[2] = *LoadFileFromDisk("..\\render\\shaders\\pbr\\pbr_vertex.glsl");
     
-    char* FragmentHeaders = PushArray(GlobalTransientArena, 1, char);
-    *FragmentHeaders = '\n';
+    char* FragmentHeaders = PushArray(&GlobalRenderer->RenderTransientArena, 1, char);
+    FragmentHeaders[0] = '\0';
 
-    char** FragmentShaderCode = PushArray(GlobalTransientArena, 3, char*);
+    char** FragmentShaderCode = PushArray(&GlobalRenderer->RenderTransientArena, 3, char*);
     FragmentShaderCode[0] = Defines;
     FragmentShaderCode[1] = FragmentHeaders;
     FragmentShaderCode[2] = *LoadFileFromDisk("..\\render\\shaders\\pbr\\pbr_fragment.glsl");

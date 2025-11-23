@@ -23,7 +23,7 @@
 #include "ecs/components/component_collider.h"
 #include "io/obj.cpp"
 #include "render/render.cpp"
-
+#include "render/font.cpp"
 
 #include "containers/linked_memory_unit_tests.h"
 
@@ -998,7 +998,7 @@ void DrawAllRenderObjects()
     DrawRenderObject(Component);
     if(Component->RenderTreeHandle)
     {
-      render::DrawRenderTree(Component->RenderTreeHandle, EntityID);
+      render::DrawRenderTree(Component->RenderTreeHandle);
     }else if(Component->MeshHandle){
 
       asset::mesh* Mesh = (asset::mesh*) Find(asset::type::MESH, Component->MeshID);
@@ -1012,7 +1012,7 @@ void DrawAllRenderObjects()
       }
       for (int i = 0; i < Mesh->PrimitiveCount; ++i)
       {
-        render::DrawAssetRenderObject(Mesh->Primitives + i, PhongMaterial, Transform, EntityID);
+        render::DrawAssetRenderObject(Mesh->Primitives + i, PhongMaterial, Transform);
       }
     }
     
@@ -1194,7 +1194,7 @@ void LoadAndRenderGLTFEngine()
 
   for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
   {
-    render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i], {});
+    render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
   }
 }
 
@@ -1206,9 +1206,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GlobalImguiContext   = &GlobalState->ImguiContext;
   GlobalRenderCommands = RenderCommands;
   GlobalRenderSystem   = GlobalState->World.RenderSystem;
-  GlobalRenderer       = &GlobalState->World.Renderer;
+  GlobalRenderer       = GlobalState->World.Renderer;
   GlobalAssetManager   = GlobalState->AssetManager;
   GlobalEntityManager  = GlobalState->World.EntityManager;
+  GlobalWindowSize     = WindowSizePixel(RenderCommands, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height);
 
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
@@ -1228,7 +1229,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->World  = InitiateWorld(RenderCommands);
     GlobalRenderSystem  = GlobalState->World.RenderSystem;
     GlobalEntityManager = GlobalState->World.EntityManager;
-    GlobalRenderer       = &GlobalState->World.Renderer;
+    GlobalRenderer      = GlobalState->World.Renderer;
 
     LinkedMemoryUnitTests(GlobalTransientArena);
 
@@ -1503,6 +1504,20 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   ecs::position::UpdatePositions(GetEntityManager());
   
+  // Test Text
+  {
+    {
+      v2 PixelPos = V2(GlobalWindowSize.ApplicationWidth * 0.5,GlobalWindowSize.ApplicationHeight * 0.5);
+      rect2f PixelClipRect = Rect2f(PixelPos, V2(200, 20));
+      render::DrawTextPixelSpace(PixelPos, PixelClipRect, 14, (const utf8_byte*) "Hello Text!", V4(1,1,1,1));
+    }
+  //render::DrawTextCanonicalSpace(v2 CanonicalPos,  rect2f CanonicalClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color);
+  //render::DrawTextPixelSpace(v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
+  //render::DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
+
+  }
+
+
 #define TMP_STRING_SIZE 128
   UpdateViewMatrix(&GlobalState->Camera);
 #if 0
@@ -1530,7 +1545,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   DrawEntityList(&GlobalState->ApplicationImgui);
   #endif
   ImguiEnd();
-  render::RenderScene(GetRenderer(), GlobalState->Camera.P, GlobalState->Camera.V);
+  render::RenderScene(GlobalState->Camera.P, GlobalState->Camera.V);
   //ecs::render::Draw(GetEntityManager(), GetRenderSystem(), GlobalState->Camera.P, GlobalState->Camera.V);  
   int _a = 10;
 } 

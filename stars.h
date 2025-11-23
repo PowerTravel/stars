@@ -42,7 +42,7 @@ struct function_pool
 struct world {
   ecs::entity_manager* EntityManager;
   ecs::render::system* RenderSystem;
-  render::renderer Renderer;
+  render::renderer* Renderer;
 };
 
 struct application_state
@@ -77,6 +77,8 @@ struct application_state
   menu::color_table ColorTable;
   world World;
 
+  window_size_pixel WindowSize;
+
   imgui_context ImguiContext;
   application_imgui ApplicationImgui;
 
@@ -94,6 +96,7 @@ global_variable asset::manager* GlobalAssetManager = 0;
 global_variable ecs::render::system* GlobalRenderSystem = 0;
 global_variable render::renderer* GlobalRenderer = 0;
 global_variable float GlobalTime = 0;
+global_variable window_size_pixel GlobalWindowSize = {};
 
 // Global Singleton Getters
 inline ecs::render::system* GetRenderSystem() {
@@ -101,7 +104,7 @@ inline ecs::render::system* GetRenderSystem() {
 }
 
 inline render::renderer* GetRenderer() {
-  return &GlobalState->World.Renderer;
+  return GlobalState->World.Renderer;
 }
 
 inline ecs::entity_manager* GetEntityManager() {

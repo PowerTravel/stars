@@ -338,7 +338,7 @@ template<typename T>
 void LevelOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, void* UserData) {
   if(!Tree.m_root) return;
 
-  node_list<T> NodeQueue = node_list<T>::Create(true ,_g_cmn_transient_malloc, _g_cmn_transient_free);
+  node_list<T> NodeQueue = node_list<T>::CreateTransient();
   NodeQueue.PushBack(Tree.m_root);
 
   while(!NodeQueue.Empty())
@@ -466,7 +466,7 @@ NodeVisitFunction(LevelOrderNodeList){
 
 template <typename T>
 node_list<T> n_tree<T>::GetLevelOrderList(_cmn_malloc* Malloc, _cmn_free* Free) {
-  node_list<T> NodeList = node_list<T>::Create(false, Malloc, Free);
+  node_list<T> NodeList = node_list<T>::Create(Malloc, Free);
   LevelOrderTraversal(*this, LevelOrderNodeList, (void*) &NodeList);
   return NodeList;
 }

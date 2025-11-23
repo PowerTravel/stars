@@ -4,8 +4,11 @@
 // Keeps track of assets loaded to the GPU 
 // Holds the rendering pipeline
 
+#include "window_size.h"
 #include "asset_manager/asset_types.h"
 #include "renderer/render_push_buffer/application_render_push_buffer.h"
+
+#include "font.h"
 
 namespace render {
 
@@ -29,18 +32,6 @@ namespace render {
     m4* Transform;
   };
 
-  struct window_size_pixel {
-    r32 WindowWidth;
-    r32 WindowHeight;
-    r32 MonitorWidth;
-    r32 MonitorHeight;
-    r32 MonitorDPI;
-    r32 EffectiveDPI;
-    r32 ApplicationAspectRatio;
-    r32 ApplicationWidth;
-    r32 ApplicationHeight;
-    r32 MSAA;
-  };
 
   struct gl_vertex_buffer
   {
@@ -63,33 +54,73 @@ namespace render {
       asset::pbr_material* PbrMaterial;
     };
     m4 Transform;
-    ecs::entity_id EntityID;
   };
 
   typedef cmn::list<asset_render_object> render_list;
   typedef render_list::element render_list_element;
 
+  struct overlay_text
+  {
+    v4 Color;
+    v4 TextCoord;
+    m4 ModelMatrix; // PixelSpace
+  };
+
+  struct overlay_quad {
+    v4 Color;
+    m4 ModelMatrix; // PixelSpace
+  };
+
+  struct overlay_image {
+    v4 TexCoord;
+    m4 ModelMatrix; // PixelSpace
+  };
+#if 0
+  struct overlay_dot {
+    v4 Color;
+    m4 ModelMatrix; // PixelSpace
+  };
+  struct overlay_line {
+    v4 Color;
+    m4 ModelMatrix; // PixelSpace
+  };
+#endif
+
+  struct overlay_level {
+    cmn::list<overlay_text>  OverlayText;
+    cmn::list<overlay_quad>  OverlayQuads;
+    cmn::list<overlay_image> OverlayIcon;
+  };
 
   struct renderer {
+    memory_arena RenderTransientArena;
+    temporary_memory TempMem;
     chunk_list RenderHandles; // u32 // Global Persistent Arena
     rb_tree LoadedTextures;
     rb_tree LoadedPrograms;
     rb_tree LoadedPrimitives;
 
+    r32 MSAA;
+
     render_group* RenderGroup;
 
     render_list RenderList;
-    
-    window_size_pixel WindowSize;
+
+    cmn::list<overlay_level> OverlayLevels;
+
     u32* InternalTextures;
     u32* FrameBuffers;
     u32* BasicShapes;
     u32* InternalShaders;
+
+    font Font;
   };
+
+  char** LoadFileFromDisk(const char* CodePath);
 
   void SetWindowSize(application_render_commands* RenderCommands);
 
-  renderer Create(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands);
+  renderer* Create(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands);
   void Begin();
 
   void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_material* Material, m4 Transform, ecs::entity_id EntityID);
@@ -99,9 +130,18 @@ namespace render {
 
   u32 LoadMeshToGPU(gl_vertex_buffer VertexBuffer);
   u32 LoadMeshPrimitiveToGPU(asset::mesh::primitive* AssetPrimitive);
+  u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams);
   u32 GetOrCreateTexture(asset::texture* Texture);
   cmn::vector<primitive>& GetOrCreateMeshHandle(render_group* RenderGroup, asset::mesh_id MeshID);
 
-  void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix);
+  void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix);
   void RecompileAllPrograms();
+
+
+  void DrawTextPixelSpace(v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color);
+  void DrawTextCanonicalSpace(v2 CanonicalPos,  rect2f CanonicalClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color);
+  void DrawTextPixelSpace(v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
+  void DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
+  
+
 } // namespace render

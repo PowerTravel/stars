@@ -39,19 +39,20 @@ struct list {
 
   void* Malloc(size_t sz)
   {
-    if(m_transient){
-      return _g_cmn_transient_malloc(sz);
+    if(m_malloc)
+    {
+      return m_malloc(sz);
     }
-    return _g_cmn_malloc(sz);
+    
+    return m_transient ? _g_cmn_transient_malloc(sz) : _g_cmn_malloc(sz);
   }
 
   void Free(void * p)
   {
-    if(m_transient){
-      _g_cmn_transient_free(p);
-    }else{
-      _g_cmn_free(p);
+    if(m_free){
+      return m_free(p);
     }
+    return m_transient ? _g_cmn_transient_free(p) : _g_cmn_free(p);
   }
 
 
@@ -70,16 +71,18 @@ struct list {
 
   list() = default;
 
-  static inline list Create(bool aTransient = false, _cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_free* aFree = _g_cmn_free){
+  static inline list Create(_cmn_malloc* aMalloc = 0, _cmn_free* aFree = 0){
     list Result = {};
     Result.m_malloc = aMalloc;
     Result.m_free = aFree;
-    Result.m_transient = aTransient;
+    Result.m_transient = false;
     return Result;
   }
 
   static inline list CreateTransient(){
-    return list::Create(true);
+    list Result = list::Create(0,0);
+    Result.m_transient = false;
+    return Result;
   }
 
   element* GetSentinel(){
@@ -214,6 +217,7 @@ struct list {
 
   bool IsEnd(element* Position){return !m_sentinel || Position == m_sentinel;};
   bool Empty(){return !m_sentinel || m_sentinel == m_sentinel->Next;}
+  bool Initiated(){return m_sentinel;}
 
 };
 

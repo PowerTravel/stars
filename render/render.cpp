@@ -1,7 +1,5 @@
 #include "render.h"
 #include "asset_manager/asset_manager.h"
-#include "shaders/post_processing/gaussian_blur.h"
-
 
 #include "renderer/render_push_buffer/application_render_push_buffer.h"
 #include "renderer/render_push_buffer/render_push_buffer.h"
@@ -9,6 +7,7 @@
 #include "shaders/pbr/pbr.h"
 #include "shaders/phong/phong.h"
 #include "shaders/common/shaders.h"
+#include "shaders/common/gaussian_blur.h"
 
 extern render::renderer* GlobalRenderer;
 
@@ -42,8 +41,30 @@ enum internal_shaders {
   INTERNAL_SHADER_TRANSPARENT_COMPOSITION,
   INTERNAL_SHADER_GAUSSIAN_BLUR_X,
   INTERNAL_SHADER_GAUSSIAN_BLUR_Y,
+  INTERNAL_SHADER_TEXT,
   INTERNAL_SHADER_COUNT
 };
+
+char** LoadFileFromDisk(const char* CodePath)
+{
+  Assert(GlobalRenderer);
+  char** Result = 0; 
+  debug_read_file_result Shader = Platform.DEBUGPlatformReadEntireFile(CodePath);
+  char* ShaderCode = 0;
+  if(Shader.Contents)
+  {
+    ShaderCode = (char*) PushSize(&GlobalRenderer->RenderTransientArena, Shader.ContentSize+2);
+    utils::Copy(Shader.ContentSize, Shader.Contents, ShaderCode);
+    ShaderCode[Shader.ContentSize+1] = '\n';
+    Platform.DEBUGPlatformFreeFileMemory(Shader.Contents);
+    Result = PushStruct(&GlobalRenderer->RenderTransientArena, char*);
+    *Result = ShaderCode;
+  }else{
+    INVALID_CODE_PATH
+  }
+  return Result;
+}
+
 
 gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
                      const int IndexCount, const int* Indeces, const int VertexCount,
@@ -94,30 +115,33 @@ gl_vertex_buffer PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mes
   return Result;
 }
 
-file_local u32* CreateInternalTextures(render_group* RenderGroup, window_size_pixel* Window)
+file_local u32* CreateInternalTextures(render_group* RenderGroup, r32 MSAA)
 {    
   texture_params DefaultColor = DefaultColorTextureParams();
   texture_params DefaultDepth = DefaultDepthTextureParams();
   texture_params RevealTexParam = DefaultColorTextureParams();
   RevealTexParam.TextureFormat = texture_format::R_8;
 
+  window_size_pixel* Window = &GlobalWindowSize;
+
   u32* Result = (u32*) PushArray(GlobalPersistentArena, INT_TEX_COUNT, u32);
-  Result[INT_TEX_MSAA_COLOR] = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
-  Result[INT_TEX_MSAA_DEPTH] = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultDepth, 0);
-  Result[INT_TEX_ACCUM]      = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
-  Result[INT_TEX_REVEAL]     = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, RevealTexParam, 0);
+  Result[INT_TEX_MSAA_COLOR] = PushNewTexture(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultColor, 0);
+  Result[INT_TEX_MSAA_DEPTH] = PushNewTexture(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultDepth, 0);
+  Result[INT_TEX_ACCUM]      = PushNewTexture(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultColor, 0);
+  Result[INT_TEX_REVEAL]     = PushNewTexture(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, RevealTexParam, 0);
   Result[INT_TEX_GAUSSIAN_A] = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
   Result[INT_TEX_GAUSSIAN_B] = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
   return Result;
 }
 
-file_local u32* CreateFrameBuffers(render_group* RenderGroup, window_size_pixel* Window, u32* Textures )
+file_local u32* CreateFrameBuffers(render_group* RenderGroup, u32* Textures,  r32 MSAA )
 {
+  window_size_pixel* Window = &GlobalWindowSize;
   u32* Result = (u32*) PushArray(GlobalPersistentArena, FRAMEBUFFER_COUNT, u32);
   u32 TransparentColorTexture[]         = {Textures[INT_TEX_ACCUM], Textures[INT_TEX_REVEAL]};
   Result[FRAMEBUFFER_DEFAULT]     = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth, Window->ApplicationHeight, 0, 0, 0, 0);
-  Result[FRAMEBUFFER_MSAA]        = PushNewFrameBuffer(RenderGroup,  Window->MSAA * Window->ApplicationWidth,  Window->MSAA * Window->ApplicationHeight, 1, &Textures[INT_TEX_MSAA_COLOR], Textures[INT_TEX_MSAA_DEPTH], 0);
-  Result[FRAMEBUFFER_TRANSPARENT] = PushNewFrameBuffer(RenderGroup,  Window->MSAA * Window->ApplicationWidth,  Window->MSAA * Window->ApplicationHeight, ArrayCount(TransparentColorTexture), TransparentColorTexture, Textures[INT_TEX_MSAA_DEPTH], 0);
+  Result[FRAMEBUFFER_MSAA]        = PushNewFrameBuffer(RenderGroup,  MSAA * Window->ApplicationWidth,  MSAA * Window->ApplicationHeight, 1, &Textures[INT_TEX_MSAA_COLOR], Textures[INT_TEX_MSAA_DEPTH], 0);
+  Result[FRAMEBUFFER_TRANSPARENT] = PushNewFrameBuffer(RenderGroup,  MSAA * Window->ApplicationWidth,  MSAA * Window->ApplicationHeight, ArrayCount(TransparentColorTexture), TransparentColorTexture, Textures[INT_TEX_MSAA_DEPTH], 0);
   Result[FRAMEBUFFER_GAUSSIAN_A]  = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth, Window->ApplicationHeight, 1, &Textures[INT_TEX_GAUSSIAN_A], 0, 0);
   Result[FRAMEBUFFER_GAUSSIAN_B]  = PushNewFrameBuffer(RenderGroup,  Window->ApplicationWidth, Window->ApplicationHeight, 1, &Textures[INT_TEX_GAUSSIAN_B], 0, 0);
   return Result;
@@ -161,55 +185,73 @@ file_local u32* CreateBasicShapes(render_group* RenderGroup)
   return Result;
 }
 
+u32 CreateTextRenderProgram(render_group* RenderGroup)
+{
+  u32 ProgramHandle = NewShaderProgram(RenderGroup, "TextRenderProgram");
+
+  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "Projection");
+  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "FontMap");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "OnEdgeValue");
+  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "PixelDistanceScale");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TextColor_in");
+  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TexCoord_in");
+  AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "Model");
+  CompileShader(RenderGroup, ProgramHandle, 
+     1, LoadFileFromDisk("..\\render\\shaders\\common\\text_vertex.glsl"),
+     1, LoadFileFromDisk("..\\render\\shaders\\common\\text_fragment.glsl"));
+  return ProgramHandle;
+}
+
+
 file_local u32* CreateInternalShaders(render_group* RenderGroup)
 {
   u32* Result = PushArray(GlobalPersistentArena, INTERNAL_SHADER_COUNT, u32);
   Result[INTERNAL_SHADER_TRANSPARENT_COMPOSITION] = common_shaders::CreateTransparentCompositionProgram(RenderGroup);
   Result[INTERNAL_SHADER_GAUSSIAN_BLUR_X] = common_shaders::CreateGaussianBlurProgramX(RenderGroup);
   Result[INTERNAL_SHADER_GAUSSIAN_BLUR_Y] = common_shaders::CreateGaussianBlurProgramY(RenderGroup);
+  Result[INTERNAL_SHADER_TEXT] = CreateTextRenderProgram(RenderGroup);
   return Result;
 }
 
-renderer Create(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands)
+CMN_MALLOC_FUNCTION(RenderTransientMalloc){
+  return PushSize(&GlobalRenderer->RenderTransientArena, sz);
+}
+CMN_FREE_FUNCTION(RenderTransientFree){
+}
+
+renderer* Create(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands)
 {
-  renderer Result = {};
-  Result.RenderGroup = RenderGroup;
-  Result.RenderHandles    = NewChunkList(GlobalPersistentArena, sizeof(u32), 128);
-  Result.LoadedTextures   = NewRBTree(GlobalPersistentArena, 64, 64);
-  Result.LoadedPrograms   = NewRBTree(GlobalPersistentArena, 64, 64);
-  Result.LoadedPrimitives = NewRBTree(GlobalPersistentArena, 64, 64);
-  Result.RenderList = render_list::CreateTransient();
+  renderer* Result         = BootstrapPushStruct(renderer, RenderTransientArena);
+  Result->RenderGroup      = RenderGroup;
+  GlobalRenderer           = Result;
+
+  Result->RenderHandles    = NewChunkList(GlobalPersistentArena, sizeof(u32), 128);
+  Result->LoadedTextures   = NewRBTree(GlobalPersistentArena, 64, 64);
+  Result->LoadedPrograms   = NewRBTree(GlobalPersistentArena, 64, 64);
+  Result->LoadedPrimitives = NewRBTree(GlobalPersistentArena, 64, 64);
+
+  Result->MSAA = 4; 
+  Result->InternalTextures  = CreateInternalTextures(RenderGroup, Result->MSAA);
+  Result->FrameBuffers      = CreateFrameBuffers(RenderGroup, Result->InternalTextures, Result->MSAA);
+  Result->BasicShapes       = CreateBasicShapes(RenderGroup);
+  Result->InternalShaders   = CreateInternalShaders(RenderGroup);
+  Result->Font              = font::Create(RenderGroup, "C:\\Windows\\Fonts\\consola.ttf");
 
 
-  Result.WindowSize.WindowWidth       = (r32) RenderCommands->WindowInfo.Width;
-  Result.WindowSize.WindowHeight      = (r32) RenderCommands->WindowInfo.Height;
-  Result.WindowSize.MonitorWidth      = (r32) RenderCommands->MonitorInfo.Width;
-  Result.WindowSize.MonitorHeight     = (r32) RenderCommands->MonitorInfo.Height;
-  Result.WindowSize.MonitorDPI        = (r32) RenderCommands->MonitorInfo.RawDPI;
-  Result.WindowSize.EffectiveDPI      = (r32) RenderCommands->MonitorInfo.EffectiveDPI;
-  Result.WindowSize.MSAA              = 4;
-  Result.WindowSize.ApplicationWidth   = ApplicationWidth;
-  Result.WindowSize.ApplicationHeight  = ApplicationHeight;
-  Result.WindowSize.ApplicationAspectRatio = ApplicationWidth / ApplicationHeight;
-
-  Result.InternalTextures  = CreateInternalTextures(RenderGroup, &Result.WindowSize);
-  Result.FrameBuffers      = CreateFrameBuffers(RenderGroup, &Result.WindowSize, Result.InternalTextures);
-  Result.BasicShapes       = CreateBasicShapes(RenderGroup);
-  Result.InternalShaders   = CreateInternalShaders(RenderGroup);
-
+  Result->TempMem          = BeginTemporaryMemory(&Result->RenderTransientArena);
+  Result->RenderList       = render_list::Create(RenderTransientMalloc, RenderTransientFree);
+  Result->OverlayLevels    = cmn::list<overlay_level>::Create(RenderTransientMalloc, RenderTransientFree);
   return Result;
 }
 
 void Begin()
 {
   Assert(GlobalRenderer);
-  GlobalRenderer->RenderList = render_list::CreateTransient();
-}
+  EndTemporaryMemory( GlobalRenderer->TempMem );
+  GlobalRenderer->TempMem = BeginTemporaryMemory(&GlobalRenderer->RenderTransientArena);
 
-void SetWindowSize(application_render_commands* RenderCommands)
-{
-  GlobalRenderer->WindowSize.WindowWidth       = (r32) RenderCommands->WindowInfo.Width;
-  GlobalRenderer->WindowSize.WindowHeight      = (r32) RenderCommands->WindowInfo.Height;
+  GlobalRenderer->RenderList = render_list::Create(RenderTransientMalloc, RenderTransientFree);
+  GlobalRenderer->OverlayLevels = cmn::list<overlay_level>::Create(RenderTransientMalloc, RenderTransientFree);
 }
 
 file_local inline u32 InternalTexture(u32 Index)
@@ -238,10 +280,10 @@ file_local inline u32 InternalShader(u32 Index)
 
 file_local inline void ClearRenderState(renderer* Renderer) {
   render_group* RenderGroup = Renderer->RenderGroup;
-  window_size_pixel* Window = &Renderer->WindowSize;
+  window_size_pixel* Window = &GlobalWindowSize;
 
   render_state* DefaultState = PushNewState(RenderGroup);
-  *DefaultState = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
+  *DefaultState = DefaultRenderState3(Renderer->MSAA * Window->ApplicationWidth, Renderer->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
 
   // Clear default color frame buffer
   clear_operation* DefClearColor = PushNewClearOperation(RenderGroup);
@@ -289,7 +331,7 @@ file_local inline void ClearRenderState(renderer* Renderer) {
 
 u32 LoadMeshPrimitiveToGPU(asset::mesh::primitive* AssetPrimitive)
 {  
-  gl_vertex_buffer VertexBuffer = PrimitiveToGlVertexBuffer(GlobalTransientArena, AssetPrimitive);
+  gl_vertex_buffer VertexBuffer = PrimitiveToGlVertexBuffer(&GlobalRenderer->RenderTransientArena, AssetPrimitive);
   u32 IndexHandle = LoadMeshToGPU(GlobalRenderCommands->RenderGroup, VertexBuffer);
   return IndexHandle;
 }
@@ -407,9 +449,8 @@ u32 GetOrCreateGeometryID(render_group* RenderGroup, asset::mesh::primitive* Mes
 
 file_local void ActivateMSAAFrameBuffer(render_group* RenderGroup)
 {
-  window_size_pixel* Window = &GlobalRenderer->WindowSize;
   render_state* MSAAViewport = PushNewState(RenderGroup);
-  SetState(MSAAViewport, ViewportState(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio));
+  SetState(MSAAViewport, ViewportState(GlobalRenderer->MSAA * GlobalWindowSize.ApplicationWidth, GlobalRenderer->MSAA * GlobalWindowSize.ApplicationHeight, GlobalWindowSize.ApplicationAspectRatio));
 }
 
 
@@ -530,8 +571,8 @@ file_local void BlitBuffers(render_group* RenderGroup, u32 SrcBuffer, u32 DstBuf
 
 file_local void GaussianBlur(render_group* RenderGroup, u32 BlurCount, u32 SrcBuffer, u32 DstBuffer, u32 ApplicationWidth, u32 ApplicationHeight)
 {
-  r32* KernelOffset = PushArray(GlobalTransientArena, 64, r32);
-  r32* KernelWeight = PushArray(GlobalTransientArena, 64, r32);
+  r32* KernelOffset = PushArray(&GlobalRenderer->RenderTransientArena, 64, r32);
+  r32* KernelWeight = PushArray(&GlobalRenderer->RenderTransientArena, 64, r32);
   u32 KernelSize    = gaussian_blur::Kernel(12, 2, KernelOffset, KernelWeight);
   BlitBuffers(RenderGroup, SrcBuffer, FrameBuffer(FRAMEBUFFER_GAUSSIAN_A), Rect2f(0,0,1,1));
   v2 SideSize = V2(ApplicationWidth, ApplicationHeight);
@@ -566,16 +607,43 @@ file_local void GaussianBlur(render_group* RenderGroup, u32 BlurCount, u32 SrcBu
   BlitBuffers(RenderGroup, FrameBuffer(FRAMEBUFFER_GAUSSIAN_B), DstBuffer,  Rect2f(0,0,1,1));
 }
 
-
-void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix)
+file_local void DrawText(render_group* RenderGroup, cmn::list<overlay_text>& OverlayText, m4& OrthoProjectionMatrix)
 {
+  render_object* OverlayTextProgram     = PushNewRenderObject(RenderGroup);
+  OverlayTextProgram->ProgramHandle     = InternalShader(INTERNAL_SHADER_TEXT);
+  OverlayTextProgram->MeshHandle        = BasicShape(BASIC_SHAPE_BLIT_PLANE);
+  OverlayTextProgram->FrameBufferHandle = FrameBuffer(FRAMEBUFFER_DEFAULT);
+  OverlayTextProgram->TextureHandles[0] = GlobalRenderer->Font.FontMapHandle;
+  OverlayTextProgram->TextureCount      = 1;
+  
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"),         OrthoProjectionMatrix);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "FontMap"),            (u32) 0);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"),        (r32) 128/255.f);
+  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), (r32) 32/255.f);
+  
+  size_t TextCount = OverlayText.Size();
+  overlay_text* Text = PushArray(&GlobalRenderer->RenderTransientArena, TextCount, overlay_text);
+  int i = 0;
+  for (cmn::list<overlay_text>::element* TextElement = OverlayText.First(); 
+      !OverlayText.IsEnd(TextElement);
+      TextElement = TextElement->Next)
+  { 
+    Text[i++] = TextElement->GetCopy();
+  }
+  PushInstanceData(OverlayTextProgram, TextCount, TextCount*sizeof(overlay_text), (void*) Text);
+}
+
+void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
+{
+  //SCOPED_TRANSIENT_ARENA;
+  renderer* Renderer = GlobalRenderer;
   render_group* RenderGroup = Renderer->RenderGroup;
 
   v3 LightColor     = V3(1,1,1);
   v3 LightPosition  = V3(1,1,1);
   v3 LightDirection = V3(Transpose(RigidInverse(ViewMatrix)) * V4(LightPosition,0));
 
-  window_size_pixel* Window = &Renderer->WindowSize;
+  window_size_pixel* Window = &GlobalWindowSize;
 
   // Wipes all internal textures and resets to default render state
   ClearRenderState(Renderer);
@@ -586,9 +654,6 @@ void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix)
   while (!Renderer->RenderList.IsEnd(Element))
   {
     asset_render_object* AssetRenderObject = Element->Data;
-
-    //Platform.DEBUGPrint("Rendering Entity: %s\n",  ecs::GetName(GlobalEntityManager, &AssetRenderObject->EntityID));
-
     
     primitive LoadedPrimitive  = {};
     LoadedPrimitive.GeometryID  = GetOrCreateGeometryID(RenderGroup, AssetRenderObject->Primitive);
@@ -637,6 +702,18 @@ void RenderScene(renderer* Renderer, m4 ProjectionMatrix, m4 ViewMatrix)
   #else
   GaussianBlur(RenderGroup, 4, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Window->ApplicationWidth, Window->ApplicationHeight);
   #endif
+
+  m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
+  cmn::list<overlay_level>& OverlayLevels = Renderer->OverlayLevels;
+  for (cmn::list<overlay_level>::element* LevelElement = OverlayLevels.First(); 
+      !OverlayLevels.IsEnd(LevelElement);
+      LevelElement = LevelElement->Next)
+  {
+    overlay_level*  Level = LevelElement->GetPtr();
+    DrawText(RenderGroup, Level->OverlayText, OrthoProjectionMatrix);
+
+
+  }
   
   //BlitBuffers(RenderGroup, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Rect2f(0,0,1,1));
   #if 0
@@ -757,16 +834,9 @@ inline file_local texture_params GetTextureParams(asset::texture* Texture){
   return Result;
 }
 
-file_local u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams) {
+u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams) {
   Assert(Image);
-  Assert(Image->Channels == 4);
-  
-  // TODO: Set params based on texture
-  texture_params Params = DefaultColorTextureParams();
-  Params.TextureFormat = texture_format::RGBA_U8;
-  Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, Params, Image->Pixels);
-
+  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, TextureParams, Image->Pixels);
   return Handle;
 }
 
@@ -801,34 +871,28 @@ u32 GetOrCreateTexture(asset::texture* Texture)
   return Result;
 }
 
-// Note:: EntityID is for debug purposes, remove later
-void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_material* Material, m4 Transform, ecs::entity_id EntityID)
+void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_material* Material, m4 Transform)
 {
   asset_render_object Object = {};
   Object.Primitive = Primitive;
   Object.ShaderType = shader_type::PHONG;
   Object.PhongMaterial = Material;
   Object.Transform = Transform;
-  Object.EntityID = EntityID;
-  ///Platform.DEBUGPrint("Drawing Phong Entity: %s\n",  ecs::GetName(GlobalEntityManager, &EntityID));
   GlobalRenderer->RenderList.PushBack(Object);
 }
-// Note:: EntityID is for debug purposes, remove later
-void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::pbr_material* Material, m4 Transform, ecs::entity_id EntityID)
+
+void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::pbr_material* Material, m4 Transform)
 {
   asset_render_object Object = {};
   Object.Primitive = Primitive;
   Object.ShaderType = shader_type::PBR;
   Object.PbrMaterial = Material;
   Object.Transform = Transform;
-  Object.EntityID = EntityID;
-  //Platform.DEBUGPrint("Drawing PBR Entity: %s\n",  ecs::GetName(GlobalEntityManager, &EntityID));
   GlobalRenderer->RenderList.PushBack(Object);
 }
 
 
-// TODO: Remove these. Should only use DrawAssetRenderObject
-void DrawMesh( asset::mesh_id ID, const m4& Transform, ecs::entity_id EntityID)
+void DrawMesh( asset::mesh_id ID, const m4& Transform)
 {
   asset::mesh* Mesh = (asset::mesh*) Find(asset::type::MESH, ID);
   for (int i = 0; i < Mesh->PrimitiveCount; ++i)
@@ -837,15 +901,15 @@ void DrawMesh( asset::mesh_id ID, const m4& Transform, ecs::entity_id EntityID)
     if(Primitive->PbrMaterial)
     {
       asset::pbr_material* Material = (asset::pbr_material*) Find(asset::type::PBR_MATERIAL, Primitive->PbrMaterial);
-      DrawAssetRenderObject(Primitive, Material, Transform, EntityID);
+      DrawAssetRenderObject(Primitive, Material, Transform);
     }else if(Primitive->PhongMaterial){
       asset::phong_material* Material = (asset::phong_material*) Find(asset::type::PHONG_MATERIAL, Primitive->PhongMaterial);
-      DrawAssetRenderObject(Primitive, Material, Transform, EntityID);
+      DrawAssetRenderObject(Primitive, Material, Transform);
     }
   }
 }
 
-void DrawRenderTree(asset::render_tree_id ID, ecs::entity_id EntityID) {
+void DrawRenderTree(asset::render_tree_id ID) {
 
   asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, ID);
   if(RenderTree)
@@ -865,7 +929,7 @@ void DrawRenderTree(asset::render_tree_id ID, ecs::entity_id EntityID) {
       }
       if(Data->Mesh)
       {
-        DrawMesh(Data->Mesh, CurrentTransform, EntityID);
+        DrawMesh(Data->Mesh, CurrentTransform);
       }
     }
   }
@@ -875,5 +939,99 @@ void RecompileAllPrograms()
 {
   
 }
+
+file_local overlay_level* GetTopOverlayLevel()
+{
+  cmn::list<overlay_level>& OverlayLevels = GlobalRenderer->OverlayLevels;
+  if(OverlayLevels.IsEnd(OverlayLevels.Last()))
+  {
+    OverlayLevels.PushBack({});
+  }
+  return OverlayLevels.Last()->Data;
+}
+
+file_local cmn::list<overlay_text>& GetOverlayText(overlay_level* OverlayLevel){
+  if(!OverlayLevel->OverlayText.Initiated())
+  {
+    OverlayLevel->OverlayText = cmn::list<overlay_text>::Create(RenderTransientMalloc, RenderTransientFree);
+  }
+  return OverlayLevel->OverlayText;
+}
+
+void DrawTextPixelSpace(v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color)
+{
+  SCOPED_TRANSIENT_ARENA;
+  renderer* Renderer = GlobalRenderer;
+  font& Font = Renderer->Font;
+
+  u32 Length = jstr::StringLength((const char*) Text);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, Length+1, codepoint);
+  u32 UnicodeLen = ConvertToUnicode(Text, CodePoints);
+  r32 RelativeScale =  Font.GetScale(PixelSize);
+  jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
+  jfont::GetTextPrintCoordinates(&Font.Font, &Font.FontAtlas, RelativeScale, PixelPos.X, PixelPos.Y, PixelClipRect, CodePoints, TextPrintCoordinates);
+
+  overlay_level* OverlayLevel = GetTopOverlayLevel();
+  cmn::list<overlay_text>& OverlayTextList = GetOverlayText(OverlayLevel);
+  for (int i = 0; i < UnicodeLen; ++i)
+  {
+    jfont::print_coordinates* tc = TextPrintCoordinates+i;
+    overlay_text OverlayText = {};
+
+    OverlayText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
+    OverlayText.ModelMatrix = M4Identity();
+    Scale(V4(tc->sx, tc->sy,1,0), OverlayText.ModelMatrix);
+    Translate(V4(tc->x,tc->y, 0, 1), OverlayText.ModelMatrix);
+    OverlayText.ModelMatrix = Transpose(OverlayText.ModelMatrix);
+    OverlayText.Color = Color;
+    OverlayTextList.PushBack(OverlayText);
+  }
+}
+
+void DrawTextCanonicalSpace(v2 CanonicalPos,  rect2f CanonicalClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color)
+{
+  v2 PixelPos = CanonicalToPixelSpace(CanonicalPos);
+  v2 PixelClipPos = CanonicalToPixelSpace(V2(CanonicalClipRect.X, CanonicalClipRect.Y));
+  v2 PixelClipSize = CanonicalToPixelSpace(V2(CanonicalClipRect.W, CanonicalClipRect.H));
+  DrawTextPixelSpace(PixelPos, Rect2f(PixelClipPos, PixelClipSize), PixelSize, Text, Color);
+}
+
+
+void DrawTextPixelSpace(v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
+{
+  SCOPED_TRANSIENT_ARENA;
+  renderer* Renderer = GlobalRenderer;
+  font& Font = Renderer->Font;
+
+  u32 Length = jstr::StringLength((const char*) Text);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, Length+1, codepoint);
+  u32 UnicodeLen = ConvertToUnicode(Text, CodePoints);
+  r32 RelativeScale = Renderer->Font.GetScale(PixelSize);
+  jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
+  jfont::GetTextPrintCoordinates(&Font.Font, &Font.FontAtlas, RelativeScale, PixelPos.X, PixelPos.Y, CodePoints, TextPrintCoordinates);
+
+  overlay_level* OverlayLevel = GetTopOverlayLevel();
+  cmn::list<overlay_text>& OverlayTextList = GetOverlayText(OverlayLevel);
+
+  for (int i = 0; i < UnicodeLen; ++i)
+  {
+    jfont::print_coordinates* tc = TextPrintCoordinates+i;
+    overlay_text OverlayText = {};
+    OverlayText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
+    OverlayText.ModelMatrix = M4Identity();
+    Scale(V4(tc->sx, tc->sy,1,0), OverlayText.ModelMatrix);
+    Translate(V4(tc->x,tc->y, 0, 1), OverlayText.ModelMatrix);
+    OverlayText.ModelMatrix = Transpose(OverlayText.ModelMatrix);
+    OverlayText.Color = Color;
+    OverlayTextList.PushBack(OverlayText);
+  }
+}
+
+void DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
+{
+  v2 PixelPos = CanonicalToPixelSpace(CanonicalPos);
+  DrawTextPixelSpace(PixelPos, PixelSize, Text, Color);
+}
+
 
 } // namespace render 
