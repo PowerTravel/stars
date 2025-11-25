@@ -93,20 +93,23 @@ void InOrderTraverse(asset_tree_traversal_function* Callback, void* UserData);
 // void* name(size_t sz)
 CMN_MALLOC_FUNCTION(Persistent_MallocFunction){
   Assert(GlobalAssetManager);
+  Platform.DEBUGPrint("Persistant Asset Alloc %d\n", sz);
   void* Result = Allocate(&GlobalAssetManager->Memory, sz);
   return Result;
 }
 
 // void* name(void* p, size_t sz)
-CMN_REALLOC_FUNCTION(Persistent_MallocFunction){
+CMN_REALLOC_FUNCTION(Persistent_ReallocFunction){
   Assert(GlobalAssetManager);
-void* Result = Allocate(&GlobalAssetManager->Memory, sz);
+  Platform.DEBUGPrint("Persistant Asset ReAlloc %d\n", sz);
+  void* Result = Allocate(&GlobalAssetManager->Memory, sz);
   return p;
 }
 
 // void  name(void* p)
 CMN_FREE_FUNCTION(Persistent_MallocFunction)
 {
+  Platform.DEBUGPrint("Persistant Asset Free\n");
   Assert(GlobalAssetManager);  
 }
 

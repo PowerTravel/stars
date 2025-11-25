@@ -81,7 +81,7 @@ struct list {
 
   static inline list CreateTransient(){
     list Result = list::Create(0,0);
-    Result.m_transient = false;
+    Result.m_transient = true;
     return Result;
   }
 

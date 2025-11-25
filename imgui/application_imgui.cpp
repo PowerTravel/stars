@@ -5,12 +5,12 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   application_imgui Result = {};
 
   u32 InputLen = 512;
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), GlobalState->ImguiContext.FontSize);
+  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
 
   u32 IDCount  = 512;
   u32 EntityChunkCount = 32;
   Result.MenuEntityList = PushStruct(Arena, menu_entity_list);
-  Result.MenuEntityList->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), ecs::render::PixelToCanonicalSpace(GetRenderSystem(), V2(3,3)), RowHeight);
+  Result.MenuEntityList->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
   Result.MenuEntityList->EntityList   = CreateScrollableTextList();
   Result.MenuEntityList->EntityData   = NewChunkList(Arena, sizeof(imgui_entity_data), EntityChunkCount);
   Result.MenuEntityList->PositionComponentData = NewChunkList(Arena, sizeof(position_component_data), EntityChunkCount);
@@ -22,7 +22,7 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   Result.ColorListData->ColorIDs         = PushArray(Arena, ColorCount, s32);
 
   Result.ColorListData->ColorList = CreateScrollableTextList();
-  Result.ColorListData->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.1,0.25), V2(0.1,0.5)), ecs::render::PixelToCanonicalSpace(GetRenderSystem(), V2(3,3)), RowHeight);
+  Result.ColorListData->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.1,0.25), V2(0.1,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
   for (int i = 0; i < ColorCount; ++i)
   {
     Result.ColorListData->ImguiIDs[i] = NewButtonID();
@@ -39,14 +39,14 @@ void DrawColorRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect
   char* ColorName = NamedColor->Name;
   v4 ColorValue   = HexCodeToColorV4(NamedColor->Color);
 
-  v2 Padding = V2(ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1),ecs::render::PixelToCanonicalHeight(GetRenderSystem(),1));
+  v2 Padding = PixelToCanonicalSpace(V2(1,1));
 
   r32 RowWidth = RowRect.W;
   r32 ColorSquareWidth = RowRect.H;
   r32 TextWidth = RowRect.W - ColorSquareWidth;
 
   if(ImguiIsHot(ButtonID) && ImguiIsInactive() && RowRect.H == ClippedRowRect.H){
-    r32 TextWidthTmp = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte*) ColorName).X;
+    r32 TextWidthTmp = GlobalRenderer->Font.GetTextSizeCanonicalSpace(ImguiContext->FontSize, (utf8_byte*) ColorName).X;
     if(TextWidthTmp > TextWidth)
     {
       TextWidth = TextWidthTmp + 2*Padding.X;
@@ -57,24 +57,24 @@ void DrawColorRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect
   // Button Background
   v4 ButtonColor = ImguiGetButtonColor(ButtonID, ImguiDefaultButtonColor());
   rect2f ButtonBackgroundRect = Rect2f(ClippedRowRect.X, ClippedRowRect.Y, RowWidth, ClippedRowRect.H);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ButtonBackgroundRect), ButtonColor);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(ButtonBackgroundRect), ButtonColor);
 
   // Colored Square
   rect2f ColorSquare = Rect2f(ClippedRowRect.X, ClippedRowRect.Y, ColorSquareWidth, ClippedRowRect.H);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(Shrink(ColorSquare,Padding)), ColorValue);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(Shrink(ColorSquare,Padding)), ColorValue);
 
   // Color Name
   rect2f TextRect = Rect2f(RowRect.X + ColorSquareWidth, ClippedRowRect.Y, TextWidth, ClippedRowRect.H);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+  r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(ImguiContext->FontSize);
   v2 TextPos = V2(RowRect.X + ColorSquareWidth, RowRect.Y + DescentOffset);
   utf8_string_buffer StringBuffer = SetStringToFit(ImguiContext->FontSize, TextWidth, ColorName);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
+  render::DrawTextCanonicalSpace(TextPos, TextRect, ImguiContext->FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
 }
 
 void DrawColorList(application_imgui* AppImgui) {
   
   u32 ColorCount = GlobalState->ColorTable.ColorCount;
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), GlobalState->ImguiContext.FontSize);
+  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
 
   color_list_data* ColorListData = AppImgui->ColorListData;
 
@@ -103,9 +103,9 @@ void DrawColorList(application_imgui* AppImgui) {
   v2 SearchIconSize = V2(RowHeight, RowHeight);
   v4 TexCoord = GlobalImguiContext->Icons.Coordinates[ICON_SEARCH];
   rect2f SearchIconRectBackground = Rect2f(SearchIconPos, SearchIconSize);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(SearchIconRectBackground), SearchBoxBackgroundColor);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(SearchIconRectBackground), SearchBoxBackgroundColor);
   rect2f SearchIconRect = Shrink(SearchIconRectBackground, 0.1*SearchIconRectBackground.W);
-  ecs::render::DrawIconCanonicalSpace(GetRenderSystem(), CenteredRect(SearchIconRect),  TexCoord, V4(1,1,1,1));
+  render::DrawIconCanonicalSpace(CenteredRect(SearchIconRect),  TexCoord, V4(1,1,1,1));
 
   
   v2 FilterBarDialogPos  = V2(BorderWindow->Region.X + RowHeight, BorderWindow->Region.Y);
@@ -135,11 +135,11 @@ void DrawColorList(application_imgui* AppImgui) {
 
 void DrawNumber(c8* Number, r32 FontSize, rect2f Rect)
 {
-  v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, (utf8_byte const *) Number);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+  v2 TextSize = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, (utf8_byte const *) Number);
+  r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(FontSize);
   v2 TextPos  = V2(Rect.X + (Rect.W - TextSize.X), Rect.Y);
   Rect.Y -= DescentOffset;
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, Rect, FontSize, (utf8_byte const *) Number, V4(1.0,1.0,1.0,1.0));
+  render::DrawTextCanonicalSpace(TextPos, Rect, FontSize, (utf8_byte const *) Number, V4(1.0,1.0,1.0,1.0));
 }
 
 void DrawNumber(r32 Number, r32 FontSize, rect2f Rect)
@@ -274,7 +274,7 @@ void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffe
       }
     }
 
-    r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+    r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(ImguiContext->FontSize);
     rect2f TextRect = DialogRect;
     TextRect.Y +=DescentOffset;
     DrawNumber(DataValue, ImguiContext->FontSize, TextRect);
@@ -283,25 +283,25 @@ void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffe
 
 r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data* PosCompData, ecs::position::component* Position, v2 TopLeft, rect2f ClipArea)
 {
-  r32 RowHeight1 = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
-  r32 DescentOffset1 = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+  r32 RowHeight1 = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( ImguiContext->FontSize);
+  r32 DescentOffset1 = GlobalRenderer->Font.GetCanonicalFontDescenOffset(ImguiContext->FontSize);
+  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( ImguiContext->FontSize);
+  r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(ImguiContext->FontSize);
   v2 TextPos = V2(TopLeft.X, TopLeft.Y + DescentOffset1 - RowHeight1 );
 
   r32 Height = RowHeight1;
   {
     c8 Header[] = "Position Component";
-    v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) Header);
-    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(TopLeft.X + (ClipArea.W - TextSize.X)/2.f, TextPos.Y), ClipArea, ImguiContext->FontSize, (utf8_byte const *) Header, V4(1.0,1.0,1.0,1.0));
+    v2 TextSize = GlobalRenderer->Font.GetTextSizeCanonicalSpace(ImguiContext->FontSize, (utf8_byte const *) Header);
+    render::DrawTextCanonicalSpace(V2(TopLeft.X + (ClipArea.W - TextSize.X)/2.f, TextPos.Y), ClipArea, ImguiContext->FontSize, (utf8_byte const *) Header, V4(1.0,1.0,1.0,1.0));
     Height += RowHeight;
     TextPos.Y -= RowHeight;
   }
 
   { 
     c8 Preamble[] = "  Pos:";
-    v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) Preamble);
-    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, ClipArea, ImguiContext->FontSize, (utf8_byte const *) Preamble, V4(1.0,1.0,1.0,1.0));
+    v2 TextSize = GlobalRenderer->Font.GetTextSizeCanonicalSpace(ImguiContext->FontSize, (utf8_byte const *) Preamble);
+    render::DrawTextCanonicalSpace(TextPos, ClipArea, ImguiContext->FontSize, (utf8_byte const *) Preamble, V4(1.0,1.0,1.0,1.0));
     
     v2 LeftOverSize = V2(ClipArea.W - TextSize.X - 0.01, TextSize.Y);
     rect2f LeftoverRect = Rect2f(V2(TextPos.X + TextSize.X, TextPos.Y), LeftOverSize);
@@ -325,8 +325,8 @@ r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data
   }
   {
     c8 Preamble[] = "  Rot:";
-    v2 TextSize = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) Preamble);
-    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, ClipArea, ImguiContext->FontSize, (utf8_byte const *) Preamble, V4(1.0,1.0,1.0,1.0));
+    v2 TextSize = GlobalRenderer->Font.GetTextSizeCanonicalSpace(ImguiContext->FontSize, (utf8_byte const *) Preamble);
+    render::DrawTextCanonicalSpace(TextPos, ClipArea, ImguiContext->FontSize, (utf8_byte const *) Preamble, V4(1.0,1.0,1.0,1.0));
     v2 LeftOverSize = V2(ClipArea.W - TextSize.X - 0.01, TextSize.Y);
 
     rect2f LeftoverRect = Rect2f(V2(TextPos.X + TextSize.X, TextPos.Y), LeftOverSize);
@@ -355,7 +355,7 @@ r32 RenderPositionComponent(imgui_context* ImguiContext, position_component_data
 r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgui_entity_data* Data)
 {
   // Button Background
-  r32 Height = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize);
+  r32 Height = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( ImguiContext->FontSize);
   rect2f ButtonBackgroundRect = Rect2f(TopLeft.X, TopLeft.Y - Height, ClipArea.W, Height);
 
   imgui_button_color ButtonColor = {};
@@ -370,10 +370,10 @@ r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgu
   }
 
   rect2f TextRect = Rect2f(ButtonBackgroundRect.X, ButtonBackgroundRect.Y, ButtonBackgroundRect.W, ButtonBackgroundRect.H);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), ImguiContext->FontSize);
+  r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(ImguiContext->FontSize);
 
   v4 TexCoord = Data->Open ? GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_DOWN] : GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_RIGHT];
-  ecs::render::DrawIconCanonicalSpace(GetRenderSystem(), CenteredRect(Rect2f(ButtonBackgroundRect.X, ButtonBackgroundRect.Y, Height,Height)), TexCoord, V4(1,1,1,1));
+  render::DrawIconCanonicalSpace(CenteredRect(Rect2f(ButtonBackgroundRect.X, ButtonBackgroundRect.Y, Height,Height)), TexCoord, V4(1,1,1,1));
   v2 TextPos = V2(ButtonBackgroundRect.X + Height, ButtonBackgroundRect.Y + DescentOffset);
   c8 LineBuffer[128] = {};
   ecs::entity_id EntityID = Data->EntityID;
@@ -381,8 +381,8 @@ r32 DrawEntityRow(imgui_context* ImguiContext, v2 TopLeft, rect2f ClipArea, imgu
   LineBufferPos += jstr::CopyStringsUnchecked(": ", LineBuffer + LineBufferPos);
   LineBufferPos += jstr::CopyStringsUnchecked(ecs::GetName(GetEntityManager(), &EntityID), LineBuffer + LineBufferPos);
 
-  r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), ImguiContext->FontSize, (utf8_byte const *) LineBuffer).X;
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextPos, TextRect, ImguiContext->FontSize, (utf8_byte const *) LineBuffer, V4(1.0,1.0,1.0,1.0));
+  r32 TextWidth = GlobalRenderer->Font.GetTextSizeCanonicalSpace(ImguiContext->FontSize, (utf8_byte const *) LineBuffer).X;
+  render::DrawTextCanonicalSpace(TextPos, TextRect, ImguiContext->FontSize, (utf8_byte const *) LineBuffer, V4(1.0,1.0,1.0,1.0));
 
   if(Data->Open)
   {
@@ -519,7 +519,7 @@ b32 ImguiEntityComponentList(menu_entity_list* MenuEntityList, v2 Pos, v2 Size) 
 
   // List Background
   rect2f BackgroundRect = Rect2f(Pos, Size);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
 
   v2 ListContentSize = Size;
   rect2f ListRect = Rect2f(Pos, ListContentSize);
@@ -543,7 +543,7 @@ void DrawEntityList(application_imgui* AppImgui) {
 
   menu_entity_list* MenuEntityList = AppImgui->MenuEntityList;
 
-  r32 RowHeight = ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(),GlobalState->ImguiContext.FontSize);
+  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalState->ImguiContext.FontSize);
   
   v2 ScrollListPos  = V2(MenuEntityList->BorderWindow.Region.X, MenuEntityList->BorderWindow.Region.Y);
   v2 ScrollListSize = V2(MenuEntityList->BorderWindow.Region.W, MenuEntityList->BorderWindow.Region.H - MenuEntityList->BorderWindow.HeaderSize);

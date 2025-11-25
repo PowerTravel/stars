@@ -33,7 +33,7 @@ font font::Create(render_group* RenderGroup, const char* FontFilePath)
   texture_params FontTexParam = DefaultColorTextureParams();
   FontTexParam.TextureFormat = texture_format::R_8;
   FontTexParam.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  Result.FontMapHandle = PushNewTexture(RenderGroup, Result.FontAtlas.AtlasWidth, Result.FontAtlas.AtlasHeight, FontTexParam, Result.FontAtlas.AtlasPixels);
+  Result.FontMapHandle = PushNewTexture2D(RenderGroup, Result.FontAtlas.AtlasWidth, Result.FontAtlas.AtlasHeight, FontTexParam, Result.FontAtlas.AtlasPixels);
   Platform.DEBUGPlatformFreeFileMemory(TTFFile.Contents);
   return Result;
 }

@@ -3,7 +3,7 @@
 in vec2 uv;
 in vec4 TextColor;
 out vec4 color;
-uniform sampler2D FontMap;
+uniform sampler2D SDFMap;
 uniform float OnEdgeValue;
 uniform float PixelDistanceScale;
 
@@ -26,7 +26,7 @@ void main()
   #if 1
   float strokeWeight = 0.3;
   float smoothing = 0.4;
-  float data = texture(FontMap, uv).r;
+  float data = texture(SDFMap, uv).r;
   float value = LinearRemap(data, OnEdgeValue2, OnEdgeValue2 + PixelDistanceScale2, 0, 1);
   value = smoothstep(-0.5, 0.5, value);
   
@@ -54,7 +54,7 @@ void main()
   float u_weight = 0.1;
   float u_alpha = 1.1;
   float strokeWeight = 0.3;
-  float dist = texture(FontMap, vec2(x,y)).r;
+  float dist = texture(SDFMap, vec2(x,y)).r;
   
   // Shadows
   bool hasShadow = false;
@@ -79,7 +79,7 @@ void main()
   if (hasShadow == false) {
       color = text;
   } else {
-      float shadowDist = texture(FontMap, vec2(x,y) - shadowOffset).r;
+      float shadowDist = texture(SDFMap, vec2(x,y) - shadowOffset).r;
       float distAlpha = smoothstep(0.5 - shadowSmoothing, 0.5 + shadowSmoothing, shadowDist);
       vec4 shadow = vec4(shadowColor, shadowAlpha * distAlpha);
       color = mix(shadow, text, text.a);

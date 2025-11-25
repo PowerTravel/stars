@@ -22,7 +22,7 @@ namespace render {
     u32 GeometryID;     // The ID to send to the platform renderer
     u32 ProgramID;      // The ID of the program to use.
     //u32 ShaderDefinitionHash;
-    bool Transparent;
+    b32 Transparent;
     shader_type ShaderType;
     asset::mesh::primitive* Primitive;
     union{
@@ -32,20 +32,6 @@ namespace render {
     m4* Transform;
   };
 
-
-  struct gl_vertex_buffer
-  {
-    u32 IndexCount;
-    u32* Indeces;
-    u32 VertexCount;
-    opengl_vertex* VertexData;
-  };
-
-  struct opengl_buffer_data{
-    u32 BufferCount;
-    gl_vertex_buffer* BufferData;
-  };
-  
   struct asset_render_object {
     asset::mesh::primitive* Primitive;
     shader_type ShaderType;
@@ -59,37 +45,32 @@ namespace render {
   typedef cmn::list<asset_render_object> render_list;
   typedef render_list::element render_list_element;
 
-  struct overlay_text
-  {
+  struct overlay_sdf {
     v4 Color;
     v4 TextCoord;
+    r32 OnEdgeValue;
+    r32 PixelDistanceScale;
     m4 ModelMatrix; // PixelSpace
   };
 
-  struct overlay_quad {
-    v4 Color;
-    m4 ModelMatrix; // PixelSpace
-  };
-
-  struct overlay_image {
+  struct overlay_sprite {
+    rect2f Rect;
     v4 TexCoord;
-    m4 ModelMatrix; // PixelSpace
-  };
-#if 0
-  struct overlay_dot {
     v4 Color;
-    m4 ModelMatrix; // PixelSpace
+    u32 SpriteDepth;      // Depth within the 2dArray
+    u32 SpriteColorCount; // 0,1,3 or 4
   };
-  struct overlay_line {
-    v4 Color;
-    m4 ModelMatrix; // PixelSpace
-  };
-#endif
 
   struct overlay_level {
-    cmn::list<overlay_text>  OverlayText;
-    cmn::list<overlay_quad>  OverlayQuads;
-    cmn::list<overlay_image> OverlayIcon;
+    u32 SDFHandle;
+    cmn::list<overlay_sdf> OverlaySDF;
+    
+    u32 SolidQuad;
+    u32 SpriteA;
+    u32 SpriteRGB;
+    u32 SpriteRGBA;
+    u32 SpriteHandle; // GPU-Handle of a 2dArrayTexture
+    cmn::list<overlay_sprite> OverlaySprite;
   };
 
   struct renderer {
@@ -123,12 +104,12 @@ namespace render {
   renderer* Create(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands);
   void Begin();
 
-  void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_material* Material, m4 Transform, ecs::entity_id EntityID);
-  void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::pbr_material* Material, m4 Transform, ecs::entity_id EntityID);
-  void DrawRenderTree(asset::render_tree_id ID, ecs::entity_id EntityID);
-  void DrawMesh(asset::mesh_id ID, const m4& Transform, ecs::entity_id EntityID);
+  void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_material* Material, m4 Transform);
+  void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::pbr_material* Material, m4 Transform);
+  void DrawRenderTree(asset::render_tree_id ID);
+  void DrawMesh(asset::mesh_id ID, const m4& Transform);
 
-  u32 LoadMeshToGPU(gl_vertex_buffer VertexBuffer);
+  u32 LoadMeshToGPU(render_group* RenderGroup, u32 IndexCount, u32* Indeces, u32 VertexCount, opengl_vertex* VertexData);
   u32 LoadMeshPrimitiveToGPU(asset::mesh::primitive* AssetPrimitive);
   u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams);
   u32 GetOrCreateTexture(asset::texture* Texture);
@@ -138,10 +119,22 @@ namespace render {
   void RecompileAllPrograms();
 
 
+
   void DrawTextPixelSpace(v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color);
   void DrawTextCanonicalSpace(v2 CanonicalPos,  rect2f CanonicalClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color);
   void DrawTextPixelSpace(v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
   void DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
-  
+
+  // Note: Merge this into maybe DrawSprite. Somehting like
+  // void DrawSprite(v2 PixelPos, rect2f PixelClipRect, v4 TextureCoords, asset::texture* Texture);
+  // Food for thought
+
+
+  void DrawOverlayQuadPixelSpace(rect2f PixelRect, v4 Color);
+  void DrawOverlayQuadCanonicalSpace(rect2f CanonicalRect, v4 Color);
+  void DrawIconPixelSpace(rect2f PixelRect, v4 TextureCoords, v4 Color);
+  void DrawIconCanonicalSpace(rect2f CanonicalRect, v4 TextureCoords, v4 Color);
+
+  void NewOverlayLevel();
 
 } // namespace render

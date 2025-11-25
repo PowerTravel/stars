@@ -188,7 +188,7 @@ u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams) {
   texture_params Params = DefaultColorTextureParams();
   Params.TextureFormat = texture_format::RGBA_U8;
   Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, Params, Image->Pixels);
+  u32 Handle = PushNewTexture2D(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, Params, Image->Pixels);
 
   return Handle;
 }
@@ -1146,11 +1146,13 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
   render_state* DefaultState2 = PushNewState(RenderGroup);
   *DefaultState2 = DefaultRenderState3(Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, Window->ApplicationAspectRatio);
 
+  r32 InitTime = Platform.DEBUGGetTime();
   chunk_list* SolidObjects = GetSolidObjects();
   chunk_list* TransparentObjects = GetTransparentObjects();
   chunk_list* OverlayRenders = GetOverlayRenders();
   chunk_list* LineObjects = GetLineObjects();
   chunk_list* ObjectsToRender = GetObjectsToRender();
+  r32 ElementCount = GetBlockCount(SolidObjects) + GetBlockCount(TransparentObjects) + GetBlockCount(ObjectsToRender);
   if(GetBlockCount(SolidObjects) > 0 || GetBlockCount(TransparentObjects) > 0)
   {
     render_state* MSAAViewport = PushNewState(RenderGroup);
@@ -1287,6 +1289,7 @@ void Draw(entity_manager* EntityManager, system* RenderSystem, m4 ProjectionMatr
       }
     }
 
+    Platform.DEBUGPrint("%f Meshes in %f sec\n", ElementCount, Platform.DEBUGGetTime() - InitTime);
     // Shrink to regular screeen sice
     render_state* ViewportAndBlend = PushNewState(RenderGroup);
     ///SetState(ViewportAndBlend, ViewportState(Window->ApplicationWidth, Window->ApplicationHeight, Window->ApplicationAspectRatio));
@@ -1533,12 +1536,12 @@ u32* CreateInternalTextures(render_group* RenderGroup, window_size_pixel* Window
   RevealTexParam.TextureFormat = texture_format::R_8;
 
   u32* Result = (u32*) PushArray(GlobalPersistentArena, data::INT_TEX_COUNT, u32);
-  Result[data::INT_TEX_MSAA_COLOR] = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
-  Result[data::INT_TEX_MSAA_DEPTH] = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultDepth, 0);
-  Result[data::INT_TEX_ACCUM]      = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
-  Result[data::INT_TEX_REVEAL]     = PushNewTexture(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, RevealTexParam, 0);
-  Result[data::INT_TEX_GAUSSIAN_A] = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
-  Result[data::INT_TEX_GAUSSIAN_B] = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
+  Result[data::INT_TEX_MSAA_COLOR] = PushNewTexture2D(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
+  Result[data::INT_TEX_MSAA_DEPTH] = PushNewTexture2D(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultDepth, 0);
+  Result[data::INT_TEX_ACCUM]      = PushNewTexture2D(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, DefaultColor, 0);
+  Result[data::INT_TEX_REVEAL]     = PushNewTexture2D(RenderGroup, Window->MSAA * Window->ApplicationWidth, Window->MSAA * Window->ApplicationHeight, RevealTexParam, 0);
+  Result[data::INT_TEX_GAUSSIAN_A] = PushNewTexture2D(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
+  Result[data::INT_TEX_GAUSSIAN_B] = PushNewTexture2D(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
   return Result;
 }
 
@@ -1573,7 +1576,7 @@ system* CreateRenderSystem(render_group* RenderGroup, r32 ApplicationWidth, r32 
   texture_params FontTexParam = DefaultColorTextureParams();
   FontTexParam.TextureFormat = texture_format::R_8;
   FontTexParam.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  Result->FontTextureHandle = PushNewTexture(RenderGroup, FontAtlas->AtlasWidth, FontAtlas->AtlasHeight, FontTexParam, FontAtlas->AtlasPixels);
+  Result->FontTextureHandle = PushNewTexture2D(RenderGroup, FontAtlas->AtlasWidth, FontAtlas->AtlasHeight, FontTexParam, FontAtlas->AtlasPixels);
 
   Result->WindowSize.WindowWidth       = (r32) RenderCommands->WindowInfo.Width;
   Result->WindowSize.WindowHeight      = (r32) RenderCommands->WindowInfo.Height;

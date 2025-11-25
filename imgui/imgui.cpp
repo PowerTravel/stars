@@ -24,7 +24,7 @@ u32 PushImguiIconAtlasToGPU(render_group* RenderGroup)
   texture_params Params = DefaultColorTextureParams();
   Params.TextureFormat = texture_format::RGBA_U8;
   Params.InputDataType = OPEN_GL_UNSIGNED_BYTE;
-  u32 Result = PushNewTexture(RenderGroup, BitMap->Width, BitMap->Height, Params, BitMap->Pixels);
+  u32 Result = PushNewTexture2D(RenderGroup, BitMap->Width, BitMap->Height, Params, BitMap->Pixels);
   return Result;
 }
 
@@ -92,11 +92,11 @@ b32 ImguiScrollBarVertical(imgui_scrollable_list* List, rect2f ListRegion, r32 S
   rect2f ScrollbarRect = Rect2f(ListRegion.X + ListRegion.W - ScrollbarWidth, ListRegion.Y, ScrollbarWidth, ListRegion.H);
   v2 ScrollButtonSize = V2(ScrollbarWidth, GetScrollWheelSize(ListRegion.H, RowHeight, RowCount, 0.03f, ListRegion.H));
 
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollbarRect), V4(0.5,0.5,0.5,1.0));
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollbarRect), V4(0.5,0.5,0.5,1.0));
   ImguiButton(&GlobalState->ImguiContext, List->VerticalScrollbarId, ScrollbarRect);
 
-  v2 Padding =  V2(ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1),
-                   ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1));
+  v2 Padding =  V2(PixelToCanonicalWidth(1),
+                   PixelToCanonicalWidth(1));
   
   r32 ScrollWheelPosY = Lerp(List->ScrollAmmount.Y, ScrollbarRect.Y + ScrollbarRect.H - ScrollButtonSize.Y, ScrollbarRect.Y);
   rect2f ScrollWheelRect = Rect2f(ScrollbarRect.X, ScrollWheelPosY, ScrollButtonSize.X, ScrollButtonSize.Y);
@@ -106,9 +106,9 @@ b32 ImguiScrollBarVertical(imgui_scrollable_list* List, rect2f ListRegion, r32 S
   
   if(!ImguiIsHot(List->VerticalScrollbarId))
   {
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollWheelRect), ButtonColor.InactiveColor);
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollWheelRect), ButtonColor.InactiveColor);
   }else{
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ScrollWheelRect), ButtonColor.HotColor);
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollWheelRect), ButtonColor.HotColor);
   }
   
   v2 MousePos = V2(GlobalState->ImguiContext.MouseX,GlobalState->ImguiContext.MouseY);
@@ -160,7 +160,7 @@ b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 
 
   // List Background
   rect2f BackgroundRect = Rect2f(Pos, Size);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
 
   r32 LinesToFit = Size.Y / RowHeight;
   v2 ListContentSize = Size;
@@ -416,9 +416,9 @@ b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
 
   r32 FontSize = 14;
   s32 InputLen = 512;
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(DialogRect), BackgroundColor);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(DialogPos.X, DialogPos.Y +DescentOffset), FontSize, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
+  r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(FontSize);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(DialogRect), BackgroundColor);
+  render::DrawTextCanonicalSpace(V2(DialogPos.X, DialogPos.Y +DescentOffset), FontSize, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
 
   if(Result)
   {
@@ -433,19 +433,19 @@ b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
       utf8_string_buffer TempBuffer2 = CreateTempStringBuffer(InputLen);
       CopySubstring(&TextInputBuffer->Buffer, &TempBuffer2, 0, End);
 
-      v2 TextSizeSelectStart = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer1.Buffer);
-      v2 TextSizeSelectEnd = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer2.Buffer);
+      v2 TextSizeSelectStart = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, TempBuffer1.Buffer);
+      v2 TextSizeSelectEnd = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, TempBuffer2.Buffer);
 
       rect2f HighlightRect = Rect2f(DialogPos.X + TextSizeSelectStart.X, DialogPos.Y, TextSizeSelectEnd.X - TextSizeSelectStart.X, TextWidth.Y);
-      ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(HighlightRect), BackgroundColor * 1.2);
+      render::DrawOverlayQuadCanonicalSpace(CenteredRect(HighlightRect), BackgroundColor * 1.2);
     }
 
     utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
     CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
-    v2 TextSizeToCaret = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer.Buffer);
-    r32 CaretWidth = ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1);
-    rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), 14));
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(CaretBox), V4(1,1,1,1));
+    v2 TextSizeToCaret = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, TempBuffer.Buffer);
+    r32 CaretWidth = PixelToCanonicalWidth(1);
+    rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, GlobalRenderer->Font.GetLineSpacingCanonicalSpace(14));
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(CaretBox), V4(1,1,1,1));
   }
 
   return Result;
@@ -457,9 +457,9 @@ void ImguiRenderTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id Di
   r32 FontSize = 14;
   s32 InputLen = 512;
   rect2f DialogRect = Rect2f(DialogPos, DialogSize);
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(DialogRect), BackgroundColor);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), V2(DialogPos.X, DialogPos.Y +DescentOffset), FontSize, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
+  r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(FontSize);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(DialogRect), BackgroundColor);
+  render::DrawTextCanonicalSpace(V2(DialogPos.X, DialogPos.Y +DescentOffset), FontSize, TextInputBuffer->Buffer.Buffer, V4(1,1,1,1));
   if(TextInputBuffer->SelectMode)
   {
     s32 Start = Minimum(TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart);
@@ -471,19 +471,19 @@ void ImguiRenderTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id Di
     utf8_string_buffer TempBuffer2 = CreateTempStringBuffer(InputLen);
     CopySubstring(&TextInputBuffer->Buffer, &TempBuffer2, 0, End);
 
-    v2 TextSizeSelectStart = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer1.Buffer);
-    v2 TextSizeSelectEnd = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer2.Buffer);
+    v2 TextSizeSelectStart = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, TempBuffer1.Buffer);
+    v2 TextSizeSelectEnd = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, TempBuffer2.Buffer);
 
     rect2f HighlightRect = Rect2f(DialogPos.X + TextSizeSelectStart.X, DialogPos.Y, TextSizeSelectEnd.X - TextSizeSelectStart.X, DialogSize.Y);
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(HighlightRect), BackgroundColor * 1.2);
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(HighlightRect), BackgroundColor * 1.2);
   }
 
   utf8_string_buffer TempBuffer = CreateTempStringBuffer(InputLen);
   CopySubstring(&TextInputBuffer->Buffer, &TempBuffer, 0, TextInputBuffer->CaretPosition);
-  v2 TextSizeToCaret = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, TempBuffer.Buffer);
-  r32 CaretWidth = ecs::render::PixelToCanonicalWidth(GetRenderSystem(), 1);
-  rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, ecs::render::GetLineSpacingCanonicalSpace(GetRenderSystem(), 14));
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(CaretBox), V4(1,1,1,1));  
+  v2 TextSizeToCaret = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, TempBuffer.Buffer);
+  r32 CaretWidth = PixelToCanonicalWidth(1);
+  rect2f CaretBox = Rect2f(DialogPos.X + CaretWidth/2.f + TextSizeToCaret.X, DialogPos.Y, CaretWidth, GlobalRenderer->Font.GetLineSpacingCanonicalSpace(14));
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(CaretBox), V4(1,1,1,1));  
 }
 
 void ClearBuffer(imgui_text_input_buffer* TextInputBuffer)
@@ -651,11 +651,11 @@ void ImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[])
   }
 
 
-  r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), GlobalState->ImguiContext.FontSize);
-  r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), GlobalState->ImguiContext.FontSize, (utf8_byte*) Header).X;
+  r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(GlobalState->ImguiContext.FontSize);
+  r32 TextWidth = GlobalRenderer->Font.GetTextSizeCanonicalSpace(GlobalState->ImguiContext.FontSize, (utf8_byte*) Header).X;
   v2 TextOrigin = V2(HeaderBarRect.X + (HeaderBarRect.W - TextWidth) * 0.5f, HeaderBarRect.Y + DescentOffset);
-  ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextOrigin, HeaderBarRect, GlobalState->ImguiContext.FontSize, (utf8_byte *) Header, V4(1.0,1.0,1.0,1.0));  
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(HeaderBarRect), menu::GetColor(&GlobalState->ColorTable, "seal brown"));
+  render::DrawTextCanonicalSpace(TextOrigin, HeaderBarRect, GlobalState->ImguiContext.FontSize, (utf8_byte *) Header, V4(1.0,1.0,1.0,1.0));  
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(HeaderBarRect), menu::GetColor(&GlobalState->ColorTable, "seal brown"));
   if(ImguiButton(&GlobalState->ImguiContext, BorderWindow->HeaderID, HeaderBarRect))
   {
     if(GlobalState->ImguiContext.ActiveID.idEdge)
@@ -730,7 +730,7 @@ b32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect
     Color = ButtonColor.HotColor;
   }
 
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), CenteredRect(ButtonRect), Color);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(ButtonRect), Color);
   return ImguiIsActive(Id);
 }
 
@@ -763,7 +763,6 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     }
   }
 
-  ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(GetRenderSystem());
   v2 ClickOffset = {};
   v4 Color = menu::GetColor(&GlobalState->ColorTable, "plum");
   r32 ButtonTextWidth = ButtonWidth;
@@ -771,15 +770,15 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
     // Button is Highlighted and pressed
     if(ClickOffsetPx != 0){
-      ClickOffset.X = ClickOffsetPx/WindowSize.ApplicationWidth;
-      ClickOffset.Y = -ClickOffsetPx/WindowSize.ApplicationWidth; 
+      ClickOffset.X = ClickOffsetPx/GlobalWindowSize.ApplicationWidth;
+      ClickOffset.Y = -ClickOffsetPx/GlobalWindowSize.ApplicationWidth; 
     }
     Color = menu::GetColor(&GlobalState->ColorTable, "waterspout");
   }else if(ImguiIsActive(Id)){
     // Button is Pressed
     if(ClickOffsetPx != 0){
-      ClickOffset.X = 4.f/WindowSize.ApplicationWidth;
-      ClickOffset.Y = -4.f/WindowSize.ApplicationWidth;
+      ClickOffset.X = 4.f/GlobalWindowSize.ApplicationWidth;
+      ClickOffset.Y = -4.f/GlobalWindowSize.ApplicationWidth;
     }
     Color = menu::GetColor(&GlobalState->ColorTable, "old gold");
   }else if(ImguiIsHot(Id)){
@@ -787,7 +786,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     Color = menu::GetColor(&GlobalState->ColorTable, "khaki");
     if(FontSize && Text && *Text != '\0')
     {
-      r32 TextWidth = ecs::render::GetTextSizeCanonicalSpace(GetRenderSystem(), FontSize, (utf8_byte*) Text).X;
+      r32 TextWidth = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, (utf8_byte*) Text).X;
       if(TextWidth > ButtonTextWidth)
       {
         ButtonTextWidth = TextWidth; 
@@ -801,25 +800,25 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   v2 CenterRect = V2(ButtonX + ButtonTextWidth * 0.5f, ButtonY + ButtonHeight * 0.5f); 
   if(ShadowOffsetPx!=0)
   {
-    r32 ShadowOffsetX =  ShadowOffsetPx/WindowSize.ApplicationWidth;
-    r32 ShadowOffsetY = -ShadowOffsetPx/WindowSize.ApplicationWidth;
+    r32 ShadowOffsetX =  ShadowOffsetPx/GlobalWindowSize.ApplicationWidth;
+    r32 ShadowOffsetY = -ShadowOffsetPx/GlobalWindowSize.ApplicationWidth;
     rect2f ShadowRect = Rect2f(
       CenterRect.X + ShadowOffsetX,
       CenterRect.Y + ShadowOffsetY, ButtonTextWidth, ButtonHeight);
-    ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ShadowRect, menu::GetColor(&GlobalState->ColorTable, "rich carmine"));
+    render::DrawOverlayQuadCanonicalSpace(ShadowRect, menu::GetColor(&GlobalState->ColorTable, "rich carmine"));
   }
 
   rect2f ButtonRect = Rect2f(
     CenterRect.X + ClickOffset.X,
     CenterRect.Y + ClickOffset.Y, ButtonTextWidth, ButtonHeight);
-  ecs::render::DrawOverlayQuadCanonicalSpace(GetRenderSystem(), ButtonRect, Color);
+  render::DrawOverlayQuadCanonicalSpace(ButtonRect, Color);
 
   if(FontSize && Text && *Text != '\0')
   {
-    r32 DescentOffset = ecs::render::GetCanonicalFontDescenOffset(GetRenderSystem(), FontSize);
+    r32 DescentOffset = GlobalRenderer->Font.GetCanonicalFontDescenOffset(FontSize);
     v2 TextOrigin = V2(ButtonX + TextOffsetX,ButtonY + TextOffsetY) + ClickOffset + V2(0, DescentOffset);
     utf8_string_buffer StringBuffer = SetStringToFit(FontSize, ButtonTextWidth, Text);
-    ecs::render::DrawTextCanonicalSpace(GetRenderSystem(), TextOrigin , Rect2f(ButtonX,ButtonY,ButtonTextWidth,ButtonHeight), FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));  
+    render::DrawTextCanonicalSpace(TextOrigin , Rect2f(ButtonX,ButtonY,ButtonTextWidth,ButtonHeight), FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));  
   }
   
   return ImguiIsActive(Id);

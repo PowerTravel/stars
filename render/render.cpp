@@ -41,7 +41,11 @@ enum internal_shaders {
   INTERNAL_SHADER_TRANSPARENT_COMPOSITION,
   INTERNAL_SHADER_GAUSSIAN_BLUR_X,
   INTERNAL_SHADER_GAUSSIAN_BLUR_Y,
-  INTERNAL_SHADER_TEXT,
+  INTERNAL_SHADER_OVERLAY_SDF,
+  INTERNAL_SHADER_OVERLAY_SPRITE_RGBA,
+  INTERNAL_SHADER_OVERLAY_SPRITE_RGB,
+  INTERNAL_SHADER_OVERLAY_SPRITE_A,
+  INTERNAL_SHADER_OVERLAY_QUAD,
   INTERNAL_SHADER_COUNT
 };
 
@@ -65,8 +69,16 @@ char** LoadFileFromDisk(const char* CodePath)
   return Result;
 }
 
+struct vertex_data
+{
+  u32 IndexCount;
+  u32* Indeces;
+  u32 VertexCount;
+  opengl_vertex* VertexData;
+};
 
-gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
+
+vertex_data CreateGLVertexBuffer(memory_arena* Arena,
                      const int IndexCount, const int* Indeces, const int VertexCount,
                      const v3* VerticeData, const v3* NormalData, const v2* TextureData)
 {
@@ -84,7 +96,7 @@ gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
     ++Vertice;
   }
   
-  render::gl_vertex_buffer Result = {};
+  vertex_data Result = {};
   Result.IndexCount = IndexCount;
   Result.Indeces =  (u32*) GLIndexArray;
   Result.VertexCount = VertexCount;
@@ -92,7 +104,7 @@ gl_vertex_buffer CreateGLVertexBuffer(memory_arena* Arena,
   return Result;
 }
 
-file_local void PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mesh::primitive * Primitive, render::gl_vertex_buffer* Result)
+file_local void PrimitiveToGlVertexData(memory_arena* Arena, const asset::mesh::primitive * Primitive, vertex_data* Result)
 {
   Assert(Primitive->IndexCount && Primitive->Indeces && Primitive->VertexCount && Primitive->Vertex);
   // We are only handling 1 set of texture vertices atm. Increase if we find the need
@@ -108,13 +120,6 @@ file_local void PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mesh
     );
 }
 
-gl_vertex_buffer PrimitiveToGlVertexBuffer(memory_arena* Arena, const asset::mesh::primitive * Primitive)
-{
-  render::gl_vertex_buffer Result = {};
-  PrimitiveToGlVertexBuffer(Arena,Primitive, &Result);
-  return Result;
-}
-
 file_local u32* CreateInternalTextures(render_group* RenderGroup, r32 MSAA)
 {    
   texture_params DefaultColor = DefaultColorTextureParams();
@@ -125,12 +130,12 @@ file_local u32* CreateInternalTextures(render_group* RenderGroup, r32 MSAA)
   window_size_pixel* Window = &GlobalWindowSize;
 
   u32* Result = (u32*) PushArray(GlobalPersistentArena, INT_TEX_COUNT, u32);
-  Result[INT_TEX_MSAA_COLOR] = PushNewTexture(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultColor, 0);
-  Result[INT_TEX_MSAA_DEPTH] = PushNewTexture(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultDepth, 0);
-  Result[INT_TEX_ACCUM]      = PushNewTexture(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultColor, 0);
-  Result[INT_TEX_REVEAL]     = PushNewTexture(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, RevealTexParam, 0);
-  Result[INT_TEX_GAUSSIAN_A] = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
-  Result[INT_TEX_GAUSSIAN_B] = PushNewTexture(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
+  Result[INT_TEX_MSAA_COLOR] = PushNewTexture2D(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultColor, 0);
+  Result[INT_TEX_MSAA_DEPTH] = PushNewTexture2D(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultDepth, 0);
+  Result[INT_TEX_ACCUM]      = PushNewTexture2D(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, DefaultColor, 0);
+  Result[INT_TEX_REVEAL]     = PushNewTexture2D(RenderGroup, MSAA * Window->ApplicationWidth, MSAA * Window->ApplicationHeight, RevealTexParam, 0);
+  Result[INT_TEX_GAUSSIAN_A] = PushNewTexture2D(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
+  Result[INT_TEX_GAUSSIAN_B] = PushNewTexture2D(RenderGroup, Window->ApplicationWidth, Window->ApplicationHeight, DefaultColor, 0);
   return Result;
 }
 
@@ -147,20 +152,19 @@ file_local u32* CreateFrameBuffers(render_group* RenderGroup, u32* Textures,  r3
   return Result;
 }
 
-file_local u32 LoadMeshToGPU(render_group* RenderGroup, gl_vertex_buffer VertexBuffer)
-{
-  u32 MeshHandle  = PushNewMesh(RenderGroup, VertexBuffer.VertexCount, VertexBuffer.VertexData);
-  u32 IndexHandle = PushNewMeshIndices(RenderGroup, MeshHandle, VertexBuffer.IndexCount, VertexBuffer.Indeces);
+u32 LoadMeshToGPU(render_group* RenderGroup, u32 IndexCount, u32* Indeces, u32 VertexCount, opengl_vertex* VertexData){
+  u32 MeshHandle  = PushNewMesh(RenderGroup, VertexCount, VertexData);
+  u32 IndexHandle = PushNewMeshIndices(RenderGroup, MeshHandle, IndexCount, Indeces);
   return IndexHandle;
 }
 
-gl_vertex_buffer CreateBlitPlane()
+file_local u32 CreateBlitPlane(render_group* RenderGroup)
 {
-  u32 VerticeIndex[] = {
+  u32 Indeces[] = {
     0,1,2,
     2,1,3
   };
-  opengl_vertex GlVertex[4] =
+  opengl_vertex VertexData[4] =
   {
      // v                  vn       vt
     {{-1.0f, -1.0f, 0.0f}, {0,0,1}, {0,0}},
@@ -169,37 +173,18 @@ gl_vertex_buffer CreateBlitPlane()
     {{ 1.0f,  1.0f, 0.0f}, {0,0,1}, {1,1}}
   };
 
-  gl_vertex_buffer VertexBuffer = {};
-  VertexBuffer.IndexCount  = ArrayCount(VerticeIndex);
-  VertexBuffer.Indeces     = (u32*) PushCopy(GlobalTransientArena, sizeof(VerticeIndex), VerticeIndex);
-  VertexBuffer.VertexCount = ArrayCount(GlVertex);
-  VertexBuffer.VertexData  = (opengl_vertex*) PushCopy(GlobalTransientArena, sizeof(GlVertex), GlVertex);
-
-  return VertexBuffer;
+  u32 ResultHandle = LoadMeshToGPU(RenderGroup, 
+    ArrayCount(Indeces),              (u32*) PushCopy(GlobalTransientArena, sizeof(Indeces),    Indeces),
+    ArrayCount(VertexData), (opengl_vertex*) PushCopy(GlobalTransientArena, sizeof(VertexData), VertexData));
+  
+  return ResultHandle;
 }
 
 file_local u32* CreateBasicShapes(render_group* RenderGroup)
 {
   u32* Result = PushArray(GlobalPersistentArena, BASIC_SHAPE_COUNT, u32);
-  Result[BASIC_SHAPE_BLIT_PLANE] = LoadMeshToGPU(RenderGroup, CreateBlitPlane());
+  Result[BASIC_SHAPE_BLIT_PLANE] = CreateBlitPlane(RenderGroup);
   return Result;
-}
-
-u32 CreateTextRenderProgram(render_group* RenderGroup)
-{
-  u32 ProgramHandle = NewShaderProgram(RenderGroup, "TextRenderProgram");
-
-  AddUniform(RenderGroup, UniformType::M4,  ProgramHandle, "Projection");
-  AddUniform(RenderGroup, UniformType::U32, ProgramHandle, "FontMap");
-  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "OnEdgeValue");
-  AddUniform(RenderGroup, UniformType::R32, ProgramHandle, "PixelDistanceScale");
-  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TextColor_in");
-  AddVarying(RenderGroup, UniformType::V4,  ProgramHandle, "TexCoord_in");
-  AddVarying(RenderGroup, UniformType::M4,  ProgramHandle, "Model");
-  CompileShader(RenderGroup, ProgramHandle, 
-     1, LoadFileFromDisk("..\\render\\shaders\\common\\text_vertex.glsl"),
-     1, LoadFileFromDisk("..\\render\\shaders\\common\\text_fragment.glsl"));
-  return ProgramHandle;
 }
 
 
@@ -207,9 +192,13 @@ file_local u32* CreateInternalShaders(render_group* RenderGroup)
 {
   u32* Result = PushArray(GlobalPersistentArena, INTERNAL_SHADER_COUNT, u32);
   Result[INTERNAL_SHADER_TRANSPARENT_COMPOSITION] = common_shaders::CreateTransparentCompositionProgram(RenderGroup);
-  Result[INTERNAL_SHADER_GAUSSIAN_BLUR_X] = common_shaders::CreateGaussianBlurProgramX(RenderGroup);
-  Result[INTERNAL_SHADER_GAUSSIAN_BLUR_Y] = common_shaders::CreateGaussianBlurProgramY(RenderGroup);
-  Result[INTERNAL_SHADER_TEXT] = CreateTextRenderProgram(RenderGroup);
+  Result[INTERNAL_SHADER_GAUSSIAN_BLUR_X]         = common_shaders::CreateGaussianBlurProgramX(RenderGroup);
+  Result[INTERNAL_SHADER_GAUSSIAN_BLUR_Y]         = common_shaders::CreateGaussianBlurProgramY(RenderGroup);
+  Result[INTERNAL_SHADER_OVERLAY_SDF]             = common_shaders::CreateSDFRenderProgram(RenderGroup);
+  Result[INTERNAL_SHADER_OVERLAY_SPRITE_RGBA]     = common_shaders::CreateSpriteRenderProgram(RenderGroup, 4);
+  Result[INTERNAL_SHADER_OVERLAY_SPRITE_RGB]      = common_shaders::CreateSpriteRenderProgram(RenderGroup, 3);
+  Result[INTERNAL_SHADER_OVERLAY_SPRITE_A]        = common_shaders::CreateSpriteRenderProgram(RenderGroup, 1);
+  Result[INTERNAL_SHADER_OVERLAY_QUAD]            = common_shaders::CreateSpriteRenderProgram(RenderGroup, 0);
   return Result;
 }
 
@@ -331,8 +320,10 @@ file_local inline void ClearRenderState(renderer* Renderer) {
 
 u32 LoadMeshPrimitiveToGPU(asset::mesh::primitive* AssetPrimitive)
 {  
-  gl_vertex_buffer VertexBuffer = PrimitiveToGlVertexBuffer(&GlobalRenderer->RenderTransientArena, AssetPrimitive);
-  u32 IndexHandle = LoadMeshToGPU(GlobalRenderCommands->RenderGroup, VertexBuffer);
+  vertex_data VertexData = {};
+  PrimitiveToGlVertexData(&GlobalRenderer->RenderTransientArena, AssetPrimitive, &VertexData);
+  u32 IndexHandle = LoadMeshToGPU(GlobalRenderCommands->RenderGroup, VertexData.IndexCount, VertexData.Indeces,
+  VertexData.VertexCount, VertexData.VertexData );
   return IndexHandle;
 }
 
@@ -607,35 +598,113 @@ file_local void GaussianBlur(render_group* RenderGroup, u32 BlurCount, u32 SrcBu
   BlitBuffers(RenderGroup, FrameBuffer(FRAMEBUFFER_GAUSSIAN_B), DstBuffer,  Rect2f(0,0,1,1));
 }
 
-file_local void DrawText(render_group* RenderGroup, cmn::list<overlay_text>& OverlayText, m4& OrthoProjectionMatrix)
+
+file_local void DrawSprites(render_group* RenderGroup, u32 ProgramHandle, u32 TextureHandle, m4& OrthoProjectionMatrix, u32 SpriteCount, common_shaders::sprite_varying* SpriteVec)
 {
-  render_object* OverlayTextProgram     = PushNewRenderObject(RenderGroup);
-  OverlayTextProgram->ProgramHandle     = InternalShader(INTERNAL_SHADER_TEXT);
-  OverlayTextProgram->MeshHandle        = BasicShape(BASIC_SHAPE_BLIT_PLANE);
-  OverlayTextProgram->FrameBufferHandle = FrameBuffer(FRAMEBUFFER_DEFAULT);
-  OverlayTextProgram->TextureHandles[0] = GlobalRenderer->Font.FontMapHandle;
-  OverlayTextProgram->TextureCount      = 1;
-  
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"),         OrthoProjectionMatrix);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "FontMap"),            (u32) 0);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"),        (r32) 128/255.f);
-  PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), (r32) 32/255.f);
-  
-  size_t TextCount = OverlayText.Size();
-  overlay_text* Text = PushArray(&GlobalRenderer->RenderTransientArena, TextCount, overlay_text);
-  int i = 0;
-  for (cmn::list<overlay_text>::element* TextElement = OverlayText.First(); 
-      !OverlayText.IsEnd(TextElement);
-      TextElement = TextElement->Next)
-  { 
-    Text[i++] = TextElement->GetCopy();
+  render_object* SpriteObject       = PushNewRenderObject(RenderGroup);
+  SpriteObject->ProgramHandle       = ProgramHandle;
+  SpriteObject->MeshHandle          = BasicShape(BASIC_SHAPE_BLIT_PLANE);
+  SpriteObject->FrameBufferHandle   = FrameBuffer(FRAMEBUFFER_DEFAULT);
+  SpriteObject->TextureHandles[0]   = GlobalState->ImguiContext.Icons.Atlas; // Todo: Make dynamic
+  SpriteObject->TextureCount        = 1;
+
+  PushUniform(SpriteObject, GetUniformHandle(RenderGroup, SpriteObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
+  PushUniform(SpriteObject, GetUniformHandle(RenderGroup, SpriteObject->ProgramHandle, "SpriteMap"), (u32)0);
+  PushInstanceData(SpriteObject, SpriteCount, SpriteCount*sizeof(common_shaders::sprite_varying), (void*) SpriteVec);
+}
+
+#define CMN_LIST_FOR_EACH( _ListName, _ElementName ) for( auto* _ElementName = _ListName.First(); !_ListName.IsEnd(_ElementName); _ElementName = _ElementName->Next)
+file_local void DrawOverlaySprites(render_group* RenderGroup, overlay_level* OverlayLevel, m4& OrthoProjectionMatrix)
+{
+  cmn::list<overlay_sprite>& OverlaySprites = OverlayLevel->OverlaySprite;
+
+  cmn::vector<common_shaders::sprite_varying> SolidQuads  = cmn::vector<common_shaders::sprite_varying>::CreateTransient(OverlayLevel->SolidQuad);
+  cmn::vector<common_shaders::sprite_varying> SpriteAs    = cmn::vector<common_shaders::sprite_varying>::CreateTransient(OverlayLevel->SpriteA);
+  cmn::vector<common_shaders::sprite_varying> SpriteRGBs  = cmn::vector<common_shaders::sprite_varying>::CreateTransient(OverlayLevel->SpriteRGB);
+  cmn::vector<common_shaders::sprite_varying> SpriteRGBAs = cmn::vector<common_shaders::sprite_varying>::CreateTransient(OverlayLevel->SpriteRGBA);
+  CMN_LIST_FOR_EACH(OverlaySprites, Element)
+  {
+    overlay_sprite* Sprite = Element->GetPtr();
+    m4 ModelMatrix = M4Identity();
+    Scale(V4(0.5,0.5, 0, 1), ModelMatrix);
+    Scale(V4(Sprite->Rect.W, Sprite->Rect.H, 0, 1), ModelMatrix);
+    Translate(V4(Sprite->Rect.X, Sprite->Rect.Y, 0, 0), ModelMatrix);
+    ModelMatrix = Transpose(ModelMatrix);
+
+    common_shaders::sprite_varying Varying = {};
+    Varying.Color = Sprite->Color;
+    Varying.TexCoord = Sprite->TexCoord;
+    Varying.TexDepth = Sprite->SpriteDepth;
+    Varying.ModelMatrix = ModelMatrix;
+
+    switch(Sprite->SpriteColorCount)
+    {
+      case 0: {
+        Assert(SolidQuads.Size()<OverlayLevel->SolidQuad);
+        SolidQuads.PushBack(Varying);
+      } break;
+      case 1: {
+        Assert(SpriteAs.Size()<OverlayLevel->SpriteA);
+        SpriteAs.PushBack(Varying);
+      } break;
+      case 3: {
+        Assert(SpriteRGBs.Size()<OverlayLevel->SpriteRGB);
+        SpriteRGBs.PushBack(Varying);
+      } break;
+      case 4: {
+        Assert(SpriteRGBAs.Size()<OverlayLevel->SpriteRGBA);
+        SpriteRGBAs.PushBack(Varying);
+      } break;
+    }
   }
-  PushInstanceData(OverlayTextProgram, TextCount, TextCount*sizeof(overlay_text), (void*) Text);
+
+  if(SolidQuads.Size()){
+    DrawSprites(RenderGroup, InternalShader(INTERNAL_SHADER_OVERLAY_QUAD), OverlayLevel->SpriteHandle, OrthoProjectionMatrix, SolidQuads.Size(), SolidQuads.m_data);
+  }
+  if(SpriteAs.Size()){
+    DrawSprites(RenderGroup, InternalShader(INTERNAL_SHADER_OVERLAY_SPRITE_A), OverlayLevel->SpriteHandle, OrthoProjectionMatrix, SpriteAs.Size(), SpriteAs.m_data);
+  }
+  if(SpriteRGBs.Size()){
+    DrawSprites(RenderGroup, InternalShader(INTERNAL_SHADER_OVERLAY_SPRITE_RGB), OverlayLevel->SpriteHandle, OrthoProjectionMatrix, SpriteRGBs.Size(), SpriteRGBs.m_data);
+  }
+  if(SpriteRGBAs.Size()){
+    DrawSprites(RenderGroup, InternalShader(INTERNAL_SHADER_OVERLAY_SPRITE_RGBA), OverlayLevel->SpriteHandle, OrthoProjectionMatrix, SpriteRGBAs.Size(), SpriteRGBAs.m_data);
+  }
+}
+
+file_local void DrawSDF(render_group* RenderGroup, cmn::list<overlay_sdf>& OverlaySDF, m4& OrthoProjectionMatrix)
+{
+  render_object* OverlaySDFProgram     = PushNewRenderObject(RenderGroup);
+  OverlaySDFProgram->ProgramHandle     = InternalShader(INTERNAL_SHADER_OVERLAY_SDF);
+  OverlaySDFProgram->MeshHandle        = BasicShape(BASIC_SHAPE_BLIT_PLANE);
+  OverlaySDFProgram->FrameBufferHandle = FrameBuffer(FRAMEBUFFER_DEFAULT);
+  OverlaySDFProgram->TextureHandles[0] = GlobalRenderer->Font.FontMapHandle;
+  OverlaySDFProgram->TextureCount      = 1;
+  
+  PushUniform(OverlaySDFProgram, GetUniformHandle(RenderGroup, OverlaySDFProgram->ProgramHandle, "Projection"),         OrthoProjectionMatrix);
+  PushUniform(OverlaySDFProgram, GetUniformHandle(RenderGroup, OverlaySDFProgram->ProgramHandle, "SDFMap"),             (u32) 0);
+  PushUniform(OverlaySDFProgram, GetUniformHandle(RenderGroup, OverlaySDFProgram->ProgramHandle, "OnEdgeValue"),        (r32) 128/255.f);
+  PushUniform(OverlaySDFProgram, GetUniformHandle(RenderGroup, OverlaySDFProgram->ProgramHandle, "PixelDistanceScale"), (r32) 32/255.f);
+  
+  size_t SDFCount = OverlaySDF.Size();
+  common_shaders::sdf_varying* SDF = PushArray(&GlobalRenderer->RenderTransientArena, SDFCount, common_shaders::sdf_varying);
+  int i = 0;
+  CMN_LIST_FOR_EACH(OverlaySDF, SDFElement)
+  { 
+    overlay_sdf* OverlaySDF = SDFElement->GetPtr();
+    common_shaders::sdf_varying SDFVarying = {};
+    SDFVarying.Color = OverlaySDF->Color;
+    SDFVarying.TextCoord = OverlaySDF->TextCoord;
+    SDFVarying.ModelMatrix = OverlaySDF->ModelMatrix;
+
+    SDF[i++] = SDFVarying;
+  }
+  PushInstanceData(OverlaySDFProgram, SDFCount, SDFCount*sizeof(common_shaders::sdf_varying), (void*) SDF);
 }
 
 void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
 {
-  //SCOPED_TRANSIENT_ARENA;
+  SCOPED_TRANSIENT_ARENA;
   renderer* Renderer = GlobalRenderer;
   render_group* RenderGroup = Renderer->RenderGroup;
 
@@ -648,9 +717,11 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   // Wipes all internal textures and resets to default render state
   ClearRenderState(Renderer);
 
+  r32 InitTime = Platform.DEBUGGetTime();
   cmn::list<primitive> SolidMesh = cmn::list<primitive>::CreateTransient();
   cmn::list<primitive> TransparentMesh = cmn::list<primitive>::CreateTransient();
   render_list_element* Element = Renderer->RenderList.First();
+  r32 ElementCount = Renderer->RenderList.Size();
   while (!Renderer->RenderList.IsEnd(Element))
   {
     asset_render_object* AssetRenderObject = Element->Data;
@@ -676,7 +747,7 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
 
     Element = Element->Next;
   }
-
+  Platform.DEBUGPrint("%f Meshes in %f sec\n", ElementCount, Platform.DEBUGGetTime() - InitTime);
   ActivateMSAAFrameBuffer(RenderGroup);
   
   for(cmn::list<primitive>::element* SolidElement = SolidMesh.First(); !SolidMesh.IsEnd(SolidElement); SolidElement = SolidElement->Next)
@@ -703,16 +774,14 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   GaussianBlur(RenderGroup, 4, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Window->ApplicationWidth, Window->ApplicationHeight);
   #endif
 
+
   m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
   cmn::list<overlay_level>& OverlayLevels = Renderer->OverlayLevels;
-  for (cmn::list<overlay_level>::element* LevelElement = OverlayLevels.First(); 
-      !OverlayLevels.IsEnd(LevelElement);
-      LevelElement = LevelElement->Next)
+  CMN_LIST_FOR_EACH(OverlayLevels,LevelElement)
   {
-    overlay_level*  Level = LevelElement->GetPtr();
-    DrawText(RenderGroup, Level->OverlayText, OrthoProjectionMatrix);
-
-
+    overlay_level*  OverlayLevel = LevelElement->GetPtr();
+    DrawOverlaySprites(RenderGroup, OverlayLevel, OrthoProjectionMatrix);
+    DrawSDF (RenderGroup,  OverlayLevel->OverlaySDF,    OrthoProjectionMatrix);
   }
   
   //BlitBuffers(RenderGroup, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Rect2f(0,0,1,1));
@@ -836,7 +905,7 @@ inline file_local texture_params GetTextureParams(asset::texture* Texture){
 
 u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams) {
   Assert(Image);
-  u32 Handle = PushNewTexture(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, TextureParams, Image->Pixels);
+  u32 Handle = PushNewTexture2D(GlobalRenderCommands->RenderGroup, Image->Width, Image->Height, TextureParams, Image->Pixels);
   return Handle;
 }
 
@@ -950,12 +1019,40 @@ file_local overlay_level* GetTopOverlayLevel()
   return OverlayLevels.Last()->Data;
 }
 
-file_local cmn::list<overlay_text>& GetOverlayText(overlay_level* OverlayLevel){
-  if(!OverlayLevel->OverlayText.Initiated())
+file_local cmn::list<overlay_sdf>& GetOverlaySDF(overlay_level* OverlayLevel){
+  if(!OverlayLevel->OverlaySDF.Initiated())
   {
-    OverlayLevel->OverlayText = cmn::list<overlay_text>::Create(RenderTransientMalloc, RenderTransientFree);
+    OverlayLevel->OverlaySDF = cmn::list<overlay_sdf>::Create(RenderTransientMalloc, RenderTransientFree);
   }
-  return OverlayLevel->OverlayText;
+  return OverlayLevel->OverlaySDF;
+}
+
+inline file_local m4 ModelMatrixFromRect(v2 Pos, v2 Size){
+  m4 Result = M4Identity();
+  Scale(V4(Size.X,Size.Y,1,0), Result);
+  Translate(V4(Pos.X, Pos.Y, 0, 1), Result);
+  Result = Transpose(Result);
+  return Result;
+}
+
+inline overlay_sdf OverlaySDFFromPrintCoordinate(jfont::print_coordinates* tc, v4 Color, r32 OnEdgeValue, r32 PixelDistanceScale)
+{
+  overlay_sdf Result = {};
+  Result.Color = Color;
+  Result.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
+  Result.ModelMatrix = ModelMatrixFromRect(V2(tc->x, tc->y), V2(tc->sx,tc->sy));
+  Result.OnEdgeValue =  OnEdgeValue;
+  Result.PixelDistanceScale = PixelDistanceScale;
+
+
+  m4 M = M4Identity();
+  Scale(V4(tc->sx, tc->sy,1,0), M);
+  Translate(V4(tc->x,tc->y, 0, 1), M);
+  M = Transpose(M);
+
+  m4 MM = M - Result.ModelMatrix;
+
+  return Result;
 }
 
 void DrawTextPixelSpace(v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color)
@@ -964,27 +1061,28 @@ void DrawTextPixelSpace(v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_b
   renderer* Renderer = GlobalRenderer;
   font& Font = Renderer->Font;
 
-  u32 Length = jstr::StringLength((const char*) Text);
-  codepoint* CodePoints = PushArray(GlobalTransientArena, Length+1, codepoint);
+  u32 BuffLen = jstr::StringLength((const char*) Text);
+  codepoint* CodePoints = PushArray(GlobalTransientArena, BuffLen+1, codepoint);
   u32 UnicodeLen = ConvertToUnicode(Text, CodePoints);
-  r32 RelativeScale =  Font.GetScale(PixelSize);
+  r32 RelativeScale = Font.GetScale(PixelSize);
   jfont::print_coordinates* TextPrintCoordinates = PushArray(GlobalTransientArena, UnicodeLen, jfont::print_coordinates);
   jfont::GetTextPrintCoordinates(&Font.Font, &Font.FontAtlas, RelativeScale, PixelPos.X, PixelPos.Y, PixelClipRect, CodePoints, TextPrintCoordinates);
 
   overlay_level* OverlayLevel = GetTopOverlayLevel();
-  cmn::list<overlay_text>& OverlayTextList = GetOverlayText(OverlayLevel);
-  for (int i = 0; i < UnicodeLen; ++i)
-  {
-    jfont::print_coordinates* tc = TextPrintCoordinates+i;
-    overlay_text OverlayText = {};
+  OverlayLevel->SDFHandle = GlobalRenderer->Font.FontMapHandle; // TODO: Handle SDF handles more dynamically
+  cmn::list<overlay_sdf>& OverlaySDFList = GetOverlaySDF(OverlayLevel);
+  for (int i = 0; i < UnicodeLen; ++i){
+    OverlaySDFList.PushBack( OverlaySDFFromPrintCoordinate(TextPrintCoordinates+i, Color, 128/255.f, 32/255.f));
 
-    OverlayText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
-    OverlayText.ModelMatrix = M4Identity();
-    Scale(V4(tc->sx, tc->sy,1,0), OverlayText.ModelMatrix);
-    Translate(V4(tc->x,tc->y, 0, 1), OverlayText.ModelMatrix);
-    OverlayText.ModelMatrix = Transpose(OverlayText.ModelMatrix);
-    OverlayText.Color = Color;
-    OverlayTextList.PushBack(OverlayText);
+#if 0
+  m4 Result = M4Identity();
+  Scale(V4(Size,1,0), Result);
+  Translate(V4(Pos, 0, 1), Result);
+  Result = Transpose(Result);
+#endif
+
+
+
   }
 }
 
@@ -1011,21 +1109,13 @@ void DrawTextPixelSpace(v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 C
   jfont::GetTextPrintCoordinates(&Font.Font, &Font.FontAtlas, RelativeScale, PixelPos.X, PixelPos.Y, CodePoints, TextPrintCoordinates);
 
   overlay_level* OverlayLevel = GetTopOverlayLevel();
-  cmn::list<overlay_text>& OverlayTextList = GetOverlayText(OverlayLevel);
-
-  for (int i = 0; i < UnicodeLen; ++i)
-  {
-    jfont::print_coordinates* tc = TextPrintCoordinates+i;
-    overlay_text OverlayText = {};
-    OverlayText.TextCoord = V4(tc->u0, tc->v0, tc->u1, tc->v1);
-    OverlayText.ModelMatrix = M4Identity();
-    Scale(V4(tc->sx, tc->sy,1,0), OverlayText.ModelMatrix);
-    Translate(V4(tc->x,tc->y, 0, 1), OverlayText.ModelMatrix);
-    OverlayText.ModelMatrix = Transpose(OverlayText.ModelMatrix);
-    OverlayText.Color = Color;
-    OverlayTextList.PushBack(OverlayText);
+  OverlayLevel->SDFHandle = GlobalRenderer->Font.FontMapHandle; // TODO: Handle SDF handles more dynamically
+  cmn::list<overlay_sdf>& OverlaySDFList = GetOverlaySDF(OverlayLevel);
+  for (int i = 0; i < UnicodeLen; ++i){
+    OverlaySDFList.PushBack( OverlaySDFFromPrintCoordinate(TextPrintCoordinates+i, Color, 128/255.f, 32/255.f));
   }
 }
+
 
 void DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color)
 {
@@ -1033,5 +1123,66 @@ void DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Te
   DrawTextPixelSpace(PixelPos, PixelSize, Text, Color);
 }
 
+
+file_local cmn::list<overlay_sprite>& GetOverlaySprite(overlay_level* OverlayLevel){
+  if(!OverlayLevel->OverlaySprite.Initiated())
+  {
+    OverlayLevel->OverlaySprite = cmn::list<overlay_sprite>::Create(RenderTransientMalloc, RenderTransientFree);
+  }
+  return OverlayLevel->OverlaySprite;
+}
+
+
+void DrawOverlaySprite(rect2f PixelRect, v4 TextureCoords, v4 Color, u32 SpriteColorCount)
+{
+  overlay_sprite Sprite = {};
+  Sprite.Rect = PixelRect;
+  Sprite.TexCoord = TextureCoords;
+  Sprite.Color = Color;
+  Sprite.SpriteDepth = 0; // For now we arent using TextureArrays to hold spritemaps.
+  Sprite.SpriteColorCount = SpriteColorCount;
+
+  overlay_level* OverlayLevel = GetTopOverlayLevel();
+  OverlayLevel->SpriteHandle = GlobalState->ImguiContext.Icons.Atlas; // Handle more dynamically
+  switch(SpriteColorCount)
+  {
+    case 0: {OverlayLevel->SolidQuad++;   } break;
+    case 1: {OverlayLevel->SpriteA++;     } break;
+    case 3: {OverlayLevel->SpriteRGB++;   } break;
+    case 4: {OverlayLevel->SpriteRGBA++;  } break;
+    default: INVALID_CODE_PATH;      
+  }
+  cmn::list<overlay_sprite>& OverlaySpriteList = GetOverlaySprite(OverlayLevel);
+  OverlaySpriteList.PushBack(Sprite);
+}
+
+void DrawOverlayQuadPixelSpace(rect2f PixelRect, v4 Color) { 
+  DrawOverlaySprite(PixelRect, {}, Color, 0);
+}
+
+void DrawOverlayQuadCanonicalSpace(rect2f CanonicalRect, v4 Color)
+{
+  rect2f PixelRect = Rect2f( CanonicalToPixelSpace(V2(CanonicalRect.X, CanonicalRect.Y)),
+                             CanonicalToPixelSpace(V2(CanonicalRect.W, CanonicalRect.H)));
+  DrawOverlaySprite(PixelRect, {}, Color, 0);
+}
+
+void DrawIconPixelSpace(rect2f PixelRect, v4 TextureCoords, v4 Color)
+{
+  // Temp Hack solution.
+  DrawOverlaySprite(PixelRect, TextureCoords, Color, 1);
+}
+
+void DrawIconCanonicalSpace(rect2f CanonicalRect, v4 TextureCoords, v4 Color)
+{
+  rect2f PixelRect = Rect2f( CanonicalToPixelSpace(V2(CanonicalRect.X,CanonicalRect.Y)),
+                             CanonicalToPixelSpace(V2(CanonicalRect.W,CanonicalRect.H)));
+  DrawOverlaySprite(PixelRect, TextureCoords, Color, 1);
+}
+
+void NewOverlayLevel() {
+  GlobalRenderer->OverlayLevels.PushBack({});
+}
+  
 
 } // namespace render 

@@ -1195,6 +1195,7 @@ void LoadAndRenderGLTFEngine()
   for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
   {
     render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
+    //ecs::render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
   }
 }
 
@@ -1504,19 +1505,58 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   ecs::position::UpdatePositions(GetEntityManager());
   
+  #if 1
+  // Test Square
+  {
+    {
+      rect2f PixelRect = Rect2f(5,5,10,10);
+      render::DrawOverlayQuadPixelSpace(PixelRect, V4(1,0,0,1));
+    }
+    {
+      v2 CanPos = PixelToCanonicalSpace(V2(20,20));
+      v2 CanSize = PixelToCanonicalSpace(V2(20,20));
+      rect2f CanonicalRect = Rect2f(CanPos,CanSize);
+      render::DrawOverlayQuadCanonicalSpace(CanonicalRect, V4(0,1,0,1));
+    }
+    {
+      rect2f PixelRect = Rect2f(V2(45,45),V2(30,30));
+      render::DrawIconPixelSpace(PixelRect, GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_DOWN], V4(0,0,1,1));
+    }
+    
+    {
+      v2 CanPos = PixelToCanonicalSpace(V2(80,80));
+      v2 CanSize = PixelToCanonicalSpace(V2(40,40));
+      rect2f CanonicalRect = Rect2f(CanPos,CanSize);
+      render::DrawIconCanonicalSpace(CanonicalRect, GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_RIGHT], V4(1,0,1,1));
+    }
   // Test Text
   {
     {
-      v2 PixelPos = V2(GlobalWindowSize.ApplicationWidth * 0.5,GlobalWindowSize.ApplicationHeight * 0.5);
-      rect2f PixelClipRect = Rect2f(PixelPos, V2(200, 20));
-      render::DrawTextPixelSpace(PixelPos, PixelClipRect, 14, (const utf8_byte*) "Hello Text!", V4(1,1,1,1));
+      v2 PixelPos = V2(100, 100);
+      rect2f PixelClipRect = Rect2f(PixelPos, V2(30,30));
+      render::DrawTextPixelSpace(PixelPos, PixelClipRect, 14, (const utf8_byte*) "Clipped Pixel Pos!", V4(1,1,1,1));
     }
-  //render::DrawTextCanonicalSpace(v2 CanonicalPos,  rect2f CanonicalClipRect, r32 PixelSize, utf8_byte const * Text, v4 Color);
-  //render::DrawTextPixelSpace(v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
-  //render::DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
-
+    {
+      v2 Size = GlobalRenderer->Font.GetTextSizeCanonicalSpace(16, (const utf8_byte*) "Clipped Can Pos!");
+      v2 CanPos = PixelToCanonicalSpace(V2(120,120));
+      v2 CanSize = PixelToCanonicalSpace(Size/2.f);
+      rect2f CanClipRect = Rect2f(V2(CanPos.X, CanPos.Y - GlobalRenderer->Font.GetCanonicalFontDescenOffset(16)), V2(0.1, GlobalRenderer->Font.GetLineSpacingCanonicalSpace(16)/2));
+      render::DrawTextCanonicalSpace(CanPos, CanClipRect, 16, (const utf8_byte*) "Clipped Can Pos!", V4(1,0.4,1,1));
+    }
+    #if 1
+    {
+      v2 PixelPos = V2(150, 150);
+      render::DrawTextPixelSpace(PixelPos, 18, (const utf8_byte*) "Pixel Pos!", V4(1,1,1,1));
+    }
+    {
+      v2 CanPos = PixelToCanonicalSpace(V2(200,200));
+      render::DrawTextCanonicalSpace(CanPos, 20, (const utf8_byte*) "Can Pos!", V4(0.4,1,1,1));
+      //render::DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
+    }
+    #endif
   }
-
+  }
+#endif
 
 #define TMP_STRING_SIZE 128
   UpdateViewMatrix(&GlobalState->Camera);
@@ -1538,10 +1578,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   //DrawOverlayObjects(); 
   ecs::render::DrawLine3D(V3(0,0,0), V3(1,1,1), V4(0,1,0,1), 0.1);
 #endif
-  #if 0
-  ecs::render::NewRenderLevel(GetRenderSystem());
+  #if 1
+  render::NewOverlayLevel();
   DrawColorList(&GlobalState->ApplicationImgui);
-  ecs::render::NewRenderLevel(GetRenderSystem());
+  render::NewOverlayLevel();
   DrawEntityList(&GlobalState->ApplicationImgui);
   #endif
   ImguiEnd();

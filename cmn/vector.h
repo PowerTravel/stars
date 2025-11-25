@@ -36,38 +36,41 @@ struct vector {
 
   void* Malloc(size_t sz)
   {
-    if(m_transient){
-      return _g_cmn_transient_malloc(sz);
+    if(m_malloc)
+    {
+      return m_malloc(sz);
     }
-    return _g_cmn_malloc(sz);
+    
+    return m_transient ? _g_cmn_transient_malloc(sz) : _g_cmn_malloc(sz);
   }
 
   void* Realloc(void * p, size_t sz)
   {
-    if(m_transient){
-      return _g_cmn_transient_realloc(p,sz);
+    if(m_realloc)
+    {
+      return m_realloc(p,sz);
     }
-    return _g_cmn_realloc(p, sz);
+
+    return m_transient ? _g_cmn_transient_realloc(p,sz) : _g_cmn_realloc(p, sz);
   }
 
   void Free(void * p)
   {
-    if(m_transient){
-      _g_cmn_transient_free(p);
-    }else{
-      _g_cmn_free(p);
+    if(m_free){
+      m_free(p);
     }
+    m_transient ? _g_cmn_transient_free(p) : _g_cmn_free(p);
   }
 
 
   // Reserved initialization
-  static inline vector Create(size_t reservedCount = 0, bool Transient = false, _cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_realloc* aRealloc = _g_cmn_realloc, _cmn_free* aFree = _g_cmn_free) {
+  static inline vector Create(size_t reservedCount = 0, bool aTransient = false, _cmn_malloc* aMalloc = 0, _cmn_realloc* aRealloc = 0, _cmn_free* aFree = 0) {
     vector<T> Result = {};
     Result.m_malloc  = aMalloc;
     Result.m_realloc = aRealloc;
     Result.m_free    = aFree;
     Result.m_reservedCount = reservedCount;
-    Result.m_transient = Transient;
+    Result.m_transient = aTransient;
     if(Result.m_reservedCount)
     {
       Result.m_data = (T*) Result.Malloc(Result.m_reservedCount * sizeof(T));
@@ -79,29 +82,26 @@ struct vector {
 
   static inline vector CreateTransient(size_t reservedCount = 0)
   {
-    return Create(reservedCount, true, _g_cmn_transient_malloc, _g_cmn_transient_realloc, _g_cmn_transient_free);
+    vector Result = Create(reservedCount, true);
+    return Result;
   }
 
   // Array initialization
-  static inline vector Create(size_t Count, const T* Data, bool Transient = false, _cmn_malloc* aMalloc = _g_cmn_malloc, _cmn_realloc* aRealloc = _g_cmn_realloc, _cmn_free* aFree = _g_cmn_free)
+  static inline vector Create(size_t Count, const T* Data, bool aTransient = false, _cmn_malloc* aMalloc = 0, _cmn_realloc* aRealloc = 0, _cmn_free* aFree = 0)
   {
-    vector Result = vector::Create(Count, Transient);
-    Result.m_count = Count;
+    vector Result = vector::Create(Count, aTransient, aMalloc, aRealloc, aFree);
     utils::Copy(Count*sizeof(T), Data, Result.m_data);
     return Result;
   }
 
   static inline vector CreateTransient(size_t Count, const T* Data)
   {
-    return Create(Count, Data, _g_cmn_transient_malloc, _g_cmn_transient_realloc, _g_cmn_transient_free);
+    return Create(Count, Data, false);
   }
   
   void Delete()
   {
-    if(m_data)
-    {
-      m_free(m_data);
-    }
+    Free(m_data);
     m_data = 0;
     m_reservedCount = 0;
     m_count = 0;
