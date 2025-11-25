@@ -17,7 +17,7 @@
 #include "io/obj.h"
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
-#include "menu/color_table.h"
+#include "color_table.h"
 #include "imgui/imgui.h"
 #include "imgui/application_imgui.h"
 #include "asset_manager/asset_manager.h"

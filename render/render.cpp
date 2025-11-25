@@ -747,7 +747,7 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
 
     Element = Element->Next;
   }
-  Platform.DEBUGPrint("%f Meshes in %f sec\n", ElementCount, Platform.DEBUGGetTime() - InitTime);
+  //Platform.DEBUGPrint("%f Meshes in %f sec\n", ElementCount, Platform.DEBUGGetTime() - InitTime);
   ActivateMSAAFrameBuffer(RenderGroup);
   
   for(cmn::list<primitive>::element* SolidElement = SolidMesh.First(); !SolidMesh.IsEnd(SolidElement); SolidElement = SolidElement->Next)
