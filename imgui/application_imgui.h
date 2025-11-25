@@ -3,7 +3,6 @@
 #include "imgui.h"
 #include "ecs/entity_components.h"
 #include "ecs/entity_components_backend.h"
-#include "ecs/systems/system_render.h"
 #include "containers/chunk_list.h"
 
 struct color_list_data {

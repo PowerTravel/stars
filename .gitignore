@@ -1,3 +1,5 @@
 build/*
-*./build/*
+cmn/build/*
 *.rdbg
+stars.sublime-build
+data

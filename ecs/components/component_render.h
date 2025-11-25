@@ -6,11 +6,9 @@ namespace ecs{
 namespace render {
 
 struct component {
-  u32 MeshHandle; // NOT AN ASSET KEY!!! Its a handle to the platform renderer
-  asset::key PhongMaterialHandle;
+  asset::phong_material_id PhongMaterialHandle;
   asset::mesh_id MeshID;
-
-  asset::key RenderTreeHandle;
+  asset::render_tree_id RenderTreeHandle;
 };
 
 

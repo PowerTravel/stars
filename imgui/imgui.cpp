@@ -239,7 +239,7 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
   if(jwin::Active(Input->Mouse.Button[jwin::MouseButton_Left]))
   {
     size_t CharCount = 0;
-    GetCharsCountToFitCanonicalSpace(GetRenderSystem(), FontSize, MousePosRelText.X, TextInputBuffer->Buffer.Buffer, 0, &CharCount);
+    GlobalRenderer->Font.GetCharsCountToFitCanonicalSpace(FontSize, MousePosRelText.X, TextInputBuffer->Buffer.Buffer, 0, &CharCount);
     
     if(HighlightAll)
     {
@@ -740,7 +740,7 @@ utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, const c8* Text, co
   utf8_string_buffer Buff = CreateTempStringBuffer(ByteSize);
 
   size_t CharCount = 0;
-  if(GetCharsCountToFitCanonicalSpace(GetRenderSystem(), FontSize, MaxWidth, (utf8_byte*) Text, (utf8_byte*) Suffix, &CharCount)){
+  if(GlobalRenderer->Font.GetCharsCountToFitCanonicalSpace(FontSize, MaxWidth, (utf8_byte*) Text, (utf8_byte*) Suffix, &CharCount)){
     AppendStringToBuffer((utf8_byte*)Text, &Buff);
   }else{
     AppendStringToBuffer((u32)CharCount, (utf8_byte*)Text, &Buff);

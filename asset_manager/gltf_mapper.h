@@ -1,7 +1,6 @@
 #pragma once
 #include "asset_types.h"
 #include "io/gltf.h"
-#include "ecs/systems/system_render.h" // For Aspect Ratio
 
 namespace gltf {
 namespace mapper {
@@ -383,8 +382,7 @@ namespace mapper {
         {
           Result.Perspective.AspectRatio = *RawCamera->Perspective.AspectRatio;
         }else{
-          ecs::render::window_size_pixel WindowSize = ecs::render::GetWindowSize(GetRenderSystem());
-          Result.Perspective.AspectRatio = WindowSize.ApplicationAspectRatio;
+          Result.Perspective.AspectRatio = GlobalWindowSize.ApplicationAspectRatio;
         }
         Result.Perspective.YFov = RawCamera->Perspective.YFov;
         if(RawCamera->Perspective.AspectRatio)

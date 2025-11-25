@@ -1,0 +1,252 @@
+
+Metals:
+
+Note: See Pharr et al. (2016), Chapter 8.2 “Specular Reflection and Transmission”.
+This effect is described by the Fresnel term conductor_fresnel with the wavelength-dependent
+refractive index and extinction coefficient. To make parameterization simple, the metallic-
+roughness material combines the two quantities into a single, user-defined color value baseColor
+that defines the reflection color at normal incidence, also referred to as f0. The reflection color at
+grazing incidence is called f90. It is set to 1.0 because the grazing angle reflectance for any material
+approaches pure white in the limit. The conductor Fresnel term modulates the contribution of a
+specular BRDF parameterized by the roughness parameter.
+
+metal_brdf = conductor_fresnel(
+  f0 = baseColor,
+  bsdf = specular_brdf( alpha = roughness^2)  )
+
+
+Dielectrics:
+
+Unlike metals, dielectric materials transmit most of the incident illumination into the interior of the
+object and the Fresnel term is parameterized only by the refractive index.
+Note: See Pharr et al. (2016), Chapter 8.2 “Specular Reflection and Transmission”.
+
+This makes dielectrics like glass, oil, water or air transparent. Other dielectrics, like most plastic
+materials, are filled with particles that absorb or scatter most or all of the transmitted light,
+reducing the transparency and giving the surface its colorful appearance.
+As a result, dielectric materials are modeled as a Fresnel-weighted combination of a specular BRDF,
+simulating the reflection at the surface, and a diffuse BRDF, simulating the transmitted portion of
+the light that is absorbed and scattered inside the object. The reflection roughness is given by the
+squared roughness of the material. The color of the diffuse BRDF comes from the baseColor. The
+amount of reflection compared to transmission is directional-dependent and as such determined by
+the Fresnel term. Its index of refraction is set to a fixed value of 1.5, a good compromise for most
+opaque, dielectric materials.
+
+dielectric_brdf = fresnel_mix(
+  ior = 1.5,
+  base = diffuse_brdf( color = baseColor ),
+  layer = specular_brdf( alpha = roughness^2)
+)
+
+
+
+Total Model
+
+---------------------------------------------------------------------------------------------
+Dielectric material:                                                                        |
+      specular_brdf( alpha = roughness^2 ) -> |                                             |
+                                              | -> fresnel_mix(layer,base,ior = 1.5)   ->   |->|
+      diffuse_brdf( color = base_color )   -> |                                             |  |
+---------------------------------------------------------------------------------------------  | -> Mix(bsdf0, bsdf1, weight= metallic)
+Metal:                                                                                      |  |
+      specular_brdf( alpha = roughness^2 ) ->      Conductor_fresnel(f0 = baseColor, bsdf)  |->|
+--------------------------------------------------------------------------------------------|
+                      
+Bidirectional Reflectance Distribution function: BRDF describes the reflectance of the surface for agiven combination of incoming and outgoing light direction. 
+    BRDF(L,V,i, M(p)) = Color.
+  L = Light direction, V = View Direction, I = Incoming Light, i = light amount at point p, M(p) = Material properties at point P
+  - A BRDF for a diffuse material would spread the incoming light equally in all directions, a mirrors brfd would reflect all light in one direction.
+  - BRDF is independent of lgight source implementations (Just need s to know direction of incident light and its intensity at a shaded point)
+
+A "true" BRDF must have
+  - Helmholtz reciproctricy "Bidirectional" which means that if you swap incoming and outgoing directions, the result remains the same and ensures consistent results for all types of algorithms.
+  - Energy conservation
+
+
+Rendering Equaion:  https://en.wikipedia.org/wiki/Rendering_equation
+ The rendering equation is an integral equation that expresses the amount of light leaving a point on a surface as the sum of emitted light and reflected light.
+  L(P, Omega_0, lambda, t) = L_e + Integral( BRFD(P, Omega_i, Omega_0, lambda, t) * L_i(P, omega_i, lambda, t) (omega_i dot Normal_p) dOmega_i ) 
+L = Total amount of light leaving a point on a surface
+P = Location in space
+Omega_0 -> Outgoing light direction
+Omega_i -> Negative direction of incoming light
+lambda -> Wavelength of light
+t -> Time
+
+ How much light reflects away (or scatters into) a material is described by Fresnel equations. The fresnel term is also responsible for modeling distinctions between metals and dielectrics.
+
+
+Bidirectional Transmission Distribution function: BTDF (Bidirectional Transmittance Distribution Function) a function describing how the light is transmitted through the surface to the other side. 
+  Used to handle transparent materials.
+
+
+BRDF and BTDF describe reflectance and transmission of light. They can be grouped under the umbrella term (Bidirectional scattering distribution function BSDF aor BxDF)
+
+
+Vectors / angles commonly used in BRDFs
+
+All 'upper case' vectors are normalized and emerges outwards from point P. That is the Light vector goes from the surface point P towards the Light source.
+
+P -> Point on surface
+N -> Surface Normal
+T -> A Tangent on the surface perpendicular to N
+
+V -> Point to Viewer (camera)
+v -> Projection of V onto surface
+Omega_V -> Angle between N and V
+Phi_v   -> Angle between v and T
+
+L       -> Point to Light Source
+l       -> Projection of L onto surface
+Omega_l -> Angle between N and L
+Phi_l   -> Angle between l and T
+
+R -> Light Source but Mirrored along the surface Normal
+H -> Halfway vector, middle vector between L and V
+
+
+Diffuse BRDF: Diffuse BRDFs are good for modeling sub-surface scattering. Good for dielectrics.
+
+  Lambertian Diffuse BRDF: Simplest BRDF. Assumes outgoing light is scattered equally in all directions (Does not depend on V)
+  F_Lambertian(L,V) = Diffuse_Reflectance / Pi
+  brdfLambertian = F_Lambertian(L,V) * dot(N,L) =  (Diffuse_Reflectance / Pi) * dot(N,L)
+
+
+Function 1 of our BRDF API: "Eval".
+  Eval calculates the amount of reflected light from Lightsource L in the direction of V.
+  brdfLambertian is a BRFD with the cosine from the render equation built in to the BRDF (the dot(N,L) term). Careful not to apply it twice. Diffuse reflectance is often denoted with the symbol p.
+
+Function 2 of ur API: "Sample"
+  In ray tracing, when a light ray interacts with a material, we need to know the outgoing reflected direction of the ray. The function Sample handles this.
+  Needed for light transportation algorithems such as monte carlo path tracing. In such cases the Sample function takes a random number as input and gives out a direction togeather with a probability that a light ray would end up being reflected in that direction (Probability distribution function (PDF)).
+
+  The Weight of the sample 'I' = f(x) / PDF(x); Example of a PDF is the cosine-weighted hemisphere: PDF = dot(N,L) / Pi.
+  Using the brdfLambertian togeather with this PDF we get I = ((diffuse_reflectance * Pi) / dot(N,L)) / ( dot(N,L) / Pi ) = diffuse_reflectance
+  Example of a case where moving the cosine into the BRDF is a good choice cause the weight of the sample I would become constant.
+  When ray hits a surface and we sample a direction of the reflected ray according to BRDF, the amount of light that this ray can “carry” has to be adjusted by this weight 'I', to account for material properties of the surface.
+
+Function 3 of our API: The probability distritution function.
+
+Function 4 Evalindirect: An optimized version of combines eval and sample into one function and returns the sampled direction and its weight.
+  Note that Evalindirect removes the real calculation of the PDF.
+  Evalindirect can always be implemented using 'eval / PDF' if for no other reason than to verify that the optimized Evalindirect is working.
+
+Summarize four functions
+  'eval' -> evaluates the BRDF function for known incoming and outgoing directions
+  'sample' -> samples BRDF to return a new (outgoing) ray direction
+  'pdf' -> returns PDF of sampling given outgoing direction
+  'evalIndirect' -> combines these functions in an optimized version
+
+
+Example 2: Phong Reflection Model:
+  f_phong(L,V) = specular_reflectance * dot(R,V)^shininess
+  brdfPhong = specular_reflectance * dot(R,V)^shininess * dot(N,L)
+  Notice the new direction R. Blinn-Phong used the faster to calculate vector H as an approximation of R.
+  Notice also dot(N,L) being baked into brdfPhong
+  Notice its not bidirectional or energy conserving, so cannot be called a true BRDF
+
+
+
+Micro Facet Model: Model a surface as a collection of tiny surfaces to approximate roughness.
+  Micro Facet Reflection Term:
+    R = ( F(L,H) * G(L,V,H) * D(H) ) / (4 * dot(N,L) * dot(N,V))
+
+  N -> Shading Normal
+  H -> Half Vector between L and V
+
+  - D(H)     -> Microfacet distribution function. Tells us what fraction of microfacets are oriented in direction H so that light incoming from direction L will reflect in direction V
+  - F(L,H)   -> Fresnel Term: How much light is reflected off the surface under the given angle of incidence
+  - G(L,V,H) -> Geometric Attenuatiuon (Also masking and shadowing term dentoted G_2 later) accounts for mutual shadowing and masking of microfacets. Sometimes used for normalization of BRDF. 
+  - Denominator comes from derivation of the micro facet model using perfect mirrors as microfacets. 4 was used instead of P because of how D(H) is normalized.
+
+
+D(H): Is a Normal Distribution Function (NDF) which describes what fraction of the microfacets are pointing in the direction of H so that light from L will be reflected in direction V, ignoring self-shadowing and occlution. NDF should not be confused with a Gaussian distribution, although it is a valid implementation of NDF.
+  2 Examples of D(H)
+    - 1 Beckmann distribution https://www.statisticshowto.com/beckmann-distribution/
+      Dbeckmann = exp( ( -tan^2(theta_h) / alpha^2 ) ) / (Pi * alpha^2 * Cos^4(theta_h))
+      theta_h is the angle between H and Normal.
+      alpha  is the roughness with the relation  'Root mean square slope' = 'RMS Slope' = sigma: alpha = sqrt(2*sigma)
+
+      By substituting tan^2(theta_h) = (1-Cos^2(theta_h)) / Cos^2(theta_h)  which is faster since cos(theta_h) = dot(N,H)
+      we get
+
+      D_beckmann = exp( ( (Cos^2(theta_h)-1) / Cos^2(theta_h) / alpha^2 ) ) / (Pi * alpha^2 * Cos^4(theta_h))
+
+    - 2 GG-X (Used alot in games, faster to sample than Beckmann) 
+      Defined as 
+
+        D_ggx = (alpha^2) / (Pi * Cos^4(theta_h) ( alpha^2 + tan^2(thieta_h))^2)
+
+      Doing the same substitution of tan as in D_beckmann we get 
+
+        D_ggx = (alpha^2) / (Pi * ( alpha^2-1) * Cos^2(theta_h) +1 )
+
+    - 3 Note there is a NDF called Blinn Phong NDF using phong-units of shininess and is very similar to D_gxx.
+        In such a case the unit of shininess = (1/alpha^2) - 2, alpha = sqrt(2/(shininess+2)). This highlights how 
+        'roghness' can be defined wildly different between BRDF. This has to be accounted for when coupling togeather 
+        many different BRDFs (typically Specular and Diffuse BRDF.
+
+G(L,V,H): The geometric attenuation term tells us accounts for attenuation of reflected light due to geometry of microsurface. 
+  - Incoming light can be blocked by other microfacets.
+  - Outgoing light can also be blocked.
+  Now adays only one forumlation of G is normally used: Smith model based on randomized distribution of slopes G_1.
+    G_1(H,S) = 1 / (1 + lambda(a));  a = dot(H,S) / (alpha * sqrt(1-dot(H,S)^2))
+  Here S is either L or V depending on if we are talking about ingoing or outgoing light.
+  lambda is a function specific for the selected Distribution function (NDF).
+  The process to derive lambda for a given NDF is given in G. Brown, "Shadowing by non-Gaussian random surfaces," IEEE Transactions on Antennas and Propagation, 1980.
+    For GXX we get : Lambda_gxx(a) = 0.5*(sqrt(1 + (1/a^2))-1)
+    Beckmann       : Lambda_beckmann(a) = (1 - 1.259*a + 0.396*a^2) / (3.545*a + 2.181*a^2) where a < 1.6,  0 where a>=1.6
+
+  Where G_1 is either masking or blocking (incoming / outgoing) the combined function G_2 = G_1(H,L) * G_1(H,V). However this is uncorrallated with height. Microfacets deeper into the material is less likely to receivec light. Thus the height correlated version of G_2 should be used
+    G_2(H,V,L) = 1 / (1 + G_1(H,L) + G_1(H,V))
+  Note that either form of 𝐺_2 can be used for the 𝐺 term in the microfacet model reflection formula introduced earlier, but correlated version is preferable since it is only slightly more expensive and is more accurate.
+
+  Since G describes the fraction of microfacets which are visible, And the NDF (found as the D-term) tells us the fraction of microfacets whose normals point in the direction of H, the combination of NDF and G  G_1 (D * G_1) gives the distribution of visible normals which is a base of the efficient sampling routine discussed later.
+
+  Note for G: Any light being blocked is considered gone. This is ofcourse not accurate and is a source of energy dissipation. Modelling multiple scatterings within microfacets is too expensive.
+  Note: for Anisotropic materials such as brushed steel, one must use a direction-dependent version of the NDF which takes in a 2-component value repressenting roughness in two perpendicular directions.
+
+F(L,H):  Fresnel term determines how much light will be reflected off the surface, telling us how much light will contribute to evaluated BRDF.
+  The remaining part 1-F can be passed to underlying material layer (eg, diffuse BRDF or transmission BTDF). (The layers discussed here has been Specular and diffuse).
+  Fresnel term always approaches unity for grazing angles, meaning all light is reflected. Fresnel term is computationally complex, depends on index of refraction n, extinction coefficients k, and is wavelength dependant. Therefore we use Schlick’s approximation which is based on F(L,H)=1 for 90 degrees and only using 1 parameter "reflectance": 
+  
+    F = F_0 + (F_90 - F_0) * (1 - u^5)
+  
+  where u is the cosine of angle between normal and view-direction (u = dot(N,V), F_90 = 1. What's left is to figure out F_0, that is reflectance at normal view-angle. The loss of n and k reduces control of material, such as the difference between metals and dielectrics (platstics, wood etc).
+  Metals exhibit tinting of the reflected light due to absorbtion while dielectrics take over unchanged color of the light source.
+  (Note Jakob: No idea what they mean by 'dielectrics take over unchanged color of the light source'. It seems the sentance means that plastics and wood have the same color as the light? Perfect reflection? But that is not true since plastics can have colors not dictaded by light, whatever moving on)
+  To fix this we introduce the parameter "metalness" which calculates F_0 as a blend between default reflectance for dielectics and base color for metals.
+
+    F_0 = lerp(F_0_dielectrics, base_color, metalness); 
+
+  A common choice for F_0_dielectrics is 0.04 (4% reflectivity) used by UE4 and Frostbite. Note reflectance for other materials are lower, ex water is 2%, and higher for ex diamond (18%). The value does not change with material but is fixed in the renderer and its choice has significant impacto on final appearance. (Note jakob: Then why is F_0_dielectric not a material parameter?)
+  Metalness also attenuates diffuse reflectance for metals which is calculated from base color>
+
+    Diffuse_reflectance = base_color * (1-mtealness)
+
+  The combination of base_color + metalness is sometimes called the metalness workflow which is restrictive in that it doesn't enable settig different color hues for diffuse and specular reflectance. Setting specular and diffuse colors manually is called the specular workflow as it's called More storage requirement but greater artistic freedome.
+
+
+  An interesting optimization to Schlick’s Fresnel term was proposed by Lagarde which uses the Spherical Gaussian approximation and has been used in UE4:
+    
+    F = F_0 + (F_90-F_0) * 2^(-5.55473*u - 6.983146)*u
+
+  Important implementation detail is that the Fresnel term must be evaluated for the normal of the sampled microfacet (half vector), rather than the surface (or shading) normal, otherwise the roughness of the material would be essentially ignored for Fresnel term and object would appear more reflective than it is.
+
+  A related issue comes from the fact that normal mapping is often used to create cavities, scratches, or patina, where artists darken the base color to make these features less reflective. Because Fresnel term always approaches 1 at 90 degrees, the effect is often the opposite of artist’s intention, and cavities become more reflective, because their normals are approaching 90 degrees angle to the view direction. One of possible solutions is a fix introduced by Schüler, which prevents Fresnel term from approaching 1 under certain conditions. 
+    Instead of setting F_90 = 1, we calculate 𝐹_90 as 𝐹_90 = min (1, 60 𝑙𝑢𝑚𝑖𝑛𝑎𝑛𝑐𝑒(𝐹_0)).
+  This creates a smooth, but very fast falloff from 1 for 𝐹_0 values with reflectance less than 1/60. Number 1/50 or reciprocal of the value 𝐹_0_Dielectrics is also often used in this place.
+
+
+4.4: Sampling mictofacet BRDF
+
+  Implementing eval function for microfacet specular BRDF:
+  Need a function which can sample the microfacet BRDF using selected D and G functions. We use sampling based on VNDF introduced by Heiz, who also provide and improved optimized version of sampling for GG-X Distribution. Enter VNDF Sampling (Distrubution of visible normals).
+  VNDF works in local-space, that is positive Z-Axis is aligned with shading normal. All vectors need to be transformed to  that space. Note, shading normal is not that same as geometry normal.
+  To get the weight of the sampled direction we calculate BRDF divided by PDF. The resulting weight is:
+   F*(G_2/ G_1(H,V)), Fraction of G_2 and G_1 can be rewritten using G_1(H,L) and G_1(H,V), further optimizations can be used because H is exactly halfway between G_1(H,L) and G_1(H,V).
+
+
+5: Combining DRDFs
+
+  To couple specular BRDF with diffuse BRDFs

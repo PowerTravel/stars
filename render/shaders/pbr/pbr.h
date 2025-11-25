@@ -1,6 +1,5 @@
 #pragma once
 #include "asset_manager/asset_types.h"
-#include "utils.h"
 // Defines pbr shader. Given a pbr_material it will create a shader program
 namespace render {
 

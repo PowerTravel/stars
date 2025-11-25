@@ -17,7 +17,6 @@
 #include "io/obj.h"
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
-#include "ecs/systems/system_render.h"
 #include "menu/color_table.h"
 #include "imgui/imgui.h"
 #include "imgui/application_imgui.h"
@@ -41,7 +40,6 @@ struct function_pool
 
 struct world {
   ecs::entity_manager* EntityManager;
-  ecs::render::system* RenderSystem;
   render::renderer* Renderer;
 };
 
@@ -52,21 +50,6 @@ struct application_state
 
   random_generator RandomGenerator;
   asset::manager* AssetManager;
-
-  u32 PhongProgram;
-  u32 PhongShadingNoTexProgram;
-  u32 PhongProgramTransparent;
-  u32 PlaneStarProgram;
-  u32 SphereStarProgram;
-  u32 SolidColorProgram;
-  u32 EruptionBandProgram;
-  u32 TransparentCompositionProgram;
-  u32 GaussianProgramY;
-  u32 GaussianProgramX;
-  u32 FontRenterProgram;
-  u32 ColoredSquareOverlayProgram;
-  u32 TexturedSquareOverlayProgram;
-  u32 LineRenderProgram;
 
   // Key is Asset Index
   // Value is u32, Handle from the render system
@@ -93,16 +76,11 @@ global_variable application_state* GlobalState = 0;
 global_variable jwin::device_input* GlobalInput = 0;
 global_variable imgui_context* GlobalImguiContext = 0;
 global_variable asset::manager* GlobalAssetManager = 0;
-global_variable ecs::render::system* GlobalRenderSystem = 0;
 global_variable render::renderer* GlobalRenderer = 0;
 global_variable float GlobalTime = 0;
 global_variable window_size_pixel GlobalWindowSize = {};
 
-// Global Singleton Getters
-inline ecs::render::system* GetRenderSystem() {
-  return GlobalState->World.RenderSystem;
-}
-
+// Global Singleton Getter
 inline render::renderer* GetRenderer() {
   return GlobalState->World.Renderer;
 }
