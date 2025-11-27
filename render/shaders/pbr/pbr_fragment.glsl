@@ -199,7 +199,7 @@ vec3 CalcRadiance(vec3 LightColor, vec3 LightPos, vec3 WorldPos)
 }
 
 vec3 LightColor = vec3(1.0);
-vec3 lp = vec3(4,4,4);
+vec3 lp = vec3(1000,1000,1000);
 void main() {
   // All in world space (for now, ive read its better in object-space, well see, start simple)
   vec3 N = normalize(nw);            // Normal of fragment

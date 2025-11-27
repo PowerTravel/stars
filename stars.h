@@ -65,8 +65,6 @@ struct application_state
   imgui_context ImguiContext;
   application_imgui ApplicationImgui;
 
-  ecs::entity_id* DebugSquare;
-
   asset::package* DebugPackage;
 };
 

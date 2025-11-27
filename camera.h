@@ -3,6 +3,7 @@
 #include "commons/types.h"
 #include "math/affine_transformations.h"
 #include "platform/coordinate_systems.h"
+#include "asset_manager/asset_types.h"
 
 struct camera
 {
@@ -43,6 +44,7 @@ void setPinholeCamera( r32 filmApertureHeight, r32 filmApertureWidth,
                        r32 inchToMM = 25.4f );
 #endif
 
+camera FromAssetCamera(asset::camera* AssetCamera, m4 Transform);
 void InitiateCamera(camera* Camera, r32 AngleOfView, r32 AspectRatio );
 void InitiateCamera(camera* Camera, r32 AngleOfView, r32 AspectRatio, r32 near );
 void gluPerspective(

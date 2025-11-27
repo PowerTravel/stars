@@ -93,7 +93,7 @@ world InitiateWorld(application_render_commands* RenderCommands)
 {
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
-  Result.Renderer = render::Create(RenderCommands->RenderGroup, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height, RenderCommands);
+  Result.Renderer = render::CreateRenderer(RenderCommands->RenderGroup, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height, RenderCommands);
 
   return Result;
 }
@@ -532,9 +532,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);
-
-        GlobalState->DebugSquare = PushStruct(GlobalPersistentArena, ecs::entity_id);
-        *GlobalState->DebugSquare = Entity;
       }
 
       { // Solid Cone
@@ -569,52 +566,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   ecs::position::UpdatePositions(GetEntityManager());
 
-  {
-    {
-      rect2f PixelRect = Rect2f(5,5,10,10);
-      render::DrawOverlayQuadPixelSpace(PixelRect, V4(1,0,0,1));
-    }
-    {
-      v2 CanPos = PixelToCanonicalSpace(V2(20,20));
-      v2 CanSize = PixelToCanonicalSpace(V2(20,20));
-      rect2f CanonicalRect = Rect2f(CanPos,CanSize);
-      render::DrawOverlayQuadCanonicalSpace(CanonicalRect, V4(0,1,0,1));
-    }
-    {
-      rect2f PixelRect = Rect2f(V2(45,45),V2(30,30));
-      render::DrawIconPixelSpace(PixelRect, GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_DOWN], V4(0,0,1,1));
-    }
-    
-    {
-      v2 CanPos = PixelToCanonicalSpace(V2(80,80));
-      v2 CanSize = PixelToCanonicalSpace(V2(40,40));
-      rect2f CanonicalRect = Rect2f(CanPos,CanSize);
-      render::DrawIconCanonicalSpace(CanonicalRect, GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_RIGHT], V4(1,0,1,1));
-    }
-  }
-  {
-    {
-      v2 PixelPos = V2(100, 100);
-      rect2f PixelClipRect = Rect2f(PixelPos, V2(30,30));
-      render::DrawTextPixelSpace(PixelPos, PixelClipRect, 14, (const utf8_byte*) "Clipped Pixel Pos!", V4(1,1,1,1));
-    }
-    {
-      v2 Size = GlobalRenderer->Font.GetTextSizeCanonicalSpace(16, (const utf8_byte*) "Clipped Can Pos!");
-      v2 CanPos = PixelToCanonicalSpace(V2(120,120));
-      v2 CanSize = PixelToCanonicalSpace(Size/2.f);
-      rect2f CanClipRect = Rect2f(V2(CanPos.X, CanPos.Y - GlobalRenderer->Font.GetCanonicalFontDescenOffset(16)), V2(0.1, GlobalRenderer->Font.GetLineSpacingCanonicalSpace(16)/2));
-      render::DrawTextCanonicalSpace(CanPos, CanClipRect, 16, (const utf8_byte*) "Clipped Can Pos!", V4(1,0.4,1,1));
-    }
-    {
-      v2 PixelPos = V2(150, 150);
-      render::DrawTextPixelSpace(PixelPos, 18, (const utf8_byte*) "Pixel Pos!", V4(1,1,1,1));
-    }
-    {
-      v2 CanPos = PixelToCanonicalSpace(V2(200,200));
-      render::DrawTextCanonicalSpace(CanPos, 20, (const utf8_byte*) "Can Pos!", V4(0.4,1,1,1));
-      //render::DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
-    }
-  }
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
 
@@ -623,7 +574,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   render::NewOverlayLevel();
   DrawEntityList(&GlobalState->ApplicationImgui);
   ImguiEnd();
-
-  render::RenderScene(GlobalState->Camera.P, GlobalState->Camera.V);
+  if(GlobalRenderer->ActiveCamera)
+  {
+    render::RenderScene(GlobalRenderer->ActiveCamera->P, GlobalRenderer->ActiveCamera->V);
+  }else{
+    render::RenderScene(GlobalState->Camera.P, GlobalState->Camera.V);
+  }
 }
-

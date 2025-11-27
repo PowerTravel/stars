@@ -208,7 +208,7 @@ CMN_MALLOC_FUNCTION(RenderTransientMalloc){
 CMN_FREE_FUNCTION(RenderTransientFree){
 }
 
-renderer* Create(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands)
+renderer* CreateRenderer(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands)
 {
   renderer* Result         = BootstrapPushStruct(renderer, RenderTransientArena);
   Result->RenderGroup      = RenderGroup;
@@ -218,6 +218,7 @@ renderer* Create(render_group* RenderGroup, r32 ApplicationWidth, r32 Applicatio
   Result->LoadedTextures   = NewRBTree(GlobalPersistentArena, 64, 64);
   Result->LoadedPrograms   = NewRBTree(GlobalPersistentArena, 64, 64);
   Result->LoadedPrimitives = NewRBTree(GlobalPersistentArena, 64, 64);
+  Result->Cameras          = cmn::hash_map<camera>::Create(8);
 
   Result->MSAA = 4; 
   Result->InternalTextures  = CreateInternalTextures(RenderGroup, Result->MSAA);
@@ -225,6 +226,7 @@ renderer* Create(render_group* RenderGroup, r32 ApplicationWidth, r32 Applicatio
   Result->BasicShapes       = CreateBasicShapes(RenderGroup);
   Result->InternalShaders   = CreateInternalShaders(RenderGroup);
   Result->Font              = font::Create(RenderGroup, "C:\\Windows\\Fonts\\consola.ttf");
+
 
 
   Result->TempMem          = BeginTemporaryMemory(&Result->RenderTransientArena);
@@ -783,87 +785,6 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
     DrawOverlaySprites(RenderGroup, OverlayLevel, OrthoProjectionMatrix);
     DrawSDF (RenderGroup,  OverlayLevel->OverlaySDF,    OrthoProjectionMatrix);
   }
-  
-  //BlitBuffers(RenderGroup, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Rect2f(0,0,1,1));
-  #if 0
-
-  render_level* RenderLevel = GetBotRenderLevel(RenderSystem);
-  while(!ListEnd(&RenderSystem->RenderSentinel, RenderLevel))
-  {
-    render_state* OverlayState = PushNewState(RenderGroup);
-    depth_state OverlayDepthState = {};
-    OverlayDepthState.TestActive = false;
-    OverlayDepthState.WriteActive = false;
-    SetState(OverlayState, OverlayDepthState);
-    m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
-
-    chunk_list* OverlayQuads = &RenderLevel->OverlayQuads;
-    u32 QuadCount = GetBlockCount(OverlayQuads);
-    if(QuadCount)
-    {
-      render_object* QuadObject = PushNewRenderObject(RenderGroup);
-      QuadObject->ProgramHandle = GlobalState->ColoredSquareOverlayProgram;
-      QuadObject->MeshHandle = RenderSystem->BlitPlaneHandle;
-      QuadObject->FrameBufferHandle = FrameBuffer(FRAMEBUFFER_DEFAULT);
-      overlay_quad* QuadInstanceData = (overlay_quad*) Copy(GlobalTransientArena, OverlayQuads);
-
-      PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
-      PushInstanceData(QuadObject, QuadCount, QuadCount*sizeof(overlay_quad), QuadInstanceData);
-      Clear(OverlayQuads);
-    }
-    
-    chunk_list* OverlayIcon = &RenderLevel->OverlayIcon;
-    u32 IconCount = GetBlockCount(OverlayIcon);
-    if(IconCount)
-    {
-      render_object* QuadObject = PushNewRenderObject(RenderGroup);
-      QuadObject->ProgramHandle = GlobalState->TexturedSquareOverlayProgram;
-      QuadObject->MeshHandle = RenderSystem->BlitPlaneHandle;
-      QuadObject->FrameBufferHandle = FrameBuffer(FRAMEBUFFER_DEFAULT);
-      QuadObject->TextureHandles[0] = GlobalState->ImguiContext.Icons.Atlas;
-      QuadObject->TextureCount = 1;
-      textured_overlay_quad* QuadInstanceData = (textured_overlay_quad*) Copy(GlobalTransientArena, OverlayIcon);
-      
-      PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "Projection"), OrthoProjectionMatrix);
-      PushUniform(QuadObject, GetUniformHandle(RenderGroup, QuadObject->ProgramHandle, "RenderedTexture"), (u32)0);
-      PushInstanceData(QuadObject, IconCount, IconCount*sizeof(textured_overlay_quad), QuadInstanceData);
-      Clear(OverlayIcon);
-    }
-
-    // Overlay text
-    chunk_list* OverlayText = &RenderLevel->OverlayText;
-    u32 TextCount = GetBlockCount(OverlayText);
-    if(TextCount)
-    {
-      render_object* OverlayTextProgram = PushNewRenderObject(RenderGroup);
-      OverlayTextProgram->ProgramHandle = GlobalState->FontRenterProgram;
-      OverlayTextProgram->MeshHandle = RenderSystem->BlitPlaneHandle;
-      OverlayTextProgram->FrameBufferHandle = FrameBuffer(FRAMEBUFFER_DEFAULT);
-      OverlayTextProgram->TextureHandles[0] = RenderSystem->FontTextureHandle;
-      OverlayTextProgram->TextureCount = 1;
-      
-      PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "Projection"), OrthoProjectionMatrix);
-      PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "RenderedTexture"), (u32)0);
-      PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "OnEdgeValue"), 128/255.f);
-      PushUniform(OverlayTextProgram, GetUniformHandle(RenderGroup, OverlayTextProgram->ProgramHandle, "PixelDistanceScale"), 32/255.f);
-      
-      u32 i = 0;
-      overlay_text* Text = PushArray(GlobalTransientArena, TextCount, overlay_text);
-      chunk_list_iterator TextIt = BeginIterator(OverlayText);
-      while(Valid(&TextIt)) {
-        overlay_text* OverlayText = (overlay_text*) Next(&TextIt);
-        Text[i] = *OverlayText;
-        i++;
-      }
-
-      PushInstanceData(OverlayTextProgram, TextCount, TextCount*sizeof(overlay_text), (void*) Text);
-      Clear(OverlayText);
-    }
-
-    RenderLevel = RenderLevel->Next;
-  }
-#endif
-  int _a = 10;
 }
 
 
@@ -978,6 +899,19 @@ void DrawMesh( asset::mesh_id ID, const m4& Transform)
   }
 }
 
+void UseCamera(asset::camera_id CameraID, m4& Transform)
+{
+  camera* Camera = GlobalRenderer->Cameras.FindVal(CameraID);
+  if(!Camera)
+  {
+    asset::camera* AssetCamera = (asset::camera*) asset::Find(asset::type::CAMERA, CameraID);
+    Assert(AssetCamera);
+    Camera = GlobalRenderer->Cameras.AtVal(CameraID);
+    *Camera = FromAssetCamera(AssetCamera, Transform);
+  }
+  GlobalRenderer->ActiveCamera = Camera;
+}
+
 void DrawRenderTree(asset::render_tree_id ID) {
 
   asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, ID);
@@ -994,7 +928,17 @@ void DrawRenderTree(asset::render_tree_id ID) {
       {
         CurrentTransform = Data->HasTransform ? Data->Transform : M4Identity();
       }else{
-        CurrentTransform = Data->HasTransform ? CurrentTransform * TransformVec[Index-1] : TransformVec[Index-1];
+        m4 PreviousTransform = TransformVec[Index-1];
+        if(Data->HasTransform)
+        {
+          CurrentTransform = PreviousTransform*Data->Transform;
+        }else{
+          CurrentTransform = PreviousTransform;
+        }
+      }
+      if(Data->Camera)
+      {
+        UseCamera(Data->Camera, CurrentTransform);
       }
       if(Data->Mesh)
       {
@@ -1029,7 +973,7 @@ file_local cmn::list<overlay_sdf>& GetOverlaySDF(overlay_level* OverlayLevel){
 
 inline file_local m4 ModelMatrixFromRect(v2 Pos, v2 Size){
   m4 Result = M4Identity();
-  Scale(V4(Size.X,Size.Y,1,0), Result);
+  Scale(V4(Size.X,Size.Y,1,0), Result); 
   Translate(V4(Pos.X, Pos.Y, 0, 1), Result);
   Result = Transpose(Result);
   return Result;

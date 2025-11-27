@@ -202,3 +202,125 @@ void UpdateViewMatrixAngularMovement(  camera* Camera )
   Camera->DeltaPos = V3( 0, 0, 0 );
 }
 
+#if 0
+
+  struct camera {
+    enum class type {
+      PERSPECTIVE,
+      ORTHOGRAPHIC
+    };
+    struct orthographic {
+      float XMag;
+      float YMag;
+      float ZFar;
+      float ZNear;
+    };
+
+    struct perspective {
+      // When undefined, the aspect ratio of the rendering viewport MUST be used.
+      float AspectRatio;
+      float YFov;
+      // If zfar is undefined, client implementations SHOULD use infinite projection matrix
+      float ZFar;
+      float ZNear;
+    };
+
+    type Type;
+    union {
+      orthographic Orthographic;
+      perspective Perspective;
+    };
+  };
+
+struct camera
+{
+  r32 AngleOfView;
+  r32 AspectRatio;
+  r32 OrthoZoom; // Just used in orthographic projection to control how much of the screen is rendered
+  m4  DeltaRot;
+  v3  DeltaPos;
+  m4  V;
+  m4  P;
+};
+#endif
+
+camera FromAssetCamera(asset::camera* AssetCamera, m4 Transform)
+{
+  camera Result = {};
+  switch(AssetCamera->Type)
+  {
+    case asset::camera::type::PERSPECTIVE:{
+      asset::camera::perspective* Perspective = &AssetCamera->Perspective;
+      Result.AngleOfView  = Perspective->YFov;
+      Result.AspectRatio = Perspective->AspectRatio;
+      Result.DeltaRot = M4Identity();
+      Result.DeltaPos = V3(0,0,0);
+      Result.V = RigidInverse(Transform);
+
+
+      if(Perspective->HasZFar) {
+      
+
+        r32 a = Perspective->AspectRatio;
+        r32 y = Perspective->YFov;
+        r32 n = Perspective->ZNear;
+        r32 f = Perspective->ZFar;
+
+        r32 XX = 1.0 / (a * Tan(0.5*y));
+        r32 YY = 1.0 / (    Tan(0.5*y));
+        r32 ZZ = (f+n)/(n-f);
+        r32 ZW = (2*f*n) / (n-f);
+        r32 WZ = -1.0;
+        
+        // Infinite Perspective
+        Result.P = M4( XX,   0,  0,  0,
+                        0,  YY,  0,  0,
+                        0,   0, ZZ, ZW,
+                        0,   0, WZ,  0);
+        
+      } else {
+        r32 a = Perspective->AspectRatio;
+        r32 y = Perspective->YFov;
+        r32 n = Perspective->ZNear;
+
+        r32 XX = 1.0 / (a * Tan(0.5*y));
+        r32 YY = 1.0 / (    Tan(0.5*y));
+        r32 ZZ = -1.0;
+        r32 ZW = -2.0 * n;
+        r32 WZ = -1.0;
+        
+        // Infinite Perspective
+        Result.P =  M4( XX,   0,  0,  0,
+                         0,  YY,  0,  0,
+                         0,   0, ZZ, ZW,
+                         0,   0, WZ,  0);
+      }
+      return Result;
+    }break;
+    case asset::camera::type::ORTHOGRAPHIC:{
+      asset::camera::orthographic* Orthographic = &AssetCamera->Orthographic;
+      Result.AngleOfView = 0;
+      Result.AspectRatio = Orthographic->XMag/Orthographic->YMag;  
+      Result.DeltaRot = M4Identity();
+      Result.DeltaPos = V3(0,0,0);
+      Result.V = RigidInverse(Transform);
+      Result.P = M4Identity();
+      r32 r = Orthographic->XMag;
+      r32 t = Orthographic->YMag;
+      r32 f = Orthographic->ZFar;
+      r32 n = Orthographic->ZNear;
+
+      r32 XX = 1.0 / r;
+      r32 YY = 1.0 / t;
+      r32 ZZ = -2.0 / (n-f);
+      r32 ZW = (f+n)/(n-f);
+      r32 WW = 1;
+      // Infinite Perspective
+      Result.P =  M4( XX,   0,  0,  0,
+                       0,  YY,  0,  0,
+                       0,   0, ZZ, ZW,
+                       0,   0,  0,  1);
+    }break;
+  }
+  return Result;
+}

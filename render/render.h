@@ -7,6 +7,7 @@
 #include "window_size.h"
 #include "asset_manager/asset_types.h"
 #include "renderer/render_push_buffer/application_render_push_buffer.h"
+#include "cmn/hash_map.h"
 
 #include "font.h"
 
@@ -81,6 +82,9 @@ namespace render {
     rb_tree LoadedPrograms;
     rb_tree LoadedPrimitives;
 
+    camera* ActiveCamera;
+    cmn::hash_map<camera> Cameras;
+
     r32 MSAA;
 
     render_group* RenderGroup;
@@ -101,7 +105,7 @@ namespace render {
 
   void SetWindowSize(application_render_commands* RenderCommands);
 
-  renderer* Create(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands);
+  renderer* CreateRenderer(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands);
   void Begin();
 
   void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_material* Material, m4 Transform);

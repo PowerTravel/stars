@@ -1,70 +1,39 @@
 #pragma once 
 
 #include "allocators.h"
-#include <map>
+#include "containers/rb_tree.h"
+#include "containers/chunk_list.h"
 
-namespace cmn{
+namespace cmn {
 
-template <typename K, typename V>
+template <typename V>
 struct hash_map {
 
-  struct pair {
-    K Key;
-    V Val;
-  };
-
-  cmn::vector<pair> m_vec;
+  chunk_list m_val;
+  rb_tree m_keys;
 
   static hash_map Create(size_t Size = 128){
     hash_map Result = {};
-    Result.m_vec = cmn::vector<pair>::Create(Size);
-    return Result;
-  };
-
-  void Delete(){
-    m_vec.Delete();
-  };
-
-  V* Find(K Key) {
-    V* Result = 0;
-    for (int i = 0; i < m_vec.Size(); ++i)
-    {
-      pair& Pair = m_vec[i];
-      if(Pair.Key == Key)
-      {
-        Result = &Pair.Val;
-        break;
-      }
-    }
+    Result.m_val    = NewChunkList(GlobalPersistentArena, sizeof(V), Size);
+    Result.m_keys   = NewRBTree(GlobalPersistentArena, Size, Size);
     return Result;
   }
 
-  V At(K Key) const {
-    V* ResultPtr = Find(Key);
-    if(ResultPtr)
+  V* FindVal(size_t Key) {
+    void* Val = Find(&m_keys, Key,0,0);
+    V* Result = (V*) Val;
+    return Result;
+  }
+
+  V* AtVal(size_t Key) {
+    V* ResultPtr = FindVal(Key);
+    if(!ResultPtr)
     {
-      return *ResultPtr;
-    }else{
-      ResultPtr = &m_vec.PushBack();
+      ResultPtr = (V*) GetNewBlock(GlobalPersistentArena, &m_val);
+      Insert(&m_keys, Key, (void*) ResultPtr);
     }
     return ResultPtr;
   }
-
-  V& At(K Key) {
-    V* ResultPtr = Find(Key);
-    if(!ResultPtr)
-    {
-      pair Pair = {};
-      Pair.Key = Key;
-      m_vec.PushBack(Pair);
-      ResultPtr = &m_vec.Back().Val;
-    }
-
-    return *ResultPtr;
-  }
-
-  
-
 
 };
 

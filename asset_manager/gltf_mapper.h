@@ -385,11 +385,13 @@ namespace mapper {
           Result.Perspective.AspectRatio = GlobalWindowSize.ApplicationAspectRatio;
         }
         Result.Perspective.YFov = RawCamera->Perspective.YFov;
-        if(RawCamera->Perspective.AspectRatio)
+        if(RawCamera->Perspective.ZFar)
         {
+          Result.Perspective.HasZFar = true;
           Result.Perspective.ZFar = *RawCamera->Perspective.ZFar;
         }else{ 
-          Result.Perspective.ZFar = R32Max;
+          Result.Perspective.HasZFar = false;
+          Result.Perspective.ZFar = 0;
         }
 
         Result.Perspective.ZNear = RawCamera->Perspective.ZNear;
@@ -398,7 +400,6 @@ namespace mapper {
     }
     return Result;
   }
-
   
   c8* SetName(const c8* UniqueName, const cmn::string Name, const c8* TypeName, int Index, int IndexCount)
   {

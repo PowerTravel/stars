@@ -3,7 +3,7 @@
 #include "commons/types.h"
 #include "commons/jstring.h"
 #include "cmn/n_tree.h"
-
+#include "math/aabb.h"
 
 namespace asset {
 
@@ -208,7 +208,8 @@ namespace asset {
       // When undefined, the aspect ratio of the rendering viewport MUST be used.
       float AspectRatio;
       float YFov;
-      // If zfar is undefined, client implementations SHOULD use infinite projection matrix
+      // If HasZFar is false, client implementations SHOULD use infinite projection matrix
+      bool HasZFar;
       float ZFar;
       float ZNear;
     };
