@@ -10,17 +10,6 @@
 #define Assert(Expression) if(!(Expression)){ *(int *)0 = 0;}
 #endif
 
-// Note: Having allocators as function pointers messes up live code editing.
-//       When building a new DLL the allocation functions will get new adressess 
-//       ones that are stored here are invalid.
-//       There are workarounds such as 
-//          1: using the funciton pointer pool or
-//          2: Collecting the allocator function pointers into heap-allocated objects.
-//             The objects gets updated on DLL reload to point to the proper function and
-//             those heap allocated objects are what these types use for custom allocators.
-//      
-// Note: Never move nodes between trees which has different allocators
-
 // Interaface
 namespace cmn {
 
@@ -117,18 +106,22 @@ namespace cmn {
 
     void* Malloc(size_t sz)
     {
-      if(m_transient){
-        return _g_cmn_transient_malloc(sz);
+      if(m_malloc)
+      {
+        return m_malloc(sz);
       }
-      return _g_cmn_malloc(sz);
+      
+      return m_transient ? _g_cmn_transient_malloc(sz) : _g_cmn_malloc(sz);
     }
 
     void Free(void * p)
     {
-      if(m_transient){
-        _g_cmn_transient_free(p);
+      Assert(p);
+      if(m_free)
+      {
+        m_free(p);
       }else{
-        _g_cmn_free(p);
+        m_transient ? _g_cmn_transient_free(p) : _g_cmn_free(p);
       }
     }
 
@@ -446,8 +439,8 @@ NodeVisitFunction(DeleteLeafNode){
   Assert(!Node->FirstChild);
   Node->Remove();
   Tree->m_nodeCount--;
-  Tree->m_free(Node->Data);
-  Tree->m_free(Node);
+  Tree->Free(Node->Data);
+  Tree->Free(Node);
 }
 
 template <typename T>

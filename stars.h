@@ -17,6 +17,7 @@
 #include "io/obj.h"
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
+#include "ecs/systems/system_position.h"
 #include "color_table.h"
 #include "imgui/imgui.h"
 #include "imgui/application_imgui.h"
@@ -40,6 +41,7 @@ struct function_pool
 
 struct world {
   ecs::entity_manager* EntityManager;
+  ecs::position::system PositionSystem;
   render::renderer* Renderer;
 };
 
@@ -66,9 +68,12 @@ struct application_state
   application_imgui ApplicationImgui;
 
   asset::package* DebugPackage;
+
+  ecs::entity_id FloorEntity;
 };
 
 global_variable ecs::entity_manager* GlobalEntityManager = 0;
+global_variable ecs::position::system* GlobalPositionSystem = 0;
 global_variable application_render_commands* GlobalRenderCommands = 0;
 global_variable application_state* GlobalState = 0;
 global_variable jwin::device_input* GlobalInput = 0;

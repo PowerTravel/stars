@@ -2,6 +2,7 @@
 
 #include "platform/coordinate_systems.h"
 #include "math/affine_transformations.h"
+#include "cmn/n_tree.h"
 // Wanna make a difference to how position_node vs position works.
 // Today position is the root node of a position_tree.
 // I want a position_node with no parents to be the root node that gets updated
@@ -9,6 +10,9 @@
 // rather than requiring all entities to just have their position relative the world coordinate.
 namespace ecs{ 
 namespace position {
+
+typedef cmn::n_tree<struct component*> position_tree;
+typedef cmn::n_tree<struct component*>::node position_node;
 
 struct component
 {
@@ -18,6 +22,7 @@ struct component
   quat AbsoluteRotation;
   v3 Scale;
   b32 Dirty;
+  position_node* Node;
 };
 
 // Creates a new position node, initializes and if parent exists, insert it into the tree

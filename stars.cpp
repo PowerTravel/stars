@@ -93,6 +93,7 @@ world InitiateWorld(application_render_commands* RenderCommands)
 {
   world Result = {};
   Result.EntityManager = ecs::CreateEntityManager();
+  Result.PositionSystem = ecs::position::CreatePositionSystem();
   Result.Renderer = render::CreateRenderer(RenderCommands->RenderGroup, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height, RenderCommands);
 
   return Result;
@@ -432,6 +433,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GlobalRenderer       = GlobalState->World.Renderer;
   GlobalAssetManager   = GlobalState->AssetManager;
   GlobalEntityManager  = GlobalState->World.EntityManager;
+  GlobalPositionSystem = &GlobalState->World.PositionSystem;
   GlobalWindowSize     = WindowSizePixel(RenderCommands, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height);
 
   ResetRenderGroup(RenderCommands->RenderGroup);
@@ -449,9 +451,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalAssetManager = GlobalState->AssetManager;
 
     RenderCommands->RenderGroup = InitiateRenderGroup();
-    GlobalState->World  = InitiateWorld(RenderCommands);
-    GlobalEntityManager = GlobalState->World.EntityManager;
-    GlobalRenderer      = GlobalState->World.Renderer;
+    GlobalState->World   = InitiateWorld(RenderCommands);
+    GlobalPositionSystem = &GlobalState->World.PositionSystem;
+    GlobalEntityManager  = GlobalState->World.EntityManager;
+    GlobalRenderer       = GlobalState->World.Renderer;
 
     LinkedMemoryUnitTests(GlobalTransientArena);
 
@@ -480,40 +483,40 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     LookAt(&GlobalState->Camera, V3(0,0,4), V3(0,0,0));
  
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
-   
-    { // Create some entities
-      { // Transparent Cube
-        asset::mesh* Mesh = MeshFromTree("Cube");
+    
 
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
-        ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
-        Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
-        
-        
-        ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        ecs::collider::Init(Collider, Mesh);
-      }
+    { // Create some entities
 
       { // Checker Floor
         asset::mesh* Mesh = MeshFromTree("checker_plane_simple");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Checkered Floor", ecs::flag::RENDER | ecs::flag::COLLIDER);
+        GlobalState->FloorEntity = Entity;
         ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
-      
-        Initiate(asset::ToKey(asset::type::RENDER_TREE, "checker_plane_simple"), GetRenderComponent(&Entity));
+        ecs::position::InitiatePosition(V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10), &Entity);
 
+        Initiate(asset::ToKey(asset::type::RENDER_TREE, "checker_plane_simple"), GetRenderComponent(&Entity));
         ecs::collider::component* Collider = GetColliderComponent(&Entity);
         ecs::collider::Init(Collider, Mesh);
       }
+
+      { // Transparent Cube
+        asset::mesh* Mesh = MeshFromTree("Cube");
+
+        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
+        ecs::position::InitiatePosition(V3(2,0,0), 0, V3(0,1,0), V3(1,1,1), &Entity, &GlobalState->FloorEntity);
+
+        Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
+        ecs::collider::component* Collider = GetColliderComponent(&Entity);
+        ecs::collider::Init(Collider, Mesh);
+      }
+
 
       { // Transparent Cone
         asset::mesh* Mesh = MeshFromTree("Cone");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
-        ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(0,0,2), 0, V3(0,1,0), V3(1,1,1));
+        ecs::position::InitiatePosition(V3(0,0,2), 0, V3(0,1,0), V3(1,1,1), &Entity, &GlobalState->FloorEntity);
         Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "emerald"), GetRenderComponent(&Entity));
         
         
@@ -525,8 +528,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         asset::mesh* Mesh = MeshFromTree("Cylinder");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Transparent Cylinder", ecs::flag::RENDER | ecs::flag::COLLIDER );
-        ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
+        ecs::position::InitiatePosition(V3(2,0,2), 0, V3(0,1,0), V3(1,1,1), &Entity, &GlobalState->FloorEntity);
+
         Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "jade"), GetRenderComponent(&Entity));
        
         
@@ -538,8 +541,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         asset::mesh* Mesh = MeshFromTree("Cone");
 
         ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, 0, "Solid Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
-        ecs::position::component* Position = GetPositionComponent(&Entity);
-        ecs::position::Set(Position, V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
+        ecs::position::InitiatePosition(V3(0,0,0), 0, V3(0,1,0), V3(1,1,1), &Entity, &GlobalState->FloorEntity);
 
         Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "silver"), GetRenderComponent(&Entity));
 
@@ -551,6 +553,10 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     render::Begin();
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
+
+  ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
+  FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,0,1)));
+//  Platform.DEBUGPrint("%f\n", Norm(FloorPos->RelativeRotation));
 
   LoadAndRenderGLTFEngine();
   
@@ -564,20 +570,20 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     render::RecompileAllPrograms();
   }
 
-  ecs::position::UpdatePositions(GetEntityManager());
+  ecs::position::UpdatePositions();
 
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
 
   render::NewOverlayLevel();
-  DrawColorList(&GlobalState->ApplicationImgui);
+  DrawColorList(&GlobalState->ApplicationImgui); // LEaky
   render::NewOverlayLevel();
   DrawEntityList(&GlobalState->ApplicationImgui);
   ImguiEnd();
-  if(GlobalRenderer->ActiveCamera)
-  {
-    render::RenderScene(GlobalRenderer->ActiveCamera->P, GlobalRenderer->ActiveCamera->V);
-  }else{
+  //if(GlobalRenderer->ActiveCamera)
+  //{
+  //  render::RenderScene(GlobalRenderer->ActiveCamera->P, GlobalRenderer->ActiveCamera->V);
+  //}else{
     render::RenderScene(GlobalState->Camera.P, GlobalState->Camera.V);
-  }
+  //}
 }

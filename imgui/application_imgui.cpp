@@ -80,7 +80,7 @@ void DrawColorList(application_imgui* AppImgui) {
 
   s32 RowCount = 0;
   ZeroArray(ColorCount, ColorListData->ColorIDs);
-  imgui_id* ImguiIDs = PushArray(GlobalPersistentArena, ColorCount, imgui_id);
+  imgui_id* ImguiIDs = PushArray(GlobalTransientArena, ColorCount, imgui_id);
   for (u32 i = 0; i < ColorCount; ++i) {
     menu::named_color_hex* NamedColor = menu::GetNamedColor(&GlobalState->ColorTable, (umm) i);
     char ColorNameLower[512] = {};

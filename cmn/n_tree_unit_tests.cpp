@@ -149,7 +149,7 @@ void Test_Copy()
 {
   dbg::SetCustomGlobalAllocators();
   cmn::n_tree<int> tree = createTree();
-  cmn::n_tree<int> treeCopy = tree.Copy();
+  cmn::n_tree<int> treeCopy = tree.Copy(true);
   DBG_AssertFalse(tree.m_root, treeCopy.m_root, "m_root Pointer" );
   treeCopy.Delete();
   tree.Delete();

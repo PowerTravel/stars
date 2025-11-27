@@ -66,7 +66,6 @@ void Test1_BasicPushPop()
 {
   cmn::vector<int> v = cmn::vector<int>::Create();
   BasicPushPop(v);
-  v.Delete();
 }
 
 
@@ -75,7 +74,6 @@ void Test2_BasicPushPop_GlobalCustomAllocators()
   dbg::SetCustomGlobalAllocators();
   cmn::vector<int> v1 = cmn::vector<int>::Create();
   BasicPushPop(v1);
-  v1.Delete();
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
   DBG_Assert(gReallocCount, 7, "Realloc Call Count");
   DBG_Assert(gFreeCount, 1, "Free Call Count");
@@ -91,11 +89,9 @@ void Test2_BasicPushPop_GlobalCustomAllocators()
 
 void Test3_BasicPushPop_LocalCustomAllocators(){
   cmn::vector<int> v1 = cmn::vector<int>::Create();
-  cmn::vector<int> v2 = cmn::vector<int>::Create(0, customMalloc, customRealloc, customFree);
+  cmn::vector<int> v2 = cmn::vector<int>::Create(0, false, customMalloc, customRealloc, customFree);
   BasicPushPop(v1); // Using global allocators 
   BasicPushPop(v2); // Using differen local allocators 
-  v1.Delete();
-  v2.Delete();
 
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
   DBG_Assert(gReallocCount, 7, "Realloc Call Count");

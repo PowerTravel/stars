@@ -46,6 +46,7 @@ struct vector {
 
   void* Realloc(void * p, size_t sz)
   {
+    Assert(p);
     if(m_realloc)
     {
       return m_realloc(p,sz);
@@ -56,10 +57,12 @@ struct vector {
 
   void Free(void * p)
   {
+    Assert(p);
     if(m_free){
       m_free(p);
+    }else{
+      m_transient ? _g_cmn_transient_free(p) : _g_cmn_free(p);
     }
-    m_transient ? _g_cmn_transient_free(p) : _g_cmn_free(p);
   }
 
 
@@ -91,6 +94,7 @@ struct vector {
   {
     vector Result = vector::Create(Count, aTransient, aMalloc, aRealloc, aFree);
     utils::Copy(Count*sizeof(T), Data, Result.m_data);
+    Result.m_count = Count;
     return Result;
   }
 
@@ -143,7 +147,7 @@ struct vector {
 
   vector Copy(_cmn_malloc* aMalloc,_cmn_realloc* aRealloc,_cmn_free* aFree)
   {
-    vector Result = vector::Create(m_reservedCount, m_transient, aMalloc, aRealloc, aFree);
+    vector Result = vector::Create(m_reservedCount, m_data, m_transient, aMalloc, aRealloc, aFree);
     if(m_count)
     {
       Result.m_count = m_count;
