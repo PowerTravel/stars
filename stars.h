@@ -41,7 +41,6 @@ struct function_pool
 
 struct world {
   ecs::entity_manager* EntityManager;
-  ecs::position::system PositionSystem;
   render::renderer* Renderer;
 };
 
@@ -73,7 +72,6 @@ struct application_state
 };
 
 global_variable ecs::entity_manager* GlobalEntityManager = 0;
-global_variable ecs::position::system* GlobalPositionSystem = 0;
 global_variable application_render_commands* GlobalRenderCommands = 0;
 global_variable application_state* GlobalState = 0;
 global_variable jwin::device_input* GlobalInput = 0;

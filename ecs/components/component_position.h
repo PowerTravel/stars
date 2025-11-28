@@ -3,6 +3,7 @@
 #include "platform/coordinate_systems.h"
 #include "math/affine_transformations.h"
 #include "cmn/n_tree.h"
+#include "ecs/entity_components_backend.h"
 // Wanna make a difference to how position_node vs position works.
 // Today position is the root node of a position_tree.
 // I want a position_node with no parents to be the root node that gets updated
@@ -11,9 +12,6 @@
 namespace ecs{ 
 namespace position {
 
-typedef cmn::n_tree<struct component*> position_tree;
-typedef cmn::n_tree<struct component*>::node position_node;
-
 struct component
 {
   world_coordinate RelativePosition;
@@ -21,56 +19,81 @@ struct component
   quat RelativeRotation;
   quat AbsoluteRotation;
   v3 Scale;
-  b32 Dirty;
-  position_node* Node;
 };
 
 // Creates a new position node, initializes and if parent exists, insert it into the tree
-void Set(component* Component, world_coordinate Position, quat Rotation, v3 Scale)
+inline void Set(component* Component, world_coordinate Position, quat Rotation, v3 Scale)
 {
-  Component->Dirty = true;
   Component->RelativePosition = Position;
   Component->RelativeRotation = Rotation;
   Component->Scale = Scale;
 }
+//inline void Set(ecs::entity_id& EntityID, world_coordinate Position, quat Rotation, v3 Scale)
+//{
+//  Set(GetPositionComponent(&EntityID), Position, Rotation, Scale);
+//}
 
-void Set(component* Component, world_coordinate Position, euler_angle Euler, v3 Scale)
+inline void Set(component* Component, world_coordinate Position, euler_angle Euler, v3 Scale)
 {
-  Component->Dirty = true;
   Component->RelativePosition = Position;
   Component->RelativeRotation = Quaternion(Euler);
   Component->Scale = Scale;
 }
+//inline void Set(ecs::entity_id& EntityID, world_coordinate Position, euler_angle Euler, v3 Scale)
+//{
+//  Set(GetPositionComponent(&EntityID), Position, Euler, Scale);
+//}
 
-// Creates a new position node, initializes and if parent exists, insert it into the tree
-void Set(component* Component, world_coordinate Position, r32 Angle, v3 Axis, v3 Scale)
+inline void Set(component* Component, world_coordinate Position, r32 Angle, v3 Axis, v3 Scale)
 {
-  Component->Dirty = true;
   Component->RelativePosition = Position;
   Component->RelativeRotation = RotateQuaternion(Angle, Axis);
   Component->Scale = Scale;
 }
+//inline void Set(ecs::entity_id& EntityID, world_coordinate Position, r32 Angle, v3 Axis, v3 Scale)
+//{
+//  Set(GetPositionComponent(&EntityID), Position, Euler, Scale);
+//}
 
-v3 GetAbsolutePosition(ecs::position::component* Position)
+inline v3 GetAbsolutePosition(ecs::position::component* Position)
 {
   return Position->AbsolutePosition;
 }
-v4 GetAbsoluteRotation(ecs::position::component* Position)
+inline v4 GetAbsoluteRotation(ecs::position::component* Position)
 {
   return Position->AbsoluteRotation;
 }
-v3 GetScale(ecs::position::component* Position)
+inline v3 GetScale(ecs::position::component* Position)
 {
   return Position->Scale;
 }
 
 m4 GetModelMatrix(ecs::position::component* Position)
 {
-  m4 Scale = GetScaleMatrix(V4(GetScale(Position),1));
-  m4 Rotation = GetRotationMatrix(GetAbsoluteRotation(Position));
-  m4 Translation = GetTranslationMatrix(V4(GetAbsolutePosition(Position),1));
-  m4 ModelMat = Translation*Rotation*Scale;
-  return ModelMat;
+  v3 P = GetAbsolutePosition(Position);
+  m4 R = GetRotationMatrix(GetAbsoluteRotation(Position));
+  v3 S = GetScale(Position);
+  return M4(
+    Index(R,0,0)*S.X, Index(R,0,1)*S.Y, Index(R,0,2)*S.Z, P.X,
+    Index(R,1,0)*S.X, Index(R,1,1)*S.Y, Index(R,1,2)*S.Z, P.Y,
+    Index(R,2,0)*S.X, Index(R,2,1)*S.Y, Index(R,2,2)*S.Z, P.Z,
+                   0,                0,                0,   1);
 }
 }
 }
+
+//| 1, 0, 0, px | |rxx, rxy, rxz,   0 | | sx, 0,  0,  0 |
+//| 0, 1, 0, py | |ryx, ryy, ryz,   0 | | 0, sy,  0,  0 |
+//| 0, 0, 1, pz | |rzx, rzy, rzz,   0 | | 0,  0, sz,  0 |
+//| 0, 0, 0,  1 | |  0,   0,   0,   1 | | 0,  0,  0,  1 |
+//
+//| 1, 0, 0, px | |rxx*sx, rxy*sy, rxz*sz,   0 |
+//| 0, 1, 0, py | |ryx*sx, ryy*sy, ryz*sz,   0 |
+//| 0, 0, 1, pz | |rzx*sx, rzy*sy, rzz*sz,   0 |
+//| 0, 0, 0,  1 | |  0,         0,      0,   1 |
+//
+//
+//| rxx*sx, rxy*sy, rxz*sz,  px |
+//| ryx*sx, ryy*sy, ryz*sz,  py |
+//| rzx*sx, rzy*sy, rzz*sz,  pz |
+//|  0,         0,      0,    1 |

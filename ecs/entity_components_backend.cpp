@@ -28,9 +28,7 @@ struct entity
   entity_component_link* FirstComponentLink; // Points us to the associated components in the component list.
 
   c8 Name[MAX_ENTITY_NAME_LENGTH];
-  entity* Parent;
-  entity* FirstChild;
-  entity* NextSibling;
+  cmn::n_tree<entity*>::node* Node;
 };
 
 struct component_head
@@ -288,17 +286,6 @@ component_list CreateComponentList(memory_arena* Arena, bitmask32 TypeFlag, bitm
   return Result;
 }
 
-void InsertEntityIntoTree(entity* Parent, entity* NewEntity)
-{
-  NewEntity->Parent = Parent;
-  entity** ChildToAdd = &Parent->FirstChild;
-  while(ChildToAdd)
-  {
-    ChildToAdd = &(*ChildToAdd)->NextSibling;
-  }
-  *ChildToAdd = NewEntity;    
-}
-
 // Functions in header
 entity_id NewEntity( entity_manager* EM, entity_id* ParentID, const c8* Name )
 {
@@ -306,16 +293,18 @@ entity_id NewEntity( entity_manager* EM, entity_id* ParentID, const c8* Name )
   entity* NewEntity = (entity*) GetNewBlock(&EM->Arena, &EM->EntityList, &ListIndex);
   NewEntity->ID.EntityID = EM->EntityIdCounter++;
   NewEntity->ID.ChunkListIndex = ListIndex;
-  
-
   u32 NameLength = jstr::StringLength(Name);
   Assert(NameLength < MAX_ENTITY_NAME_LENGTH);
   jstr::CopyStrings( NameLength, Name, MAX_ENTITY_NAME_LENGTH, NewEntity->Name);
 
+
   if(ParentID)
   {
-    entity* Parent = GetEntityFromID(EM, ParentID);
-    InsertEntityIntoTree(Parent, NewEntity);
+    entity* ParentEntity = GetEntityFromID(EM, ParentID);
+    Assert(ParentEntity->Node);
+    NewEntity->Node = EM->EntityTree.NewNode(ParentEntity->Node, NewEntity);
+  }else{
+    NewEntity->Node = EM->EntityTree.NewNode(EM->EntityTree.m_root, NewEntity);
   }
 
   return NewEntity->ID;
@@ -457,6 +446,10 @@ entity_manager* CreateEntityManager(u32 EntityChunkCount, u32 EntityMapChunkCoun
     Result->ComponentTypeVector[IndexOfLeastSignificantSetBit(Definition->ComponentFlag)] =
     CreateComponentList(&Result->Arena, Definition->ComponentFlag, Definition->RequirementsFlag, Definition->ComponentByteSize, Definition->ComponentChunkCount);  
   }
+
+
+  Result->EntityTree = cmn::n_tree<entity*>::Create();
+  Result->EntityTree.NewNode();
 
   Result->EntityIdCounter = 1;
   Result->EntityList = NewChunkList(&Result->Arena, sizeof(entity), EntityChunkCount);

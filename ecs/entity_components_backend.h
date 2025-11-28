@@ -1,6 +1,7 @@
 #pragma once
 #include "commons/types.h"
 #include "containers/chunk_list.h"
+#include "cmn/n_tree.h"
 
 namespace ecs{
 
@@ -8,7 +9,8 @@ struct component_head;
 struct component_list;
 struct entity;
 
-  
+typedef cmn::n_tree<struct entity*> entity_tree;
+typedef cmn::n_tree<struct entity*>::node entity_node;
 
 // TODO: Assemble entities into a balanced binary search tree for "easy" search and access
 
@@ -39,6 +41,9 @@ struct entity_manager
   chunk_list EntityList;
   // List filled with entity_component_link
   chunk_list EntityComponentLinks;
+
+  // List relation of entities
+  cmn::n_tree<entity*> EntityTree;
 
   u32 ComponentTypeCount;
   component_list* ComponentTypeVector;
