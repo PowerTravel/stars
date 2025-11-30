@@ -40,4 +40,4 @@ namespace flag{
 
 #define GetPositionComponent(EntityID) ((ecs::position::component*) ecs::GetComponent(GlobalState->World.EntityManager, EntityID, ecs::flag::POSITION))
 #define GetColliderComponent(EntityID) ((ecs::collider::component*) ecs::GetComponent(GlobalState->World.EntityManager, EntityID, ecs::flag::COLLIDER))
-#define GetRenderComponent(EntityID) ((ecs::render::component*) ecs::GetComponent(GlobalState->World.EntityManager, EntityID, ecs::flag::RENDER))
+#define GetRenderComponent(EntityID)   ((ecs::render::component*)   ecs::GetComponent(GlobalState->World.EntityManager, EntityID, ecs::flag::RENDER))

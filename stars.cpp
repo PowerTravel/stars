@@ -112,103 +112,68 @@ L
 
 */
 
-ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, const char* RenderTreeName, ecs::entity_id* ParentEntity)
+void SetRenderComponent(ecs::entity_id* Entity, asset::mesh::primitive* Primitive)
+{
+  if(!ecs::HasComponents(GetEntityManager(), Entity, ecs::flag::RENDER))
+  {
+    ecs::NewComponents( GetEntityManager(), Entity, ecs::flag::RENDER);
+  }
+  ecs::render::component* RenderComponent = GetRenderComponent(Entity);
+  Assert(Primitive->Geometry);
+  RenderComponent->Geometry = asset::FindGeometry(Primitive->Geometry);
+  if(Primitive->PhongMaterial) {
+    RenderComponent->PhongMaterial = asset::FindPhongMaterial(Primitive->PhongMaterial);
+  } else if(Primitive->PbrMaterial) {
+    RenderComponent->PbrMaterial = asset::FindPbrMaterial(Primitive->PbrMaterial);
+  }
+}
+
+ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, asset::render_tree* RenderTree, ecs::entity_id* RootEntity)
 {
   ecs::entity_id Result = {};
-  asset::render_tree_id RenderTreeID = asset::ToKey(asset::type::RENDER_TREE, RenderTreeName);
-  asset::render_tree* RenderTree     = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, RenderTreeID);
   cmn::n_tree<asset::render_tree_data>::pre_order_iterator It = RenderTree->PreOrderIterator();
-  cmn::vector<m4> TransformVec = cmn::vector<m4>::CreateTransient(RenderTree->MaxDepth());
   cmn::vector<ecs::entity_id> EntityChain = cmn::vector<ecs::entity_id>::CreateTransient(RenderTree->MaxDepth());
   while(cmn::n_tree_node<asset::render_tree_data>* RenderTreeNode = It.Next())
   {
     int Depth = It.Depth()-1;
     asset::render_tree_data* RenderTreeData = RenderTreeNode->Data;
-    //TransformVec[Depth] = Depth == 0 ? M4Identity() : TransformVec[Depth-1];
-    if(RenderTreeData->HasTransform && !RenderTreeData->Mesh)
-    {
-      NOT_IMPLEMENTED;
-    } else if(!RenderTreeData->HasTransform && RenderTreeData->Mesh) {
-      if(Depth == 0)
+
+    ecs::entity_id* ParentEntity = Depth == 0 ? RootEntity : &EntityChain[Depth-1];
+    EntityChain[Depth] = ecs::NewEntity( GetEntityManager(), ParentEntity, EntityName, ecs::flag::POSITION);
+    ecs::position::Set(GetPositionComponent(&EntityChain[Depth]), RenderTreeData->HasTransform ? RenderTreeData->Transform : M4Identity());
+
+    if(RenderTreeData->Mesh)
+    {     
+      asset::mesh* Mesh = asset::FindMesh(RenderTreeData->Mesh);
+      Assert(Mesh->PrimitiveCount > 0);
+
+      if(Mesh->PrimitiveCount==1)
       {
-        TransformVec[0] = M4Identity();
+        SetRenderComponent(&EntityChain[Depth], Mesh->Primitives);
+      }else{
+        for (int i = 0; i < Mesh->PrimitiveCount; ++i) {
+          asset::geometry* Geometry = asset::FindGeometry(Mesh->Primitives[i].Geometry);
+          asset::header* GeometryHeader = ToHeader(Geometry);
 
-        asset::mesh* Mesh = asset::FindMesh(RenderTreeData->Mesh);
-        Assert(Mesh->PrimitiveCount > 0);
-
-        ecs::entity_id Entity = NewEntity( GetEntityManager(), ParentEntity, RenderTreeName, ecs::flag::POSITION);
-        EntityChain[0]  = Entity;
-        ecs::position::Set(GetPositionComponent(&Entity), V3(0,0,0), Quaternion(), V3(1,1,1));
-
-        if(Mesh->PrimitiveCount==1)
-        {
-            NewComponents( GetEntityManager(), &Entity, ecs::flag::RENDER);
-            ecs::position::Set(GetPositionComponent(&Entity), V3(0,0,0), Quaternion(), V3(1,1,1));
-            ecs::render::component* RenderComponent = GetRenderComponent(&Entity);
-            
-            asset::mesh::primitive* Primitive = Mesh->Primitives;
-            Assert(Primitive->Geometry);
-            RenderComponent->Geometry = asset::FindGeometry(Primitive->Geometry);
-
-            if(Primitive->PhongMaterial) {
-              RenderComponent->PhongMaterial = asset::FindPhongMaterial(Primitive->PhongMaterial);
-            } else if(Primitive->PbrMaterial) {
-              RenderComponent->PbrMaterial = asset::FindPbrMaterial(Primitive->PbrMaterial);
-            }
-        }else{
-          for (int i = 0; i < Mesh->PrimitiveCount; ++i)
-          {
-            ecs::entity_id SubEntity = ecs::NewEntity( GetEntityManager(), &Entity, RenderTreeName, ecs::flag::RENDER);
-            ecs::position::Set(GetPositionComponent(&SubEntity), V3(0,0,0), Quaternion(), V3(1,1,1));
-            ecs::render::component* RenderComponent = GetRenderComponent(&SubEntity);
-            
-            asset::mesh::primitive* Primitive = &Mesh->Primitives[i];
-            Assert(Primitive->Geometry);
-            RenderComponent->Geometry = asset::FindGeometry(Primitive->Geometry);
-
-            if(Primitive->PhongMaterial) {
-              RenderComponent->PhongMaterial = asset::FindPhongMaterial(Primitive->PhongMaterial);
-            } else if(Primitive->PbrMaterial) {
-              RenderComponent->PbrMaterial = asset::FindPbrMaterial(Primitive->PbrMaterial);
-            }
-          }  
-        }
-      } else {
-        NOT_IMPLEMENTED;
-        TransformVec[Depth] = TransformVec[Depth-1];
-        ecs::entity_id* ParentEntity = &EntityChain[Depth-1];
-        ecs::entity_id Entity = NewEntity( GetEntityManager(), ParentEntity, RenderTreeName, ecs::flag::RENDER);
-        ecs::position::Set(GetPositionComponent(&Entity), TransformVec[Depth]);
-        EntityChain[Depth] = Entity;
+          ecs::entity_id SubEntity = ecs::NewEntity( GetEntityManager(), &EntityChain[Depth], GeometryHeader->Name.String, ecs::flag::RENDER);
+          ecs::position::Set(GetPositionComponent(&SubEntity), M4Identity());
+          SetRenderComponent(&SubEntity, &Mesh->Primitives[i]);
+        }  
       }
-    }else if(RenderTreeData->HasTransform && RenderTreeData->Mesh){
-      NOT_IMPLEMENTED;
-    }else{ // !RenderTreeData->HasTransform && !RenderTreeData->Mesh
-       
     }
-
-#if 0
-    m4& CurrentTransform = TransformVec[Depth];
-    if(Depth == 0)
+    if(RenderTreeData->Camera)
     {
-      CurrentTransform = CurrentRenderTreeData.HasTransform ? CurrentRenderTreeData->Transform : M4Identity();
-      entity_id Entity = NewEntity( GetEntityManager(), EntityManager, const c8* Name, bitmask32 ComponentFlags);  
-    }else{
-      m4& PreviousTransform = &TransformVec[Depth-1];
-      CurrentTransform = CurrentRenderTreeData.HasTransform ? PreviousTransform*CurrentRenderTreeData->Transform : CurrentRenderTreeData->Transform;
-    }
 
-    
-
-    IntSumVec[Depth] = *It.GetNode()->Data + (Depth == 0 ? 0 : IntSumVec[Depth-1]);
-    if(It.AtLeaf())
-    {
-      DBG_Assert(IntSumVec[Depth], GroundTruthSum[LeafCount], "Sum of node values");
-      LeafCount++;
     }
-#endif
   }
   return EntityChain[0];
+}
+
+ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, const char* RenderTreeName, ecs::entity_id* ParentEntity)
+{
+  asset::render_tree_id RenderTreeID = asset::ToKey(asset::type::RENDER_TREE, RenderTreeName);
+  asset::render_tree* RenderTree     = asset::FindRenderTree(RenderTreeID);
+  return CreateRenderEntitiesFromRenderTree(EntityName, RenderTree, ParentEntity);
 }
 
 world InitiateWorld(application_render_commands* RenderCommands)
@@ -482,13 +447,20 @@ void LoadAndRenderGLTFEngine()
     //asset::package_id PackageID = asset::Load("..\\data\\gltf\\BoxTextured\\BoxTextured.gltf", "BoxTextured");
     //asset::package_id PackageID = asset::Load("..\\data\\gltf\\testsphere\\testsphere.gltf", "testsphere");
     GlobalState->DebugPackage = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
-  }
 
+    for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
+    {
+      asset::render_tree* RenderTree = asset::FindRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
+      CreateRenderEntitiesFromRenderTree("2CylinderEngine", RenderTree, NULL);
+    }
+  }
+#if 0
   for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
   {
     render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
     //ecs::render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
   }
+#endif
 }
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
@@ -590,7 +562,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
   FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,0,1)));
 
-  //LoadAndRenderGLTFEngine();
+  LoadAndRenderGLTFEngine();
   
   if((ImguiNoneSelected() && ImguiIsInactive())|| ImguiIsDragging())
   {

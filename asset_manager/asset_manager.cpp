@@ -574,9 +574,10 @@ size_t GetPackageSize(const package* Package)
   size_t PBRMaterialsSize = sizeof(pbr_material_id*) * Package->PBRMaterialCount;
   size_t CamerasSize = sizeof(camera_id*) * Package->CameraCount;
   size_t ImagesSize = sizeof(image_id*) * Package->ImageCount;
+  size_t GemoetrySize = sizeof(geometry_id*) * Package->GeometryCount;
   size_t MeshSize = sizeof(mesh_id*) * Package->MeshCount;
   size_t RenderTreesSize = sizeof(render_tree_id*)* Package->RenderTreeCount;
-  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + MeshSize + RenderTreesSize;
+  size_t Result = sizeof(package) + PhongMaterialsSize + PBRMaterialsSize + CamerasSize + ImagesSize + GemoetrySize + MeshSize + RenderTreesSize;
   return Result;
 }
 

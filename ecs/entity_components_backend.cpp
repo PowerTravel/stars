@@ -324,7 +324,10 @@ void NewComponents(entity_manager* EM, entity_id* EntityID, u32 ComponentFlags)
   bitmask32 TotalRequirements = GetTotalRequirements(EM, ComponentFlags);
   bitmask32 NewComponentFlags = (~Entity->ComponentFlags) & TotalRequirements;
 
-  CreateAndInsertNewComponents(EM, Entity, NewComponentFlags);
+  //if(NewComponentFlags)
+  //{
+    CreateAndInsertNewComponents(EM, Entity, NewComponentFlags);
+  //}
 }
 
 const c8* GetName(entity_manager* EM, entity_id* EntityID){

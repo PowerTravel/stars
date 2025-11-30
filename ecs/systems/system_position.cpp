@@ -31,7 +31,7 @@ void UpdatePositions()
         Component->AbsolutePosition = V3(Column(CurrentTransform, 3));
         Component->AbsoluteRotation = QuaternionFromMatrix(CurrentTransform);
       }else{
-        TransformVec[Index] = TransformVec[Index-1];
+        CurrentTransform = ParentTransform;
       }
     }
   }

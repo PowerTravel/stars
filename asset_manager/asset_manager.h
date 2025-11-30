@@ -51,6 +51,10 @@ header* ToHeader(mesh* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
 
+header* ToHeader(geometry* Asset) {
+  return (header*) RetreatByType(Asset, header);
+}
+
 header* ToHeader(image* Asset) {
   return (header*) RetreatByType(Asset, header);
 }
@@ -76,7 +80,7 @@ inline asset::mesh*           FindMesh(mesh_id ID)                    { return (
 inline asset::pbr_material*   FindPbrMaterial(pbr_material_id ID)     { return (asset::pbr_material*)   Find(type::PBR_MATERIAL,   ID);}
 inline asset::phong_material* FindPhongMaterial(phong_material_id ID) { return (asset::phong_material*) Find(type::PHONG_MATERIAL, ID);}
 inline asset::camera*         FindCamera(camera_id ID)                { return (asset::camera*)         Find(type::CAMERA,         ID);}
-inline asset::render_tree*    FindRender_tree(render_tree_id ID)      { return (asset::render_tree*)    Find(type::RENDER_TREE,    ID);}
+inline asset::render_tree*    FindRenderTree(render_tree_id ID)       { return (asset::render_tree*)    Find(type::RENDER_TREE,    ID);}
 inline asset::package*        FindPackage(package_id ID)              { return (asset::package*)        Find(type::PACKAGE,        ID);}
 inline asset::geometry*       FindGeometry(geometry_id ID)            { return (asset::geometry*)       Find(type::GEOMETRY,       ID);}
 

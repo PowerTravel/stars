@@ -453,37 +453,36 @@ namespace mapper {
     if(RawGltfData->RawMeshCount)
     {
       size_t GeometryCount = 0;
-      for (int i = 0; i < Package.MeshCount; ++i)
+      for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
       {
         gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
-        GeometryCount += RawMesh->PrimitiveCount;
+        GeometryCount += RawMesh->ExtractedPrimitiveCount;
       }
       
+      Package.MeshCount = RawGltfData->RawMeshCount;
+      Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
       Package.GeometryCount = GeometryCount;
       Package.Geometries = PushArray(GlobalTransientArena, Package.GeometryCount, asset::geometry_id);
-      size_t GeometryIndex = 0;
-      for (int i = 0; i < Package.MeshCount; ++i)
+      asset::geometry_id* GeometryIdsForMesh = Package.Geometries;
+
+      int GeometryIndex = 0;
+      for (int i = 0; i < RawGltfData->RawMeshCount; ++i)
       {
         gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
+
         for (int j = 0; j < RawMesh->ExtractedPrimitiveCount; ++j)
         {
           gltf::extracted_primitive* ExtractedPrimitive = &RawMesh->ExtractedPrimitives[j];
           asset::geometry Geometry = ToGeometry(ExtractedPrimitive);
-          c8* Name = SetName(UniqueName, RawMesh->Name, "geometry", i, Package.MeshCount);
-          asset::LoadGeometry(Name, &Geometry, Package.Geometries);
-        }
-      }
+          c8* Name = SetName(UniqueName, RawMesh->Name, "geometry", GeometryIndex++, Package.GeometryCount);
+          asset::LoadGeometry(Name, &Geometry, &GeometryIdsForMesh[j]);
 
-      Package.MeshCount = RawGltfData->RawMeshCount;
-      Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
-      size_t GeometryStartIndex = 0;
-      for (int i = 0; i < Package.MeshCount; ++i)
-      {
-        gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
-        asset::mesh Mesh = ToMesh(RawMesh, &Package.Geometries[GeometryStartIndex], Package.PBRMaterials);
-        GeometryStartIndex += RawMesh->PrimitiveCount;
+
+        }
+        asset::mesh Mesh = ToMesh(RawMesh, GeometryIdsForMesh, Package.PBRMaterials);
         c8* Name = SetName(UniqueName, RawMesh->Name, "mesh", i, Package.MeshCount);
         asset::LoadMesh(Name, &Mesh, &Package.Meshes[i]);
+        GeometryIdsForMesh+= RawMesh->PrimitiveCount;
       }
     }
 
@@ -495,9 +494,7 @@ namespace mapper {
       {
         gltf::raw_camera* RawCamera = &RawGltfData->RawCameras[i];
         asset::camera Camera = ToCamera(RawCamera);
-
         c8* Name = SetName(UniqueName, RawCamera->Name, "camera", i, Package.CameraCount);
-        
         asset::LoadCamera(Name, &Camera, &Package.Cameras[i]);
       }
     }
