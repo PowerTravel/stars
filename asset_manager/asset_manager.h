@@ -71,15 +71,25 @@ void Free(type Type, key Key);
 void Free(type Type, const c8* Name);
 
 
+inline asset::image*          FindImage(image_id ID)                  { return (asset::image*)          Find(type::IMAGE,          ID);}
+inline asset::mesh*           FindMesh(mesh_id ID)                    { return (asset::mesh*)           Find(type::MESH,           ID);}
+inline asset::pbr_material*   FindPbrMaterial(pbr_material_id ID)     { return (asset::pbr_material*)   Find(type::PBR_MATERIAL,   ID);}
+inline asset::phong_material* FindPhongMaterial(phong_material_id ID) { return (asset::phong_material*) Find(type::PHONG_MATERIAL, ID);}
+inline asset::camera*         FindCamera(camera_id ID)                { return (asset::camera*)         Find(type::CAMERA,         ID);}
+inline asset::render_tree*    FindRender_tree(render_tree_id ID)      { return (asset::render_tree*)    Find(type::RENDER_TREE,    ID);}
+inline asset::package*        FindPackage(package_id ID)              { return (asset::package*)        Find(type::PACKAGE,        ID);}
+inline asset::geometry*       FindGeometry(geometry_id ID)            { return (asset::geometry*)       Find(type::GEOMETRY,       ID);}
+
 ///  New loaders for gltf
 // Bah, using 'id', 'handle' and 'key' interchangeably
-image* LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, image_id* ResultKey = 0);
-pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, pbr_material_id* ResultKey = 0);
+image*          LoadImage(const c8* UniqueName, const c8* Name, const c8* Path, const image* Image, image_id* ResultKey = 0);
+pbr_material*   LoadPbrMaterial(const c8* UniqueName, const pbr_material* Image, pbr_material_id* ResultKey = 0);
 phong_material* LoadPhongMaterial(const c8* UniqueName, const phong_material* Material, phong_material_id* ResultKey = 0);
-mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, mesh_id* ResultKey = 0);
-camera* LoadCamera(const c8* UniqueName, const camera* Camera, camera_id* ResultKey = 0);
-render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, render_tree* RenderTree, render_tree_id* ResultKey = 0);
-package* LoadPackage(const c8* UniqueName, const c8* Path, const package* RenderTree, package_id* ResultKey = 0);
+geometry*       LoadGeometry(const c8* UniqueName, const geometry* Geometry, geometry_id* ResultKey = 0);
+mesh*           LoadMesh(const c8* UniqueName, const mesh* Mesh, mesh_id* ResultKey = 0);
+camera*         LoadCamera(const c8* UniqueName, const camera* Camera, camera_id* ResultKey = 0);
+render_tree*    LoadRenderTree(const c8* UniqueName, const c8* Path, render_tree* RenderTree, render_tree_id* ResultKey = 0);
+package*        LoadPackage(const c8* UniqueName, const c8* Path, const package* RenderTree, package_id* ResultKey = 0);
 
 
 
@@ -87,7 +97,10 @@ package* LoadPackage(const c8* UniqueName, const c8* Path, const package* Render
 typedef ASSET_TREE_TRAVERSAL_CALLBACK( asset_tree_traversal_function );
 
 void InOrderTraverse(asset_tree_traversal_function* Callback, void* UserData);
+
 }
+
+
 
 
 // void* name(size_t sz)

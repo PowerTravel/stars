@@ -194,19 +194,19 @@ namespace mapper {
     return Result;
   }
 
-  asset::mesh::primitive::topology ModeToTopology(gltf::primitive_mode Mode)
+  asset::geometry::topology ModeToTopology(gltf::primitive_mode Mode)
   {  
     switch(Mode)
     {
-      case gltf::primitive_mode::POINTS: return asset::mesh::primitive::topology::POINTS;
-      case gltf::primitive_mode::LINES: return asset::mesh::primitive::topology::LINES;
-      case gltf::primitive_mode::LINE_LOOP: return asset::mesh::primitive::topology::LINE_LOOP;
-      case gltf::primitive_mode::LINE_STRIP: return asset::mesh::primitive::topology::LINE_STRIP;
-      case gltf::primitive_mode::TRIANGLES: return asset::mesh::primitive::topology::TRIANGLES;
-      case gltf::primitive_mode::TRIANGLE_STRIP: return asset::mesh::primitive::topology::TRIANGLE_STRIP;
-      case gltf::primitive_mode::TRIANGLE_FAN: return asset::mesh::primitive::topology::TRIANGLE_FAN;
+      case gltf::primitive_mode::POINTS: return asset::geometry::topology::POINTS;
+      case gltf::primitive_mode::LINES: return asset::geometry::topology::LINES;
+      case gltf::primitive_mode::LINE_LOOP: return asset::geometry::topology::LINE_LOOP;
+      case gltf::primitive_mode::LINE_STRIP: return asset::geometry::topology::LINE_STRIP;
+      case gltf::primitive_mode::TRIANGLES: return asset::geometry::topology::TRIANGLES;
+      case gltf::primitive_mode::TRIANGLE_STRIP: return asset::geometry::topology::TRIANGLE_STRIP;
+      case gltf::primitive_mode::TRIANGLE_FAN: return asset::geometry::topology::TRIANGLE_FAN;
     };
-    return asset::mesh::primitive::topology::TRIANGLES;
+    return asset::geometry::topology::TRIANGLES;
   }
 
   void CopyTransforms2(asset::render_tree_data* Data, gltf::raw_node& RawNode)
@@ -333,28 +333,34 @@ namespace mapper {
     return Result;
   }
 
-  asset::mesh ToMesh(gltf::raw_mesh* RawMesh, asset::key* LoadedMaterials){
-    
+
+  inline asset::geometry ToGeometry(gltf::extracted_primitive* ExtractedPrimitive){
+    asset::geometry Geometry = {};
+    Geometry.IndexCount             = ExtractedPrimitive->IndexCount;
+    Geometry.Indeces                = ExtractedPrimitive->Indeces;
+    Geometry.VertexCount            = ExtractedPrimitive->vCount;
+    Geometry.Vertex                 = ExtractedPrimitive->v;
+    Geometry.VertexNormal           = ExtractedPrimitive->vn;
+    Geometry.TextureVertexSetCount  = ExtractedPrimitive->vtSetCount;
+    Geometry.TextureVertices        = ExtractedPrimitive->vt;
+    Geometry.Topology               = ModeToTopology(ExtractedPrimitive->Mode);
+    Geometry.AABB                   = AABB3f(ExtractedPrimitive->vMin,ExtractedPrimitive->vMax);
+    return Geometry;
+  }
+
+  asset::mesh ToMesh(gltf::raw_mesh* RawMesh, asset::geometry_id* LoadedGeometries, asset::pbr_material_id* LoadedMaterials){
     asset::mesh Result = {};
     Result.PrimitiveCount = RawMesh->ExtractedPrimitiveCount;
     Result.Primitives = PushArray(GlobalTransientArena, Result.PrimitiveCount, asset::mesh::primitive);
     for (int i = 0; i < RawMesh->ExtractedPrimitiveCount; ++i)
     {
-      gltf::extracted_primitive* ExtractedPrimitive = &RawMesh->ExtractedPrimitives[i];  
+      gltf::extracted_primitive* ExtractedPrimitive = &RawMesh->ExtractedPrimitives[i];
       asset::mesh::primitive* Primitive = &Result.Primitives[i];
-      Primitive->IndexCount            = ExtractedPrimitive->IndexCount;
-      Primitive->Indeces               = ExtractedPrimitive->Indeces;
-      Primitive->VertexCount           = ExtractedPrimitive->vCount;
-      Primitive->Vertex                = ExtractedPrimitive->v;
-      Primitive->VertexNormal          = ExtractedPrimitive->vn;
-      Primitive->TextureVertexSetCount = ExtractedPrimitive->vtSetCount;
-      Primitive->TextureVertices       = ExtractedPrimitive->vt;
-      Primitive->Topology              = ModeToTopology(ExtractedPrimitive->Mode);
-      Primitive->AABB                  = AABB3f(ExtractedPrimitive->vMin,ExtractedPrimitive->vMax);
-      //Assert(ExtractedPrimitive->MaterialIndex); // Not required but fix once we find a mesh without material
+      Primitive->Geometry = LoadedGeometries[i];
+      Primitive->PhongMaterial = 0;
       if(ExtractedPrimitive->MaterialIndex)
       {
-        Primitive->PbrMaterial           = LoadedMaterials[*ExtractedPrimitive->MaterialIndex];
+        Primitive->PbrMaterial = LoadedMaterials[*ExtractedPrimitive->MaterialIndex];
       }else{
         Primitive->PbrMaterial = 0;
       }
@@ -446,15 +452,37 @@ namespace mapper {
     
     if(RawGltfData->RawMeshCount)
     {
-      Package.MeshCount = RawGltfData->RawMeshCount;
-      Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
+      size_t GeometryCount = 0;
       for (int i = 0; i < Package.MeshCount; ++i)
       {
         gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
-        asset::mesh Mesh = ToMesh(RawMesh, Package.PBRMaterials);
+        GeometryCount += RawMesh->PrimitiveCount;
+      }
+      
+      Package.GeometryCount = GeometryCount;
+      Package.Geometries = PushArray(GlobalTransientArena, Package.GeometryCount, asset::geometry_id);
+      size_t GeometryIndex = 0;
+      for (int i = 0; i < Package.MeshCount; ++i)
+      {
+        gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
+        for (int j = 0; j < RawMesh->ExtractedPrimitiveCount; ++j)
+        {
+          gltf::extracted_primitive* ExtractedPrimitive = &RawMesh->ExtractedPrimitives[j];
+          asset::geometry Geometry = ToGeometry(ExtractedPrimitive);
+          c8* Name = SetName(UniqueName, RawMesh->Name, "geometry", i, Package.MeshCount);
+          asset::LoadGeometry(Name, &Geometry, Package.Geometries);
+        }
+      }
 
+      Package.MeshCount = RawGltfData->RawMeshCount;
+      Package.Meshes = PushArray(GlobalTransientArena, Package.MeshCount, asset::mesh_id);
+      size_t GeometryStartIndex = 0;
+      for (int i = 0; i < Package.MeshCount; ++i)
+      {
+        gltf::raw_mesh* RawMesh = &RawGltfData->RawMeshes[i];
+        asset::mesh Mesh = ToMesh(RawMesh, &Package.Geometries[GeometryStartIndex], Package.PBRMaterials);
+        GeometryStartIndex += RawMesh->PrimitiveCount;
         c8* Name = SetName(UniqueName, RawMesh->Name, "mesh", i, Package.MeshCount);
-
         asset::LoadMesh(Name, &Mesh, &Package.Meshes[i]);
       }
     }

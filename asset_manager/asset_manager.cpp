@@ -415,36 +415,23 @@ pbr_material* LoadPbrMaterial(const c8* UniqueName, const pbr_material* PbrMater
 }
 
 
-static size_t GetPrimitiveContentSize(mesh::primitive* Primitive)
+static size_t GetGeometrySize(const geometry* Geometry)
 {
-  size_t IndexSize = Primitive->IndexCount * sizeof(int);
-  size_t VertexSize = Primitive->VertexCount * sizeof(v3);
-  size_t VertexNormalSize = Primitive->VertexNormal ? Primitive->VertexCount * sizeof(v3) : 0;
-  size_t TextureSetMemSizeD1 = Primitive->TextureVertexSetCount * sizeof(v2*);
-  size_t TextureVerticeSize = Primitive->TextureVertexSetCount ? Primitive->TextureVertexSetCount * Primitive->VertexCount * sizeof(v2) : 0;
-  size_t Result = IndexSize + VertexSize + VertexNormalSize + TextureSetMemSizeD1 + TextureVerticeSize;
+  size_t IndexSize = Geometry->IndexCount * sizeof(int);
+  size_t VertexSize = Geometry->VertexCount * sizeof(v3);
+  size_t VertexNormalSize = Geometry->VertexNormal ? Geometry->VertexCount * sizeof(v3) : 0;
+  size_t TextureSetMemSizeD1 = Geometry->TextureVertexSetCount * sizeof(v2*);
+  size_t TextureVerticeSize = Geometry->TextureVertexSetCount ? Geometry->TextureVertexSetCount * Geometry->VertexCount * sizeof(v2) : 0;
+  size_t Result = sizeof(geometry) + IndexSize + VertexSize + VertexNormalSize + TextureSetMemSizeD1 + TextureVerticeSize;
   return Result;
 }
 
-static size_t GetMeshSize( const mesh* Mesh ) {
-
-  size_t Result = sizeof(mesh);
-  Result += Mesh->PrimitiveCount * sizeof(mesh::primitive);
-  for (int i = 0; i < Mesh->PrimitiveCount; ++i)
-  {
-    Result += GetPrimitiveContentSize(&Mesh->Primitives[i]);
-  }
-
-  return Result;
-}
-
-bptr CopyMeshPrimitive(bptr PayloadPtr, const mesh::primitive* Src, mesh::primitive* Dst, size_t TotalSize)
+static bptr CopyGeometry(const geometry* Src, geometry* Dst, size_t TotalSize)
 {
+  bptr MemScan = AdvanceBytePointer(Dst, sizeof(geometry));
 
-  Dst->PbrMaterial = Src->PbrMaterial;
-  Dst->PhongMaterial = Src->PhongMaterial;
-
-  bptr MemScan = PayloadPtr;
+  Dst->AABB = Src->AABB;
+  Dst->Topology = Src->Topology;
 
   if(Src->Indeces)
   {
@@ -488,12 +475,31 @@ bptr CopyMeshPrimitive(bptr PayloadPtr, const mesh::primitive* Src, mesh::primit
     }
   }
 
-  Assert((MemScan - PayloadPtr) == TotalSize);
+  Assert((MemScan - (bptr)Dst) == TotalSize);
 
-  Dst->Topology = Src->Topology;
-  Dst->AABB = Src->AABB;
 
   return MemScan;
+}
+
+geometry* LoadGeometry(const c8* UniqueName, const geometry* Geometry, geometry_id* ResultKey)
+{
+  midx GeometrySize = GetGeometrySize(Geometry);
+  header* Header = CreateHeader(type::GEOMETRY, UniqueName, UniqueName, "N/A", GeometrySize);
+  geometry* Result = (geometry*)Header->Data;
+  CopyGeometry(Geometry, Result, GeometrySize);
+
+  if(ResultKey)
+  {
+    *ResultKey = Header->Key;
+  }
+  return Result;
+}
+
+static size_t GetMeshSize( const mesh* Mesh ) {
+
+  size_t Result = sizeof(mesh);
+  Result += Mesh->PrimitiveCount * sizeof(mesh::primitive);
+  return Result;
 }
 
 void CopyMesh(const mesh* Src, mesh* Dst, size_t TotalSize)
@@ -502,16 +508,11 @@ void CopyMesh(const mesh* Src, mesh* Dst, size_t TotalSize)
 
   Dst->PrimitiveCount = Src->PrimitiveCount;
   Dst->Primitives = (mesh::primitive*) MemScan;
-  MemScan = AdvanceBytePointer(MemScan, Dst->PrimitiveCount * sizeof(mesh::primitive));
-  
-  for (int i = 0; i < Dst->PrimitiveCount; ++i)
-  {
-    mesh::primitive* SrcPrimitive = &Src->Primitives[i];
-    mesh::primitive* DstPrimitive = &Dst->Primitives[i];
-    size_t PrimitiveSize = GetPrimitiveContentSize(SrcPrimitive);
-    MemScan = CopyMeshPrimitive(MemScan, SrcPrimitive, DstPrimitive, PrimitiveSize);
-  }
+  size_t PrimitiveSize = Dst->PrimitiveCount * sizeof(mesh::primitive);
+  MemScan = AdvanceBytePointer(MemScan, PrimitiveSize);
+  utils::Copy(PrimitiveSize, (void*) Src->Primitives, (void*) Dst->Primitives);
 }
+
 
 mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, key* ResultKey)
 {
@@ -519,7 +520,7 @@ mesh* LoadMesh(const c8* UniqueName, const mesh* Mesh, key* ResultKey)
   header* Header = CreateHeader(type::MESH, UniqueName, UniqueName, "N/A", MeshSize);
   mesh* Result = (mesh*)Header->Data;
   CopyMesh(Mesh, Result, MeshSize);
-  
+
   if(ResultKey)
   {
     *ResultKey = Header->Key;
@@ -613,6 +614,9 @@ void CopyPackage(const package* Src, package* Dst)
  
   MemScan = CopyData(Src->ImageCount, sizeof(image_id*), (uint8_t*) Src->Images,
                      &Dst->ImageCount, (uint8_t**) &Dst->Images,         MemScan);
+ 
+  MemScan = CopyData(Src->GeometryCount, sizeof(mesh_id*), (uint8_t*) Src->Geometries,
+                     &Dst->GeometryCount, (uint8_t**) &Dst->Geometries,         MemScan);
  
   MemScan = CopyData(Src->MeshCount, sizeof(mesh_id*), (uint8_t*) Src->Meshes,
                      &Dst->MeshCount, (uint8_t**) &Dst->Meshes,         MemScan);

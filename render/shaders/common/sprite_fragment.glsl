@@ -15,7 +15,7 @@ void main()
   frag_color  = vec4(Sample.rgb, 1);
 #elif TEXTURE_COMPONENT == 1
   vec4 tex    = texture(SpriteMap, uv.xy);
-  frag_color  = vec4(Color.rgb*tex.a, tex.a);
+  frag_color  = vec4(tex.a,tex.a,tex.a,tex.a);
 #else
   frag_color  = Color;
 #endif

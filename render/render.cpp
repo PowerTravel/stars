@@ -104,19 +104,19 @@ vertex_data CreateGLVertexBuffer(memory_arena* Arena,
   return Result;
 }
 
-file_local void PrimitiveToGlVertexData(memory_arena* Arena, const asset::mesh::primitive * Primitive, vertex_data* Result)
+file_local void GeometryToGlVertexData(memory_arena* Arena, const asset::geometry * Geometry, vertex_data* Result)
 {
-  Assert(Primitive->IndexCount && Primitive->Indeces && Primitive->VertexCount && Primitive->Vertex);
+  Assert(Geometry->IndexCount && Geometry->Indeces && Geometry->VertexCount && Geometry->Vertex);
   // We are only handling 1 set of texture vertices atm. Increase if we find the need
-  Assert(Primitive->TextureVertexSetCount== 0 || Primitive->TextureVertexSetCount ==1);
+  Assert(Geometry->TextureVertexSetCount== 0 || Geometry->TextureVertexSetCount ==1);
   *Result = CreateGLVertexBuffer(
       Arena,
-      Primitive->IndexCount,
-      Primitive->Indeces,
-      Primitive->VertexCount,
-      Primitive->Vertex,
-      Primitive->VertexNormal,
-      Primitive->TextureVertices ? Primitive->TextureVertices[0] : 0
+      Geometry->IndexCount,
+      Geometry->Indeces,
+      Geometry->VertexCount,
+      Geometry->Vertex,
+      Geometry->VertexNormal,
+      Geometry->TextureVertices ? Geometry->TextureVertices[0] : 0
     );
 }
 
@@ -152,7 +152,7 @@ file_local u32* CreateFrameBuffers(render_group* RenderGroup, u32* Textures,  r3
   return Result;
 }
 
-u32 LoadMeshToGPU(render_group* RenderGroup, u32 IndexCount, u32* Indeces, u32 VertexCount, opengl_vertex* VertexData){
+u32 LoadVertexdataToGPU(render_group* RenderGroup, u32 IndexCount, u32* Indeces, u32 VertexCount, opengl_vertex* VertexData){
   u32 MeshHandle  = PushNewMesh(RenderGroup, VertexCount, VertexData);
   u32 IndexHandle = PushNewMeshIndices(RenderGroup, MeshHandle, IndexCount, Indeces);
   return IndexHandle;
@@ -173,7 +173,7 @@ file_local u32 CreateBlitPlane(render_group* RenderGroup)
     {{ 1.0f,  1.0f, 0.0f}, {0,0,1}, {1,1}}
   };
 
-  u32 ResultHandle = LoadMeshToGPU(RenderGroup, 
+  u32 ResultHandle = LoadVertexdataToGPU(RenderGroup, 
     ArrayCount(Indeces),              (u32*) PushCopy(GlobalTransientArena, sizeof(Indeces),    Indeces),
     ArrayCount(VertexData), (opengl_vertex*) PushCopy(GlobalTransientArena, sizeof(VertexData), VertexData));
   
@@ -320,11 +320,11 @@ file_local inline void ClearRenderState(renderer* Renderer) {
 }
 
 
-u32 LoadMeshPrimitiveToGPU(asset::mesh::primitive* AssetPrimitive)
+u32 LoadGeometryToGPU(asset::geometry* Geometry)
 {  
   vertex_data VertexData = {};
-  PrimitiveToGlVertexData(&GlobalRenderer->RenderTransientArena, AssetPrimitive, &VertexData);
-  u32 IndexHandle = LoadMeshToGPU(GlobalRenderCommands->RenderGroup, VertexData.IndexCount, VertexData.Indeces,
+  GeometryToGlVertexData(&GlobalRenderer->RenderTransientArena, Geometry, &VertexData);
+  u32 IndexHandle = LoadVertexdataToGPU(GlobalRenderCommands->RenderGroup, VertexData.IndexCount, VertexData.Indeces,
   VertexData.VertexCount, VertexData.VertexData );
   return IndexHandle;
 }
@@ -424,15 +424,15 @@ file_local u32 GetOrCreateProgram(render_group* RenderGroup, asset_render_object
   return ProgramHandle;
 }
 
-u32 GetOrCreateGeometryID(render_group* RenderGroup, asset::mesh::primitive* MeshPrimitive)
+local_persist u32 GetOrCreateGeometryID(render_group* RenderGroup, asset::geometry* AssetGeometry)
 {
-  size_t MeshPrimitiveID = (size_t) MeshPrimitive;
-  u32* PrimitiveHandlePtr = (u32*) Find(&GlobalRenderer->LoadedPrimitives, MeshPrimitiveID);
+  size_t AssetGeometryID = (size_t) AssetGeometry;
+  u32* PrimitiveHandlePtr = (u32*) Find(&GlobalRenderer->LoadedPrimitives, AssetGeometryID);
   u32 GeometryID = 0;
   if(!PrimitiveHandlePtr)
   {
-    GeometryID  = LoadMeshPrimitiveToGPU(MeshPrimitive);
-    SetHandle(&GlobalRenderer->LoadedPrimitives, MeshPrimitiveID, GeometryID);
+    GeometryID  = LoadGeometryToGPU(AssetGeometry);
+    SetHandle(&GlobalRenderer->LoadedPrimitives, AssetGeometryID, GeometryID);
   }else{
     GeometryID = *PrimitiveHandlePtr;
   }
@@ -446,6 +446,12 @@ file_local void ActivateMSAAFrameBuffer(render_group* RenderGroup)
   SetState(MSAAViewport, ViewportState(GlobalRenderer->MSAA * GlobalWindowSize.ApplicationWidth, GlobalRenderer->MSAA * GlobalWindowSize.ApplicationHeight, GlobalWindowSize.ApplicationAspectRatio));
 }
 
+file_local void TurnOffZBuffer(render_group* RenderGroup)
+{
+  render_state* TransparentState = PushNewState(RenderGroup);
+  depth_state DepthState = {};
+  SetState(TransparentState, DepthState);
+}
 
 file_local void PrepareOrderIndependentTransparentRendering(render_group* RenderGroup)
 {
@@ -660,6 +666,8 @@ file_local void DrawOverlaySprites(render_group* RenderGroup, overlay_level* Ove
     }
   }
 
+  Platform.DEBUGPrint( "SQ: %d, AS %d, RGB %d, RGBA %d ", (int) SolidQuads.Size(), (int) SpriteAs.Size(), (int) SpriteRGBs.Size(),(int) SpriteRGBAs.Size());
+
   if(SolidQuads.Size()){
     DrawSprites(RenderGroup, InternalShader(INTERNAL_SHADER_OVERLAY_QUAD), OverlayLevel->SpriteHandle, OrthoProjectionMatrix, SolidQuads.Size(), SolidQuads.m_data);
   }
@@ -729,11 +737,11 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
     asset_render_object* AssetRenderObject = Element->Data;
     
     primitive LoadedPrimitive  = {};
-    LoadedPrimitive.GeometryID  = GetOrCreateGeometryID(RenderGroup, AssetRenderObject->Primitive);
+    LoadedPrimitive.GeometryID  = GetOrCreateGeometryID(RenderGroup, AssetRenderObject->Geometry);
     LoadedPrimitive.ShaderType  = AssetRenderObject->ShaderType;
     LoadedPrimitive.Transparent = IsTransparent(AssetRenderObject);
     LoadedPrimitive.ProgramID   = GetOrCreateProgram(RenderGroup, AssetRenderObject);
-    LoadedPrimitive.Primitive   = AssetRenderObject->Primitive;
+    LoadedPrimitive.Geometry   = AssetRenderObject->Geometry;
     if(LoadedPrimitive.ShaderType == shader_type::PBR){
       LoadedPrimitive.PbrMaterial = AssetRenderObject->PbrMaterial;
     }else if(LoadedPrimitive.ShaderType == shader_type::PHONG){
@@ -776,14 +784,19 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   GaussianBlur(RenderGroup, 4, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Window->ApplicationWidth, Window->ApplicationHeight);
   #endif
 
-
+  TurnOffZBuffer(RenderGroup);
+  //render_state* ScaleViewport = PushNewState(RenderGroup);
   m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
   cmn::list<overlay_level>& OverlayLevels = Renderer->OverlayLevels;
+  int ax = 0;
   CMN_LIST_FOR_EACH(OverlayLevels,LevelElement)
   {
-    overlay_level*  OverlayLevel = LevelElement->GetPtr();
+    Platform.DEBUGPrint("Level: %d ", ax);
+    overlay_level* OverlayLevel = LevelElement->GetPtr();
     DrawOverlaySprites(RenderGroup, OverlayLevel, OrthoProjectionMatrix);
     DrawSDF (RenderGroup,  OverlayLevel->OverlaySDF,    OrthoProjectionMatrix);
+    Platform.DEBUGPrint("SDF: %d \n", (int) OverlayLevel->OverlaySDF.Size());
+    ax++;
   }
 }
 
@@ -861,26 +874,34 @@ u32 GetOrCreateTexture(asset::texture* Texture)
   return Result;
 }
 
-void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_material* Material, m4 Transform)
+void DrawAssetRenderObject(asset::geometry* Geometry, asset::phong_material* Material, m4 Transform)
 {
   asset_render_object Object = {};
-  Object.Primitive = Primitive;
+  Object.Geometry = Geometry;
   Object.ShaderType = shader_type::PHONG;
   Object.PhongMaterial = Material;
   Object.Transform = Transform;
   GlobalRenderer->RenderList.PushBack(Object);
 }
 
-void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::pbr_material* Material, m4 Transform)
+void DrawAssetRenderObject(asset::geometry* Geometry, asset::pbr_material* Material, m4 Transform)
 {
   asset_render_object Object = {};
-  Object.Primitive = Primitive;
+  Object.Geometry = Geometry;
   Object.ShaderType = shader_type::PBR;
   Object.PbrMaterial = Material;
   Object.Transform = Transform;
   GlobalRenderer->RenderList.PushBack(Object);
 }
 
+void DrawRenderComponent(ecs::render::component* RenderComponent, m4& Transform)
+{
+  if(RenderComponent->PbrMaterial){
+    DrawAssetRenderObject(RenderComponent->Geometry, RenderComponent->PbrMaterial, Transform);
+  }else if(RenderComponent->PhongMaterial){
+    DrawAssetRenderObject(RenderComponent->Geometry, RenderComponent->PhongMaterial, Transform);
+  }
+}
 
 void DrawMesh( asset::mesh_id ID, const m4& Transform)
 {
@@ -888,13 +909,14 @@ void DrawMesh( asset::mesh_id ID, const m4& Transform)
   for (int i = 0; i < Mesh->PrimitiveCount; ++i)
   {
     asset::mesh::primitive* Primitive = &Mesh->Primitives[i];
+    asset::geometry* Geometry = (asset::geometry*) Find(asset::type::GEOMETRY, Primitive->Geometry);
     if(Primitive->PbrMaterial)
     {
       asset::pbr_material* Material = (asset::pbr_material*) Find(asset::type::PBR_MATERIAL, Primitive->PbrMaterial);
-      DrawAssetRenderObject(Primitive, Material, Transform);
+      DrawAssetRenderObject(Geometry, Material, Transform);
     }else if(Primitive->PhongMaterial){
       asset::phong_material* Material = (asset::phong_material*) Find(asset::type::PHONG_MATERIAL, Primitive->PhongMaterial);
-      DrawAssetRenderObject(Primitive, Material, Transform);
+      DrawAssetRenderObject(Geometry, Material, Transform);
     }
   }
 }

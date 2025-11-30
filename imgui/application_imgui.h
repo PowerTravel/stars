@@ -59,6 +59,7 @@ struct menu_entity_list {
 struct application_imgui {
   menu_entity_list* MenuEntityList;
   color_list_data*  ColorListData;
+
 };
 
 application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* ImguiContext, u32 ColorCount);

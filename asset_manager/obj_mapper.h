@@ -80,7 +80,7 @@ static bool Exists(int ArraySize, tracker_element* TrackerArray, const tracker_e
 }
 
 
-static asset::mesh::primitive CreateMesh(
+static asset::geometry CreateGeometry(
   const int  IndexCount,
   const unsigned int* VerticeIndeces, const unsigned int* NormalIndeces, const unsigned  int* TextureIndeces,
   const v3*  VerticeData,    const v3*  NormalData,    const v2*  TextureData)
@@ -151,7 +151,7 @@ static asset::mesh::primitive CreateMesh(
     *TextureVertexSet = TextureVertex;
   }
   
-  asset::mesh::primitive Result = {};
+  asset::geometry Result = {};
   Result.IndexCount = IndexCount;
   Result.Indeces = IndexArray;
   Result.VertexCount = VerticeArrayCount;
@@ -159,7 +159,7 @@ static asset::mesh::primitive CreateMesh(
   Result.VertexNormal = VertexNormal;
   Result.TextureVertexSetCount = TextureVertexSetCount;
   Result.TextureVertices = TextureVertexSet;
-  Result.Topology = asset::mesh::primitive::topology::TRIANGLES;
+  Result.Topology = asset::geometry::topology::TRIANGLES;
 
   return Result;
 }
@@ -177,15 +177,21 @@ struct material_map {
   int ImageCount;
   image_id_list* Images;
   image_id_list* ImageTail;
+
+  int GeometryCount;
+  asset::geometry_id* GeometryIds;
+  obj_group** ObjGrp;
 };
 
 inline static material_map
-CreateMaterialMap(int MaterialCount)
+CreateMaterialMap(int MaterialCount, int ObjGrpCount)
 {
   material_map Result = {};
   Result.MaterialCount = MaterialCount;
   Result.Materials     = PushArray(GlobalTransientArena, MaterialCount, asset::phong_material_id);
   Result.Mtl_Materials = PushArray(GlobalTransientArena, MaterialCount, mtl_material*);
+  Result.GeometryIds   = PushArray(GlobalTransientArena, ObjGrpCount, asset::geometry_id);
+  Result.ObjGrp        = PushArray(GlobalTransientArena, ObjGrpCount, obj_group*);
   return Result;
 }
 
@@ -216,17 +222,37 @@ GetMaterial(material_map* MaterialMap, mtl_material* Mtl){
   return 0;
 }
 
-static asset::mesh::primitive ToMesh(obj_group* ObjGrp, obj_mesh_data* MeshData, material_map* MaterialMap)
+inline static asset::geometry_id
+GetGeometry(material_map* MaterialMap, obj_group* Obj){
+  for (int i = 0; i < MaterialMap->GeometryCount; ++i)
+  {
+    if(Obj == MaterialMap->ObjGrp[i])
+    {
+      return MaterialMap->GeometryIds[i];
+    }
+  }
+  return 0;
+}
+
+
+static asset::geometry ToGeometry(obj_group* ObjGrp, obj_mesh_data* MeshData)
 {
   obj_mesh_indeces* Indeces = ObjGrp->Indeces;
-  asset::mesh::primitive Result = CreateMesh(Indeces->Count,
+  asset::geometry Result = CreateGeometry(Indeces->Count,
     Indeces->vi, Indeces->ni,  Indeces->ti,
     MeshData->v, MeshData->vn, MeshData->vt);
 
   Result.AABB = ObjGrp->aabb;
 
-  Result.PhongMaterial = GetMaterial(MaterialMap, ObjGrp->Material);
+  return Result;
+}
 
+static asset::mesh::primitive ToPrimitive(obj_group* ObjectGroup,  material_map* MaterialMap)
+{
+  asset::mesh::primitive Result = {};
+  obj_mesh_indeces* Indeces = ObjectGroup->Indeces;
+  Result.Geometry = GetGeometry(MaterialMap, ObjectGroup);
+  Result.PhongMaterial = GetMaterial(MaterialMap, ObjectGroup->Material);
 
   return Result;
 }
@@ -301,9 +327,9 @@ static asset::image_id LoadObjBitmap(const char* UniqueName, const char* Postfix
   return Result;
 }
 
-static material_map LoadPhongMaterials(obj_mtl_data* ObjMtlGroup, const c8* UniqueName)
+static material_map LoadPhongMaterials(obj_mtl_data* ObjMtlGroup, u32 ObjGrpCount, const c8* UniqueName)
 {
-  material_map MaterialMap = CreateMaterialMap(ObjMtlGroup->MaterialCount);
+  material_map MaterialMap = CreateMaterialMap(ObjMtlGroup->MaterialCount,ObjGrpCount);
   for (int i = 0; i < ObjMtlGroup->MaterialCount; ++i)
   {
     mtl_material* Mtl = ObjMtlGroup->Materials + i;
@@ -351,17 +377,29 @@ static material_map LoadPhongMaterials(obj_mtl_data* ObjMtlGroup, const c8* Uniq
 
 static asset::mesh_id LoadMesh(const char* UniqueName, obj_loaded_file* Obj, material_map* MaterialMap)
 {  
-  c8* MeshName = asset::CreateUniqueName(UniqueName,"_", Obj->ObjectNameLength ? Obj->ObjectName : "_mesh");
+  
+  asset::geometry_id* GeometryIDs = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::geometry_id);
+  for (int i = 0; i < Obj->ObjectCount; ++i) {
+    obj_group* ObjectGroup = &Obj->ObjectGroups[i];
+    c8* GeometryName = asset::CreateUniqueName(UniqueName, "_", "geometry",  i, Obj->ObjectCount);
+    asset::geometry Geometry = ToGeometry(ObjectGroup, Obj->MeshData);
+    asset::LoadGeometry(GeometryName, &Geometry, &GeometryIDs[i]);
+
+    MaterialMap->ObjGrp[MaterialMap->GeometryCount] = ObjectGroup;
+    MaterialMap->GeometryIds[MaterialMap->GeometryCount] = GeometryIDs[i];
+    MaterialMap->GeometryCount++;
+  }
+
   asset::mesh Mesh = {};
   Mesh.PrimitiveCount = Obj->ObjectCount;
   Mesh.Primitives = PushArray(GlobalTransientArena, Obj->ObjectCount, asset::mesh::primitive);
   for (int i = 0; i < Obj->ObjectCount; ++i)
   {
-    obj_group* ObjectGroup = &Obj->ObjectGroups[i];
-    Mesh.Primitives[i] = ToMesh(ObjectGroup, Obj->MeshData, MaterialMap);
+    Mesh.Primitives[i] = ToPrimitive(&Obj->ObjectGroups[i], MaterialMap);
   }
 
   asset::mesh_id ResultKey = 0;
+  c8* MeshName = asset::CreateUniqueName(UniqueName,"_", Obj->ObjectNameLength ? Obj->ObjectName : "_mesh");
   asset::LoadMesh(MeshName, &Mesh, &ResultKey);
   return ResultKey;
 }
@@ -392,7 +430,7 @@ asset::package_id LoadObj(const c8* Path, const c8* UniqueName)
 
   asset::package Package = {};
 
-  material_map MaterialMap = LoadPhongMaterials(Obj->MaterialData, UniqueName);
+  material_map MaterialMap = LoadPhongMaterials(Obj->MaterialData, Obj->ObjectCount, UniqueName);
   Package.PhongMaterialCount = MaterialMap.MaterialCount;
   Package.PhongMaterials = MaterialMap.Materials;
 

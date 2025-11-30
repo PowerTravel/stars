@@ -50,6 +50,18 @@ inline void Set(component* Component, world_coordinate Position, r32 Angle, v3 A
   Component->RelativeRotation = RotateQuaternion(Angle, Axis);
   Component->Scale = Scale;
 }
+
+inline void Set(component* Component, m4 Transformation)
+{
+  Component->RelativePosition = GetPositionFromMatrix(Transformation);
+  Component->RelativeRotation = QuaternionFromMatrix(Transformation);
+  Index(Transformation,0,3,0);
+  Index(Transformation,1,3,0);
+  Index(Transformation,2,3,0);
+  Transformation = AffineInverse(Transformation);
+  Component->Scale = V3(Diagonal(Transformation));
+  int a = 10;
+}
 //inline void Set(ecs::entity_id& EntityID, world_coordinate Position, r32 Angle, v3 Axis, v3 Scale)
 //{
 //  Set(GetPositionComponent(&EntityID), Position, Euler, Scale);

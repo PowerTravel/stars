@@ -25,7 +25,7 @@ namespace render {
     //u32 ShaderDefinitionHash;
     b32 Transparent;
     shader_type ShaderType;
-    asset::mesh::primitive* Primitive;
+    asset::geometry* Geometry;
     union{
       asset::pbr_material* PbrMaterial;
       asset::phong_material* PhongMaterial;
@@ -34,7 +34,7 @@ namespace render {
   };
 
   struct asset_render_object {
-    asset::mesh::primitive* Primitive;
+    asset::geometry* Geometry;
     shader_type ShaderType;
     union {
       asset::phong_material* PhongMaterial;
@@ -108,13 +108,13 @@ namespace render {
   renderer* CreateRenderer(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands);
   void Begin();
 
-  void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::phong_material* Material, m4 Transform);
-  void DrawAssetRenderObject(asset::mesh::primitive* Primitive, asset::pbr_material* Material, m4 Transform);
+  void DrawAssetRenderObject(asset::geometry* Geometry, asset::phong_material* Material, m4 Transform);
+  void DrawAssetRenderObject(asset::geometry* Geometry, asset::pbr_material* Material, m4 Transform);
   void DrawRenderTree(asset::render_tree_id ID);
   void DrawMesh(asset::mesh_id ID, const m4& Transform);
 
-  u32 LoadMeshToGPU(render_group* RenderGroup, u32 IndexCount, u32* Indeces, u32 VertexCount, opengl_vertex* VertexData);
-  u32 LoadMeshPrimitiveToGPU(asset::mesh::primitive* AssetPrimitive);
+  u32 LoadVertexdataToGPU(render_group* RenderGroup, u32 IndexCount, u32* Indeces, u32 VertexCount, opengl_vertex* VertexData);
+  u32 LoadGeometryToGPU(asset::mesh::primitive* AssetPrimitive);
   u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams);
   u32 GetOrCreateTexture(asset::texture* Texture);
   cmn::vector<primitive>& GetOrCreateMeshHandle(render_group* RenderGroup, asset::mesh_id MeshID);

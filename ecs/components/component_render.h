@@ -6,9 +6,9 @@ namespace ecs{
 namespace render {
 
 struct component {
-  asset::phong_material_id PhongMaterialHandle;
-  asset::mesh_id MeshID;
-  asset::render_tree_id RenderTreeHandle;
+  asset::phong_material* PhongMaterial;
+  asset::pbr_material*   PbrMaterial;
+  asset::geometry*       Geometry;
 };
 
 

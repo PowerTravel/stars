@@ -297,7 +297,6 @@ entity_id NewEntity( entity_manager* EM, entity_id* ParentID, const c8* Name )
   Assert(NameLength < MAX_ENTITY_NAME_LENGTH);
   jstr::CopyStrings( NameLength, Name, MAX_ENTITY_NAME_LENGTH, NewEntity->Name);
 
-
   if(ParentID)
   {
     entity* ParentEntity = GetEntityFromID(EM, ParentID);

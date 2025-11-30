@@ -16,11 +16,13 @@ namespace asset {
   typedef key camera_id;
   typedef key render_tree_id;
   typedef key package_id;
+  typedef key geometry_id;
 
   enum class type {
     NONE,
     IMAGE,
     MESH,
+    GEOMETRY,
     PHONG_MATERIAL,
     PBR_MATERIAL,
     RENDER_TREE,
@@ -34,9 +36,10 @@ namespace asset {
     {
       case type::IMAGE:          return "IMAGE";
       case type::MESH:           return "MESH";
+      case type::GEOMETRY:       return "GEOMETRY";
       case type::PHONG_MATERIAL: return "PHONG_MATERIAL";
       case type::PBR_MATERIAL:   return "PBR_MATERIAL";
-      case type::RENDER_TREE:  return "RENDER_TREE";
+      case type::RENDER_TREE:    return "RENDER_TREE";
       case type::CAMERA:         return "CAMERA";
       case type::PACKAGE:        return "PACKAGE";  
       default: {
@@ -153,43 +156,43 @@ namespace asset {
     bool DoubleSided;
   };
 
+  struct geometry // geometry_id
+  {
+    enum class topology {
+      POINTS,
+      LINES,
+      LINE_LOOP,
+      LINE_STRIP,
+      TRIANGLES,
+      TRIANGLE_STRIP,
+      TRIANGLE_FAN
+    };
+    int IndexCount;
+    int* Indeces;
+
+    // Vertex, VertexNormal and each of the TextureVertices* Must have the same size of VertexCount if they exist
+    int VertexCount;
+    v3* Vertex;        // Vertices
+    v3* VertexNormal;  // Vertice Normals
+
+    int TextureVertexSetCount;
+    v2** TextureVertices;  // Texture Vertices
+    aabb3f AABB;
+    topology Topology;
+  };
 
   // A mesh primitive mesh
   struct mesh {
+
     struct primitive // mesh_id (Can be OBJ as well)
     {
-      enum class topology {
-        POINTS,
-        LINES,
-        LINE_LOOP,
-        LINE_STRIP,
-        TRIANGLES,
-        TRIANGLE_STRIP,
-        TRIANGLE_FAN
-      };
-
-      int IndexCount;
-      int* Indeces;
-
-      // Vertex, VertexNormal and each of the TextureVertices* Must have the same size of VertexCount if they exist
-      int VertexCount;
-      v3* Vertex;     // Vertices
-      v3* VertexNormal;    // Vertice Normals
-
-      int TextureVertexSetCount;
-      v2** TextureVertices;    // Texture Vertices
-
-      topology Topology;
-
-      aabb3f AABB;
-
+      geometry_id Geometry;
       pbr_material_id PbrMaterial;
       phong_material_id PhongMaterial;
     };
 
     size_t PrimitiveCount;
     primitive* Primitives;
-
   };
 
   struct camera {
@@ -244,6 +247,9 @@ namespace asset {
 
     size_t ImageCount;
     image_id* Images;
+
+    size_t GeometryCount;
+    geometry_id* Geometries;
 
     size_t MeshCount;
     mesh_id* Meshes;

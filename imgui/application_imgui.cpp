@@ -552,3 +552,19 @@ void DrawEntityList(application_imgui* AppImgui) {
 
   ImguiEntityComponentList(MenuEntityList, ScrollListPos, ScrollListSize);
 }
+
+
+
+void DrawEntityTree(application_imgui* AppImgui) {
+
+  menu_entity_list* MenuEntityList = AppImgui->MenuEntityList;
+
+  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalState->ImguiContext.FontSize);
+  
+  v2 ScrollListPos  = V2(MenuEntityList->BorderWindow.Region.X, MenuEntityList->BorderWindow.Region.Y);
+  v2 ScrollListSize = V2(MenuEntityList->BorderWindow.Region.W, MenuEntityList->BorderWindow.Region.H - MenuEntityList->BorderWindow.HeaderSize);
+
+  ImguiBorderWindow(&MenuEntityList->BorderWindow, "Entities");
+
+  ImguiEntityComponentList(MenuEntityList, ScrollListPos, ScrollListSize);
+}
