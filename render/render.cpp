@@ -666,8 +666,6 @@ file_local void DrawOverlaySprites(render_group* RenderGroup, overlay_level* Ove
     }
   }
 
-  Platform.DEBUGPrint( "SQ: %d, AS %d, RGB %d, RGBA %d ", (int) SolidQuads.Size(), (int) SpriteAs.Size(), (int) SpriteRGBs.Size(),(int) SpriteRGBAs.Size());
-
   if(SolidQuads.Size()){
     DrawSprites(RenderGroup, InternalShader(INTERNAL_SHADER_OVERLAY_QUAD), OverlayLevel->SpriteHandle, OrthoProjectionMatrix, SolidQuads.Size(), SolidQuads.m_data);
   }
@@ -788,15 +786,11 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   //render_state* ScaleViewport = PushNewState(RenderGroup);
   m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
   cmn::list<overlay_level>& OverlayLevels = Renderer->OverlayLevels;
-  int ax = 0;
   CMN_LIST_FOR_EACH(OverlayLevels,LevelElement)
   {
-    Platform.DEBUGPrint("Level: %d ", ax);
     overlay_level* OverlayLevel = LevelElement->GetPtr();
     DrawOverlaySprites(RenderGroup, OverlayLevel, OrthoProjectionMatrix);
     DrawSDF (RenderGroup,  OverlayLevel->OverlaySDF,    OrthoProjectionMatrix);
-    Platform.DEBUGPrint("SDF: %d \n", (int) OverlayLevel->OverlaySDF.Size());
-    ax++;
   }
 }
 

@@ -112,7 +112,7 @@ L
 
 */
 
-ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, const char* RenderTreeName)
+ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, const char* RenderTreeName, ecs::entity_id* ParentEntity)
 {
   ecs::entity_id Result = {};
   asset::render_tree_id RenderTreeID = asset::ToKey(asset::type::RENDER_TREE, RenderTreeName);
@@ -136,7 +136,6 @@ ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, const 
         asset::mesh* Mesh = asset::FindMesh(RenderTreeData->Mesh);
         Assert(Mesh->PrimitiveCount > 0);
 
-        ecs::entity_id* ParentEntity = 0;
         ecs::entity_id Entity = NewEntity( GetEntityManager(), ParentEntity, RenderTreeName, ecs::flag::POSITION);
         EntityChain[0]  = Entity;
         ecs::position::Set(GetPositionComponent(&Entity), V3(0,0,0), Quaternion(), V3(1,1,1));
@@ -553,66 +552,35 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     
 
     { // Create some entities
-
       { // Checker Floor
-        ecs::entity_id BaseEntity = CreateRenderEntitiesFromRenderTree("Checkered Floor", "checker_plane_simple");
-
-
-
+        ecs::entity_id BaseEntity = CreateRenderEntitiesFromRenderTree("Checkered Floor", "checker_plane_simple", 0);
         GlobalState->FloorEntity = BaseEntity;
-      //  ecs::position::Set(GetPositionComponent(&Entity), V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
+        ecs::position::Set(GetPositionComponent(&BaseEntity), V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
       }
-#if 0
       { // Transparent Cube
-        asset::mesh* Mesh = MeshFromTree("Cube");
-
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, &GlobalState->FloorEntity, "Transparent Cube", ecs::flag::RENDER | ecs::flag::COLLIDER );
-        ecs::position::Set(GetPositionComponent(&Entity), V3(2,0,0), 0, V3(0,1,0), V3(1,1,1));
-
-        Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"), GetRenderComponent(&Entity));
-        ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        ecs::collider::Init(Collider, Mesh);
+        ecs::entity_id Entity = CreateRenderEntitiesFromRenderTree("Transparent Cube", "Cube", &GlobalState->FloorEntity);
+        ecs::position::Set(GetPositionComponent(&Entity), V3(2,1,0), 0, V3(0,1,0), V3(1,1,1));
+        ecs::render::component* RenderComponent = GetRenderComponent(&Entity);
+        RenderComponent->PhongMaterial = asset::FindPhongMaterial(asset::ToKey(asset::type::PHONG_MATERIAL, "ruby"));
       }
-
-
       { // Transparent Cone
-        asset::mesh* Mesh = MeshFromTree("Cone");
-
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, &GlobalState->FloorEntity, "Transparent Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
-        ecs::position::Set(GetPositionComponent(&Entity), V3(0,0,2), 0, V3(0,1,0), V3(1,1,1));
-        Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "emerald"), GetRenderComponent(&Entity));
-        
-        
-        ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        ecs::collider::Init(Collider, Mesh);
+        ecs::entity_id Entity = CreateRenderEntitiesFromRenderTree("Transparent Cone", "Cone", &GlobalState->FloorEntity);
+        ecs::position::Set(GetPositionComponent(&Entity), V3(0,1,2), 0, V3(0,1,0), V3(1,1,1));
+        ecs::render::component* RenderComponent = GetRenderComponent(&Entity);
+        RenderComponent->PhongMaterial = asset::FindPhongMaterial(asset::ToKey(asset::type::PHONG_MATERIAL, "emerald"));
       }
-      
       { // Transparent Cylinder
-        asset::mesh* Mesh = MeshFromTree("Cylinder");
-
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, &GlobalState->FloorEntity, "Transparent Cylinder", ecs::flag::RENDER | ecs::flag::COLLIDER );
-        ecs::position::Set(GetPositionComponent(&Entity), V3(2,0,2), 0, V3(0,1,0), V3(1,1,1));
-
-        Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "jade"), GetRenderComponent(&Entity));
-       
-        
-        ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        ecs::collider::Init(Collider, Mesh);
+        ecs::entity_id Entity = CreateRenderEntitiesFromRenderTree("Transparent Cone", "Cylinder", &GlobalState->FloorEntity);
+        ecs::position::Set(GetPositionComponent(&Entity), V3(2,1,2), 0, V3(0,1,0), V3(1,1,1));
+        ecs::render::component* RenderComponent = GetRenderComponent(&Entity);
+        RenderComponent->PhongMaterial = asset::FindPhongMaterial(asset::ToKey(asset::type::PHONG_MATERIAL, "jade"));
       }
-
       { // Solid Cone
-        asset::mesh* Mesh = MeshFromTree("Cone");
-
-        ecs::entity_id Entity = NewEntity(GlobalState->World.EntityManager, &GlobalState->FloorEntity, "Solid Cone", ecs::flag::RENDER | ecs::flag::COLLIDER );
-
-        ecs::position::Set(GetPositionComponent(&Entity), V3(0,0,0), 0, V3(0,1,0), V3(1,1,1));
-
-        Initiate(asset::ToHeader(Mesh)->Key, asset::ToKey(asset::type::PHONG_MATERIAL, "silver"), GetRenderComponent(&Entity));
-
-        ecs::collider::component* Collider = GetColliderComponent(&Entity);
-        ecs::collider::Init(Collider, Mesh);
+        ecs::entity_id Entity = CreateRenderEntitiesFromRenderTree("Solid Cone", "Cone", &GlobalState->FloorEntity);
+        ecs::position::Set(GetPositionComponent(&Entity), V3(0,1,0), 0, V3(0,1,0), V3(1,1,1));
+        ecs::render::component* RenderComponent = GetRenderComponent(&Entity);
+        RenderComponent->PhongMaterial = asset::FindPhongMaterial(asset::ToKey(asset::type::PHONG_MATERIAL, "silver"));
       }
-      #endif
     }    
   }else{
     render::Begin();
@@ -620,8 +588,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
 
   ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
-  //FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,0,1)));
-//  Platform.DEBUGPrint("%f\n", Norm(FloorPos->RelativeRotation));
+  FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,0,1)));
 
   //LoadAndRenderGLTFEngine();
   
