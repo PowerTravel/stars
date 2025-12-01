@@ -533,7 +533,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
         int a = 10;
       }
-#if 0
+#if 1
       { // Transparent Cube
         ecs::entity_id Entity = CreateRenderEntitiesFromRenderTree("Transparent Cube", "Cube", &GlobalState->FloorEntity);
         ecs::position::Set(GetPositionComponent(&Entity), V3(2,1,0), 0, V3(0,1,0), V3(1,1,1));
@@ -586,31 +586,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
-#if 0
-  m4 T = GetTranslationMatrix(V4(2,2,2,1));
-  m4 R = GetRotationMatrix(RotateQuaternion(Pi32/4, V3(0,1,0)));
-  m4 S = GetScaleMatrix(V4(1,1,1,1));
-  m4 M = T*R*S;
-  dpu::Print(T);
-  Platform.DEBUGPrint("-------\n");
-  dpu::Print(R);
-  Platform.DEBUGPrint("-------\n");
-  dpu::Print(S);
-  Platform.DEBUGPrint("-------\n");
-  dpu::Print(M);
-  Platform.DEBUGPrint("-------\n");
-  dpu::PrintAsArray(Transpose(M));
-#endif
-if(false)
-{
-  v4 IconColor = V4(0,1,1,1);
-  v4 BackgroundColor = V4(0.75,0.75,0.75,1);
-  rect2f CanRect = Rect2f(0.5,0.5,0.5,0.5);
-
-  v4 TexCoord = GlobalImguiContext->Icons.Coordinates[ICON_SEARCH];
-  render::DrawIconCanonicalSpace(Shrink(CanRect,0.2), TexCoord, IconColor);
-  render::DrawOverlayQuadCanonicalSpace(CanRect, BackgroundColor);
-}
 
   render::NewOverlayLevel();
   //DrawColorList(&GlobalState->ApplicationImgui);

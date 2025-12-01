@@ -70,15 +70,11 @@ inline void Set(component* Component, m4 Transformation)
 
   Component->RelativePosition = GetPositionFromMatrix(Transformation);
   Component->RelativeRotation = QuaternionFromMatrix(Transformation);
-  m4 M = GetRotationMatrix(Component->RelativeRotation);
-  m4 Minv = AffineInverse(M);
-  dpu::Print(M);
-  m4 TDecompose = Transformation;
-  Index(TDecompose,0,3,0);
-  Index(TDecompose,1,3,0);
-  Index(TDecompose,2,3,0);
-  TDecompose = Minv*TDecompose;
-  Component->Scale = V3(Diagonal(TDecompose));
+  Transformation.E[ 3] = 0;
+  Transformation.E[ 7] = 0;
+  Transformation.E[11] = 0;
+  m4 Inv = RigidInverse(GetRotationMatrix(Component->RelativeRotation))*Transformation;
+  Component->Scale = V3(Diagonal(Inv));
   
 }
 //inline void Set(ecs::entity_id& EntityID, world_coordinate Position, r32 Angle, v3 Axis, v3 Scale)
