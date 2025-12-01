@@ -4,6 +4,7 @@
 #include "math/affine_transformations.h"
 #include "cmn/n_tree.h"
 #include "ecs/entity_components_backend.h"
+#include "print_utils.h"
 // Wanna make a difference to how position_node vs position works.
 // Today position is the root node of a position_tree.
 // I want a position_node with no parents to be the root node that gets updated
@@ -19,14 +20,20 @@ struct component
   quat RelativeRotation;
   quat AbsoluteRotation;
   v3 Scale;
+  m4 T;
+  m4 gT;
 };
-
+m4 GetRelativeModelMatrix(ecs::position::component* Position);
+m4 GetAbsoluteModelMatrix(ecs::position::component* Position);
 // Creates a new position node, initializes and if parent exists, insert it into the tree
 inline void Set(component* Component, world_coordinate Position, quat Rotation, v3 Scale)
 {
   Component->RelativePosition = Position;
   Component->RelativeRotation = Rotation;
   Component->Scale = Scale;
+
+  Component->T = GetRelativeModelMatrix(Component);
+  Component->gT = M4Identity();
 }
 //inline void Set(ecs::entity_id& EntityID, world_coordinate Position, quat Rotation, v3 Scale)
 //{
@@ -38,6 +45,9 @@ inline void Set(component* Component, world_coordinate Position, euler_angle Eul
   Component->RelativePosition = Position;
   Component->RelativeRotation = Quaternion(Euler);
   Component->Scale = Scale;
+
+  Component->T = GetRelativeModelMatrix(Component);
+  Component->gT = M4Identity();
 }
 //inline void Set(ecs::entity_id& EntityID, world_coordinate Position, euler_angle Euler, v3 Scale)
 //{
@@ -49,18 +59,27 @@ inline void Set(component* Component, world_coordinate Position, r32 Angle, v3 A
   Component->RelativePosition = Position;
   Component->RelativeRotation = RotateQuaternion(Angle, Axis);
   Component->Scale = Scale;
+  Component->T = GetRelativeModelMatrix(Component);
+  Component->gT = M4Identity();
 }
 
 inline void Set(component* Component, m4 Transformation)
 {
+  Component->T = Transformation;
+  Component->gT = M4Identity();
+
   Component->RelativePosition = GetPositionFromMatrix(Transformation);
   Component->RelativeRotation = QuaternionFromMatrix(Transformation);
-  Index(Transformation,0,3,0);
-  Index(Transformation,1,3,0);
-  Index(Transformation,2,3,0);
-  Transformation = AffineInverse(Transformation);
-  Component->Scale = V3(Diagonal(Transformation));
-  int a = 10;
+  m4 M = GetRotationMatrix(Component->RelativeRotation);
+  m4 Minv = AffineInverse(M);
+  dpu::Print(M);
+  m4 TDecompose = Transformation;
+  Index(TDecompose,0,3,0);
+  Index(TDecompose,1,3,0);
+  Index(TDecompose,2,3,0);
+  TDecompose = Minv*TDecompose;
+  Component->Scale = V3(Diagonal(TDecompose));
+  
 }
 //inline void Set(ecs::entity_id& EntityID, world_coordinate Position, r32 Angle, v3 Axis, v3 Scale)
 //{
@@ -80,32 +99,30 @@ inline v3 GetScale(ecs::position::component* Position)
   return Position->Scale;
 }
 
-m4 GetModelMatrix(ecs::position::component* Position)
+m4 GetRelativeModelMatrix(ecs::position::component* Position)
 {
-  v3 P = GetAbsolutePosition(Position);
-  m4 R = GetRotationMatrix(GetAbsoluteRotation(Position));
+  v3 P = Position->RelativePosition;
+  m4 R = GetRotationMatrix(Position->RelativeRotation);
   v3 S = GetScale(Position);
-  return M4(
+  m4 Result = M4(
     Index(R,0,0)*S.X, Index(R,0,1)*S.Y, Index(R,0,2)*S.Z, P.X,
     Index(R,1,0)*S.X, Index(R,1,1)*S.Y, Index(R,1,2)*S.Z, P.Y,
     Index(R,2,0)*S.X, Index(R,2,1)*S.Y, Index(R,2,2)*S.Z, P.Z,
                    0,                0,                0,   1);
-}
-}
+  return Result;
 }
 
-//| 1, 0, 0, px | |rxx, rxy, rxz,   0 | | sx, 0,  0,  0 |
-//| 0, 1, 0, py | |ryx, ryy, ryz,   0 | | 0, sy,  0,  0 |
-//| 0, 0, 1, pz | |rzx, rzy, rzz,   0 | | 0,  0, sz,  0 |
-//| 0, 0, 0,  1 | |  0,   0,   0,   1 | | 0,  0,  0,  1 |
-//
-//| 1, 0, 0, px | |rxx*sx, rxy*sy, rxz*sz,   0 |
-//| 0, 1, 0, py | |ryx*sx, ryy*sy, ryz*sz,   0 |
-//| 0, 0, 1, pz | |rzx*sx, rzy*sy, rzz*sz,   0 |
-//| 0, 0, 0,  1 | |  0,         0,      0,   1 |
-//
-//
-//| rxx*sx, rxy*sy, rxz*sz,  px |
-//| ryx*sx, ryy*sy, ryz*sz,  py |
-//| rzx*sx, rzy*sy, rzz*sz,  pz |
-//|  0,         0,      0,    1 |
+m4 GetAbsoluteModelMatrix(ecs::position::component* Position)
+{
+  v3 P = GetAbsolutePosition(Position);
+  m4 R = GetRotationMatrix(GetAbsoluteRotation(Position));
+  v3 S = GetScale(Position);
+  m4 Result = M4(
+    Index(R,0,0)*S.X, Index(R,0,1)*S.Y, Index(R,0,2)*S.Z, P.X,
+    Index(R,1,0)*S.X, Index(R,1,1)*S.Y, Index(R,1,2)*S.Z, P.Y,
+    Index(R,2,0)*S.X, Index(R,2,1)*S.Y, Index(R,2,2)*S.Z, P.Z,
+                   0,                0,                0,   1);
+  return Result;
+}
+}
+}

@@ -292,7 +292,7 @@ raycast_result ColliderRaycast( v3 const & RayOrigin, v3 const & RayDirection, e
   ecs::collider::mesh Mesh = Collider->Mesh;
   raycast_result Result{};
   Result.Distance = R32Max;
-  m4 const ModelMatrix = ecs::position::GetModelMatrix(Position);
+  m4 const ModelMatrix = ecs::position::GetAbsoluteModelMatrix(Position);
   v3 RayDirectionModelSpace = Normalize( V3(AffineInverse(ModelMatrix) * V4(RayDirection,0)));
   v3 RayOriginModelSpace = V3(AffineInverse(ModelMatrix) * V4(RayOrigin,1));
 
@@ -403,7 +403,7 @@ aabb_tree BuildBroadPhaseTree()
     ecs::entity_id EntityID = ecs::GetEntityID(&EntityIterator);
     ecs::position::component* Position = (ecs::position::component*) ecs::GetComponent(GlobalEntityManager, &EntityIterator, ecs::flag::POSITION);
     ecs::collider::component* Collider = (ecs::collider::component*) ecs::GetComponent(GlobalEntityManager, &EntityIterator, ecs::flag::COLLIDER);
-    m4 ModelMatrix = ecs::position::GetModelMatrix(Position);
+    m4 ModelMatrix = ecs::position::GetAbsoluteModelMatrix(Position);
     aabb3f AABBWorldSpace = TransformAABB(Collider->AABB, ModelMatrix );
     // TODO: Don't do a insert every timestep. Update an existing tree
     AABBTreeInsert(GlobalTransientArena, &Result, EntityID, AABBWorldSpace );

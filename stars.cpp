@@ -27,6 +27,7 @@
 #include "io/gltf.h"
 #include "asset_manager/gltf_mapper.h"
 #include "asset_manager/load_asset_files.h"
+#include "print_utils.h"
 
 void LoadMaterial(u32 MapKdHandle, v4 Ambient, v4 Diffuse, v4 Specular, r32 Shininess, const c8* UniqueName)
 {
@@ -130,17 +131,17 @@ void SetRenderComponent(ecs::entity_id* Entity, asset::mesh::primitive* Primitiv
 
 ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, asset::render_tree* RenderTree, ecs::entity_id* RootEntity)
 {
-  ecs::entity_id Result = {};
   cmn::n_tree<asset::render_tree_data>::pre_order_iterator It = RenderTree->PreOrderIterator();
   cmn::vector<ecs::entity_id> EntityChain = cmn::vector<ecs::entity_id>::CreateTransient(RenderTree->MaxDepth());
   while(cmn::n_tree_node<asset::render_tree_data>* RenderTreeNode = It.Next())
   {
-    int Depth = It.Depth()-1;
+    int EntityChainIndex = It.Depth()-1;
     asset::render_tree_data* RenderTreeData = RenderTreeNode->Data;
 
-    ecs::entity_id* ParentEntity = Depth == 0 ? RootEntity : &EntityChain[Depth-1];
-    EntityChain[Depth] = ecs::NewEntity( GetEntityManager(), ParentEntity, EntityName, ecs::flag::POSITION);
-    ecs::position::Set(GetPositionComponent(&EntityChain[Depth]), RenderTreeData->HasTransform ? RenderTreeData->Transform : M4Identity());
+    ecs::entity_id* ParentEntity = EntityChainIndex == 0 ? RootEntity : &EntityChain[EntityChainIndex-1];
+    EntityChain[EntityChainIndex] = ecs::NewEntity( GetEntityManager(), ParentEntity, EntityName, ecs::flag::POSITION);
+    ecs::position::component* Position = GetPositionComponent(&EntityChain[EntityChainIndex]);
+    ecs::position::Set(Position, RenderTreeData->HasTransform ? RenderTreeData->Transform : M4Identity());
 
     if(RenderTreeData->Mesh)
     {     
@@ -149,14 +150,15 @@ ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, asset:
 
       if(Mesh->PrimitiveCount==1)
       {
-        SetRenderComponent(&EntityChain[Depth], Mesh->Primitives);
+        SetRenderComponent(&EntityChain[EntityChainIndex], Mesh->Primitives);
       }else{
         for (int i = 0; i < Mesh->PrimitiveCount; ++i) {
           asset::geometry* Geometry = asset::FindGeometry(Mesh->Primitives[i].Geometry);
           asset::header* GeometryHeader = ToHeader(Geometry);
 
-          ecs::entity_id SubEntity = ecs::NewEntity( GetEntityManager(), &EntityChain[Depth], GeometryHeader->Name.String, ecs::flag::RENDER);
-          ecs::position::Set(GetPositionComponent(&SubEntity), M4Identity());
+          ecs::entity_id SubEntity = ecs::NewEntity( GetEntityManager(), &EntityChain[EntityChainIndex], GeometryHeader->Name.String, ecs::flag::RENDER);
+          ecs::position::component* SubPosition = GetPositionComponent(&SubEntity);
+          ecs::position::Set(SubPosition, M4Identity());
           SetRenderComponent(&SubEntity, &Mesh->Primitives[i]);
         }  
       }
@@ -416,10 +418,11 @@ void DrawAllRenderObjects()
 {
   FOR_EACH_ENTITY(EntityIterator, ecs::flag::RENDER)
   {
-    ecs::entity_id EntityID = ecs::GetEntityID(&EntityIterator);
+    ecs::entity_id EntityID             = ecs::GetEntityID(&EntityIterator);
     ecs::render::component*   Component = GetRenderComponent(&EntityIterator);
     ecs::position::component* Position  = GetPositionComponent(&EntityIterator);
-    m4 Transform = ecs::position::GetModelMatrix(Position);
+    m4 Transform = ecs::position::GetAbsoluteModelMatrix(Position);
+    //Transform = Position->gT;
     render::DrawRenderComponent(Component, Transform);
   }
 }
@@ -454,10 +457,10 @@ void LoadAndRenderGLTFEngine()
       CreateRenderEntitiesFromRenderTree("2CylinderEngine", RenderTree, NULL);
     }
   }
-#if 0
+#if 1
   for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
   {
-    render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
+  //  render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
     //ecs::render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
   }
 #endif
@@ -522,13 +525,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
  
     GlobalState->RandomGenerator = RandomGenerator(Input->RandomSeed);
     
-
     { // Create some entities
       { // Checker Floor
         ecs::entity_id BaseEntity = CreateRenderEntitiesFromRenderTree("Checkered Floor", "checker_plane_simple", 0);
         GlobalState->FloorEntity = BaseEntity;
-        ecs::position::Set(GetPositionComponent(&BaseEntity), V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
+        ecs::position::component* Position = GetPositionComponent(&BaseEntity);
+        ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
+        int a = 10;
       }
+#if 0
       { // Transparent Cube
         ecs::entity_id Entity = CreateRenderEntitiesFromRenderTree("Transparent Cube", "Cube", &GlobalState->FloorEntity);
         ecs::position::Set(GetPositionComponent(&Entity), V3(2,1,0), 0, V3(0,1,0), V3(1,1,1));
@@ -553,15 +558,18 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::render::component* RenderComponent = GetRenderComponent(&Entity);
         RenderComponent->PhongMaterial = asset::FindPhongMaterial(asset::ToKey(asset::type::PHONG_MATERIAL, "silver"));
       }
-    }    
+#endif        
+    }
   }else{
     render::Begin();
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
 
-  ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
-  FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,0,1)));
-
+  if(ecs::IsValid(&GlobalState->FloorEntity))
+  {
+    //ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
+    //FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,0,1)));
+  }
   LoadAndRenderGLTFEngine();
   
   if((ImguiNoneSelected() && ImguiIsInactive())|| ImguiIsDragging())
@@ -578,7 +586,21 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
-
+#if 0
+  m4 T = GetTranslationMatrix(V4(2,2,2,1));
+  m4 R = GetRotationMatrix(RotateQuaternion(Pi32/4, V3(0,1,0)));
+  m4 S = GetScaleMatrix(V4(1,1,1,1));
+  m4 M = T*R*S;
+  dpu::Print(T);
+  Platform.DEBUGPrint("-------\n");
+  dpu::Print(R);
+  Platform.DEBUGPrint("-------\n");
+  dpu::Print(S);
+  Platform.DEBUGPrint("-------\n");
+  dpu::Print(M);
+  Platform.DEBUGPrint("-------\n");
+  dpu::PrintAsArray(Transpose(M));
+#endif
 if(false)
 {
   v4 IconColor = V4(0,1,1,1);

@@ -269,7 +269,7 @@ file_local inline u32 InternalShader(u32 Index)
   return Result;
 }
 
-file_local inline void ClearRenderState(renderer* Renderer) {
+file_local inline void ResetRenderState(renderer* Renderer) {
   render_group* RenderGroup = Renderer->RenderGroup;
   window_size_pixel* Window = &GlobalWindowSize;
 
@@ -446,7 +446,7 @@ file_local void ActivateMSAAFrameBuffer(render_group* RenderGroup)
   SetState(MSAAViewport, ViewportState(GlobalRenderer->MSAA * GlobalWindowSize.ApplicationWidth, GlobalRenderer->MSAA * GlobalWindowSize.ApplicationHeight, GlobalWindowSize.ApplicationAspectRatio));
 }
 
-file_local void TurnOffZBuffer(render_group* RenderGroup)
+file_local void TurnOffDepthTest(render_group* RenderGroup)
 {
   render_state* TransparentState = PushNewState(RenderGroup);
   depth_state DepthState = {};
@@ -723,7 +723,7 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   window_size_pixel* Window = &GlobalWindowSize;
 
   // Wipes all internal textures and resets to default render state
-  ClearRenderState(Renderer);
+  ResetRenderState(Renderer);
 
   r32 InitTime = Platform.DEBUGGetTime();
   cmn::list<primitive> SolidMesh = cmn::list<primitive>::CreateTransient();
@@ -782,7 +782,7 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   GaussianBlur(RenderGroup, 4, FrameBuffer(FRAMEBUFFER_MSAA), FrameBuffer(FRAMEBUFFER_DEFAULT), Window->ApplicationWidth, Window->ApplicationHeight);
   #endif
 
-  TurnOffZBuffer(RenderGroup);
+  TurnOffDepthTest(RenderGroup);
   //render_state* ScaleViewport = PushNewState(RenderGroup);
   m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
   cmn::list<overlay_level>& OverlayLevels = Renderer->OverlayLevels;
