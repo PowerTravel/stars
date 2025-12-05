@@ -133,13 +133,18 @@ ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, asset:
 {
   cmn::n_tree<asset::render_tree_data>::pre_order_iterator It = RenderTree->PreOrderIterator();
   cmn::vector<ecs::entity_id> EntityChain = cmn::vector<ecs::entity_id>::CreateTransient(RenderTree->MaxDepth());
+  int id = 0;
   while(cmn::n_tree_node<asset::render_tree_data>* RenderTreeNode = It.Next())
   {
     int EntityChainIndex = It.Depth()-1;
     asset::render_tree_data* RenderTreeData = RenderTreeNode->Data;
 
+    char NameBuff[128] = {};
+    FormatString(NameBuff, sizeof(NameBuff)-1, "%s_%d", EntityName, id);
+    id++;
+
     ecs::entity_id* ParentEntity = EntityChainIndex == 0 ? RootEntity : &EntityChain[EntityChainIndex-1];
-    EntityChain[EntityChainIndex] = ecs::NewEntity( GetEntityManager(), ParentEntity, EntityName, ecs::flag::POSITION);
+    EntityChain[EntityChainIndex] = ecs::NewEntity( GetEntityManager(), ParentEntity, NameBuff, ecs::flag::POSITION);
     ecs::position::component* Position = GetPositionComponent(&EntityChain[EntityChainIndex]);
     ecs::position::Set(Position, RenderTreeData->HasTransform ? RenderTreeData->Transform : M4Identity());
 
@@ -152,11 +157,16 @@ ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, asset:
       {
         SetRenderComponent(&EntityChain[EntityChainIndex], Mesh->Primitives);
       }else{
+        int subid = 0;
         for (int i = 0; i < Mesh->PrimitiveCount; ++i) {
           asset::geometry* Geometry = asset::FindGeometry(Mesh->Primitives[i].Geometry);
           asset::header* GeometryHeader = ToHeader(Geometry);
 
-          ecs::entity_id SubEntity = ecs::NewEntity( GetEntityManager(), &EntityChain[EntityChainIndex], GeometryHeader->Name.String, ecs::flag::RENDER);
+          char NameBuff2[128] = {};
+          FormatString(NameBuff2, sizeof(NameBuff2)-1, "%s_sub_%d", GeometryHeader->Name.String, subid);
+          subid++;
+
+          ecs::entity_id SubEntity = ecs::NewEntity( GetEntityManager(), &EntityChain[EntityChainIndex], NameBuff2, ecs::flag::RENDER);
           ecs::position::component* SubPosition = GetPositionComponent(&SubEntity);
           ecs::position::Set(SubPosition, M4Identity());
           SetRenderComponent(&SubEntity, &Mesh->Primitives[i]);
@@ -572,6 +582,23 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   }
   LoadAndRenderGLTFEngine();
   
+  if(!GlobalState->DEBUGMenuInitiated)
+  {
+    ecs::entity_node* EN = GlobalEntityManager->EntityTree.m_root->FirstChild; 
+    if(EN)
+    {
+      do
+      {
+        ecs::entity* a = *EN->Data;
+        me_tree* MenuTree = &GlobalState->ApplicationImgui.MenuEntityTree->EntityTree;
+        me_node* Root = MenuTree->m_root;
+        PushNewEntity(MenuTree, Root, &a->ID);
+        EN = EN->NextSibling;
+      }while(EN != GlobalEntityManager->EntityTree.m_root->FirstChild);
+    }
+    GlobalState->DEBUGMenuInitiated = true;
+  }
+
   if((ImguiNoneSelected() && ImguiIsInactive())|| ImguiIsDragging())
   {
     SceneInput(&GlobalState->Camera, Input);
@@ -591,6 +618,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   //DrawColorList(&GlobalState->ApplicationImgui);
   render::NewOverlayLevel();
   //DrawEntityList(&GlobalState->ApplicationImgui);
+  DrawEntityTree(&GlobalState->ApplicationImgui);
   ImguiEnd();
   //if(GlobalRenderer->ActiveCamera)
   //{

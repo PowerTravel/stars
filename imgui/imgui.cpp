@@ -35,25 +35,34 @@ imgui_icon_atlas LoadImguiIcons(render_group* RenderGroup)
 
   u32 IconSize = 64;
   u32 AtlasSize = 512;
-  Icons.Coordinates[ICON_DOUBLE_ANGLE_UP]    = PositionToCoordinate( 0, 7, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_DOUBLE_ANGLE_DOWN]  = PositionToCoordinate( 1, 7, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_DOUBLE_ANGLE_LEFT]  = PositionToCoordinate( 2, 7, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_DOUBLE_ANGLE_RIGHT] = PositionToCoordinate( 3, 7, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ANGLE_UP]           = PositionToCoordinate( 4, 7, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ANGLE_DOWN]         = PositionToCoordinate( 5, 7, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ANGLE_LEFT]         = PositionToCoordinate( 6, 7, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ANGLE_RIGHT]        = PositionToCoordinate( 7, 7, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_ADD]                = PositionToCoordinate( 0, 6, IconSize, AtlasSize); 
-  Icons.Coordinates[ICON_SUBTRACT]           = PositionToCoordinate( 1, 6, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_SEARCH]             = PositionToCoordinate( 2, 6, IconSize, AtlasSize); 
-  Icons.Coordinates[ICON_FILTER]             = PositionToCoordinate( 3, 6, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_CHECBOX]            = PositionToCoordinate( 4, 6, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_EMPTY_CHECKBOX]     = PositionToCoordinate( 5, 6, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_MINIMIZE]    = PositionToCoordinate( 0, 5, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_X]           = PositionToCoordinate( 1, 5, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_MAXIMIZE]    = PositionToCoordinate( 2, 5, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_RESTORE]     = PositionToCoordinate( 3, 5, IconSize, AtlasSize);
-  Icons.Coordinates[ICON_WINDOW_DETACH]      = PositionToCoordinate( 4, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_DOUBLE_ANGLE_UP]      = PositionToCoordinate( 0, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_DOUBLE_ANGLE_DOWN]    = PositionToCoordinate( 1, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_DOUBLE_ANGLE_LEFT]    = PositionToCoordinate( 2, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_DOUBLE_ANGLE_RIGHT]   = PositionToCoordinate( 3, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ANGLE_UP]             = PositionToCoordinate( 4, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ANGLE_DOWN]           = PositionToCoordinate( 5, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ANGLE_LEFT]           = PositionToCoordinate( 6, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ANGLE_RIGHT]          = PositionToCoordinate( 7, 7, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_ADD]                  = PositionToCoordinate( 0, 6, IconSize, AtlasSize); 
+  Icons.Coordinates[ICON_SUBTRACT]             = PositionToCoordinate( 1, 6, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_SEARCH]               = PositionToCoordinate( 2, 6, IconSize, AtlasSize); 
+  Icons.Coordinates[ICON_FILTER]               = PositionToCoordinate( 3, 6, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_CHECBOX]              = PositionToCoordinate( 4, 6, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_EMPTY_CHECKBOX]       = PositionToCoordinate( 5, 6, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_MINIMIZE]      = PositionToCoordinate( 0, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_X]             = PositionToCoordinate( 1, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_MAXIMIZE]      = PositionToCoordinate( 2, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_RESTORE]       = PositionToCoordinate( 3, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_WINDOW_DETACH]        = PositionToCoordinate( 4, 5, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_COMPONENT_GEOMETRY]   = PositionToCoordinate( 0, 4, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_COMPONENT_MATERIAL]   = PositionToCoordinate( 1, 4, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_COMPONENT_CAMERA]     = PositionToCoordinate( 2, 4, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_COMPONENT_LOCATION]   = PositionToCoordinate( 3, 4, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_COMPONENT_COLLIDER]   = PositionToCoordinate( 4, 4, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_COMPONENT_LIGHT]      = PositionToCoordinate( 5, 4, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_COMPONENT_CONTROLLER] = PositionToCoordinate( 6, 4, IconSize, AtlasSize);
+  Icons.Coordinates[ICON_COMPONENT_UNKNOWN]    = PositionToCoordinate( 7, 4, IconSize, AtlasSize);
+
   return Icons;
 }
 

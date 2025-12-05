@@ -7,12 +7,9 @@ namespace ecs{
 
 struct component_head;
 struct component_list;
-struct entity;
+struct entity_component_link;
 
-typedef cmn::n_tree<struct entity*> entity_tree;
-typedef cmn::n_tree<struct entity*>::node entity_node;
-
-// TODO: Assemble entities into a balanced binary search tree for "easy" search and access
+#define MAX_ENTITY_NAME_LENGTH 64
 
 //  Each entity_component_mapping only point to one component_head* stored in a chunk_list of entity_component_mapping_entry in entity manager
 //    Pro: Components allocated togeather would be next to each other.
@@ -24,12 +21,26 @@ typedef cmn::n_tree<struct entity*>::node entity_node;
 //                   Easy to implement
 //                   Have to extract management strategy to its seaparate file which can be use elsewhere
 //              Con: Have to extract management strategy to its seaparate file which can be alot of work
-
 struct entity_id
 {
   u32 EntityID;
   u32 ChunkListIndex;
 };
+
+struct entity
+{
+  entity_id ID; // ID starts at 1. Index is ID-1
+  u32 ChunkListIndex;
+  bitmask32 ComponentFlags;
+  entity_component_link* FirstComponentLink; // Points us to the associated components in the component list.
+
+  c8 Name[MAX_ENTITY_NAME_LENGTH];
+  cmn::n_tree<entity*>::node* Node;
+};
+
+typedef cmn::n_tree<entity*> entity_tree;
+typedef cmn::n_tree<entity*>::node entity_node;
+typedef cmn::n_tree<entity*>::pre_order_iterator entity_iterator;
 
 struct entity_manager
 {
@@ -99,6 +110,7 @@ struct filtered_entity_iterator
   chunk_list_iterator ComponentIterator;
 };
 entity_id GetEntityID( filtered_entity_iterator* Iterator);
+entity* GetEntityFromID(entity_manager* EM, entity_id* EntityID);
 b32 Next(filtered_entity_iterator* EntityIterator);
 filtered_entity_iterator GetComponentsOfType(entity_manager* EM, bitmask32 ComponentFlagsToFilterOn);
 bptr GetComponent(entity_manager* EM, filtered_entity_iterator* ComponentList, bitmask32 ComponentFlag);

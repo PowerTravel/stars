@@ -207,6 +207,7 @@ namespace cmn {
       };
 
       cmn::vector<node_step> NodeLadder;
+      size_t MaxSize;
       n_tree<T>* Tree;
 
       cmn::n_tree<T>::node* GetNode(){
@@ -244,18 +245,18 @@ namespace cmn {
         return Result;
       }
 
-      cmn::n_tree<T>::node* Next() {
+      cmn::n_tree<T>::node* Next(bool SkipSubtree = false) {
 
         if(NodeLadder.Reserved() == 0)
         {
           // First step, add root.
-          size_t MaxDepth = Tree->MaxDepth();
+          size_t MaxDepth = MaxSize ? MaxSize : Tree->MaxDepth();
           NodeLadder = cmn::vector<node_step>::CreateTransient(MaxDepth);
           node_step Step = CreateStep(Tree->m_root, 0);
           NodeLadder.PushBack(Step);
         } else {
           node_step* PreviousStep = NodeLadder.BackPtr();
-          if(HasChild(PreviousStep))
+          if(!SkipSubtree && HasChild(PreviousStep))
           {
             // If Node in Step has a child we add it.
             node_step NextStep = CreateStep(PreviousStep->Node->FirstChild, PreviousStep->Node->ChildCount);
@@ -284,8 +285,9 @@ namespace cmn {
       int Depth() { return NodeLadder.Size(); }
     };
     
-    pre_order_iterator PreOrderIterator() {
+    pre_order_iterator PreOrderIterator(int MaxSize = 0) {
       pre_order_iterator Result = {};
+      Result.MaxSize = MaxSize;
       Result.Tree = this;
       return Result;
     };

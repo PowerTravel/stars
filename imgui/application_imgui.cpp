@@ -21,6 +21,13 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   Result.ColorListData->ImguiIDs         = PushArray(Arena, ColorCount, imgui_id);
   Result.ColorListData->ColorIDs         = PushArray(Arena, ColorCount, s32);
 
+  Result.MenuEntityTree = PushStruct(Arena, menu_entity_tree);
+  Result.MenuEntityTree->BorderWindow   = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
+  Result.MenuEntityTree->EntityList     = CreateScrollableTextList();
+  Result.MenuEntityTree->EntityTree = me_tree::Create();
+  Result.MenuEntityTree->EntityTree.NewNode(); // EmptyRoot
+
+
   Result.ColorListData->ColorList = CreateScrollableTextList();
   Result.ColorListData->BorderWindow = ImguiBorderedWindow(Rect2f(V2(0.1,0.25), V2(0.1,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
   for (int i = 0; i < ColorCount; ++i)
@@ -29,6 +36,32 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   }
 
   return Result;
+}
+
+void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity)
+{
+  // Just making sure that the parent of NewEntity in the entity Manager is the same as MenuParent
+  //Assert(ecs::Compare(&(*ecs::GetEntityFromID(GetEntityManager(), NewEntity)->Node->Parent->Data)->ID, &MenuParent->Data->EntityID));
+
+  me_node* Root = MenuParent;
+  me_node* Node = MenuParent->FirstChild;
+  if(Node)
+  {
+    do
+    {
+      if(ecs::Compare(&Node->Data->EntityID, NewEntity)){
+        return;
+      }
+      Node = Node->NextSibling;
+    }while((Node && Node != MenuParent->FirstChild));
+  }
+
+  menu_entity_row NewRow = {};
+  NewRow.EntityID = *NewEntity;
+  NewRow.ImguiID = NewButtonID();
+  NewRow.Open = false;
+
+  MenuEntityTree->NewNode(MenuParent, NewRow);
 }
 
 void DrawColorRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
@@ -553,18 +586,279 @@ void DrawEntityList(application_imgui* AppImgui) {
   ImguiEntityComponentList(MenuEntityList, ScrollListPos, ScrollListSize);
 }
 
+/// Start Entity Tree
 
+file_local b32 IsClippingTop(rect2f DrawRect, rect2f ClipRect){
+  r32 ClipTop = Top(ClipRect);
+  b32 TopOutside = Top(DrawRect) > ClipTop;
+  b32 BotInside  = Bot(DrawRect) < ClipTop;
+  b32 Result = TopOutside && BotInside;
+  return Result;
+}
+
+file_local b32 IsClippingBot(rect2f DrawRect, rect2f ClipRect){
+  r32 ClipBot = Bot(ClipRect);
+  b32 TopInside  = Top(DrawRect) > ClipBot;
+  b32 BotOutside = Bot(DrawRect) < ClipBot;
+  b32 Result = TopInside && BotOutside;
+  return Result;
+}
+
+//DoEntityButtonRect(Row->ImguiID, rect2f ButtonRect, ButtonColor)
+ 
+inline file_local b32 MenuHasChildren(me_node* MenuEntityNode){
+  b32 Result = MenuEntityNode->FirstChild != 0;
+  return Result;
+}
+
+;
+inline file_local b32 EntityHasChildren(ecs::entity_node* EntityNode){
+  b32 Result = EntityNode->FirstChild != 0;
+  return Result;
+}
+
+
+file_local void AddChildEntitiesLoadedToMenuTree(me_tree& MenuTree, me_node* MenuNode, ecs::entity_tree& EntityTree, ecs::entity_node* EntityNode){
+  ecs::entity_node* EntityChild = EntityNode->FirstChild;
+  do
+  {
+    // Is it smart to edit the me_tree while we are iterating through it....? I don't feel confident
+    menu_entity_row NewRow = {};
+    NewRow.EntityID = (*EntityChild->Data)->ID;
+    NewRow.ImguiID = NewButtonID();
+    NewRow.Open = false;
+    MenuTree.NewNode(MenuNode, NewRow);
+    EntityChild = EntityChild->NextSibling;
+  }while(EntityChild != EntityNode->FirstChild);
+}
+
+
+file_local void DoEntityButtonRect(imgui_context* ImguiContext, rect2f ButtonRect, imgui_button_color& ButtonColor, menu_entity_row* MenuRowData) {
+  ImguiPlainButton(ImguiContext, MenuRowData->ImguiID, ButtonRect, ButtonColor);
+  if(ImguiIsActive(MenuRowData->ImguiID) && ImguiIsHot(MenuRowData->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
+  {
+    MenuRowData->Open = !MenuRowData->Open;
+  }
+}
+
+inline file_local rect2f GetRectForRow(rect2f ContentRect, r32 RowStart, r32 RowHeight){
+  rect2f Result = Rect2f(ContentRect.X, RowStart, ContentRect.W, RowHeight);
+  return Result;
+}
+
+
+void DrawIcon(b32 RowOpen, v4 TexCoord, rect2f RowRect) {
+  rect2f IconRect = Rect2f(RowRect.X, RowRect.Y, RowRect.H, RowRect.H);
+  //rect2f SearchIconRect = Shrink(SearchIconRectBackground, 0.1*SearchIconRectBackground.W);
+  render::DrawIconCanonicalSpace(CenteredRect(IconRect), TexCoord, V4(1,1,1,1));
+}
+
+void DrawText(ecs::entity_node* EntityNode, v2 TextPos, rect2f ButtonRect){
+  char SuffixBuff[16] = {};
+  ecs::entity* Entity = *EntityNode->Data;
+  FormatString(SuffixBuff, sizeof(SuffixBuff)-1, " (%d)", EntityNode->ChildCount);
+  char ButtonBuff[128] = {};
+  FormatString(ButtonBuff, sizeof(ButtonBuff)-1, "%s%s", Entity->Name, EntityNode->ChildCount > 0 ? SuffixBuff : "");
+  render::DrawTextCanonicalSpace(TextPos, ButtonRect, GlobalState->ImguiContext.FontSize, (utf8_byte const *) ButtonBuff, V4(1.0,1.0,1.0,1.0));
+}
+
+
+b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) {
+
+  imgui_context* ImguiContext = &GlobalState->ImguiContext;
+  imgui_button_color ButtonColor = {};
+  ButtonColor.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "taupe");
+  ButtonColor.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "persian indigo");
+  ButtonColor.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "egyptian blue");
+  ButtonColor.HotColor =  menu::GetColor(&GlobalState->ColorTable, "rich black");
+
+  render::font& Font = GlobalRenderer->Font;
+
+  rect2f ContentRect = Rect2f(Pos,Size);
+
+  v2 Padding = PixelToCanonicalSpace(V2(2,2));
+
+  r32 FontSize = ImguiContext->FontSize;
+  r32 RowHeight = Font.GetLineSpacingCanonicalSpace(FontSize);
+  r32 DescentOffset = Font.GetCanonicalFontDescenOffset(FontSize);
+  r32 TabWidth  = Font.GetTextSizeCanonicalSpace(FontSize, (utf8_byte const *) "  ").X;
+
+  v2 P0 = V2(Pos.X + Padding.X, Pos.Y + Size.Y);
+  r32 RowPos = P0.Y - RowHeight;
+  //rect2f ClipRect = Shrink(Rect2f(Pos,Size),Padding);
+
+  ecs::entity_tree& EntityTree = GlobalEntityManager->EntityTree;
+  me_tree& MenuTree = MenuEntityTree->EntityTree;
+  me_iterator It = MenuEntityTree->EntityTree.PreOrderIterator(EntityTree.NodeCount());
+  bool SkipSubTree = false;
+  int Rownum = 0;
+  r32 YOffset = 0;
+  while(me_node* MenuNode = It.Next(SkipSubTree))
+  {
+    int Index = It.Depth() - 1;
+    if(Index != 0){
+      //row_renderer RowRenderer = RowRenderer();
+      //RowRenderer.Width = Size.X;
+      //RowRenderer.Push(Icon( 32, MenuRowData->Open ? ICON_ANGLE_DOWN : ICON_ANGLE_RIGHT ));
+      //YOffset = DrawRow();
+
+      menu_entity_row* MenuRowData = MenuNode->Data;
+      r32 XOffset = (Index-1)*RowHeight;
+      ecs::entity* Entity = GetEntityFromID(GetEntityManager(), &MenuRowData->EntityID);
+      ecs::entity_node* EntityNode = Entity->Node;
+      //v2 ButtonPos = V2(Pos.X, RowPos);
+      //rect2f ButtonRect = Rect2f(ButtonPos.X, ButtonPos.Y, Size.X, RowHeight);
+      
+      rect2f RowRect = GetRectForRow(ContentRect, RowPos, RowHeight);
+      if (IsClippingTop(RowRect, ContentRect)) {
+        // Draw Clipped Top Row
+        //rect2f ClippedButtonRect = Clip(ButtonRect, ContentRect);
+        //DoEntityButtonRect(Row->ImguiID, ClippedButtonRect);
+      }else if (IsClippingBot(RowRect, ContentRect)){
+        // Draw Clipped Bot Row
+        //rect2f ClippedButtonRect = Clip(ButtonRect, ContentRect);
+        //DoEntityButtonRect(Row->ImguiID, ClippedButtonRect);
+      }else{
+        DoEntityButtonRect(ImguiContext, RowRect, ButtonColor, MenuRowData);
+        r32 IconXOffset = XOffset;
+        if(EntityHasChildren(EntityNode))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = MenuRowData->Open ? GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_DOWN] : GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_RIGHT];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::POSITION))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_LOCATION];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::GEOMETRY))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_GEOMETRY];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::MATERIAL))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_MATERIAL];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::COLLIDER))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_COLLIDER];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::LIGHT))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_LIGHT];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CAMERA))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_CAMERA];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CONTROLLER))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_CONTROLLER];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::RENDER))
+        {
+          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_UNKNOWN];
+          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
+          IconXOffset+=RowHeight;
+        }
+
+        v2 TextPosition = V2(RowRect.X + IconXOffset, RowPos + DescentOffset);
+        DrawText(EntityNode, TextPosition, RowRect);
+        if(MenuRowData->Open)
+        {
+          if(EntityHasChildren(EntityNode) && !MenuHasChildren(MenuNode))
+          {
+            AddChildEntitiesLoadedToMenuTree(MenuTree, MenuNode, EntityTree, EntityNode);
+          }
+        }
+      }
+      SkipSubTree = !MenuRowData->Open;
+#if 0
+      if(E->Node->FirstChild)
+      {
+        v2 IconPos = V2(P0.X + TabWidth * (Index-1), RowPos);
+
+
+
+        if (IsClippingTopRow(ButtonRect, ContentRect)) {
+          
+          IconRect = 
+          IconTectCoord = 
+
+        }else if (IsClippingBotRow(ButtonRect, ContentRect)){
+
+        }
+
+
+        rect2f ClippedIconRect = Clip(IconRect, ContentRect);
+        r32 HeightPercentageChange = ClippedIconRect.H / IconRect.H;
+
+        if(ClippedIconRect.H < IconRect.H)
+        {
+          Platform.DEBUGPrint("%d %f\n",Rownum, HeightPercentageChange);
+          r32 NewTextCoordY0 = Lerp(HeightPercentageChange,TexCoord.Y,TexCoord.W);
+          TexCoord.Y = NewTextCoordY0;
+        }
+
+        render::DrawIconCanonicalSpace(IconRect, TexCoord, V4(1,1,1,1));
+      }
+
+      v2 TextPos = V2(P0.X + RowHeight + TabWidth * (Index-1), RowPos + DescentOffset);
+      
+      char SuffixBuff[16] = {};
+      FormatString(SuffixBuff, sizeof(SuffixBuff)-1, " (%d)", E->Node->ChildCount);
+      char ButtonBuff[128] = {};
+
+      FormatString(ButtonBuff, sizeof(ButtonBuff)-1, "%s%s", E->Name, E->Node->ChildCount > 0 ? SuffixBuff : "");
+      render::DrawTextCanonicalSpace(TextPos, ClipRect, FontSize, (utf8_byte const *) ButtonBuff, V4(1.0,1.0,1.0,1.0));
+#endif
+      RowPos -= RowHeight;
+
+    }
+    if(RowPos < Pos.Y - RowHeight)
+    {
+      break;
+    }
+    Rownum++;
+  }
+  return false;
+}
 
 void DrawEntityTree(application_imgui* AppImgui) {
 
-  menu_entity_list* MenuEntityList = AppImgui->MenuEntityList;
+#if 1
+  menu_entity_tree* MenuEntityTree = AppImgui->MenuEntityTree;
 
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalState->ImguiContext.FontSize);
   
-  v2 ScrollListPos  = V2(MenuEntityList->BorderWindow.Region.X, MenuEntityList->BorderWindow.Region.Y);
-  v2 ScrollListSize = V2(MenuEntityList->BorderWindow.Region.W, MenuEntityList->BorderWindow.Region.H - MenuEntityList->BorderWindow.HeaderSize);
+  v2 ScrollListPos  = V2(MenuEntityTree->BorderWindow.Region.X, MenuEntityTree->BorderWindow.Region.Y);
+  v2 ScrollListSize = V2(MenuEntityTree->BorderWindow.Region.W, MenuEntityTree->BorderWindow.Region.H - MenuEntityTree->BorderWindow.HeaderSize);
 
-  ImguiBorderWindow(&MenuEntityList->BorderWindow, "Entities");
+  ImguiBorderWindow(&MenuEntityTree->BorderWindow, "Entities");
 
-  ImguiEntityComponentList(MenuEntityList, ScrollListPos, ScrollListSize);
+  ImguiEntityComponentTree(MenuEntityTree, ScrollListPos, ScrollListSize);
+#endif
 }

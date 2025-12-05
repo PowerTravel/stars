@@ -18,18 +18,7 @@ struct entity_component_link
   //  entity_component_link* NextOfSameType;
 };
 
-#define MAX_ENTITY_NAME_LENGTH 64
 
-struct entity
-{
-  entity_id ID; // ID starts at 1. Index is ID-1
-  u32 ChunkListIndex;
-  bitmask32 ComponentFlags;
-  entity_component_link* FirstComponentLink; // Points us to the associated components in the component list.
-
-  c8 Name[MAX_ENTITY_NAME_LENGTH];
-  cmn::n_tree<entity*>::node* Node;
-};
 
 struct component_head
 {
@@ -60,7 +49,7 @@ file_local inline u32 IndexOfLeastSignificantSetBit( bitmask32 EntityFlags )
   return BitScan.Index;
 }
 
-file_local inline entity* GetEntityFromID(entity_manager* EM, entity_id* EntityID) 
+inline entity* GetEntityFromID(entity_manager* EM, entity_id* EntityID) 
 { 
   entity* Entity = (entity*)  GetBlockIfItExists(&EM->EntityList, EntityID->ChunkListIndex);
   Assert(Entity->ID.EntityID == EntityID->EntityID);

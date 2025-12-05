@@ -10,8 +10,8 @@ struct color_list_data {
   s32* ColorIDs;      // Mapping IDS from Colors in the ColorTable to list indeces.
   imgui_id TextInputID;
   imgui_text_input_buffer TextInputBuffer;
-  imgui_scrollable_list ColorList;
-  imgui_bordered_window BorderWindow;
+  imgui_scrollable_list   ColorList;
+  imgui_bordered_window   BorderWindow;
 };
 
 struct position_component_data {
@@ -56,12 +56,29 @@ struct menu_entity_list {
   chunk_list PositionComponentData; // position_component_data
 };
 
+struct menu_entity_row {
+  ecs::entity_id EntityID;
+  imgui_id ImguiID;
+  b32 Open;
+};
+
+typedef cmn::n_tree<menu_entity_row> me_tree;
+typedef cmn::n_tree<menu_entity_row>::node me_node;
+typedef cmn::n_tree<menu_entity_row>::pre_order_iterator me_iterator;
+
+struct menu_entity_tree {
+  imgui_scrollable_list EntityList;
+  imgui_bordered_window BorderWindow;
+  me_tree EntityTree;
+};
+
 struct application_imgui {
   menu_entity_list* MenuEntityList;
   color_list_data*  ColorListData;
-
+  menu_entity_tree* MenuEntityTree;
 };
 
 application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* ImguiContext, u32 ColorCount);
 void DrawColorList(application_imgui* AppImgui);
 void DrawEntityList(application_imgui* AppImgui);
+void DrawEntityTree(application_imgui* AppImgui);
