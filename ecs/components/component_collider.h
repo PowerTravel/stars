@@ -2,7 +2,7 @@
 
 #include "commons/types.h"
 
-namespace ecs{ 
+namespace ecs { 
 namespace collider {
 
 struct mesh

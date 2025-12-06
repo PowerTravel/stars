@@ -833,3 +833,166 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   return ImguiIsActive(Id);
 }
 
+
+
+/// imgui_row BEGIN
+
+  imgui_row::padding imgui_row::Padding(r32 Width){
+    padding Result = {};
+    Result.Width = Width;
+    return Result;
+  }
+
+
+  imgui_row::icon imgui_row::Icon(r32 Size, u32 IconType ){
+    icon Result = {};
+    return Result;
+  }
+ 
+
+  imgui_row::text imgui_row::Text(r32 FontSize, size_t TextLen, const char* Text){
+    text Result = {};
+    Result.TextLen = TextLen;
+    Result.Text = Text;
+    Result.FontSize = FontSize;
+    return Result;
+  }
+
+
+  imgui_row::div_hint imgui_row::DivHint(){
+    div_hint Result = {};
+    return Result;
+  }
+
+
+  static size_t TypeToSize(imgui_row::type Type) {
+    switch(Type) {
+      case imgui_row::type::PADDING: {
+        return sizeof(imgui_row::padding);
+      }break;
+      case imgui_row::type::ICON: {
+        return sizeof(imgui_row::icon);
+      }break;
+      case imgui_row::type::TEXT: {
+        return sizeof(imgui_row::text);
+      }break;
+      case imgui_row::type::DIV_HINT: {
+        return sizeof(imgui_row::div_hint);
+      }break;
+    }
+    INVALID_CODE_PATH
+    return 0;
+  }
+
+  void imgui_row::Push(imgui_row::header* Header)
+  {
+    if(!m_head)
+    {
+      m_head = Header;
+      m_tail = Header;
+    }else{
+      m_tail->Next = Header;
+      m_tail = Header;
+    }
+  }
+
+  void imgui_row::Push(imgui_row::padding Padding){
+    header* Header = (header*) PushStruct(GlobalTransientArena, header);
+    Header->Type = type::PADDING;
+    padding* Tmp = PushStruct(GlobalTransientArena, padding);
+    *Tmp = Padding;
+    Header->Data = (void*) Tmp;
+    Push(Header);
+  }
+  void imgui_row::Push(imgui_row::icon Icon){
+    header* Header = (header*) PushStruct(GlobalTransientArena, header);
+    Header->Type = type::ICON;
+    icon* Tmp = PushStruct(GlobalTransientArena, icon);
+    *Tmp = Icon;
+    Header->Data = (void*) Tmp;
+    Push(Header);
+  }
+  void imgui_row::Push(imgui_row::text Text) {
+    header* Header = (header*) PushStruct(GlobalTransientArena, header);
+    Header->Type = type::TEXT;
+    text* Tmp = PushStruct(GlobalTransientArena, text);
+    Tmp->TextLen = Text.TextLen;
+    Tmp->FontSize = Text.FontSize;
+    Tmp->Text = (char*) PushCopy(GlobalTransientArena, Text.TextLen, (void*) Text.Text);
+    Header->Data = (void*) Tmp;
+    Push(Header);
+  }
+  void imgui_row::Push(div_hint DivHint){
+    header* Header = (header*) PushStruct(GlobalTransientArena, header);
+    Header->Type = type::DIV_HINT;
+    div_hint* Tmp = PushStruct(GlobalTransientArena, div_hint);
+    *Tmp = DivHint;
+    Header->Data = (void*) Tmp;
+    Push(Header);
+  }
+
+
+  r32 imgui_row::Draw(r32 XPos, r32 YPos, r32 ScrollAmmount) {
+    header* Header = m_head;
+
+    r32 X = XPos;
+    r32 Y = YPos;
+
+    while(Header)
+    {
+      switch(Header->Type)
+      {
+        case imgui_row::type::PADDING: {
+          Platform.DEBUGPrint("PADDING\n");
+          padding* Padding = (padding*) Header->Data;
+          X+=Padding->Width;
+        }break;
+        case imgui_row::type::ICON: {
+          Platform.DEBUGPrint("ICON\n");
+          icon* Icon = (icon*) Header->Data;
+        }break;
+        case imgui_row::type::TEXT: {
+          Platform.DEBUGPrint("TEXT\n");
+          text* Text = (text*) Header->Data;
+        }break;
+        case imgui_row::type::DIV_HINT: {
+          Platform.DEBUGPrint("DIV_HINT\n");
+          div_hint* DivHint = (div_hint*) Header->Data;
+        }break;
+      }
+      Header = Header->Next;
+    }
+  /*
+    cmn::vector<r32> DivWidths = cmn::vector<r32>::CreateTransient(m_divCount);
+
+    element* Element = List.GetFirstElement();
+    r32 DivWidth = 0;
+    int DivIndex = 0;
+    DivWidths[0] = 0;
+    while(List::IsEnd(Element))
+    {
+      if(!IsDiv(Element))
+      {
+        DivIndex++;
+        DivWidths[DivIndex] = 0;
+      }else{
+        DivWidths[DivIndex] += GetWidth(Element)
+      }
+    }
+
+    foreach( content ){
+      switch(content.type)
+      {
+        case ContentType::TEXT:{}break;
+        case ContentType::ICON:{}break;
+        case ContentType::DIV:{ }break;
+      }
+    }*/
+    return 0;
+  }
+imgui_row ImguiRow(r32 Width){
+  imgui_row Result = {};
+  return Result;
+};
+
+

@@ -232,6 +232,59 @@ struct imgui_button_color {
   v4 HotColor;
 };
 
+struct imgui_row { 
+
+  struct padding {
+    int Width;
+  };
+  static padding Padding(r32 Width);
+
+  struct icon {
+    int a;
+  };
+  static icon Icon(r32 Size, u32 IconType );
+
+  struct text {
+    size_t TextLen;
+    const char* Text;
+    r32 FontSize;
+  };
+  static text Text(r32 FontSize, size_t TextLen, const char* Text);
+
+  struct div_hint{
+
+  };
+  static div_hint DivHint();
+
+  enum class type {
+    PADDING,
+    ICON,
+    TEXT,
+    DIV_HINT
+  };
+
+  struct header { 
+    type Type;
+    size_t Size;
+    void* Data;
+    header* Next;
+  };
+  header* m_head;
+  header* m_tail;
+  
+  r32 Draw(r32 XPos, r32 YPos, r32 ScrollAmmount);
+  void Push(padding Padding);
+  void Push(icon Icon);
+  void Push(text Text);
+  void Push(div_hint DivHint);
+  void Push(header* Header);
+
+
+  
+
+};
+imgui_row ImguiRow(r32 Width);
+
 imgui_button_color ImguiDefaultButtonColor();
 v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors);
 b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect);

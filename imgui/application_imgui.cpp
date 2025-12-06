@@ -662,6 +662,13 @@ void DrawText(ecs::entity_node* EntityNode, v2 TextPos, rect2f ButtonRect){
   render::DrawTextCanonicalSpace(TextPos, ButtonRect, GlobalState->ImguiContext.FontSize, (utf8_byte const *) ButtonBuff, V4(1.0,1.0,1.0,1.0));
 }
 
+void GetEntityName(ecs::entity_node* EntityNode, size_t BuffLen, char TextBuff[])
+{
+  char SuffixBuff[16] = {};
+  ecs::entity* Entity = *EntityNode->Data;
+  FormatString(SuffixBuff, sizeof(SuffixBuff)-1, " (%d)", EntityNode->ChildCount);
+  FormatString(TextBuff, BuffLen-1, "%s%s", Entity->Name, EntityNode->ChildCount > 0 ? SuffixBuff : "");
+}
 
 b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) {
 
@@ -693,19 +700,64 @@ b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) 
   bool SkipSubTree = false;
   int Rownum = 0;
   r32 YOffset = 0;
+  r32 YPos = 0; // Increasing downwards. 
   while(me_node* MenuNode = It.Next(SkipSubTree))
   {
     int Index = It.Depth() - 1;
     if(Index != 0){
-      //row_renderer RowRenderer = RowRenderer();
-      //RowRenderer.Width = Size.X;
-      //RowRenderer.Push(Icon( 32, MenuRowData->Open ? ICON_ANGLE_DOWN : ICON_ANGLE_RIGHT ));
-      //YOffset = DrawRow();
-
       menu_entity_row* MenuRowData = MenuNode->Data;
-      r32 XOffset = (Index-1)*RowHeight;
-      ecs::entity* Entity = GetEntityFromID(GetEntityManager(), &MenuRowData->EntityID);
+      ecs::entity_id* EntityID = &MenuRowData->EntityID;
+      ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
       ecs::entity_node* EntityNode = Entity->Node;
+
+      r32 XOffset = (Index-1)*RowHeight;
+
+      imgui_row RowRenderer = ImguiRow(Size.X);
+      RowRenderer.Push(imgui_row::Padding(XOffset));
+      RowRenderer.Push(imgui_row::Icon( 32, MenuRowData->Open ? ICON_ANGLE_DOWN : ICON_ANGLE_RIGHT ));
+
+      char NameBuffer[128] = {};
+      GetEntityName(EntityNode,sizeof(NameBuffer),NameBuffer);
+      RowRenderer.Push(imgui_row::Text(FontSize, sizeof(NameBuffer), NameBuffer));
+      RowRenderer.Push(imgui_row::DivHint()); // DivHint is a hint to the row-render that if it needs to break things into several rows it will do so along divs
+      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::POSITION))
+      {
+        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_LOCATION ));
+      }
+      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::GEOMETRY))
+      {
+        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_GEOMETRY ));
+      }
+      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::MATERIAL))
+      {
+        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_MATERIAL ));
+      }
+      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::COLLIDER))
+      {
+        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_COLLIDER ));
+      }
+      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::LIGHT))
+      {
+        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_LIGHT ));
+      }
+      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CAMERA))
+      {
+        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_CAMERA ));
+      }
+      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CONTROLLER))
+      {
+        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_CONTROLLER ));
+      }
+      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::RENDER))
+      {
+        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_UNKNOWN ));
+      }
+      
+      YOffset = RowRenderer.Draw(Pos.X, YOffset, 0);
+
+    
+    #if 0
+
       //v2 ButtonPos = V2(Pos.X, RowPos);
       //rect2f ButtonRect = Rect2f(ButtonPos.X, ButtonPos.Y, Size.X, RowHeight);
       
@@ -795,46 +847,9 @@ b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) 
           }
         }
       }
+      #endif
       SkipSubTree = !MenuRowData->Open;
-#if 0
-      if(E->Node->FirstChild)
-      {
-        v2 IconPos = V2(P0.X + TabWidth * (Index-1), RowPos);
 
-
-
-        if (IsClippingTopRow(ButtonRect, ContentRect)) {
-          
-          IconRect = 
-          IconTectCoord = 
-
-        }else if (IsClippingBotRow(ButtonRect, ContentRect)){
-
-        }
-
-
-        rect2f ClippedIconRect = Clip(IconRect, ContentRect);
-        r32 HeightPercentageChange = ClippedIconRect.H / IconRect.H;
-
-        if(ClippedIconRect.H < IconRect.H)
-        {
-          Platform.DEBUGPrint("%d %f\n",Rownum, HeightPercentageChange);
-          r32 NewTextCoordY0 = Lerp(HeightPercentageChange,TexCoord.Y,TexCoord.W);
-          TexCoord.Y = NewTextCoordY0;
-        }
-
-        render::DrawIconCanonicalSpace(IconRect, TexCoord, V4(1,1,1,1));
-      }
-
-      v2 TextPos = V2(P0.X + RowHeight + TabWidth * (Index-1), RowPos + DescentOffset);
-      
-      char SuffixBuff[16] = {};
-      FormatString(SuffixBuff, sizeof(SuffixBuff)-1, " (%d)", E->Node->ChildCount);
-      char ButtonBuff[128] = {};
-
-      FormatString(ButtonBuff, sizeof(ButtonBuff)-1, "%s%s", E->Name, E->Node->ChildCount > 0 ? SuffixBuff : "");
-      render::DrawTextCanonicalSpace(TextPos, ClipRect, FontSize, (utf8_byte const *) ButtonBuff, V4(1.0,1.0,1.0,1.0));
-#endif
       RowPos -= RowHeight;
 
     }
