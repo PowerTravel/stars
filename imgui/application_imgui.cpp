@@ -690,17 +690,13 @@ b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) 
   r32 DescentOffset = Font.GetCanonicalFontDescenOffset(FontSize);
   r32 TabWidth  = Font.GetTextSizeCanonicalSpace(FontSize, (utf8_byte const *) "  ").X;
 
-  v2 P0 = V2(Pos.X + Padding.X, Pos.Y + Size.Y);
-  r32 RowPos = P0.Y - RowHeight;
-  //rect2f ClipRect = Shrink(Rect2f(Pos,Size),Padding);
-
   ecs::entity_tree& EntityTree = GlobalEntityManager->EntityTree;
   me_tree& MenuTree = MenuEntityTree->EntityTree;
-  me_iterator It = MenuEntityTree->EntityTree.PreOrderIterator(EntityTree.NodeCount());
+  r32 Y = Pos.Y + Size.Y - RowHeight;
   bool SkipSubTree = false;
-  int Rownum = 0;
-  r32 YOffset = 0;
-  r32 YPos = 0; // Increasing downwards. 
+  me_iterator It = MenuEntityTree->EntityTree.PreOrderIterator(EntityTree.NodeCount());
+  cmn::vector<imgui_row> ImguiRows = cmn::vector<imgui_row>::CreateTransient(EntityTree.NodeCount());
+  const r32 IconSize = 32;
   while(me_node* MenuNode = It.Next(SkipSubTree))
   {
     int Index = It.Depth() - 1;
@@ -712,153 +708,100 @@ b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) 
 
       r32 XOffset = (Index-1)*RowHeight;
 
-      imgui_row RowRenderer = ImguiRow(Size.X);
-      RowRenderer.Push(imgui_row::Padding(XOffset));
-      RowRenderer.Push(imgui_row::Icon( 32, MenuRowData->Open ? ICON_ANGLE_DOWN : ICON_ANGLE_RIGHT ));
+      imgui_row RowRenderer = {};
+      RowRenderer.Push(imgui_row::Padding(XOffset,RowHeight));
+      RowRenderer.Push(imgui_row::Icon( IconSize, MenuRowData->Open ? ICON_ANGLE_DOWN : ICON_ANGLE_RIGHT ));
 
       char NameBuffer[128] = {};
       GetEntityName(EntityNode,sizeof(NameBuffer),NameBuffer);
-      RowRenderer.Push(imgui_row::Text(FontSize, sizeof(NameBuffer), NameBuffer));
+      RowRenderer.Push(imgui_row::Text(FontSize, &Font, sizeof(NameBuffer), NameBuffer));
       RowRenderer.Push(imgui_row::DivHint()); // DivHint is a hint to the row-render that if it needs to break things into several rows it will do so along divs
       if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::POSITION))
       {
-        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_LOCATION ));
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_LOCATION ));
       }
       if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::GEOMETRY))
       {
-        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_GEOMETRY ));
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_GEOMETRY ));
       }
       if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::MATERIAL))
       {
-        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_MATERIAL ));
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_MATERIAL ));
       }
       if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::COLLIDER))
       {
-        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_COLLIDER ));
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_COLLIDER ));
       }
       if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::LIGHT))
       {
-        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_LIGHT ));
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_LIGHT ));
       }
       if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CAMERA))
       {
-        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_CAMERA ));
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_CAMERA ));
       }
       if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CONTROLLER))
       {
-        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_CONTROLLER ));
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_CONTROLLER ));
       }
       if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::RENDER))
       {
-        RowRenderer.Push(imgui_row::Icon( 32, ICON_COMPONENT_UNKNOWN ));
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_UNKNOWN ));
       }
-      
-      YOffset = RowRenderer.Draw(Pos.X, YOffset, 0);
-
-    
-    #if 0
-
-      //v2 ButtonPos = V2(Pos.X, RowPos);
-      //rect2f ButtonRect = Rect2f(ButtonPos.X, ButtonPos.Y, Size.X, RowHeight);
-      
-      rect2f RowRect = GetRectForRow(ContentRect, RowPos, RowHeight);
-      if (IsClippingTop(RowRect, ContentRect)) {
-        // Draw Clipped Top Row
-        //rect2f ClippedButtonRect = Clip(ButtonRect, ContentRect);
-        //DoEntityButtonRect(Row->ImguiID, ClippedButtonRect);
-      }else if (IsClippingBot(RowRect, ContentRect)){
-        // Draw Clipped Bot Row
-        //rect2f ClippedButtonRect = Clip(ButtonRect, ContentRect);
-        //DoEntityButtonRect(Row->ImguiID, ClippedButtonRect);
-      }else{
-        DoEntityButtonRect(ImguiContext, RowRect, ButtonColor, MenuRowData);
-        r32 IconXOffset = XOffset;
-        if(EntityHasChildren(EntityNode))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = MenuRowData->Open ? GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_DOWN] : GlobalImguiContext->Icons.Coordinates[ICON_ANGLE_RIGHT];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::POSITION))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_LOCATION];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::GEOMETRY))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_GEOMETRY];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::MATERIAL))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_MATERIAL];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::COLLIDER))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_COLLIDER];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::LIGHT))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_LIGHT];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CAMERA))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_CAMERA];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CONTROLLER))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_CONTROLLER];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-        if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::RENDER))
-        {
-          rect2f IconRect = Rect2f(RowRect.X + IconXOffset, RowRect.Y, RowRect.W - IconXOffset, RowRect.H);
-          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_UNKNOWN];
-          DrawIcon(MenuRowData->Open, TexCoords, IconRect);
-          IconXOffset+=RowHeight;
-        }
-
-        v2 TextPosition = V2(RowRect.X + IconXOffset, RowPos + DescentOffset);
-        DrawText(EntityNode, TextPosition, RowRect);
-        if(MenuRowData->Open)
-        {
-          if(EntityHasChildren(EntityNode) && !MenuHasChildren(MenuNode))
-          {
-            AddChildEntitiesLoadedToMenuTree(MenuTree, MenuNode, EntityTree, EntityNode);
-          }
-        }
-      }
-      #endif
       SkipSubTree = !MenuRowData->Open;
-
-      RowPos -= RowHeight;
-
+      ImguiRows.PushBack(RowRenderer);
     }
-    if(RowPos < Pos.Y - RowHeight)
+    if(Y+RowHeight < Pos.Y)
     {
       break;
     }
-    Rownum++;
   }
+
+  const r32 ScrollAmmount = 0;
+  r32 TotalHeight = 0;
+  u32 MaxDivCount = 1;
+  u32 RowCount = ImguiRows.Size();
+  r32* RowHeights = PushArray(GlobalTransientArena, RowCount, r32);
+  for (int i = 0; i < RowCount; ++i)
+  {
+    imgui_row& Row = ImguiRows[i];
+    v2* DivLengths = PushArray(GlobalTransientArena, Row.m_divCount+1, v2);
+    v2 RowSize = Row.GetSize(DivLengths);
+    r32 RowWidth = 0;
+    r32 RowHeight = 0;
+    for (int j = 0; j < Row.m_divCount+1; ++j)
+    {
+      v2 DivSize = DivLengths[j];
+      if(RowWidth + DivSize.X > Size.X)
+      {
+        RowHeight += DivSize.Y;
+        RowWidth = Maximum(RowWidth, DivSize.X);
+      }else{
+        RowHeight = Maximum(RowHeight, DivSize.Y);
+        RowWidth += DivSize.X;
+      }
+    }
+    if(i == 0){
+      
+      RowHeights[0] = RowHeight;
+    }else{
+      r32 Height = Row.GetSize(DivLengths).Y;
+      RowHeights[i] = RowHeight + RowHeights[i-1];
+    }
+    TotalHeight += RowHeights[i];
+  }
+
+  r32 YPos = Pos.Y + Size.Y;
+  for (int i = 0; i < RowCount; ++i)
+  {
+    r32 Percentage = RowHeights[i] / TotalHeight;
+    if(Percentage >= ScrollAmmount && Percentage < 1)
+    {
+      imgui_row& Row = ImguiRows[i];
+      YPos = Row.Draw(Pos.X, YPos, Rect2f(Pos, Size), RowCount);
+    }
+  }
+  
   return false;
 }
 

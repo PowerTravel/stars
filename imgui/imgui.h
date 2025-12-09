@@ -3,6 +3,7 @@
 #include "commons/types.h"
 #include "platform/jwin_platform_input.h"
 #include "platform/text_input.h"
+#include "render/render.h"
 
 enum imgui_icon {
   ICON_DOUBLE_ANGLE_UP,
@@ -235,26 +236,31 @@ struct imgui_button_color {
 struct imgui_row { 
 
   struct padding {
-    int Width;
+    r32 Width;
+    r32 Height;
   };
-  static padding Padding(r32 Width);
+  static padding Padding(r32 Width, r32 Height);
 
   struct icon {
-    int a;
+    r32 Size;
+    u32 IconType;
+    v4 Color;
   };
-  static icon Icon(r32 Size, u32 IconType );
+  static inline icon Icon(r32 Size, u32 IconType);
 
   struct text {
     size_t TextLen;
     const char* Text;
     r32 FontSize;
+    v4 Color;
+    render::font* Font;
   };
-  static text Text(r32 FontSize, size_t TextLen, const char* Text);
+  static inline text Text(r32 FontSize, render::font* Font, size_t TextLen, const char* Text);
 
   struct div_hint{
 
   };
-  static div_hint DivHint();
+  static inline div_hint DivHint();
 
   enum class type {
     PADDING,
@@ -269,21 +275,23 @@ struct imgui_row {
     void* Data;
     header* Next;
   };
+
+  u32 m_divCount;
+  cmn::list<header*> m_divList;
   header* m_head;
   header* m_tail;
   
-  r32 Draw(r32 XPos, r32 YPos, r32 ScrollAmmount);
+  v2 GetSize(v2* ResultVec);
+  v2 GetSizeOfDiv(imgui_row::header* Start, imgui_row::header** ResultEnd);
+  r32 Draw(r32 X, r32 Y, rect2f ClipRect, r32 RowNum);
   void Push(padding Padding);
   void Push(icon Icon);
   void Push(text Text);
   void Push(div_hint DivHint);
   void Push(header* Header);
 
-
-  
-
 };
-imgui_row ImguiRow(r32 Width);
+imgui_row ImguiRow();
 
 imgui_button_color ImguiDefaultButtonColor();
 v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors);

@@ -837,24 +837,30 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
 
 /// imgui_row BEGIN
 
-  imgui_row::padding imgui_row::Padding(r32 Width){
+  imgui_row::padding imgui_row::Padding(r32 Width, r32 Height){
     padding Result = {};
     Result.Width = Width;
+    Result.Height = Height;
     return Result;
   }
 
 
   imgui_row::icon imgui_row::Icon(r32 Size, u32 IconType ){
     icon Result = {};
+    Result.Size = Size;
+    Result.IconType = IconType;
+    Result.Color = V4(1,1,1,1);
     return Result;
   }
  
 
-  imgui_row::text imgui_row::Text(r32 FontSize, size_t TextLen, const char* Text){
+  imgui_row::text imgui_row::Text(r32 FontSize, render::font* Font, size_t TextLen, const char* Text){
     text Result = {};
     Result.TextLen = TextLen;
     Result.Text = Text;
     Result.FontSize = FontSize;
+    Result.Font = Font;
+    Result.Color = V4(1,1,1,1);
     return Result;
   }
 
@@ -919,6 +925,8 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     Tmp->TextLen = Text.TextLen;
     Tmp->FontSize = Text.FontSize;
     Tmp->Text = (char*) PushCopy(GlobalTransientArena, Text.TextLen, (void*) Text.Text);
+    Tmp->Font = Text.Font;
+    Tmp->Color = Text.Color;
     Header->Data = (void*) Tmp;
     Push(Header);
   }
@@ -929,70 +937,198 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     *Tmp = DivHint;
     Header->Data = (void*) Tmp;
     Push(Header);
+    m_divCount++;
   }
 
+  file_local void InitiateDivList(cmn::list<imgui_row::header*>& DivList, imgui_row::header* First){
+    if(!DivList.Initiated())
+    {
+      DivList = cmn::list<imgui_row::header*>::CreateTransient();
+      imgui_row::header* Header = First;
+      while(Header)
+      {
+        if(Header->Type == imgui_row::type::DIV_HINT)
+        {
+          DivList.PushBack(Header);
+        }
+        Header = Header->Next;
+      }
+    }
+  }
+#if 0
+  v2 imgui_row::GetSizeOfDiv(imgui_row::header* Start, imgui_row::header** ResultEnd) {
+    Assert(Start->Type != imgui_row::type::DIV_HINT);
 
-  r32 imgui_row::Draw(r32 XPos, r32 YPos, r32 ScrollAmmount) {
+    header* Header = Start;
+    v2 Result = {};
+    b32 NextDivFound = false;
+    while(Header && !NextDivFound)
+    {
+      switch(Header->Type)
+      {
+        case type::PADDING: {
+          padding* Padding = (padding*) Header->Data;
+          Result.X += Padding->Width;
+          Result.Y = Maximum(Result.Y, Padding->Height);
+        }break;
+        case type::ICON: {
+          icon* Icon = (icon*) Header->Data;
+          v2 CanSize = PixelToCanonicalSpace(V2(Icon->Size,Icon->Size));
+          Result.X += CanSize.X;
+          Result.Y = Maximum(Result.Y, CanSize.Y);
+        }break;
+        case type::TEXT: {
+          text* Text = (text*) Header->Data;
+          r32 TextWidht = GlobalRenderer->Font.GetTextSizeCanonicalSpace(Text->FontSize, (utf8_byte*) Text->Text).X;
+          r32 LineHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(Text->FontSize);
+          Result.X += TextWidht;
+          Result.Y = Maximum(Result.Y, LineHeight);
+        }break;
+        case type::DIV_HINT: {
+          NextDivFound = true;
+        }break;
+      }
+      if(!NextDivFound){
+        Header = Header->Next;
+      }
+    }
+    *ResultEnd = Header;
+    return Result;
+  }
+#endif
+  v2 imgui_row::GetSize(v2* ResultVec = 0) {
+    
+    int DivCount = 0;
+    r32 X = 0;
+    r32 Y = 0;
+    v2 Result = V2(0,0);
     header* Header = m_head;
-
-    r32 X = XPos;
-    r32 Y = YPos;
-
     while(Header)
     {
       switch(Header->Type)
       {
-        case imgui_row::type::PADDING: {
-          Platform.DEBUGPrint("PADDING\n");
+        case type::PADDING: {
           padding* Padding = (padding*) Header->Data;
           X+=Padding->Width;
+          Y = Maximum(Y, Padding->Height);
         }break;
-        case imgui_row::type::ICON: {
-          Platform.DEBUGPrint("ICON\n");
+        case type::ICON: {
           icon* Icon = (icon*) Header->Data;
+          X += PixelToCanonicalWidth(Icon->Size);
+          r32 CanHeight = PixelToCanonicalHeight(Icon->Size);
+          Y = Maximum(Y, CanHeight);
         }break;
-        case imgui_row::type::TEXT: {
-          Platform.DEBUGPrint("TEXT\n");
+        case type::TEXT: {
           text* Text = (text*) Header->Data;
+          v2 CanSize = GlobalRenderer->Font.GetTextSizeCanonicalSpace(Text->FontSize, (utf8_byte*) Text->Text);
+          r32 LineHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(Text->FontSize);
+          X += CanSize.X;
+          Y = Maximum(Y, LineHeight);
         }break;
-        case imgui_row::type::DIV_HINT: {
-          Platform.DEBUGPrint("DIV_HINT\n");
-          div_hint* DivHint = (div_hint*) Header->Data;
+        case type::DIV_HINT: {
+          if(ResultVec)
+          {
+            ResultVec[DivCount] = V2(X,Y);
+            Result.X = Maximum(X,Result.X);
+            Result.Y += Y;
+          }
+          DivCount++;
+          X = 0;
+          Y = 0;
         }break;
       }
       Header = Header->Next;
     }
-  /*
-    cmn::vector<r32> DivWidths = cmn::vector<r32>::CreateTransient(m_divCount);
-
-    element* Element = List.GetFirstElement();
-    r32 DivWidth = 0;
-    int DivIndex = 0;
-    DivWidths[0] = 0;
-    while(List::IsEnd(Element))
+    
+    Result.X = Maximum(X,Result.X);
+    Result.Y += Y;
+    if(ResultVec)
     {
-      if(!IsDiv(Element))
-      {
-        DivIndex++;
-        DivWidths[DivIndex] = 0;
-      }else{
-        DivWidths[DivIndex] += GetWidth(Element)
-      }
+      ResultVec[DivCount] = V2(X,Y);
+    }
+    return Result;
+  }
+
+  void DrawDebugRect(r32 t, v2 Pos, v2 Size){
+    static const v4 Color1 = V4(0,0,0,1);
+    static const v4 Color2 = V4(1,1,1,1);        
+    rect2f DivRect = Rect2f(Pos,Size);
+    v4 Color = V4(Lerp(t,Color1.X,Color2.X), Lerp(t,Color1.Y,Color2.Y), Lerp(t,Color1.Z,Color2.Z),0.9);
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(DivRect), Color);
+  }
+
+  r32 imgui_row::Draw(r32 X0, r32 Y0, rect2f ClipRect, r32 RowNum) {
+
+    v2* DivLengths = PushArray(GlobalTransientArena, m_divCount+1, v2);
+    GetSize(DivLengths);
+    r32 X = X0;
+    r32 Y = Y0 - DivLengths[0].Y;
+
+    header* Header = m_head;
+    r32 ElementCount = 0;
+    while(Header)
+    {
+      ElementCount++;
+      Header = Header->Next;
     }
 
-    foreach( content ){
-      switch(content.type)
+    Header = m_head;
+    r32 InterpolationStepSize = 1 / (r32 )ElementCount;
+    r32 t = 0;
+    u32 DivIndex = 0;
+    while(Header)
+    {
+      v2 Lim = DivLengths[DivIndex];
+      rect2f DivRect = Rect2f(V2(X,Y),Lim);      
+      //render::DrawOverlayQuadCanonicalSpace(CenteredRect(DivRect), Color);
+      switch(Header->Type)
       {
-        case ContentType::TEXT:{}break;
-        case ContentType::ICON:{}break;
-        case ContentType::DIV:{ }break;
+        case imgui_row::type::PADDING: {
+          padding* Padding = (padding*) Header->Data;
+          X += Padding->Width;
+          DrawDebugRect(t, V2(X,Y), V2(Padding->Width,Lim.Y));
+        }break;
+        case imgui_row::type::ICON: {
+          icon* Icon = (icon*) Header->Data;
+          v2 IconCanSize = PixelToCanonicalSpace(V2(Icon->Size,Icon->Size));
+          r32 DiffY = 0.5* (Lim.Y - IconCanSize.X);
+          rect2f IconRect = Rect2f(X, Y + DiffY, IconCanSize.X, IconCanSize.Y);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[Icon->IconType];
+          render::DrawIconCanonicalSpace(CenteredRect(IconRect), TexCoords, Icon->Color);
+          DrawDebugRect(t, V2(IconRect.X, IconRect.Y), V2(IconRect.W,IconRect.H));
+          X += IconCanSize.X;
+        }break;
+        case imgui_row::type::TEXT: {
+          text* Text = (text*) Header->Data;
+          r32 DescentOffset = Text->Font->GetCanonicalFontDescenOffset(Text->FontSize);
+          v2 TextSize = GlobalRenderer->Font.GetTextSizeCanonicalSpace(Text->FontSize, (const utf8_byte*) Text->Text);
+          r32 LineHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(Text->FontSize);
+
+          r32 DiffY = 0.5* (Lim.Y - LineHeight);
+
+          render::DrawTextCanonicalSpace(V2(X, Y + DescentOffset + DiffY), Text->FontSize, (const utf8_byte*) Text->Text, Text->Color);
+          DrawDebugRect(t, V2(X, Y+DiffY), V2(TextSize.X,LineHeight));
+          X += TextSize.X;
+        }break;
+        case imgui_row::type::DIV_HINT: {
+          div_hint* DivHint = (div_hint*) Header->Data;
+          v2 PrevLim = Lim;
+          Lim = DivLengths[++DivIndex];
+          if(X + Lim.X > ClipRect.X + ClipRect.W)
+          {
+            Y -= Lim.Y;
+            X = X0;
+          }
+        }break;
       }
-    }*/
-    return 0;
+      t += InterpolationStepSize;
+      Header = Header->Next;
+    }
+    return Y;
   }
-imgui_row ImguiRow(r32 Width){
-  imgui_row Result = {};
-  return Result;
-};
+  imgui_row ImguiRow(){
+    imgui_row Result = {};
+    return Result;
+  };
 
 
