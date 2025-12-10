@@ -905,6 +905,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   void imgui_row::Push(imgui_row::padding Padding){
     header* Header = (header*) PushStruct(GlobalTransientArena, header);
     Header->Type = type::PADDING;
+    Header->Size = V2(Padding.Width, Padding.Height);
     padding* Tmp = PushStruct(GlobalTransientArena, padding);
     *Tmp = Padding;
     Header->Data = (void*) Tmp;
@@ -913,6 +914,8 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   void imgui_row::Push(imgui_row::icon Icon){
     header* Header = (header*) PushStruct(GlobalTransientArena, header);
     Header->Type = type::ICON;
+    Header->Size = PixelToCanonicalSpace(V2(Icon.Size,Icon.Size));
+
     icon* Tmp = PushStruct(GlobalTransientArena, icon);
     *Tmp = Icon;
     Header->Data = (void*) Tmp;
@@ -921,6 +924,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   void imgui_row::Push(imgui_row::text Text) {
     header* Header = (header*) PushStruct(GlobalTransientArena, header);
     Header->Type = type::TEXT;
+    Header->Size = GlobalRenderer->Font.GetTextSizeCanonicalSpace(Text.FontSize, (utf8_byte*) Text.Text);
     text* Tmp = PushStruct(GlobalTransientArena, text);
     Tmp->TextLen = Text.TextLen;
     Tmp->FontSize = Text.FontSize;
@@ -930,12 +934,39 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     Header->Data = (void*) Tmp;
     Push(Header);
   }
-  void imgui_row::Push(div_hint DivHint){
+
+  // Sums the sizes of all elements up untill the next DivHint __or__ untill last element.
+  v2 CalculateDivSize(imgui_row::header* H) {
+    v2 DivSize = {};
+    while(H && H->Type != imgui_row::type::DIV_HINT){
+      DivSize.X += H->Size.X;
+      DivSize.Y  = Maximum(DivSize.Y, H->Size.Y);
+      H = H->Next;
+    }
+    return DivSize;
+  }
+
+  void imgui_row::Push(div_hint foo){
     header* Header = (header*) PushStruct(GlobalTransientArena, header);
     Header->Type = type::DIV_HINT;
-    div_hint* Tmp = PushStruct(GlobalTransientArena, div_hint);
-    *Tmp = DivHint;
-    Header->Data = (void*) Tmp;
+    div_hint* DivHint = PushStruct(GlobalTransientArena, div_hint);
+    DivHint->Header = Header;
+
+    if(!m_divTail)
+    {
+      Assert(!m_divHead);
+      m_divHead = DivHint;
+      m_divTail = DivHint;
+      Assert(m_head);
+      Header->Size = CalculateDivSize(m_head);
+    }else{
+      header* H = m_divTail->Header->Next;
+      Assert(!m_divTail->Next);
+      m_divTail->Next = DivHint;
+      m_divTail = DivHint;
+      Header->Size = CalculateDivSize(H);
+    }
+    Header->Data = (void*) DivHint;
     Push(Header);
     m_divCount++;
   }

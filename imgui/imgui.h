@@ -257,11 +257,6 @@ struct imgui_row {
   };
   static inline text Text(r32 FontSize, render::font* Font, size_t TextLen, const char* Text);
 
-  struct div_hint{
-
-  };
-  static inline div_hint DivHint();
-
   enum class type {
     PADDING,
     ICON,
@@ -271,13 +266,20 @@ struct imgui_row {
 
   struct header { 
     type Type;
-    size_t Size;
+    v2 Size;
     void* Data;
     header* Next;
   };
 
+  struct div_hint {
+    struct header* Header;
+    div_hint* Next;
+  };
+  static inline div_hint DivHint();
+
   u32 m_divCount;
-  cmn::list<header*> m_divList;
+  div_hint* m_divHead;
+  div_hint* m_divTail;
   header* m_head;
   header* m_tail;
   
@@ -289,9 +291,9 @@ struct imgui_row {
   void Push(text Text);
   void Push(div_hint DivHint);
   void Push(header* Header);
-
 };
 imgui_row ImguiRow();
+v2 CalculateDivSize(imgui_row::header* H);
 
 imgui_button_color ImguiDefaultButtonColor();
 v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors);
