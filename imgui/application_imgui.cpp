@@ -675,18 +675,18 @@ struct reactive_size {
   u32* DivCounts;     // Total number of divs per row
   rect2f* RowRects;   // Rects holding the position and size of each row.
   rect2f** DivRects;  // Rects holding each div within a row.
-  u32* SplitCounts;   // Each row can be divided into several rows if the bounding rect is too small
-  u32** SplitIndeces; // Within each DivSizes This array holds the indeces where a new row is started
+  u32* SplitCounts;   // The sizes of each list of u32 in SplitIndeces repressenting the number of divs to get a new row
+  u32** SplitIndeces; // This array holds the indeces where a new row is started
 };
 
 
 void CalculateRowBreakIndeces(imgui_row::div_hint* FirstDivHint, u32* DivBreakCount, u32* DivBreakPointIndeces, const rect2f& ClipRect)
 {
-  imgui_row::div_hint* DivHint = FirstDivHint;
   *DivBreakCount = 0;
   u32 DivIndex = 0;
   r32 RightEdge = ClipRect.X + ClipRect.W;
   r32 X0 = ClipRect.X;
+  imgui_row::div_hint* DivHint = FirstDivHint;
   while(DivHint) {
     imgui_row::header* Header = DivHint->Header;
     r32 X1 = 0;
@@ -699,98 +699,101 @@ void CalculateRowBreakIndeces(imgui_row::div_hint* FirstDivHint, u32* DivBreakCo
         X0 = ClipRect.X;
         X1 = ClipRect.X + Header->Size.X;
         DivBreakPointIndeces[*DivBreakCount] = DivIndex;
-        *DivBreakCount++;
+        (*DivBreakCount)++;
       }
     }
     X0 = X1;
-    DivHint = DivHint->Next;
     DivIndex++;
+    DivHint = DivHint->Next;
   }
+  DivBreakPointIndeces[*DivBreakCount] = DivIndex;
+  (*DivBreakCount)++;
 }
 #if 0
-
-void StackDivsVertically(imgui_row::div_hint* FirstDivHint, u32 DivCount, rect2f* RowDivs, const rect2f& ClipRect)
-{
-  imgui_row::div_hint* DivHint = FirstDivHint;
-  int DivIndex = 0;
-    
-  while(DivHint) {
-    imgui_row::head* Header = DivHint->Header;
-    if(DivIndex == 0){
-      RowDivs[0] = Rect2f(ClipRect.X, 0, Header.Size.X, 0);
-    }else{
-      rect2f NewDivRect = Rect2f(RowDivs[DivIndex-1].X + RowDivs[DivIndex-1].W, 0, Header.Size.X, 0);
-      if(NewDivRect.X + NewDivRect.W > ClipRect.X + ClipRect.W)
-      {
-        RowDivs[DivIndex] = Rect2f(ClipRect.X, 0, Header.Size.X, 0);
+      if(DivIndex == 0){
+        RowDivs[0] = Rect2f(ClipRect.X, 0, Header.Size.X, 0);
       }else{
-        RowDivs[DivIndex] = NewDivRect;
-      }
-    }
-    DivHint = DivHint->Next;
-    DivIndex++;
-  }
-  Assert(DivCount == DivIndex);
-}
-
-void StackDivsHorizontally(imgui_row::div_hint* FirstDivHint, u32 DivCount, rect2f* RowDivs, const rect2f& ClipRect)
-{
-  imgui_row::div_hint* DivHint = FirstDivHint;
-  int DivIndex = 0;
-    
-  r32 MaxHeight = 0;
-  r32 YPos = 0;
-  while(DivHint){
-    imgui_row::head* Header = DivHint->Header;
-
-    bool NewRow = false;
-
-    if(DivIndex == 0){
-      RowDivs[0].H =  Header.Size.Y;
-      MaxHeight = Header.Size.Y;
-      YPos = -Header.Size.Y;
-    }else{
-      if(RowDivs.X == ClipRect.X)
-      {
-        // New Row
-
-        MaxHeight = 0;
-      }else{
-        if(MaxHeight < Header->Size.Y)
+        rect2f NewDivRect = Rect2f(RowDivs[DivIndex-1].X + RowDivs[DivIndex-1].W, 0, Header.Size.X, 0);
+        if(NewDivRect.X + NewDivRect.W > ClipRect.X + ClipRect.W)
         {
-          MaxHeight = Header->Size.Y;
+          RowDivs[DivIndex] = Rect2f(ClipRect.X, 0, Header.Size.X, 0);
+        }else{
+          RowDivs[DivIndex] = NewDivRect;
         }
-        RowDivs[0].Y == Minimum(RowDivs[0].Y, Header->Size.Y);
       }
-    }
 
-    if(RowDivs[DivIndex].X + RowDivs[DivIndex].W == ClipRect.X){
-      RowDivs[0] = Rect2f(ClipRect.X, 0, Header.Size.X, 0);
-    }else{
-      rect2f NewDivRect = Rect2f(RowDivs[DivIndex-1].X + RowDivs[DivIndex-1].W, 0, Header.Size.X, 0);
-      if(NewDivRect.X + NewDivRect.W > ClipRect.X + ClipRect.W)
+      if(DivIndex == DivBreakPointIndeces[BreakIndex])
       {
-        RowDivs[DivIndex] = Rect2f(ClipRect.X, 0, Header.Size.X, 0);
+        X0 = ClipRect.X;
+        BreakIndex++;
       }else{
-        RowDivs[DivIndex] = NewDivRect;
+        int a = 10;
       }
-    }
-    DivHint = DivHint->Next;
-    DivIndex++;
-  }
-  Assert(DivCount == DivIndex);
-}
-#endif
+      #endif
 
-void PushDummyDiv(imgui_row& Row, imgui_row::div_hint* DummyHint, imgui_row::header* DummyHeader, imgui_row::div_hint** OriginalDivHint, imgui_row::header** OriginalDivHeader)
+file_local r32 GetMaxHeightForRow(u32 StartIndex, u32 EndIndex, rect2f* RowDivs){
+  r32 Result = 0;
+  u32 i = StartIndex;
+  do{
+    rect2f& DivRect = RowDivs[i];
+    Result = Maximum(Result, DivRect.H);  
+    i++;
+  }while(i < EndIndex);
+  return Result;
+}
+void GetDivRectSizes(imgui_row::div_hint* FirstDivHint, u32 DivCount, rect2f* RowDivs, u32 DivBreakCount, u32* DivBreakPointIndeces, rect2f* RowRect, const rect2f& ClipRect)
+{
+  {
+    // Set Div Sizes
+    u32 DivIndex = 0;
+    imgui_row::div_hint* DivHint = FirstDivHint;
+    while(DivHint) {
+      imgui_row::header* Header = DivHint->Header;
+      rect2f& DivRect = RowDivs[DivIndex++];
+      DivRect.W = Header->Size.X;
+      DivRect.H = Header->Size.Y;
+      DivHint = DivHint->Next;
+    }
+    Assert(DivCount == DivIndex);
+  }
+
+  u32 StartIndex = 0;
+  r32 Y0 = 0;
+  r32 MaxHeight = 0;
+  r32 MaxWidth  = 0;
+  for(u32 DivBreakIndex = 0; DivBreakIndex < DivBreakCount; DivBreakIndex++)
+  {
+    u32 EndIndex = DivBreakPointIndeces[DivBreakIndex];
+    r32 MaxHeightForRow = GetMaxHeightForRow(StartIndex, EndIndex, RowDivs);
+    Y0 -= MaxHeightForRow;
+    r32 X0 = 0;
+    r32 X1 = 0;
+
+    MaxHeight += MaxHeightForRow;
+    for (int i = StartIndex; i < EndIndex; ++i)
+    {
+      /* code */
+      rect2f& DivRect = RowDivs[i];
+      DivRect.X = X0;
+      DivRect.Y = Y0;
+      X0 += DivRect.W;
+      MaxWidth = Maximum(X0, MaxWidth);
+    }
+    StartIndex = EndIndex;
+  }
+
+  *RowRect = Rect2f(0, 0, MaxWidth, MaxHeight);
+}
+
+void PushDummyDiv(imgui_row& Row, imgui_row::div_hint* DummyHint, imgui_row::header* DummyHeader, imgui_row::div_hint** OriginalDivHint, imgui_row::header** OriginalTailHeader)
 {
   Assert(Row.m_head && Row.m_tail); // Should not be here with a empty row i don't think
 
-  
-  *OriginalDivHint = Row.m_divTail;
-  *OriginalDivHeader = Row.m_divTail->Header;
+  *OriginalTailHeader = Row.m_tail;
   if(Row.m_divHead)
   {
+    *OriginalDivHint = Row.m_divTail;
+    
     Assert(Row.m_divCount != 0); // Sanity Check
     Assert(Row.m_divTail); // Sanity Check
     DummyHeader->Size = CalculateDivSize(Row.m_divTail->Header->Next);
@@ -806,16 +809,18 @@ void PushDummyDiv(imgui_row& Row, imgui_row::div_hint* DummyHint, imgui_row::hea
     Row.m_tail = DummyHeader;
     Row.m_divHead = DummyHint;
     Row.m_divTail = DummyHint;
+    *OriginalDivHint = 0;
   }
+
   Row.m_divCount++;
 }
-void PopDummyDiv(imgui_row& Row, imgui_row::div_hint* DummyHint, imgui_row::header* DummyHeader, imgui_row::div_hint* OriginalDivHint, imgui_row::header* OriginalDivHeader)
+void PopDummyDiv(imgui_row& Row, imgui_row::div_hint* DummyHint, imgui_row::header* DummyHeader, imgui_row::div_hint* OriginalDivHint, imgui_row::header* OriginalTailHeader)
 {
   if(Row.m_divTail == DummyHint)
   {
     Assert(Row.m_divCount != 0);       // Sanity Check
     Assert(Row.m_tail == DummyHeader); // Sanity Check
-    Row.m_tail = OriginalDivHeader;
+    Row.m_tail = OriginalTailHeader;
     Row.m_tail->Next = 0;
     if(Row.m_divCount == 1)
     {
@@ -829,7 +834,36 @@ void PopDummyDiv(imgui_row& Row, imgui_row::div_hint* DummyHint, imgui_row::head
   }
 }
 
-reactive_size GetFullReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect){
+file_local void AlignRowRectsBotLeft(u32 RowCount, rect2f* RowRects, u32* DivCounts, rect2f** DivRects)
+{
+  r32 TotalHeight = 0;
+  for (int i = 0; i < RowCount; ++i)
+  {
+    TotalHeight += RowRects[i].H;
+  }
+
+  r32 Height = TotalHeight;
+  for (int i = 0; i < RowCount; ++i)
+  {
+    rect2f& RowRect = RowRects[i];
+    Height -= RowRect.H;
+    RowRect.Y = Height;
+  }
+  
+  for (int i = 0; i < RowCount; ++i)
+  {
+    rect2f RowRect = RowRects[i];
+    u32 DivRowCount = DivCounts[i];
+    for (int j = 0; j < DivRowCount; ++j)
+    {
+      rect2f& DivRowRect = DivRects[i][j];
+      DivRowRect.Y = DivRowRect.Y + RowRect.Y + RowRect.H;
+      int a = 10;
+    }
+  }
+}
+
+reactive_size GetFullReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmount){
 
   reactive_size Result = {};
 /*
@@ -848,7 +882,7 @@ reactive_size GetFullReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f Clip
   Result.SplitIndeces  = PushArray(GlobalTransientArena, Result.RowCount, u32*);
 
   // Step One: Figure out where the 
-
+  r32 RowPos = ClipRect.Y + ClipRect.H;
   for (int i = 0; i < Result.RowCount; ++i)
   {
     imgui_row& Row = ImguiRows[i];
@@ -870,112 +904,36 @@ reactive_size GetFullReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f Clip
     FinalDivHeader.Data = (void*) &FinalDivHint;
     FinalDivHeader.Next = 0;
     FinalDivHeader.Size = V2(0,0);
-    imgui_row::header* OriginalDivHeader = 0;
+    FinalDivHint.Header = &FinalDivHeader;
+    imgui_row::header* OriginalTailHeader = 0;
     imgui_row::div_hint* OriginalDivHint = 0;
 
     if(Row.m_tail->Type != imgui_row::type::DIV_HINT)
     {
-      Assert(Row.m_divTail->Header->Next);
-      PushDummyDiv(Row, &FinalDivHint, &FinalDivHeader, &OriginalDivHint, &OriginalDivHeader);
-    }
-
-    if(Row.m_divHead) {
-      rect2f DivRect = {};
-      // Sum up all pushed m_divHeads
-
-
       // If there is no divhint at the end, we temporarily insert one (which we remove later) to 
       // simplify the div size calculations. That is we handle the special case of calculating the size
       // of the last div here so the rest of the positioning can assume every div is capped by a divHint
-      
-
-      Result.DivCounts[i] = Row.m_divCount;
-      Result.SplitIndeces[i] = PushArray(GlobalTransientArena, Result.DivCounts[i], u32);
-      CalculateRowBreakIndeces(Row.m_divHead, &Result.SplitCounts[i], Result.SplitIndeces[i], ClipRect);
-      #if 0
-      StackDivsVertically(ImguiRows->m_divHead, Result.DivSizes[i], ClipRect);
-      StackDivsHorizontally(ImguiRows->m_divHead, Result.DivSizes[i], ClipRect);
-
-      int DivIndex = 0;
-      bool NewRow = true;
-      r32 MaxYSizeForRow = 0;
-      while(DivHint) {
-        imgui_row::head* Header = DivHint->Header;
-
-        // First Pile them up horizontally and figure out if and where we need to break for a new row.
-        if(DivRect.X == 0)
-        {
-          Assert(DivRect.X == 0 && DivRect.Y == 0 && DivRect.W == 0, DivRect.H == 0);
-          DivRect = Rect2f(ClipRect.X, ClipRect.Y - Header.Size.Y, Header.Size.X, Header.Size.Y);
-        }else{
-          rect2f NewDivRect = Rect2f(DivRect.X + DivRect.W, DivRect.Y)
-        }
-
-        // Then we can figure out the max Y-size for each div and row and position them vertically.
-
-
-        if(DivIndex == 0)
-        {
-
-        }
-
-
-        if(DivIndex == 0 || XSize + Header.Size.X < ClipRect.W) {
-          NewRow = true;
-        }else{
-          NewRow = false;
-        }
-
-        if(NewRow) {
-          MaxYSizeForRow = Header.Size.Y;
-          XSize += Maximum(XSize, Header.Size.X);
-          YSize += MaxYSizeForRow;
-          YPos -= MaxYSizeForRow;
-          XPos =  ClipRect.X;
-        }else{
-          Assert(MaxYSizeForRow);
-          MaxYSizeForRow = Maximum(MaxYSizeForRow, Header.Size.Y);
-          XPos  +=  ClipRect.X;
-          XSize += Header.Size.X;
-          YSize += Maximum(YSize, Header.Size.Y);
-        }
-
-      #endif
-        PopDummyDiv(Row, &FinalDivHint, &FinalDivHeader, OriginalDivHint, OriginalDivHeader);
-      }
+      PushDummyDiv(Row, &FinalDivHint, &FinalDivHeader, &OriginalDivHint, &OriginalTailHeader);
     }
+    Assert(Row.m_divHead && Row.m_head); // Sanity check
 
-    #if 0
-    if(ImguiRows->m_divTail != ImguiRows->m_tail)
-    {
-      // Sum the last one
-    }
+    Result.DivCounts[i] = Row.m_divCount;
+    Result.SplitIndeces[i] = PushArray(GlobalTransientArena, Result.DivCounts[i], u32);
+    Result.DivRects[i] = PushArray(GlobalTransientArena, Result.DivCounts[i], rect2f);
+    CalculateRowBreakIndeces(Row.m_divHead, &Result.SplitCounts[i], Result.SplitIndeces[i], ClipRect);
 
-      imgui_row::div_hint* DivHint = ImguiRows->m_divHead;
-      int DivIndex = 0;
-      while(DivHint){
-        if(DivIndex == 0){
-          DivSizes[i][DivIndex] = CountDivSize();
-          Assert(0);
-        }else{
-          DivSizes[i][DivIndex] = CountDivSize() - DivSizes[i][DivIndex-1];
-          Assert(0);
-        }
-        DivHint = DivHint->Next;
-        DivIndex++;
-      }
+    // Set:
+    //  1: The size of RowRect positioned at (0,0)
+    //  2: The size and relative position of DivRect wihtin each RowRects;
+    GetDivRectSizes(Row.m_divHead, Result.DivCounts[i], Result.DivRects[i], Result.SplitCounts[i], Result.SplitIndeces[i], &Result.RowRects[i], ClipRect);
 
-      imgui_row::header* H = DivHint->Header;
-
-    }else{
-      imgui_row::header* H = Row->m_head;
-    }
-    for (int j = 0; j < Result.DivCounts[i]; ++j)
-    {
-      DivSizes[i][j] = 
-    }
+    PopDummyDiv(Row, &FinalDivHint, &FinalDivHeader, OriginalDivHint, OriginalTailHeader);
   }
-  #endif
+
+
+  // Aligns each RowRect and DivRect such that the bottom of the list is at 0,0;
+  AlignRowRectsBotLeft(Result.RowCount, Result.RowRects, Result.DivCounts, Result.DivRects);
+
   return Result;
 }
 
@@ -1026,6 +984,47 @@ void DrawRowList(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect)
     {
       imgui_row& Row = ImguiRows[i];
       YPos = Row.Draw(Pos.X, YPos, Rect2f(Pos, Size), RowCount);
+    }
+  }
+}
+
+void DebugDrawReactiveSizes(reactive_size& s)
+{
+
+#if 0
+
+struct reactive_size {
+  u32 RowCount;       // Total number of rows to draw
+  u32* DivCounts;     // Total number of divs per row
+  rect2f* RowRects;   // Rects holding the position and size of each row.
+  rect2f** DivRects;  // Rects holding each div within a row.
+  u32* SplitCounts;   // The sizes of each list of u32 in SplitIndeces repressenting the number of divs to get a new row
+  u32** SplitIndeces; // This array holds the indeces where a new row is started
+};
+
+#endif
+  v4 Colors[] = {
+    V4(0.2,0.2,0.2,1),V4(0.3,0.3,0.3,1),
+    V4(0.4,0.4,0.4,1),V4(0.5,0.5,0.5,1),
+    V4(0.6,0.6,0.6,1),V4(0.7,0.7,0.7,1),
+    V4(0.8,0.8,0.8,1),V4(0.9,0.9,0.9,1),
+  };
+  v4 Colors2[] = {
+    V4(0,1,0,1)      ,V4(0.1,1,0.1,1),
+    V4(0.2,1,0.2,1),V4(0.3,1,0.3,1),
+    V4(0.4,1,0.4,1),V4(0.5,1,0.5,1),
+    V4(0.6,1,0.6,1),V4(0.7,1,0.7,1),
+    V4(0.8,1,0.8,1),V4(0.9,1,0.9,1),
+  };
+  u32 ColorIndex = 4;
+  
+  for (int i = 0; i < s.RowCount; ++i)
+  {
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(s.RowRects[i]), Colors[ColorIndex++ % ArrayCount(Colors)]);
+    u32 DivRowCount = s.DivCounts[i];
+    for (int j = 0; j < DivRowCount; ++j)
+    {
+      render::DrawOverlayQuadCanonicalSpace(CenteredRect(s.DivRects[i][j]), Colors2[(i*3 + j) % ArrayCount(Colors2)]);
     }
   }
 }
@@ -1117,6 +1116,10 @@ b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) 
     }
   }
 
+
+  reactive_size ReactiveSizes = GetFullReactiveSize(ImguiRows, Rect2f(Pos,Size), 0);
+  DebugDrawReactiveSizes(ReactiveSizes);
+  
   DrawRowList(ImguiRows, Rect2f(Pos,Size));
   return false;
 }
