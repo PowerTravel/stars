@@ -56,8 +56,19 @@ struct menu_entity_list {
   chunk_list PositionComponentData; // position_component_data
 };
 
+struct menu_entity_component_id {
+  ecs::flag::component_type Type;
+  imgui_id ImguiID;
+};
+inline menu_entity_component_id ImguiEntityComponent(ecs::flag::component_type Type){
+  menu_entity_component_id Result = {};
+  Result.Type  = Type;
+  Result.ImguiID  = NewButtonID();
+  return Result;
+}
 struct menu_entity_row {
   ecs::entity_id EntityID;
+  cmn::vector<menu_entity_component_id> ComponentImguiIDs;
   imgui_id ImguiID;
   b32 Open;
 };

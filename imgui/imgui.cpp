@@ -845,7 +845,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   }
 
 
-  imgui_row::icon imgui_row::Icon(r32 Size, u32 IconType ){
+  imgui_row::icon imgui_row::Icon(r32 Size, u32 IconType){
     icon Result = {};
     Result.Size = Size;
     Result.IconType = IconType;
@@ -865,8 +865,9 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   }
 
 
-  imgui_row::div_hint imgui_row::DivHint(){
+  imgui_row::div_hint imgui_row::DivHint(r32 Padding){
     div_hint Result = {};
+    Result.Padding = Padding;
     return Result;
   }
 
@@ -906,25 +907,28 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     header* Header = (header*) PushStruct(GlobalTransientArena, header);
     Header->Type = type::PADDING;
     Header->Size = V2(Padding.Width, Padding.Height);
+    Header->ImguiID = {};
     padding* Tmp = PushStruct(GlobalTransientArena, padding);
     *Tmp = Padding;
     Header->Data = (void*) Tmp;
     Push(Header);
   }
-  void imgui_row::Push(imgui_row::icon Icon){
+  void imgui_row::Push(imgui_row::icon Icon, imgui_id ImguiID){
     header* Header = (header*) PushStruct(GlobalTransientArena, header);
     Header->Type = type::ICON;
     Header->Size = PixelToCanonicalSpace(V2(Icon.Size,Icon.Size));
+    Header->ImguiID = ImguiID;
 
     icon* Tmp = PushStruct(GlobalTransientArena, icon);
     *Tmp = Icon;
     Header->Data = (void*) Tmp;
     Push(Header);
   }
-  void imgui_row::Push(imgui_row::text Text) {
+  void imgui_row::Push(imgui_row::text Text, imgui_id ImguiID) {
     header* Header = (header*) PushStruct(GlobalTransientArena, header);
     Header->Type = type::TEXT;
     Header->Size = GlobalRenderer->Font.GetTextSizeCanonicalSpace(Text.FontSize, (utf8_byte*) Text.Text);
+    Header->ImguiID = ImguiID;
     text* Tmp = PushStruct(GlobalTransientArena, text);
     Tmp->TextLen = Text.TextLen;
     Tmp->FontSize = Text.FontSize;
@@ -936,7 +940,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   }
 
   // Sums the sizes of all elements up untill the next DivHint __or__ untill last element.
-  v2 CalculateDivSize(imgui_row::header* H) {
+file_local v2 CalculateDivSize(imgui_row::header* H) {
     v2 DivSize = {};
     while(H && H->Type != imgui_row::type::DIV_HINT){
       DivSize.X += H->Size.X;
@@ -946,11 +950,13 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     return DivSize;
   }
 
-  void imgui_row::Push(div_hint foo){
+  void imgui_row::Push(div_hint D){
     header* Header = (header*) PushStruct(GlobalTransientArena, header);
     Header->Type = type::DIV_HINT;
+    Header->ImguiID = {};
     div_hint* DivHint = PushStruct(GlobalTransientArena, div_hint);
     DivHint->Header = Header;
+    DivHint->Padding = D.Padding;
 
     if(!m_divTail)
     {
@@ -971,62 +977,6 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     m_divCount++;
   }
 
-  file_local void InitiateDivList(cmn::list<imgui_row::header*>& DivList, imgui_row::header* First){
-    if(!DivList.Initiated())
-    {
-      DivList = cmn::list<imgui_row::header*>::CreateTransient();
-      imgui_row::header* Header = First;
-      while(Header)
-      {
-        if(Header->Type == imgui_row::type::DIV_HINT)
-        {
-          DivList.PushBack(Header);
-        }
-        Header = Header->Next;
-      }
-    }
-  }
-#if 0
-  v2 imgui_row::GetSizeOfDiv(imgui_row::header* Start, imgui_row::header** ResultEnd) {
-    Assert(Start->Type != imgui_row::type::DIV_HINT);
-
-    header* Header = Start;
-    v2 Result = {};
-    b32 NextDivFound = false;
-    while(Header && !NextDivFound)
-    {
-      switch(Header->Type)
-      {
-        case type::PADDING: {
-          padding* Padding = (padding*) Header->Data;
-          Result.X += Padding->Width;
-          Result.Y = Maximum(Result.Y, Padding->Height);
-        }break;
-        case type::ICON: {
-          icon* Icon = (icon*) Header->Data;
-          v2 CanSize = PixelToCanonicalSpace(V2(Icon->Size,Icon->Size));
-          Result.X += CanSize.X;
-          Result.Y = Maximum(Result.Y, CanSize.Y);
-        }break;
-        case type::TEXT: {
-          text* Text = (text*) Header->Data;
-          r32 TextWidht = GlobalRenderer->Font.GetTextSizeCanonicalSpace(Text->FontSize, (utf8_byte*) Text->Text).X;
-          r32 LineHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(Text->FontSize);
-          Result.X += TextWidht;
-          Result.Y = Maximum(Result.Y, LineHeight);
-        }break;
-        case type::DIV_HINT: {
-          NextDivFound = true;
-        }break;
-      }
-      if(!NextDivFound){
-        Header = Header->Next;
-      }
-    }
-    *ResultEnd = Header;
-    return Result;
-  }
-#endif
   v2 imgui_row::GetSize(v2* ResultVec = 0) {
     
     int DivCount = 0;
@@ -1080,15 +1030,21 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
     return Result;
   }
 
-  void DrawDebugRect(r32 t, v2 Pos, v2 Size){
+  void DrawDebugRect(r32 t, imgui_id ID, v2 Pos, v2 Size){
     static const v4 Color1 = V4(0,0,0,1);
     static const v4 Color2 = V4(1,1,1,1);        
     rect2f DivRect = Rect2f(Pos,Size);
     v4 Color = V4(Lerp(t,Color1.X,Color2.X), Lerp(t,Color1.Y,Color2.Y), Lerp(t,Color1.Z,Color2.Z),0.9);
-    render::DrawOverlayQuadCanonicalSpace(CenteredRect(DivRect), Color);
+    imgui_button_color ButtonColor = ImguiDefaultButtonColor();
+    if(ID.id)
+    {
+      ImguiPlainButton(GlobalImguiContext, ID, DivRect, ButtonColor);
+    }else{
+      render::DrawOverlayQuadCanonicalSpace(CenteredRect(DivRect), Color);
+    }
   }
 
-  r32 imgui_row::Draw(r32 X0, r32 Y0, rect2f ClipRect, r32 RowNum) {
+  r32 imgui_row::Draw(r32 X0, r32 Y0, rect2f ClipRect) {
 
     v2* DivLengths = PushArray(GlobalTransientArena, m_divCount+1, v2);
     GetSize(DivLengths);
@@ -1117,7 +1073,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
         case imgui_row::type::PADDING: {
           padding* Padding = (padding*) Header->Data;
           X += Padding->Width;
-          DrawDebugRect(t, V2(X,Y), V2(Padding->Width,Lim.Y));
+          DrawDebugRect(t, Header->ImguiID, V2(X,Y), V2(Padding->Width,Lim.Y));
         }break;
         case imgui_row::type::ICON: {
           icon* Icon = (icon*) Header->Data;
@@ -1126,7 +1082,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
           rect2f IconRect = Rect2f(X, Y + DiffY, IconCanSize.X, IconCanSize.Y);
           v4 TexCoords = GlobalImguiContext->Icons.Coordinates[Icon->IconType];
           render::DrawIconCanonicalSpace(CenteredRect(IconRect), TexCoords, Icon->Color);
-          DrawDebugRect(t, V2(IconRect.X, IconRect.Y), V2(IconRect.W,IconRect.H));
+          DrawDebugRect(t, Header->ImguiID, V2(IconRect.X, IconRect.Y), V2(IconRect.W,IconRect.H));
           X += IconCanSize.X;
         }break;
         case imgui_row::type::TEXT: {
@@ -1138,7 +1094,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
           r32 DiffY = 0.5* (Lim.Y - LineHeight);
 
           render::DrawTextCanonicalSpace(V2(X, Y + DescentOffset + DiffY), Text->FontSize, (const utf8_byte*) Text->Text, Text->Color);
-          DrawDebugRect(t, V2(X, Y+DiffY), V2(TextSize.X,LineHeight));
+          DrawDebugRect(t, Header->ImguiID, V2(X, Y+DiffY), V2(TextSize.X,LineHeight));
           X += TextSize.X;
         }break;
         case imgui_row::type::DIV_HINT: {
@@ -1148,7 +1104,7 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
           if(X + Lim.X > ClipRect.X + ClipRect.W)
           {
             Y -= Lim.Y;
-            X = X0;
+            X = X0+DivHint->Padding;
           }
         }break;
       }

@@ -268,14 +268,16 @@ struct imgui_row {
     type Type;
     v2 Size;
     void* Data;
+    imgui_id ImguiID;
     header* Next;
   };
 
   struct div_hint {
+    r32 Padding; // If this div hint is breaking the row in two, use this padding
     struct header* Header;
     div_hint* Next;
   };
-  static inline div_hint DivHint();
+  static inline div_hint DivHint(r32 Padding);
 
   u32 m_divCount;
   div_hint* m_divHead;
@@ -285,15 +287,14 @@ struct imgui_row {
   
   v2 GetSize(v2* ResultVec);
   v2 GetSizeOfDiv(imgui_row::header* Start, imgui_row::header** ResultEnd);
-  r32 Draw(r32 X, r32 Y, rect2f ClipRect, r32 RowNum);
+  r32 Draw(r32 X, r32 Y, rect2f ClipRect);
   void Push(padding Padding);
-  void Push(icon Icon);
-  void Push(text Text);
+  void Push(icon Icon, imgui_id ImguiID = {});
+  void Push(text Text, imgui_id ImguiID = {});
   void Push(div_hint DivHint);
   void Push(header* Header);
 };
 imgui_row ImguiRow();
-v2 CalculateDivSize(imgui_row::header* H);
 
 imgui_button_color ImguiDefaultButtonColor();
 v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors);

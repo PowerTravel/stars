@@ -24,7 +24,7 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   Result.MenuEntityTree = PushStruct(Arena, menu_entity_tree);
   Result.MenuEntityTree->BorderWindow   = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
   Result.MenuEntityTree->EntityList     = CreateScrollableTextList();
-  Result.MenuEntityTree->EntityTree = me_tree::Create();
+  Result.MenuEntityTree->EntityTree     = me_tree::Create();
   Result.MenuEntityTree->EntityTree.NewNode(); // EmptyRoot
 
 
@@ -38,6 +38,49 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   return Result;
 }
 
+menu_entity_row MenuEntityRow(ecs::entity_id EntityID)
+{
+  menu_entity_row NewRow = {};
+  NewRow.EntityID = EntityID;
+  NewRow.ImguiID = NewButtonID();
+  NewRow.Open = false;
+  u32 ComponentCount = ecs::GetComponentCount(GetEntityManager(), &EntityID);
+  NewRow.ComponentImguiIDs = cmn::vector<menu_entity_component_id>::Create(ComponentCount);
+  
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::POSITION))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::POSITION));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::GEOMETRY))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::GEOMETRY));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::MATERIAL))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::MATERIAL));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::COLLIDER))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::COLLIDER));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::LIGHT))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::LIGHT));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::CAMERA))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::CAMERA));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::CONTROLLER))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::CONTROLLER));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::RENDER))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::RENDER));
+  }
+  return NewRow;
+}
 void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity)
 {
   // Just making sure that the parent of NewEntity in the entity Manager is the same as MenuParent
@@ -56,11 +99,19 @@ void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id*
     }while((Node && Node != MenuParent->FirstChild));
   }
 
-  menu_entity_row NewRow = {};
-  NewRow.EntityID = *NewEntity;
-  NewRow.ImguiID = NewButtonID();
-  NewRow.Open = false;
+  u32 Depth = 0;
+  ecs::entity* E  = GetEntityFromID(GetEntityManager(), NewEntity);
+  ecs::entity_node* EN = E->Node;
+  while(EN->Parent){
+    Depth++;
+    EN = EN->Parent;
+  }
+  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
+  r32 XOffset = (Depth-1)*RowHeight;
+  r32 IconSize = 16;
 
+  menu_entity_row NewRow = MenuEntityRow(*NewEntity);
+  
   MenuEntityTree->NewNode(MenuParent, NewRow);
 }
 
@@ -603,8 +654,6 @@ file_local b32 IsClippingBot(rect2f DrawRect, rect2f ClipRect){
   b32 Result = TopInside && BotOutside;
   return Result;
 }
-
-//DoEntityButtonRect(Row->ImguiID, rect2f ButtonRect, ButtonColor)
  
 inline file_local b32 MenuHasChildren(me_node* MenuEntityNode){
   b32 Result = MenuEntityNode->FirstChild != 0;
@@ -623,18 +672,14 @@ file_local void AddChildEntitiesLoadedToMenuTree(me_tree& MenuTree, me_node* Men
   do
   {
     // Is it smart to edit the me_tree while we are iterating through it....? I don't feel confident
-    menu_entity_row NewRow = {};
-    NewRow.EntityID = (*EntityChild->Data)->ID;
-    NewRow.ImguiID = NewButtonID();
-    NewRow.Open = false;
+    menu_entity_row NewRow = MenuEntityRow((*EntityChild->Data)->ID);
     MenuTree.NewNode(MenuNode, NewRow);
     EntityChild = EntityChild->NextSibling;
   }while(EntityChild != EntityNode->FirstChild);
 }
 
 
-file_local void DoEntityButtonRect(imgui_context* ImguiContext, rect2f ButtonRect, imgui_button_color& ButtonColor, menu_entity_row* MenuRowData) {
-  ImguiPlainButton(ImguiContext, MenuRowData->ImguiID, ButtonRect, ButtonColor);
+  file_local void DoEntityButtonRect(imgui_context* ImguiContext, menu_entity_row* MenuRowData) {
   if(ImguiIsActive(MenuRowData->ImguiID) && ImguiIsHot(MenuRowData->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
   {
     MenuRowData->Open = !MenuRowData->Open;
@@ -709,27 +754,6 @@ void CalculateRowBreakIndeces(imgui_row::div_hint* FirstDivHint, u32* DivBreakCo
   DivBreakPointIndeces[*DivBreakCount] = DivIndex;
   (*DivBreakCount)++;
 }
-#if 0
-      if(DivIndex == 0){
-        RowDivs[0] = Rect2f(ClipRect.X, 0, Header.Size.X, 0);
-      }else{
-        rect2f NewDivRect = Rect2f(RowDivs[DivIndex-1].X + RowDivs[DivIndex-1].W, 0, Header.Size.X, 0);
-        if(NewDivRect.X + NewDivRect.W > ClipRect.X + ClipRect.W)
-        {
-          RowDivs[DivIndex] = Rect2f(ClipRect.X, 0, Header.Size.X, 0);
-        }else{
-          RowDivs[DivIndex] = NewDivRect;
-        }
-      }
-
-      if(DivIndex == DivBreakPointIndeces[BreakIndex])
-      {
-        X0 = ClipRect.X;
-        BreakIndex++;
-      }else{
-        int a = 10;
-      }
-      #endif
 
 file_local r32 GetMaxHeightForRow(u32 StartIndex, u32 EndIndex, rect2f* RowDivs){
   r32 Result = 0;
@@ -741,6 +765,7 @@ file_local r32 GetMaxHeightForRow(u32 StartIndex, u32 EndIndex, rect2f* RowDivs)
   }while(i < EndIndex);
   return Result;
 }
+
 void GetDivRectSizes(imgui_row::div_hint* FirstDivHint, u32 DivCount, rect2f* RowDivs, u32 DivBreakCount, u32* DivBreakPointIndeces, rect2f* RowRect, const rect2f& ClipRect)
 {
   {
@@ -834,12 +859,14 @@ void PopDummyDiv(imgui_row& Row, imgui_row::div_hint* DummyHint, imgui_row::head
   }
 }
 
-file_local void AlignRowRectsBotLeft(u32 RowCount, rect2f* RowRects, u32* DivCounts, rect2f** DivRects)
+file_local v2 AlignRowRectsBotLeft(u32 RowCount, rect2f* RowRects, u32* DivCounts, rect2f** DivRects)
 {
   r32 TotalHeight = 0;
+  r32 TotalWidth = 0;
   for (int i = 0; i < RowCount; ++i)
   {
     TotalHeight += RowRects[i].H;
+    TotalWidth = Maximum(TotalWidth,RowRects[i].W);
   }
 
   r32 Height = TotalHeight;
@@ -858,44 +885,29 @@ file_local void AlignRowRectsBotLeft(u32 RowCount, rect2f* RowRects, u32* DivCou
     {
       rect2f& DivRowRect = DivRects[i][j];
       DivRowRect.Y = DivRowRect.Y + RowRect.Y + RowRect.H;
-      int a = 10;
     }
   }
+  v2 Result = V2(TotalWidth,TotalHeight);
+  return Result;
 }
 
 reactive_size GetFullReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmount){
 
   reactive_size Result = {};
-/*
-  u32 RowCount;       // Total number of rows to draw
-  u32* DivCounts;     // Total number of divs per row
-  rect2f* RowRects;   // Rects holding the position and size of each row.
-  rect2f** DivRects;  // Rects holding each div within a row.
-  u32* SplitCounts;   // Each row can be divided into several rows if the bounding rect is too small
-  u32** SplitIndeces; // Within each DivSizes This array holds the indeces where a new row is started
-*/
-  Result.RowCount      = ImguiRows.Size();
-  Result.DivCounts     = PushArray(GlobalTransientArena, Result.RowCount, u32);
-  Result.RowRects      = PushArray(GlobalTransientArena, Result.RowCount, rect2f);
-  Result.DivRects      = PushArray(GlobalTransientArena, Result.RowCount, rect2f*);
-  Result.SplitCounts   = PushArray(GlobalTransientArena, Result.RowCount, u32);
-  Result.SplitIndeces  = PushArray(GlobalTransientArena, Result.RowCount, u32*);
 
-  // Step One: Figure out where the 
+  Result.RowCount         = ImguiRows.Size();
+  Result.DivCounts        = PushArray(GlobalTransientArena, Result.RowCount, u32);
+  Result.RowRects         = PushArray(GlobalTransientArena, Result.RowCount, rect2f);
+  Result.DivRects         = PushArray(GlobalTransientArena, Result.RowCount, rect2f*);
+  Result.SplitCounts      = PushArray(GlobalTransientArena, Result.RowCount, u32);
+  Result.SplitIndeces     = PushArray(GlobalTransientArena, Result.RowCount, u32*);
+
+
   r32 RowPos = ClipRect.Y + ClipRect.H;
   for (int i = 0; i < Result.RowCount; ++i)
   {
     imgui_row& Row = ImguiRows[i];
 
-#if 0 
-    r32 XRow = ClipRect.X;
-    r32 YRow = ClipRect.Y + ClipRect.H;
-    r32 XSize = 0;
-    r32 YSize = 0;
-    r32 XPos = ClipRect.X;
-    r32 YPos = ClipRect.Y;
-    rect2f TotalRowRect = {};
-#endif
 
     // Prepare a dummy divhint to temporarily put at the end to help div position/size - calculations
     imgui_row::header FinalDivHeader = {};
@@ -932,7 +944,7 @@ reactive_size GetFullReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f Clip
 
 
   // Aligns each RowRect and DivRect such that the bottom of the list is at 0,0;
-  AlignRowRectsBotLeft(Result.RowCount, Result.RowRects, Result.DivCounts, Result.DivRects);
+  v2 FullListSize = AlignRowRectsBotLeft(Result.RowCount, Result.RowRects, Result.DivCounts, Result.DivRects);
 
   return Result;
 }
@@ -983,7 +995,7 @@ void DrawRowList(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect)
     if(Percentage >= ScrollAmmount && Percentage < 1)
     {
       imgui_row& Row = ImguiRows[i];
-      YPos = Row.Draw(Pos.X, YPos, Rect2f(Pos, Size), RowCount);
+      YPos = Row.Draw(Pos.X, YPos, Rect2f(Pos, Size));
     }
   }
 }
@@ -1022,11 +1034,67 @@ struct reactive_size {
   {
     render::DrawOverlayQuadCanonicalSpace(CenteredRect(s.RowRects[i]), Colors[ColorIndex++ % ArrayCount(Colors)]);
     u32 DivRowCount = s.DivCounts[i];
-    for (int j = 0; j < DivRowCount; ++j)
-    {
+    for (int j = 0; j < DivRowCount; ++j){
       render::DrawOverlayQuadCanonicalSpace(CenteredRect(s.DivRects[i][j]), Colors2[(i*3 + j) % ArrayCount(Colors2)]);
     }
   }
+}
+
+imgui_row CreateEntityRow(menu_entity_row* MenuRowData, render::font& Font, r32 FontSize, r32 XOffset, r32 RowHeight, r32 IconSize){
+   
+  ecs::entity_id* EntityID = &MenuRowData->EntityID;
+  ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
+  ecs::entity_node* EntityNode = Entity->Node;
+
+  imgui_row RowRenderer = {};
+  RowRenderer.Push(imgui_row::Padding(XOffset,RowHeight));
+  v2 IconPaddingSize = PixelToCanonicalSpace(V2(IconSize,IconSize));
+  if(EntityHasChildren(EntityNode))
+  {
+    RowRenderer.Push(imgui_row::Icon(IconSize, MenuRowData->Open ? ICON_ANGLE_DOWN : ICON_ANGLE_RIGHT ), MenuRowData->ImguiID);
+  }else{
+    
+    RowRenderer.Push(imgui_row::Padding(IconPaddingSize.X, IconPaddingSize.Y));
+  }
+
+  char NameBuffer[128] = {};
+  GetEntityName(EntityNode,sizeof(NameBuffer),NameBuffer);
+  RowRenderer.Push(imgui_row::Text(FontSize, &Font, sizeof(NameBuffer), NameBuffer));
+  RowRenderer.Push(imgui_row::DivHint(IconPaddingSize.X)); // DivHint is a hint to the row-render that if it needs to break things into several rows it will do so along divs
+  for (int i = 0; i < MenuRowData->ComponentImguiIDs.Size(); ++i)
+  {
+    menu_entity_component_id* ComponentID = &MenuRowData->ComponentImguiIDs[i];
+    switch(ComponentID->Type)
+    {
+      case ecs::flag::POSITION: {
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_LOCATION ), ComponentID->ImguiID);
+      } break;
+      case ecs::flag::GEOMETRY: {
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_GEOMETRY ), ComponentID->ImguiID);
+      } break;
+      case ecs::flag::MATERIAL: {
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_MATERIAL ), ComponentID->ImguiID);
+      } break;
+      case ecs::flag::COLLIDER: {
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_COLLIDER ), ComponentID->ImguiID);
+      } break;
+      case ecs::flag::LIGHT: {
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_LIGHT ), ComponentID->ImguiID);
+      } break;
+      case ecs::flag::CAMERA: {
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_CAMERA ), ComponentID->ImguiID);
+      } break;
+      case ecs::flag::CONTROLLER: {
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_CONTROLLER ), ComponentID->ImguiID);
+      } break;
+      case ecs::flag::RENDER: {
+        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_UNKNOWN ), ComponentID->ImguiID);
+      } break;
+
+    }
+  }
+
+  return RowRenderer;
 }
 
 b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) {
@@ -1051,76 +1119,52 @@ b32 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) 
 
   ecs::entity_tree& EntityTree = GlobalEntityManager->EntityTree;
   me_tree& MenuTree = MenuEntityTree->EntityTree;
-  r32 Y = Pos.Y + Size.Y - RowHeight;
-  bool SkipSubTree = false;
-  me_iterator It = MenuEntityTree->EntityTree.PreOrderIterator(EntityTree.NodeCount());
   cmn::vector<imgui_row> ImguiRows = cmn::vector<imgui_row>::CreateTransient(EntityTree.NodeCount());
-  const r32 IconSize = 32;
-  while(me_node* MenuNode = It.Next(SkipSubTree))
   {
-    int Index = It.Depth() - 1;
-    if(Index != 0){
-      menu_entity_row* MenuRowData = MenuNode->Data;
-      ecs::entity_id* EntityID = &MenuRowData->EntityID;
-      ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
-      ecs::entity_node* EntityNode = Entity->Node;
-
-      r32 XOffset = (Index-1)*RowHeight;
-
-      imgui_row RowRenderer = {};
-      RowRenderer.Push(imgui_row::Padding(XOffset,RowHeight));
-      RowRenderer.Push(imgui_row::Icon( IconSize, MenuRowData->Open ? ICON_ANGLE_DOWN : ICON_ANGLE_RIGHT ));
-
-      char NameBuffer[128] = {};
-      GetEntityName(EntityNode,sizeof(NameBuffer),NameBuffer);
-      RowRenderer.Push(imgui_row::Text(FontSize, &Font, sizeof(NameBuffer), NameBuffer));
-      RowRenderer.Push(imgui_row::DivHint()); // DivHint is a hint to the row-render that if it needs to break things into several rows it will do so along divs
-      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::POSITION))
-      {
-        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_LOCATION ));
-      }
-      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::GEOMETRY))
-      {
-        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_GEOMETRY ));
-      }
-      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::MATERIAL))
-      {
-        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_MATERIAL ));
-      }
-      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::COLLIDER))
-      {
-        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_COLLIDER ));
-      }
-      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::LIGHT))
-      {
-        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_LIGHT ));
-      }
-      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CAMERA))
-      {
-        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_CAMERA ));
-      }
-      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::CONTROLLER))
-      {
-        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_CONTROLLER ));
-      }
-      if(ecs::HasComponents(GetEntityManager(), &Entity->ID, ecs::flag::RENDER))
-      {
-        RowRenderer.Push(imgui_row::Icon( IconSize, ICON_COMPONENT_UNKNOWN ));
-      }
-      SkipSubTree = !MenuRowData->Open;
-      ImguiRows.PushBack(RowRenderer);
-    }
-    if(Y+RowHeight < Pos.Y)
+    bool SkipSubTree = false;
+    me_iterator It = MenuEntityTree->EntityTree.PreOrderIterator(EntityTree.NodeCount());
+    const r32 IconSize = 32;
+    while(me_node* MenuNode = It.Next(SkipSubTree))
     {
-      break;
+      int Index = It.Depth() - 1;
+      if(Index != 0){
+        menu_entity_row* MenuRowData = MenuNode->Data;
+        r32 XOffset = (Index-1)*RowHeight;
+
+        imgui_row RowRenderer = CreateEntityRow(MenuRowData, Font, ImguiContext->FontSize, XOffset, RowHeight, IconSize);
+        SkipSubTree = !MenuRowData->Open;
+        ImguiRows.PushBack(RowRenderer);
+      }
     }
   }
-
 
   reactive_size ReactiveSizes = GetFullReactiveSize(ImguiRows, Rect2f(Pos,Size), 0);
   DebugDrawReactiveSizes(ReactiveSizes);
   
   DrawRowList(ImguiRows, Rect2f(Pos,Size));
+
+  {
+    me_iterator It = MenuEntityTree->EntityTree.PreOrderIterator(EntityTree.NodeCount());
+    bool SkipSubTree = false;
+    while(me_node* MenuNode = It.Next(SkipSubTree))
+    {
+      int Index = It.Depth() - 1;
+      if(Index != 0){
+        menu_entity_row* MenuRowData = MenuNode->Data;
+
+        DoEntityButtonRect(ImguiContext, MenuRowData);
+        ecs::entity_id* EntityID = &MenuRowData->EntityID;
+        ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
+        ecs::entity_node* EntityNode = Entity->Node;
+        if(MenuRowData->Open && !MenuNode->FirstChild && EntityNode->FirstChild)
+        {
+          SkipSubTree = !MenuRowData->Open;
+          AddChildEntitiesLoadedToMenuTree(MenuTree, MenuNode, EntityTree, EntityNode);
+        }
+      }
+    }
+  }
+
   return false;
 }
 
