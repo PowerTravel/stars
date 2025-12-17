@@ -1118,11 +1118,7 @@ struct reactive_row_size {
   Result.TotalSize = GetTotalSize(Result.RowCount, Result.ReactiveRowSizes);
   InvertYDirection(Result.TotalSize, Result.RowCount, Result.ReactiveRowSizes);
 
-  DebugDrawRowRects(Result.RowCount, Result.ReactiveRowSizes);
-
-
-  // Aligns each RowRect and DivRect such that the bottom of the list is at 0,0;
-  //v2 FullListSize = AlignRowRectsBotLeft(Result.RowCount, Result.RowRects, Result.DivCounts, Result.DivRects);
+  //DebugDrawRowRects(Result.RowCount, Result.ReactiveRowSizes);
 
   return Result;
 }
@@ -1130,84 +1126,85 @@ struct reactive_row_size {
 void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect)
 {
   SCOPED_TRANSIENT_ARENA;
+  Assert(ReactiveSize.RowCount == ImguiRows.Size());
+  
+  imgui_button_color ButtonColorEven = {};
+  ButtonColorEven.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "sap green");
+  ButtonColorEven.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "persian indigo");
+  ButtonColorEven.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "egyptian blue");
+  ButtonColorEven.HotColor =  menu::GetColor(&GlobalState->ColorTable, "rich black");
 
-  for (int i = 0; i < ReactiveSize.RowCount; ++i)
+  imgui_button_color ButtonColorOdd = {};
+  ButtonColorOdd.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "fern green");
+  ButtonColorOdd.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "persian indigo");
+  ButtonColorOdd.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "egyptian blue");
+  ButtonColorOdd.HotColor =  menu::GetColor(&GlobalState->ColorTable, "rich black");
+
+  v4 EvenColorBack = V4(0.3,0.3,0.3,1);
+  v4 OddColorBack = V4(0.4,0.4,0.4,1);
+  for (int i = 0; i < ImguiRows.Size(); ++i)
   {
-    r32 t = (r32) (i+1) / (r32) ReactiveSize.RowCount;
-
-    reactive_row_size* ReactiveRowSize = &ReactiveSize.ReactiveRowSizes[i];
+    const imgui_row& ImguiRow = ImguiRows[i];
+    const reactive_row_size& ReactiveRow = ReactiveSize.ReactiveRowSizes[i];
     
-    rect2f RowRect = ReactiveRowSize->RowRect;
+    r32 t = (r32) (i+1) / (r32) ReactiveSize.RowCount;
+    
+
+    rect2f RowRect = ReactiveRow.RowRect;
     RowRect.X += ClipRect.X;
     RowRect.Y += ClipRect.Y + ClipRect.H - ReactiveSize.TotalSize.Y;
-    render::DrawOverlayQuadCanonicalSpace(CenteredRect(RowRect), V4(Lerp(t,0,1),0,0,1));
-    
-    for (int j = 0; j < ReactiveRowSize->SplitCount; ++j)
-    {
-      rect2f SplitRowRect = ReactiveRowSize->SplitRowRects[j];
-      SplitRowRect.X += ClipRect.X;
-      SplitRowRect.Y += ClipRect.Y + ClipRect.H - ReactiveSize.TotalSize.Y;
-      render::DrawOverlayQuadCanonicalSpace(CenteredRect(Shrink(SplitRowRect,PixelToCanonicalSpace(V2(3,3)))), V4(0,0,Lerp(t,0,1),1));
-    }
+    RowRect.W = ClipRect.W;
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(RowRect), i % 2 == 0 ? EvenColorBack : OddColorBack);
+    u32 DivIndex = 0;
 
-    for (int j = 0; j < ReactiveRowSize->DivCount; ++j)
+    const imgui_row::header* Header = ImguiRow.m_head;
+
+    r32 X0 = 0;
+    r32 Y0 = 0;
+    while(Header)
     {
-      rect2f DivRect = ReactiveRowSize->DivRects[j];
+      rect2f DivRect = ReactiveRow.DivRects[DivIndex];
+
       DivRect.X += ClipRect.X;
       DivRect.Y += ClipRect.Y + ClipRect.H - ReactiveSize.TotalSize.Y;
-      render::DrawOverlayQuadCanonicalSpace(CenteredRect(Shrink(DivRect,PixelToCanonicalSpace(V2(6,6)))), V4(0,Lerp(t,0,1),0,1));
-    }
 
-
-  }
-#if 0
-  v2 Pos = V2(ClipRect.X,ClipRect.Y);
-  v2 Size = V2(ClipRect.W,ClipRect.H);
-  const r32 ScrollAmmount = 0;
-  r32 TotalHeight = 0;
-  u32 MaxDivCount = 1;
-  u32 RowCount = ImguiRows.Size();
-  r32* RowHeights = PushArray(GlobalTransientArena, RowCount, r32);
-  for (int i = 0; i < RowCount; ++i)
-  {
-    imgui_row& Row = ImguiRows[i];
-    v2* DivLengths = PushArray(GlobalTransientArena, Row.m_divCount+1, v2);
-    v2 RowSize = Row.GetSize(DivLengths);
-    r32 RowWidth = 0;
-    r32 RowHeight = 0;
-    for (int j = 0; j < Row.m_divCount+1; ++j)
-    {
-      v2 DivSize = DivLengths[j];
-      if(RowWidth + DivSize.X > Size.X)
+      switch(Header->Type)
       {
-        RowHeight += DivSize.Y;
-        RowWidth = Maximum(RowWidth, DivSize.X);
-      }else{
-        RowHeight = Maximum(RowHeight, DivSize.Y);
-        RowWidth += DivSize.X;
-      }
-    }
-    if(i == 0){
-      
-      RowHeights[0] = RowHeight;
-    }else{
-      r32 Height = Row.GetSize(DivLengths).Y;
-      RowHeights[i] = RowHeight + RowHeights[i-1];
-    }
-    TotalHeight += RowHeights[i];
-  }
+        case imgui_row::type::PADDING: {
+          imgui_row::padding* Padding = (imgui_row::padding*) Header->Data;
+          rect2f PadRect = Rect2f(X0 + DivRect.X, Y0 + DivRect.Y, Header->Size.X, Header->Size.Y);
+          X0 += Header->Size.X;
+        }break;
+        case imgui_row::type::ICON: {
+          imgui_row::icon* Icon = (imgui_row::icon*) Header->Data;
+          rect2f IconRect = Rect2f(X0 + DivRect.X, Y0 + DivRect.Y, Header->Size.X, Header->Size.Y);
+          v4 TexCoords = GlobalImguiContext->Icons.Coordinates[Icon->IconType];
+          ImguiPlainButton(GlobalImguiContext, Header->ImguiID, IconRect, i % 2 == 0 ? ButtonColorEven : ButtonColorOdd);
+          render::DrawIconCanonicalSpace(CenteredRect(IconRect), TexCoords, Icon->Color);
+          X0 += Header->Size.X;
+        }break;
+        case imgui_row::type::TEXT: {
+          imgui_row::text* Text = (imgui_row::text*) Header->Data;
+          r32 DescentOffset = Text->Font->GetCanonicalFontDescenOffset(Text->FontSize);
+          r32 LineHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(Text->FontSize);
 
-  r32 YPos = Pos.Y + Size.Y;
-  for (int i = 0; i < RowCount; ++i)
-  {
-    r32 Percentage = RowHeights[i] / TotalHeight;
-    if(Percentage >= ScrollAmmount && Percentage < 1)
-    {
-      imgui_row& Row = ImguiRows[i];
-      YPos = Row.Draw(Pos.X, YPos, Rect2f(Pos, Size));
+          r32 DiffY = 0.5 * (DivRect.H - LineHeight);
+
+          render::DrawTextCanonicalSpace(V2(X0 + DivRect.X,  Y0 + DivRect.Y + DescentOffset + DiffY), Text->FontSize, (const utf8_byte*) Text->Text, Text->Color);
+          X0 += Header->Size.X;
+        }break;
+        case imgui_row::type::DIV_HINT: {
+          imgui_row::div_hint* DivHint = ReactiveRow.Divs[DivIndex];
+          Assert(DivHint->Header == Header);
+          DivIndex++;
+          X0 = 0;
+          Y0 = 0;
+        }break;
+      }
+
+      Header = Header->Next;
     }
   }
-#endif
 }
 
 void DebugDrawReactiveSizes(reactive_size& s)
@@ -1273,7 +1270,7 @@ imgui_row CreateEntityRow(menu_entity_row* MenuRowData, render::font& Font, r32 
   //RowRenderer.Push(imgui_row::DivHint(IconPaddingSize.X));
   for (int i = 0; i < MenuRowData->ComponentImguiIDs.Size(); ++i)
   {
-    RowRenderer.Push(imgui_row::DivHint(IconPaddingSize.X));
+    RowRenderer.Push(imgui_row::DivHint(XOffset+IconPaddingSize.X));
     menu_entity_component_id* ComponentID = &MenuRowData->ComponentImguiIDs[i];
     switch(ComponentID->Type)
     {
