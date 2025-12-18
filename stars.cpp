@@ -17,6 +17,8 @@
 #include "imgui/imgui.cpp"
 #include "imgui/imgui_scrollbar.cpp"
 #include "imgui/imgui_row.cpp"
+#include "imgui/imgui_border_window.cpp"
+#include "imgui/imgui_text_input_buffer.cpp"
 #include "imgui/application_imgui.cpp"
 #include "imgui/application_imgui_entity_list.cpp"
 #include "imgui/application_imgui_color_list.cpp"

@@ -168,48 +168,6 @@ void ImguiEnd(){
   }
 }
 
-struct imgui_text_input_buffer {
-  utf8_string_buffer Buffer;
-  s32 CaretPosition;
-  b32 SelectMode;
-  s32 SelectionStart;
-  s32 CharCount;
-};
-
-imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer);
-void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, jwin::device_input* Input, v2 MousePos, b32 HighlightAll = false);
-b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor);
-void ClearBuffer(imgui_text_input_buffer* TextInputBuffer);
-void PushString(imgui_text_input_buffer* TextInputBuffer, c8* String);
-
-struct imgui_bordered_window {
-  v2 CornerSize;
-  r32 HeaderSize;
-  rect2f Region;
-
-  r32 LeftDiff;
-  r32 RightDiff;
-  r32 TopDiff;
-  r32 BotDiff;
-  v2 BotLeftDiff;
-  v2 BotRightDiff;
-  v2 TopLeftDiff;
-  v2 TopRightDiff;
-  v2 HeaderDiff;
-  imgui_id LeftID;
-  imgui_id RightID;
-  imgui_id TopID;
-  imgui_id BotID;
-  imgui_id BotLeftID;
-  imgui_id BotRightID;
-  imgui_id TopLeftID;
-  imgui_id TopRightID;
-  imgui_id HeaderID;
-};
-
-imgui_bordered_window ImguiBorderedWindow( rect2f Region, v2 CornerSize, r32 HeaderSize);
-void ImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[]);
-
 
 struct imgui_button_color {
   v4 InactiveColor;

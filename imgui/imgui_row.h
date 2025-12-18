@@ -8,6 +8,7 @@ struct imgui_row {
     r32 Width;
     r32 Height;
   };
+
   static padding Padding(r32 Width, r32 Height);
 
   struct icon {
@@ -61,5 +62,22 @@ struct imgui_row {
   void Push(header* Header);
 };
 
-v2 CalculateDivSize(imgui_row::header* H);
-imgui_row ImguiRow();
+struct reactive_row_size {
+  rect2f RowRect;// Rect holding the combined size of the total row;
+
+  u32 DivCount;
+  imgui_row::div_hint** Divs;       // All divHints for row
+  rect2f* DivRects; // Rect holding the size of each div;
+
+  u32 SplitCount;
+  rect2f* SplitRowRects; // Rect holding the size of each split row.
+};
+
+struct reactive_size {
+  u32 RowCount;       // Total number of rows to draw
+  reactive_row_size* ReactiveRowSizes;
+  v2 TotalSize;
+};
+
+reactive_size CreateReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmount);
+

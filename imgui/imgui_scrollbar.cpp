@@ -1,5 +1,18 @@
 #include "imgui_scrollbar.h"
 
+file_local r32 MouseScroll(u32 TotalListSize)
+{
+  // Use as function parameter?
+  const r32 ScrollTick = 1/20.f;
+  r32 Result = 0;
+  if(GlobalImguiContext->MouseDZ)
+  {
+    r32 ScrollTickPercentage = ScrollTick / TotalListSize;
+    Result = (GlobalState->ImguiContext.MouseDZ > 0) ? -ScrollTickPercentage : ScrollTickPercentage; 
+  }
+  return Result;
+}
+
 b32 DoVerticalScrollbar(imgui_vertical_scrollbar* VerticalScrollbar, rect2f ScrollbarRect, b32 MousescrollActive,  r32 TotalContentHeight)
 {
   // TODO: Place button min/max values in imgui_vertical_scrollbar?

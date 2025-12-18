@@ -3,6 +3,8 @@
 #include "ecs/entity_components.h"
 #include "ecs/entity_components_backend.h"
 #include "containers/chunk_list.h"
+#include "imgui_border_window.h"
+#include "imgui_scrollbar.h"
 
 struct menu_entity_component_id {
   ecs::flag::component_type Type;
@@ -33,4 +35,5 @@ struct menu_entity_tree {
   me_tree EntityTree;
 };
 
+void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity);
 void DrawEntityTree(application_imgui* AppImgui);

@@ -1,14 +1,221 @@
 #include "application_imgui_entity_list.h"
 
+#if 0
 
-file_local imgui_row CreateEntityRow(menu_entity_row* MenuRowData, render::font& Font, r32 FontSize, r32 XOffset, r32 RowHeight, r32 IconSize){
+Functions which were used when rendering old entity list. 
+Can be useful to keep here for reference
+
+void DrawIcon(b32 RowOpen, v4 TexCoord, rect2f RowRect) {
+  rect2f IconRect = Rect2f(RowRect.X, RowRect.Y, RowRect.H, RowRect.H);
+  render::DrawIconCanonicalSpace(CenteredRect(IconRect), TexCoord, V4(1,1,1,1));
+}
+
+void DrawText(ecs::entity_node* EntityNode, v2 TextPos, rect2f ButtonRect){
+  char SuffixBuff[16] = {};
+  ecs::entity* Entity = *EntityNode->Data;
+  FormatString(SuffixBuff, sizeof(SuffixBuff)-1, " (%d)", EntityNode->ChildCount);
+  char ButtonBuff[128] = {};
+  FormatString(ButtonBuff, sizeof(ButtonBuff)-1, "%s%s", Entity->Name, EntityNode->ChildCount > 0 ? SuffixBuff : "");
+  render::DrawTextCanonicalSpace(TextPos, ButtonRect, GlobalState->ImguiContext.FontSize, (utf8_byte const *) ButtonBuff, V4(1.0,1.0,1.0,1.0));
+}
+
+
+float PosXToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  return Position->RelativePosition.X;
+}
+
+void StoreXPos(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  v3 Pos = Position->RelativePosition;
+  Pos.X = Val;
+  ecs::position::Set(Position, Pos, Position->RelativeRotation, Position->Scale);
+}
+
+float PosYToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  return Position->RelativePosition.Y;
+}
+
+void StoreYPos(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  v3 Pos = Position->RelativePosition;
+  Pos.Y = Val;
+  ecs::position::Set(Position, Pos, Position->RelativeRotation, Position->Scale);
+}
+
+float PosZToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  return Position->RelativePosition.Z;
+}
+
+void StoreZPos(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  v3 Pos = Position->RelativePosition;
+  Pos.Z = Val;
+  ecs::position::Set(Position, Pos, Position->RelativeRotation, Position->Scale);
+}
+
+float RollToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  return EulerAngle.Roll * 180.f/Pi32;
+}
+
+void StoreRoll(float Val, void* Data)
+{
+  r32 Roll = Val * Pi32 / 180.f;
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  EulerAngle.Roll = Roll;
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle, Position->Scale);
+}
+
+float YawToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  return EulerAngle.Yaw * 180.f/Pi32;
+}
+
+void StoreYaw(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  EulerAngle.Yaw = Val * Pi32 / 180.f;
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle, Position->Scale);
+}
+
+float PitchToFloat(void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  return EulerAngle.Pitch * 180.f/Pi32;
+}
+
+void StorePitch(float Val, void* Data)
+{
+  ecs::position::component* Position = (ecs::position::component*) Data;
+  ecs::entity_id EntityID = ecs::GetEntityIDFromComponent( (bptr) Position );
+  euler_angle EulerAngle = QuaternionToEuler(Position->RelativeRotation);
+  EulerAngle.Pitch = Val * Pi32 / 180.f;
+  ecs::position::Set(Position, Position->RelativePosition, EulerAngle, Position->Scale);
+}
+
+#endif
+
+file_local menu_entity_row MenuEntityRow(ecs::entity_id EntityID)
+{
+  menu_entity_row NewRow = {};
+  NewRow.EntityID = EntityID;
+  NewRow.ImguiID = NewButtonID();
+  NewRow.Open = false;
+  u32 ComponentCount = ecs::GetComponentCount(GetEntityManager(), &EntityID);
+  NewRow.ComponentImguiIDs = cmn::vector<menu_entity_component_id>::Create(ComponentCount);
+  
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::POSITION))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::POSITION));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::GEOMETRY))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::GEOMETRY));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::MATERIAL))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::MATERIAL));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::COLLIDER))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::COLLIDER));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::LIGHT))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::LIGHT));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::CAMERA))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::CAMERA));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::CONTROLLER))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::CONTROLLER));
+  }
+  if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::RENDER))
+  {
+    NewRow.ComponentImguiIDs.PushBack(ImguiEntityComponent(ecs::flag::RENDER));
+  }
+  return NewRow;
+}
+
+void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity)
+{
+  // Just making sure that the parent of NewEntity in the entity Manager is the same as MenuParent
+  //Assert(ecs::Compare(&(*ecs::GetEntityFromID(GetEntityManager(), NewEntity)->Node->Parent->Data)->ID, &MenuParent->Data->EntityID));
+
+  me_node* Root = MenuParent;
+  me_node* Node = MenuParent->FirstChild;
+  if(Node)
+  {
+    do
+    {
+      if(ecs::Compare(&Node->Data->EntityID, NewEntity)){
+        return;
+      }
+      Node = Node->NextSibling;
+    }while((Node && Node != MenuParent->FirstChild));
+  }
+
+  u32 Depth = 0;
+  ecs::entity* E  = GetEntityFromID(GetEntityManager(), NewEntity);
+  ecs::entity_node* EN = E->Node;
+  while(EN->Parent){
+    Depth++;
+    EN = EN->Parent;
+  }
+  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
+  r32 XOffset = (Depth-1)*RowHeight;
+  r32 IconSize = 16;
+
+  menu_entity_row NewRow = MenuEntityRow(*NewEntity);
+  
+  MenuEntityTree->NewNode(MenuParent, NewRow);
+}
+
+inline file_local b32 EntityHasChildren(ecs::entity_node* EntityNode){
+  b32 Result = EntityNode->FirstChild != 0;
+  return Result;
+}
+
+
+file_local void GetEntityName(ecs::entity_node* EntityNode, size_t BuffLen, char TextBuff[])
+{
+  char SuffixBuff[16] = {};
+  ecs::entity* Entity = *EntityNode->Data;
+  FormatString(SuffixBuff, sizeof(SuffixBuff)-1, " (%d)", EntityNode->ChildCount);
+  FormatString(TextBuff, BuffLen-1, "%s%s", Entity->Name, EntityNode->ChildCount > 0 ? SuffixBuff : "");
+}
+
+file_local imgui_row CreateEntityRow(menu_entity_row* MenuRowData, render::font& Font, r32 FontSize, r32 XOffset, r32 IconSize){
    
   ecs::entity_id* EntityID = &MenuRowData->EntityID;
   ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
   ecs::entity_node* EntityNode = Entity->Node;
 
   imgui_row RowRenderer = {};
-  RowRenderer.Push(imgui_row::Padding(XOffset,RowHeight));
+  RowRenderer.Push(imgui_row::Padding(XOffset, 0));
   v2 IconPaddingSize = PixelToCanonicalSpace(V2(IconSize,IconSize));
   if(EntityHasChildren(EntityNode))
   {
@@ -58,6 +265,26 @@ file_local imgui_row CreateEntityRow(menu_entity_row* MenuRowData, render::font&
 }
 
 
+file_local void AddChildEntitiesLoadedToMenuTree(me_tree& MenuTree, me_node* MenuNode, ecs::entity_tree& EntityTree, ecs::entity_node* EntityNode){
+  ecs::entity_node* EntityChild = EntityNode->FirstChild;
+  do
+  {
+    // Is it smart to edit the me_tree while we are iterating through it....? I don't feel confident
+    menu_entity_row NewRow = MenuEntityRow((*EntityChild->Data)->ID);
+    MenuTree.NewNode(MenuNode, NewRow);
+    EntityChild = EntityChild->NextSibling;
+  }while(EntityChild != EntityNode->FirstChild);
+}
+
+
+file_local void DoEntityButtonRect(imgui_context* ImguiContext, menu_entity_row* MenuRowData) {
+  if(ImguiIsActive(MenuRowData->ImguiID) && ImguiIsHot(MenuRowData->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
+  {
+    MenuRowData->Open = !MenuRowData->Open;
+  }
+}
+
+
 
 file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) {
   SCOPED_TRANSIENT_ARENA;
@@ -70,12 +297,8 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos,
 
   render::font& Font = GlobalRenderer->Font;
 
-  v2 Padding = PixelToCanonicalSpace(V2(2,2));
-
   r32 FontSize = ImguiContext->FontSize;
   r32 RowHeight = Font.GetLineSpacingCanonicalSpace(FontSize);
-  r32 DescentOffset = Font.GetCanonicalFontDescenOffset(FontSize);
-  r32 TabWidth  = Font.GetTextSizeCanonicalSpace(FontSize, (utf8_byte const *) "  ").X;
 
   ecs::entity_tree& EntityTree = GlobalEntityManager->EntityTree;
   me_tree& MenuTree = MenuEntityTree->EntityTree;
@@ -91,7 +314,7 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos,
         menu_entity_row* MenuRowData = MenuNode->Data;
         r32 XOffset = (Index-1)*RowHeight;
 
-        imgui_row RowRenderer = CreateEntityRow(MenuRowData, Font, ImguiContext->FontSize, XOffset, RowHeight, IconSize);
+        imgui_row RowRenderer = CreateEntityRow(MenuRowData, Font, ImguiContext->FontSize, XOffset, IconSize);
         SkipSubTree = !MenuRowData->Open;
         ImguiRows.PushBack(RowRenderer);
       }
@@ -138,18 +361,18 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos,
   return ReactiveSizes.TotalSize;
 }
 
-
-
 void DrawEntityTree(application_imgui* AppImgui) {
 
   menu_entity_tree* MenuEntityTree = AppImgui->MenuEntityTree;
 
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalState->ImguiContext.FontSize);
   
-  v2 ScrollListPos  = V2(MenuEntityTree->BorderWindow.Region.X, MenuEntityTree->BorderWindow.Region.Y);
-  v2 ScrollListSize = V2(MenuEntityTree->BorderWindow.Region.W, MenuEntityTree->BorderWindow.Region.H - MenuEntityTree->BorderWindow.HeaderSize);
+  rect2f ContentRect = GetContentRect(&MenuEntityTree->BorderWindow);
 
-  ImguiBorderWindow(&MenuEntityTree->BorderWindow, "Entities");
+  v2 ScrollListPos  = LowerLeftPoint(ContentRect);
+  v2 ScrollListSize = RectSize(ContentRect);
+
+  DoImguiBorderWindow(&MenuEntityTree->BorderWindow, "Entities");
 
   v2 TotalSize = ImguiEntityComponentTree(MenuEntityTree, ScrollListPos, ScrollListSize);
 }

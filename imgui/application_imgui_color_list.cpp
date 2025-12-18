@@ -41,6 +41,20 @@ file_local void DrawColorRow(imgui_context* ImguiContext, imgui_id ButtonID, rec
   render::DrawTextCanonicalSpace(TextPos, TextRect, ImguiContext->FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));
 }
 
+file_local rect2f GetRowRect(rect2f ListRect, s32 Index, r32 FirstRow, r32 RowHeight)
+{
+  s32 FirstIndex = (s32) Floor(FirstRow);
+  r32 RowOffset = (FirstRow - FirstIndex) * RowHeight;
+
+  v2 RowSize = V2(ListRect.W, RowHeight);
+
+  r32 ListBot =  ListRect.Y;
+  r32 ListTop =  ListRect.Y + ListRect.H;
+
+  r32 RowYPos = -(Index+1) * RowHeight + ListTop + RowOffset;
+  v2 RowPos = V2(ListRect.X, RowYPos);
+  return Rect2f(RowPos,RowSize);
+}
 
 file_local b32 DrawColorListContent(menu_color_list* MenuColorList, v2 Pos, v2 Size, u32 RowCount, r32 RowHeight, imgui_id* RowIDs, void* Data) {
 
@@ -144,7 +158,7 @@ void DrawColorList(application_imgui* AppImgui) {
   v2 ScrollListPos  = V2(BorderWindow->Region.X, BorderWindow->Region.Y + RowHeight);
   v2 ScrollListSize = V2(BorderWindow->Region.W, BorderWindow->Region.H - 2* RowHeight);
   
-  ImguiBorderWindow(BorderWindow, "Colors");
+  DoImguiBorderWindow(BorderWindow, "Colors");
 
   if(DrawColorListContent(ColorListData, ScrollListPos, ScrollListSize, RowCount, RowHeight, ImguiIDs, (void*) ColorListData))
   {
