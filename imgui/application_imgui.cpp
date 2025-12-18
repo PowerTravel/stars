@@ -22,8 +22,8 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   Result.ColorListData->ColorIDs         = PushArray(Arena, ColorCount, s32);
 
   Result.MenuEntityTree = PushStruct(Arena, menu_entity_tree);
-  Result.MenuEntityTree->BorderWindow   = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
-  Result.MenuEntityTree->EntityList     = CreateScrollableTextList();
+  Result.MenuEntityTree->BorderWindow      = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
+  Result.MenuEntityTree->VerticalScrollbar = CreateVerticalScrollbar();
   Result.MenuEntityTree->EntityTree     = me_tree::Create();
   Result.MenuEntityTree->EntityTree.NewNode(); // EmptyRoot
 
@@ -716,22 +716,18 @@ void GetEntityName(ecs::entity_node* EntityNode, size_t BuffLen, char TextBuff[]
 }
 
 struct reactive_row_size {
+  rect2f RowRect;// Rect holding the combined size of the total row;
+
   u32 DivCount;
   imgui_row::div_hint** Divs;       // All divHints for row
-  u32 SplitCount;
-  u32* SplitIndeces;
-  
-  rect2f RowRect;// Rect holding the combined size of the total row;
   rect2f* DivRects; // Rect holding the size of each div;
+
+  u32 SplitCount;
   rect2f* SplitRowRects; // Rect holding the size of each split row.
 };
+
 struct reactive_size {
   u32 RowCount;       // Total number of rows to draw
-  u32* DivCounts;     // Total number of divs per row
-  rect2f* RowRects;   // Rects holding the position and size of each row.
-  rect2f** DivRects;  // Rects holding each div within a row.
-  u32* SplitCounts;   // The sizes of each list of u32 in SplitIndeces repressenting the number of divs to get a new row
-  u32** SplitIndeces; // This array holds the indeces where a new row is started
   reactive_row_size* ReactiveRowSizes;
   v2 TotalSize;
 };
@@ -775,18 +771,27 @@ file_local v2 SetPositionsForRow(r32 XStart, r32 YStart, reactive_row_size* Reac
   return V2(MaxWidth, MaxHeight);
 }
 
-file_local v2 CalculateRowBreakIndeces(r32 RowYPos, imgui_row::div_hint* FirstDivHint, const rect2f& ClipRect, reactive_row_size* ReactiveRowSize)
+file_local reactive_row_size CreateReactiveRow(u32 DivCount, r32 RowYPos, imgui_row::div_hint* FirstDivHint, const rect2f& ClipRect)
 {
+  reactive_row_size Result = {};
+  Result.DivCount           = DivCount;
+  Result.DivRects           = PushArray(GlobalTransientArena, Result.DivCount, rect2f);
+  Result.SplitRowRects      = PushArray(GlobalTransientArena, Result.DivCount, rect2f);
+  Result.Divs               = PushArray(GlobalTransientArena, Result.DivCount, imgui_row::div_hint*);
+
+  SCOPED_TRANSIENT_ARENA;
+
   // Find out where splits will happen
+  u32* SplitIndeces  = PushArray(GlobalTransientArena, Result.DivCount, u32);
   {
     const r32 RightEdge = ClipRect.X + ClipRect.W;
-    ReactiveRowSize->SplitCount = 0;
+    Result.SplitCount = 0;
     u32 DivIndex = 0;
     r32 X0 = ClipRect.X;
     imgui_row::div_hint* DivHint = FirstDivHint;
     r32 XPadding = 0;
     while(DivHint) {
-      ReactiveRowSize->Divs[DivIndex] = DivHint;
+      Result.Divs[DivIndex] = DivHint;
       imgui_row::header* Header = DivHint->Header;
       r32 X1 = 0;
       if(DivIndex == 0){
@@ -795,51 +800,52 @@ file_local v2 CalculateRowBreakIndeces(r32 RowYPos, imgui_row::div_hint* FirstDi
         X1 = X0 + Header->Size.X;
         if(X1 > RightEdge)
         {
-          r32 XPadding = ReactiveRowSize->Divs[DivIndex-1]->Padding;
+          r32 XPadding = Result.Divs[DivIndex-1]->Padding;
           X0 = ClipRect.X + XPadding;
           X1 = X0 + Header->Size.X;
-          ReactiveRowSize->SplitIndeces[ReactiveRowSize->SplitCount++] = DivIndex;
+          SplitIndeces[Result.SplitCount++] = DivIndex;
         }
       }
       X0 = X1;
       DivIndex++;
       DivHint = DivHint->Next;
     }
-    ReactiveRowSize->SplitIndeces[ReactiveRowSize->SplitCount++] = DivIndex;
+    SplitIndeces[Result.SplitCount++] = DivIndex;
   }
 
   v2 TotalSize = {};
   {
     r32 YPositionForRow = RowYPos;
-    for (int SplitIndex = 0; SplitIndex < ReactiveRowSize->SplitCount; ++SplitIndex)
+    for (int SplitIndex = 0; SplitIndex < Result.SplitCount; ++SplitIndex)
     {
       u32 StartIndex = 0;
       if(SplitIndex == 0)
       {
         StartIndex = 0;
       }else{
-        StartIndex = ReactiveRowSize->SplitIndeces[SplitIndex-1];
+        StartIndex = SplitIndeces[SplitIndex-1];
       }
       
-      u32 EndIndex = ReactiveRowSize->SplitIndeces[SplitIndex];
+      u32 EndIndex = SplitIndeces[SplitIndex];
 
       // This is annoying, but each div hint header holds the size of the previous group of row-elements,
       //                   the DivHint has a x-padding for the next row __iff__ a break occured at that divHint.
       r32 RowPadding = 0;
       if(SplitIndex > 0)
       {
-        RowPadding = ReactiveRowSize->Divs[SplitIndex-1]->Padding;
+        RowPadding = Result.Divs[SplitIndex-1]->Padding;
       }
       
       // Sets positions of divs with origin in top left. Starting at 0,0 and going down.
-      v2 SizeOfSplitRow = SetPositionsForRow(RowPadding, YPositionForRow, ReactiveRowSize, StartIndex, EndIndex);
-      ReactiveRowSize->SplitRowRects[SplitIndex] = Rect2f(V2(RowPadding,YPositionForRow), SizeOfSplitRow);
+      v2 SizeOfSplitRow = SetPositionsForRow(RowPadding, YPositionForRow, &Result, StartIndex, EndIndex);
+      Result.SplitRowRects[SplitIndex] = Rect2f(V2(RowPadding,YPositionForRow), SizeOfSplitRow);
       YPositionForRow += SizeOfSplitRow.Y;
       TotalSize.X = Maximum(SizeOfSplitRow.X, TotalSize.X);
       TotalSize.Y += SizeOfSplitRow.Y;
     }
   }
-  return TotalSize;
+  Result.RowRect = Rect2f(V2(0,RowYPos), TotalSize);
+  return Result;
 }
 
 void PushDummyDiv(imgui_row& Row, imgui_row::div_hint* DummyHint, imgui_row::header* DummyHeader, imgui_row::div_hint** OriginalDivHint, imgui_row::header** OriginalTailHeader)
@@ -979,26 +985,18 @@ void DebugDrawRowRects(u32 RowCount, reactive_row_size* ReactiveRowSizes)
     }
   }
 }
-reactive_size GetFullReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmount){
+reactive_size CreateReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmount){
 
   reactive_size Result = {};
 
   Result.RowCount         = ImguiRows.Size();
-  Result.DivCounts        = PushArray(GlobalTransientArena, Result.RowCount, u32);
-  Result.RowRects         = PushArray(GlobalTransientArena, Result.RowCount, rect2f);
-  Result.DivRects         = PushArray(GlobalTransientArena, Result.RowCount, rect2f*);
-  Result.SplitCounts      = PushArray(GlobalTransientArena, Result.RowCount, u32);
-  Result.SplitIndeces     = PushArray(GlobalTransientArena, Result.RowCount, u32*);
   Result.ReactiveRowSizes = PushArray(GlobalTransientArena, Result.RowCount, reactive_row_size);
-
 
   r32 RowPos = ClipRect.Y + ClipRect.H;
   r32 YPos = 0;
   for (int i = 0; i < Result.RowCount; ++i)
   {
     imgui_row& Row = ImguiRows[i];
-
-    reactive_row_size* ReactiveRowSize = &Result.ReactiveRowSizes[i];
 
     // Prepare a dummy divhint to temporarily put at the end to help div position/size - calculations
     imgui_row::header FinalDivHeader = {};
@@ -1020,21 +1018,9 @@ reactive_size GetFullReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f Clip
     }
     Assert(Row.m_divHead && Row.m_head); // Sanity check
 
-    Result.DivCounts[i]    = Row.m_divCount;
-    Result.DivRects[i]     = PushArray(GlobalTransientArena, Result.DivCounts[i], rect2f);
-
-    ReactiveRowSize->DivCount      = Row.m_divCount;
-    ReactiveRowSize->SplitIndeces  = PushArray(GlobalTransientArena, ReactiveRowSize->DivCount, u32);
-    ReactiveRowSize->DivRects      = PushArray(GlobalTransientArena, ReactiveRowSize->DivCount, rect2f);
-    ReactiveRowSize->SplitRowRects = PushArray(GlobalTransientArena, ReactiveRowSize->DivCount, rect2f);
-    ReactiveRowSize->Divs          = PushArray(GlobalTransientArena, ReactiveRowSize->DivCount, imgui_row::div_hint*);
-
-    v2 TotalSize = CalculateRowBreakIndeces(YPos, Row.m_divHead, ClipRect, ReactiveRowSize);
-    ReactiveRowSize->RowRect = Rect2f(V2(0,YPos), TotalSize);
-    YPos+=TotalSize.Y;
-
-    Result.SplitCounts[i] = ReactiveRowSize->SplitCount;
-    Result.SplitIndeces[i] = ReactiveRowSize->SplitIndeces;
+    Result.ReactiveRowSizes[i] = CreateReactiveRow(Row.m_divCount, YPos, Row.m_divHead, ClipRect);
+    
+    YPos+=Result.ReactiveRowSizes[i].RowRect.H;
 
     PopDummyDiv(Row, &FinalDivHint, &FinalDivHeader, OriginalDivHint, OriginalTailHeader);
   }
@@ -1230,10 +1216,13 @@ v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) {
   rect2f WindowRegion = Rect2f(Pos,Size);
   rect2f ContentRect = Rect2f(Pos,V2(Size.X-ScrollbarWidth,Size.Y));
 
-  reactive_size ReactiveSizes = GetFullReactiveSize(ImguiRows, ContentRect, 0);
+  reactive_size ReactiveSizes = CreateReactiveSize(ImguiRows, ContentRect, 0);
   
   r32 SizePercentage = Size.Y / ReactiveSizes.TotalSize.Y;
-  ImguiScrollBarVertical2(&MenuEntityTree->EntityList, WindowRegion, ScrollbarWidth, ReactiveSizes.TotalSize.Y);
+  rect2f ScrollbarRect = Rect2f(Pos.X + Size.X-ScrollbarWidth, Pos.Y, ScrollbarWidth, Size.Y);
+  
+  b32 MouseScrollActive = Intersects(WindowRegion, V2(GlobalImguiContext->MouseX, GlobalImguiContext->MouseY));
+  DoVerticalScrollbar(&MenuEntityTree->VerticalScrollbar, ScrollbarRect, MouseScrollActive, ReactiveSizes.TotalSize.Y);
 
 
   DrawRowList(ReactiveSizes, ImguiRows, ContentRect);

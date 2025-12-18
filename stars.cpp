@@ -15,6 +15,8 @@
 #include "ecs/entity_components.cpp"
 #include "ecs/systems/system_position.cpp"
 #include "imgui/imgui.cpp"
+#include "imgui/imgui_scrollbar.cpp"
+#include "imgui/imgui_row.cpp"
 #include "imgui/application_imgui.cpp"
 #include "broad_phase_collision_tree.cpp"
 #include "asset_manager/asset_manager.cpp"

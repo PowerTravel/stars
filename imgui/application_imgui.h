@@ -1,6 +1,8 @@
 #pragma once
 
 #include "imgui.h"
+#include "imgui_scrollbar.h"
+#include "imgui_row.h"
 #include "ecs/entity_components.h"
 #include "ecs/entity_components_backend.h"
 #include "containers/chunk_list.h"
@@ -78,7 +80,7 @@ typedef cmn::n_tree<menu_entity_row>::node me_node;
 typedef cmn::n_tree<menu_entity_row>::pre_order_iterator me_iterator;
 
 struct menu_entity_tree {
-  imgui_scrollable_list EntityList;
+  imgui_vertical_scrollbar VerticalScrollbar;
   imgui_bordered_window BorderWindow;
   me_tree EntityTree;
 };

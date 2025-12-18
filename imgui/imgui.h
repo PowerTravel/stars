@@ -183,6 +183,8 @@ b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 
   void (RowRenderFunction)(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data));
 
 
+
+
 struct imgui_text_input_buffer {
   utf8_string_buffer Buffer;
   s32 CaretPosition;
@@ -232,69 +234,6 @@ struct imgui_button_color {
   v4 ActiveColor;
   v4 HotColor;
 };
-
-struct imgui_row { 
-
-  struct padding {
-    r32 Width;
-    r32 Height;
-  };
-  static padding Padding(r32 Width, r32 Height);
-
-  struct icon {
-    r32 Size;
-    u32 IconType;
-    v4 Color;
-  };
-  static inline icon Icon(r32 Size, u32 IconType);
-
-  struct text {
-    size_t TextLen;
-    const char* Text;
-    r32 FontSize;
-    v4 Color;
-    render::font* Font;
-  };
-  static inline text Text(r32 FontSize, render::font* Font, size_t TextLen, const char* Text);
-
-  enum class type {
-    PADDING,
-    ICON,
-    TEXT,
-    DIV_HINT
-  };
-
-  struct header { 
-    type Type;
-    v2 Size;
-    void* Data;
-    imgui_id ImguiID;
-    header* Next;
-  };
-
-  struct div_hint {
-    r32 Padding; // If this div hint is breaking the row in two, use this padding
-    struct header* Header;
-    div_hint* Next;
-  };
-  static inline div_hint DivHint(r32 Padding);
-
-  u32 m_divCount;
-  div_hint* m_divHead;
-  div_hint* m_divTail;
-  header* m_head;
-  header* m_tail;
-  
-  v2 GetSize(v2* ResultVec);
-  v2 GetSizeOfDiv(imgui_row::header* Start, imgui_row::header** ResultEnd);
-  r32 Draw(r32 X, r32 Y, rect2f ClipRect);
-  void Push(padding Padding);
-  void Push(icon Icon, imgui_id ImguiID = {});
-  void Push(text Text, imgui_id ImguiID = {});
-  void Push(div_hint DivHint);
-  void Push(header* Header);
-};
-imgui_row ImguiRow();
 
 imgui_button_color ImguiDefaultButtonColor();
 v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors);
