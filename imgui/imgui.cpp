@@ -147,6 +147,86 @@ b32 ImguiScrollBarVertical(imgui_scrollable_list* List, rect2f ListRegion, r32 S
   return ImguiIsActive(List->VerticalScrollbarId);
 }
 
+
+file_local r32 MouseScroll(u32 TotalListSize)
+{
+  // Use as function parameter?
+  const r32 ScrollTick = 1/20.f;
+  r32 Result = 0;
+  if(GlobalState->ImguiContext.MouseDZ)
+  {
+    r32 ScrollTickPercentage = ScrollTick / TotalListSize;
+    Result = (GlobalState->ImguiContext.MouseDZ > 0) ? -ScrollTickPercentage : ScrollTickPercentage; 
+  }
+  return Result;
+}
+
+b32 ImguiScrollBarVertical2(imgui_scrollable_list* List, rect2f WindowRegion, r32 ScrollbarWidth, r32 TotalContentHeight)
+{
+  rect2f ScrollbarRect = Rect2f(WindowRegion.X + WindowRegion.W - ScrollbarWidth, WindowRegion.Y, ScrollbarWidth, WindowRegion.H);
+
+  // TODO: Place button min/max values in imgui_scrollable_list?
+  r32 ScrollButtonSizeMax = ScrollbarRect.H;
+  r32 ScrollButtonSizeMin = 0.03;
+  // TODO: ArgumentToFunction or use som environmental color values?
+  v4 ScrollWheelBackgroundColor = V4(0.5,0.5,0.5,1.0);
+  v2 Padding = V2(PixelToCanonicalWidth(1),
+                  PixelToCanonicalHeight(1));
+
+  r32 SizePercentage = WindowRegion.H / TotalContentHeight;
+  r32 ScrollWheelButtonHeight = Clamp(SizePercentage * ScrollbarRect.H, ScrollButtonSizeMin, ScrollButtonSizeMax);
+  v2 ScrollButtonSize = V2(ScrollbarRect.W, ScrollWheelButtonHeight);
+
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollbarRect), ScrollWheelBackgroundColor);
+  ImguiButton(&GlobalState->ImguiContext, List->VerticalScrollbarId, ScrollbarRect);
+
+  
+  r32 ScrollWheelPosY = Lerp(List->ScrollAmmount.Y, ScrollbarRect.Y + ScrollbarRect.H - ScrollButtonSize.Y, ScrollbarRect.Y);
+  rect2f ScrollWheelRect = Rect2f(ScrollbarRect.X, ScrollWheelPosY, ScrollButtonSize.X, ScrollButtonSize.Y);
+  ScrollWheelRect = Shrink(ScrollWheelRect, Padding);
+  
+  imgui_button_color ButtonColor = ImguiDefaultButtonColor();
+  
+  if(!ImguiIsHot(List->VerticalScrollbarId))
+  {
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollWheelRect), ButtonColor.InactiveColor);
+  }else{
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollWheelRect), ButtonColor.HotColor);
+  }
+  
+  v2 MousePos = V2(GlobalState->ImguiContext.MouseX, GlobalState->ImguiContext.MouseY);
+  if(ImguiIsActive(List->VerticalScrollbarId)) {
+    // Mouse is clickedUp on the scrollbarButton, Cache the mouseDiff.
+    if(GlobalState->ImguiContext.ActiveID.idEdge)
+    {
+      if(Intersects(ScrollWheelRect, MousePos))
+      {
+        List->ScrollButtonDiff.Y = MousePos.Y - (ScrollbarRect.Y + (1-List->ScrollAmmount.Y) * (ScrollbarRect.H - ScrollButtonSize.Y));  
+      }else{
+        List->ScrollButtonDiff.Y = ScrollButtonSize.Y*0.5f;
+      }
+    }else{
+      r32 A = ScrollbarRect.Y + List->ScrollButtonDiff.Y;
+      r32 B = ScrollbarRect.Y + ScrollbarRect.H - (ScrollButtonSize.Y-List->ScrollButtonDiff.Y);
+      if(A != B)
+      {
+        List->ScrollAmmount.Y = Unlerp(MousePos.Y, B, A);
+      }else{
+        List->ScrollAmmount.Y = Clamp(List->ScrollAmmount.Y,0,1);
+      }
+    }
+  }else{
+    if(Intersects(WindowRegion, MousePos))
+    {
+      List->ScrollAmmount.Y += MouseScroll(TotalContentHeight);
+    }  
+  }
+  List->ScrollAmmount.Y = Clamp(List->ScrollAmmount.Y, 0,1);
+
+  return ImguiIsActive(List->VerticalScrollbarId);
+}
+
+
 rect2f GetRowRect(rect2f ListRect, s32 Index, r32 FirstRow, r32 RowHeight)
 {
   s32 FirstIndex = (s32) Floor(FirstRow);
@@ -209,8 +289,6 @@ b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 
   }
   return Result;
 }
-
-
 
 
 imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer)
