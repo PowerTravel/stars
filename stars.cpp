@@ -18,6 +18,8 @@
 #include "imgui/imgui_scrollbar.cpp"
 #include "imgui/imgui_row.cpp"
 #include "imgui/application_imgui.cpp"
+#include "imgui/application_imgui_entity_list.cpp"
+#include "imgui/application_imgui_color_list.cpp"
 #include "broad_phase_collision_tree.cpp"
 #include "asset_manager/asset_manager.cpp"
 #include "dynamic_aabb_tree.cpp"
@@ -617,9 +619,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   DrawAllRenderObjects();
 
   render::NewOverlayLevel();
-  //DrawColorList(&GlobalState->ApplicationImgui);
+  DrawColorList(&GlobalState->ApplicationImgui);
   render::NewOverlayLevel();
-  //DrawEntityList(&GlobalState->ApplicationImgui);
   DrawEntityTree(&GlobalState->ApplicationImgui);
   ImguiEnd();
   //if(GlobalRenderer->ActiveCamera)

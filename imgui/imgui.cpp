@@ -66,15 +66,6 @@ imgui_icon_atlas LoadImguiIcons(render_group* RenderGroup)
   return Icons;
 }
 
-imgui_scrollable_list CreateScrollableTextList()
-{
-  imgui_scrollable_list Result = {};
-  Result.VerticalScrollbarId = NewButtonID();
-  Result.HorizontalScrollbarId = NewButtonID();
-  Result.SelectedRow = -1;
-  return Result;
-}
-
 r32 MouseScroll(u32 RowCount, r32 RowHeight)
 {
   r32 Result = 0;
@@ -94,57 +85,6 @@ r32 GetScrollWheelSize(r32 ListHeight, r32 RowHeight, u32 RowCount, r32 Min, r32
   r32 SizePercentage = LinesToFit / RowCount;
   r32 Result = Clamp(ListHeight * SizePercentage, Min, Max);
   return Result;
-}
-
-b32 ImguiScrollBarVertical(imgui_scrollable_list* List, rect2f ListRegion, r32 ScrollbarWidth, r32 RowHeight, r32 RowCount)
-{
-  rect2f ScrollbarRect = Rect2f(ListRegion.X + ListRegion.W - ScrollbarWidth, ListRegion.Y, ScrollbarWidth, ListRegion.H);
-  v2 ScrollButtonSize = V2(ScrollbarWidth, GetScrollWheelSize(ListRegion.H, RowHeight, RowCount, 0.03f, ListRegion.H));
-
-  render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollbarRect), V4(0.5,0.5,0.5,1.0));
-  ImguiButton(&GlobalState->ImguiContext, List->VerticalScrollbarId, ScrollbarRect);
-
-  v2 Padding =  V2(PixelToCanonicalWidth(1),
-                   PixelToCanonicalWidth(1));
-  
-  r32 ScrollWheelPosY = Lerp(List->ScrollAmmount.Y, ScrollbarRect.Y + ScrollbarRect.H - ScrollButtonSize.Y, ScrollbarRect.Y);
-  rect2f ScrollWheelRect = Rect2f(ScrollbarRect.X, ScrollWheelPosY, ScrollButtonSize.X, ScrollButtonSize.Y);
-  ScrollWheelRect = Shrink(ScrollWheelRect, Padding);
-  
-  imgui_button_color ButtonColor = ImguiDefaultButtonColor();
-  
-  if(!ImguiIsHot(List->VerticalScrollbarId))
-  {
-    render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollWheelRect), ButtonColor.InactiveColor);
-  }else{
-    render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollWheelRect), ButtonColor.HotColor);
-  }
-  
-  v2 MousePos = V2(GlobalState->ImguiContext.MouseX,GlobalState->ImguiContext.MouseY);
-  if(ImguiIsActive(List->VerticalScrollbarId)) {
-    // Mouse is clickedUp on the scrollbarButton, Cache the mouseDiff.
-    if(GlobalState->ImguiContext.ActiveID.idEdge)
-    {
-      if(Intersects(ScrollWheelRect, MousePos))
-      {
-        List->ScrollButtonDiff.Y = MousePos.Y - (ScrollbarRect.Y + (1-List->ScrollAmmount.Y) * (ScrollbarRect.H - ScrollButtonSize.Y));  
-      }else{
-        List->ScrollButtonDiff.Y = ScrollButtonSize.Y*0.5f;
-      }
-    }else{
-      r32 A = ScrollbarRect.Y + List->ScrollButtonDiff.Y;
-      r32 B = ScrollbarRect.Y + ScrollbarRect.H - (ScrollButtonSize.Y-List->ScrollButtonDiff.Y);
-      List->ScrollAmmount.Y = Unlerp(MousePos.Y, B, A);
-    }
-  }else{
-    if(Intersects(ListRegion,MousePos))
-    {
-      List->ScrollAmmount.Y += MouseScroll(RowCount, RowHeight);
-    }  
-  }
-  List->ScrollAmmount.Y = Clamp(List->ScrollAmmount.Y, 0,1);
-
-  return ImguiIsActive(List->VerticalScrollbarId);
 }
 
 
@@ -181,50 +121,6 @@ rect2f GetRowRect(rect2f ListRect, s32 Index, r32 FirstRow, r32 RowHeight)
 
 
 
-b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 Size, u32 RowCount, r32 RowHeight, imgui_id* RowIDs, void* Data, void (RowRenderFunction)(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)) {
-
-  // List Background
-  rect2f BackgroundRect = Rect2f(Pos, Size);
-  render::DrawOverlayQuadCanonicalSpace(CenteredRect(BackgroundRect), ImguiDefaultButtonColor().InactiveColor);
-
-  r32 LinesToFit = Size.Y / RowHeight;
-  v2 ListContentSize = Size;
-  r32 StartRow = 0;
-  if(LinesToFit < RowCount){
-    r32 ScrollbarWidth = 0.01;
-    ImguiScrollBarVertical(ScrollableList, BackgroundRect, ScrollbarWidth, RowHeight, RowCount);
-    ListContentSize.X -= ScrollbarWidth;
-    StartRow = ScrollableList->ScrollAmmount.Y * (RowCount - LinesToFit);
-  }
-
-  s32 StartIndex = (s32) Floor(StartRow);
-
-  rect2f ListRect = Rect2f(Pos, ListContentSize);
-  b32 Result = 0;
-  for (s32 i = 0; i<=LinesToFit; ++i)
-  {
-    s32 Index = StartIndex + i;
-    if(Index < RowCount)
-    {
-      rect2f RowRect = GetRowRect(ListRect, i, StartRow, RowHeight);
-      rect2f ClippedRow = RowRect;
-      if(Top(RowRect) > Top(ListRect) || Bot(RowRect) < Bot(ListRect)){
-        ClippedRow = Clip(RowRect, Rect2f(Pos, ListContentSize));  
-      }
-
-      if(ImguiButton(&GlobalState->ImguiContext, RowIDs[Index], ClippedRow))
-      {
-        Result = true;    
-      }
-      RowRenderFunction(&GlobalState->ImguiContext, RowIDs[Index],  RowRect, ClippedRow, Index, Data);
-      if(ImguiIsActive(RowIDs[Index]))
-      {
-        ScrollableList->SelectedRow = Index;
-      }
-    }
-  }
-  return Result;
-}
 
 
 imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer)

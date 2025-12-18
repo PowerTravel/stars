@@ -2,7 +2,7 @@
 
 b32 DoVerticalScrollbar(imgui_vertical_scrollbar* VerticalScrollbar, rect2f ScrollbarRect, b32 MousescrollActive,  r32 TotalContentHeight)
 {
-  // TODO: Place button min/max values in imgui_scrollable_list?
+  // TODO: Place button min/max values in imgui_vertical_scrollbar?
   r32 ScrollButtonSizeMax = ScrollbarRect.H;
   r32 ScrollButtonSizeMin = 0.03;
   // TODO: ArgumentToFunction or use som environmental color values?

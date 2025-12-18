@@ -168,23 +168,6 @@ void ImguiEnd(){
   }
 }
 
-
-struct imgui_scrollable_list {
-  imgui_id VerticalScrollbarId;
-  imgui_id HorizontalScrollbarId;
-
-  s32 SelectedRow;
-  v2 ScrollAmmount;
-  v2 ScrollButtonDiff;
-};
-
-imgui_scrollable_list CreateScrollableTextList();
-b32 ImguiScrollableButtonList(imgui_scrollable_list* ScrollableList, v2 Pos, v2 Size, u32 RowCount, r32 RowHeight, imgui_id* RowIDs, void* Data, 
-  void (RowRenderFunction)(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data));
-
-
-
-
 struct imgui_text_input_buffer {
   utf8_string_buffer Buffer;
   s32 CaretPosition;
