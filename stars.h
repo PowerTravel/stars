@@ -23,6 +23,7 @@
 #include "imgui/application_imgui.h"
 #include "asset_manager/asset_manager.h"
 #include "render/render.h"
+#include "imgui/imgui_border_window.h"
 typedef void(*func_ptr_void)(void); 
 
 #define DEBUGPrintRect(Rect) Platform.DEBUGPrint("%1.2f,%1.2f,%1.2f,%1.2f\n",(Rect).X, (Rect).Y ,(Rect).W, (Rect).H);
@@ -70,6 +71,7 @@ struct application_state
   asset::package* DebugPackage;
 
   ecs::entity_id FloorEntity;
+  imgui_bordered_window DebugBW;
 };
 
 global_variable ecs::entity_manager* GlobalEntityManager = 0;

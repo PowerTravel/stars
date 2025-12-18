@@ -19,7 +19,6 @@ imgui_bordered_window ImguiBorderedWindow( rect2f Region, v2 CornerSize, r32 Hea
   return Result;
 }
 
-
 void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[])
 {
   v2 CornerSize  = BorderWindow->CornerSize;

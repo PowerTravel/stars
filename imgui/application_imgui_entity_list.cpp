@@ -178,19 +178,8 @@ void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id*
     }while((Node && Node != MenuParent->FirstChild));
   }
 
-  u32 Depth = 0;
-  ecs::entity* E  = GetEntityFromID(GetEntityManager(), NewEntity);
-  ecs::entity_node* EN = E->Node;
-  while(EN->Parent){
-    Depth++;
-    EN = EN->Parent;
-  }
-  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
-  r32 XOffset = (Depth-1)*RowHeight;
-  r32 IconSize = 16;
-
+  ecs::entity* E = GetEntityFromID(GetEntityManager(), NewEntity);
   menu_entity_row NewRow = MenuEntityRow(*NewEntity);
-  
   MenuEntityTree->NewNode(MenuParent, NewRow);
 }
 
@@ -284,80 +273,78 @@ file_local void DoEntityButtonRect(imgui_context* ImguiContext, menu_entity_row*
   }
 }
 
-
-
-file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, v2 Pos, v2 Size) {
-  SCOPED_TRANSIENT_ARENA;
-  imgui_context* ImguiContext = &GlobalState->ImguiContext;
-  imgui_button_color ButtonColor = {};
-  ButtonColor.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "taupe");
-  ButtonColor.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "persian indigo");
-  ButtonColor.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "egyptian blue");
-  ButtonColor.HotColor =  menu::GetColor(&GlobalState->ColorTable, "rich black");
-
+file_local cmn::vector<imgui_row> BuildTransientImguiRows(me_tree& MenuTree, ecs::entity_tree& EntityTree)
+{
   render::font& Font = GlobalRenderer->Font;
+  r32 TabWidth = Font.GetTextSizeCanonicalSpace(GlobalImguiContext->FontSize, (const utf8_byte*) "  ").X;
 
-  r32 FontSize = ImguiContext->FontSize;
-  r32 RowHeight = Font.GetLineSpacingCanonicalSpace(FontSize);
+  cmn::vector<imgui_row> Result = cmn::vector<imgui_row>::CreateTransient(EntityTree.NodeCount());
+  bool SkipSubTree = false;
+  me_iterator It = MenuTree.PreOrderIterator(EntityTree.NodeCount());
+  const r32 IconSize = 20;
+  while(me_node* MenuNode = It.Next(SkipSubTree))
+  {
+    int Index = It.Depth() - 1;
+    if(Index != 0){
+      menu_entity_row* MenuRowData = MenuNode->Data;
+      r32 XOffset = (Index-1)*TabWidth;
+
+      imgui_row RowRenderer = CreateEntityRow(MenuRowData, Font, GlobalImguiContext->FontSize, XOffset, IconSize);
+      SkipSubTree = !MenuRowData->Open;
+      Result.PushBack(RowRenderer);
+    }
+  }
+  return Result;
+}
+
+file_local void PushNewlyOpenedChildEntities(me_tree& MenuTree, ecs::entity_tree& EntityTree)
+{
+  me_iterator It = MenuTree.PreOrderIterator(EntityTree.NodeCount());
+  bool SkipSubTree = false;
+  while(me_node* MenuNode = It.Next(SkipSubTree))
+  {
+    int Index = It.Depth() - 1;
+    if(Index != 0){
+      menu_entity_row* MenuRowData = MenuNode->Data;
+      DoEntityButtonRect(GlobalImguiContext, MenuRowData);
+      ecs::entity_id* EntityID = &MenuRowData->EntityID;
+      ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
+      ecs::entity_node* EntityNode = Entity->Node;
+      if(MenuRowData->Open && !MenuNode->FirstChild && EntityNode->FirstChild)
+      {
+        SkipSubTree = !MenuRowData->Open;
+        AddChildEntitiesLoadedToMenuTree(MenuTree, MenuNode, EntityTree, EntityNode);
+      }
+    }
+  }
+}
+
+
+
+file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f WindowRegion) {
+  SCOPED_TRANSIENT_ARENA;
 
   ecs::entity_tree& EntityTree = GlobalEntityManager->EntityTree;
   me_tree& MenuTree = MenuEntityTree->EntityTree;
-  cmn::vector<imgui_row> ImguiRows = cmn::vector<imgui_row>::CreateTransient(EntityTree.NodeCount());
-  {
-    bool SkipSubTree = false;
-    me_iterator It = MenuEntityTree->EntityTree.PreOrderIterator(EntityTree.NodeCount());
-    const r32 IconSize = 32;
-    while(me_node* MenuNode = It.Next(SkipSubTree))
-    {
-      int Index = It.Depth() - 1;
-      if(Index != 0){
-        menu_entity_row* MenuRowData = MenuNode->Data;
-        r32 XOffset = (Index-1)*RowHeight;
 
-        imgui_row RowRenderer = CreateEntityRow(MenuRowData, Font, ImguiContext->FontSize, XOffset, IconSize);
-        SkipSubTree = !MenuRowData->Open;
-        ImguiRows.PushBack(RowRenderer);
-      }
-    }
-  }
-  r32 ScrollbarWidth = 0.03;
-  rect2f WindowRegion = Rect2f(Pos,Size);
-  rect2f ContentRect = Rect2f(Pos,V2(Size.X-ScrollbarWidth,Size.Y));
+  cmn::vector<imgui_row> ImguiRows = BuildTransientImguiRows(MenuTree, EntityTree);
 
-  reactive_size ReactiveSizes = CreateReactiveSize(ImguiRows, ContentRect, 0);
-  
-  r32 SizePercentage = Size.Y / ReactiveSizes.TotalSize.Y;
-  rect2f ScrollbarRect = Rect2f(Pos.X + Size.X-ScrollbarWidth, Pos.Y, ScrollbarWidth, Size.Y);
+  r32 ScrollbarWidth = 0.01;
+  rect2f ContentRect = Rect2f(WindowRegion.X, WindowRegion.Y, WindowRegion.W-ScrollbarWidth, WindowRegion.H);
+  rect2f ScrollbarRect = Rect2f(ContentRect.X + WindowRegion.W-ScrollbarWidth, ContentRect.Y, ScrollbarWidth, WindowRegion.H);
+
+  reactive_size ReactiveSizes = CreateReactiveSize(ImguiRows, ContentRect, 0);  
+
+  DrawRowList(ReactiveSizes, ImguiRows, WindowRegion, MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y);
   
   b32 MouseScrollActive = Intersects(WindowRegion, V2(GlobalImguiContext->MouseX, GlobalImguiContext->MouseY));
-  DoVerticalScrollbar(&MenuEntityTree->VerticalScrollbar, ScrollbarRect, MouseScrollActive, ReactiveSizes.TotalSize.Y);
-
-
-  DrawRowList(ReactiveSizes, ImguiRows, ContentRect);
-
-
+  if(ReactiveSizes.TotalSize.Y >= WindowRegion.H)
   {
-    me_iterator It = MenuEntityTree->EntityTree.PreOrderIterator(EntityTree.NodeCount());
-    bool SkipSubTree = false;
-    while(me_node* MenuNode = It.Next(SkipSubTree))
-    {
-      int Index = It.Depth() - 1;
-      if(Index != 0){
-        menu_entity_row* MenuRowData = MenuNode->Data;
-
-        DoEntityButtonRect(ImguiContext, MenuRowData);
-        ecs::entity_id* EntityID = &MenuRowData->EntityID;
-        ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
-        ecs::entity_node* EntityNode = Entity->Node;
-        if(MenuRowData->Open && !MenuNode->FirstChild && EntityNode->FirstChild)
-        {
-          SkipSubTree = !MenuRowData->Open;
-          AddChildEntitiesLoadedToMenuTree(MenuTree, MenuNode, EntityTree, EntityNode);
-        }
-      }
-    }
+    DoVerticalScrollbar(&MenuEntityTree->VerticalScrollbar, ScrollbarRect, MouseScrollActive, ReactiveSizes.TotalSize.Y);
   }
 
+  PushNewlyOpenedChildEntities(MenuTree, EntityTree);
+  
   return ReactiveSizes.TotalSize;
 }
 
@@ -374,5 +361,5 @@ void DrawEntityTree(application_imgui* AppImgui) {
 
   DoImguiBorderWindow(&MenuEntityTree->BorderWindow, "Entities");
 
-  v2 TotalSize = ImguiEntityComponentTree(MenuEntityTree, ScrollListPos, ScrollListSize);
+  v2 TotalSize = ImguiEntityComponentTree(MenuEntityTree, ContentRect);
 }

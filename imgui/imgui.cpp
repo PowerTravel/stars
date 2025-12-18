@@ -3,15 +3,15 @@
 #include "platform/jwin_platform_memory.h"
 
 file_local inline v4 PositionToCoordinate(u32 X, u32 Y, u32 IconSizePx, u32 AtlasSizePx) {
-  r32 X0 = (X * IconSizePx);
-  r32 Y0 = (Y * IconSizePx);
-  r32 X1 = ((X+1) * IconSizePx);
-  r32 Y1 = ((Y+1) * IconSizePx);
+  r32 X0 = (X * IconSizePx) + 1;
+  r32 Y0 = (Y * IconSizePx) + 1;
+  r32 X1 = ((X+1) * IconSizePx) - 1;
+  r32 Y1 = ((Y+1) * IconSizePx) - 1;
   r32 OneOverSize = 1.f / (r32) AtlasSizePx;
   v4 Result = V4(
      X0*OneOverSize,  // u0
      Y0*OneOverSize,  // v0
-     X1*OneOverSize, // u1
+     X1*OneOverSize,  // u1
      Y1*OneOverSize); // v1
   return Result;
 }

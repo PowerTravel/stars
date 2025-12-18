@@ -438,64 +438,96 @@ reactive_size CreateReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipR
   return Result;
 }
 
-void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect)
+file_local v2 GetListOffset(r32 ScrollAmmount, v2 ListSize, rect2f ClipRect){
+  r32 WindowHeight = ClipRect.H;
+  r32 ContentHeight = ListSize.Y;
+
+  r32 VisiblePercentage = WindowHeight / ContentHeight;
+
+  v2 ScreenMid = CenterPoint(ClipRect);
+
+  // Find the point P in the list such that P will be rendered in the cetner of ClipRect if clipRect is positioned at 0,0
+  r32 TopLimit = ListSize.Y - ClipRect.H / 2; // ScrollAmmount == 0
+  r32 BotLimit = ClipRect.H / 2; // ScrollAmmount == 1
+  v2 ContentMid = V2(ListSize.X*0.5f, Lerp(ScrollAmmount, TopLimit, BotLimit));
+
+  v2 Diff = ScreenMid - ContentMid;
+  #if 0
+  rect2f ListRect = Rect2f(Diff, ListSize);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(ListRect), V4(1,1,1,1));
+
+  rect2f WindowRect = Rect2f(ClipRect.X, ClipRect.Y, ClipRect.W, ClipRect.H);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(WindowRect), V4(0,0,0,1));
+
+  v2 SquareSize = PixelToCanonicalSpace(V2(4,4));
+  rect2f DotRect = Rect2f((ClipRect.W - SquareSize.X)/2.0, ContentMid.Y - SquareSize.X/2.0, SquareSize.X, SquareSize.Y);
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(DotRect), V4(0,1,0,1));
+  #endif
+  return Diff;
+}
+
+file_local u32 GetEndRowIndex(r32 ScrollAmmount, const reactive_size& ReactiveSize, rect2f ClipRect){
+  return 0;
+}
+
+void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmmount)
 {
   SCOPED_TRANSIENT_ARENA;
   Assert(ReactiveSize.RowCount == ImguiRows.Size());
-  
-  imgui_button_color ButtonColorEven = {};
-  ButtonColorEven.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "sap green");
-  ButtonColorEven.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "persian indigo");
-  ButtonColorEven.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "egyptian blue");
-  ButtonColorEven.HotColor =  menu::GetColor(&GlobalState->ColorTable, "rich black");
-
-  imgui_button_color ButtonColorOdd = {};
-  ButtonColorOdd.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "fern green");
-  ButtonColorOdd.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "persian indigo");
-  ButtonColorOdd.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "egyptian blue");
-  ButtonColorOdd.HotColor =  menu::GetColor(&GlobalState->ColorTable, "rich black");
 
   v4 EvenColorBack = V4(0.3,0.3,0.3,1);
   v4 OddColorBack = V4(0.4,0.4,0.4,1);
+  
+  v2 ListSize = ReactiveSize.TotalSize;
+  v2 ListOffset = GetListOffset(ScrollAmmount, ListSize, ClipRect);
+
+  r32 StartX = ClipRect.X;
+  r32 StartY = ListOffset.Y + ListSize.Y;
+  r32 EndY   = ListOffset.Y;
+
   for (int i = 0; i < ImguiRows.Size(); ++i)
   {
     const imgui_row& ImguiRow = ImguiRows[i];
     const reactive_row_size& ReactiveRow = ReactiveSize.ReactiveRowSizes[i];
     
-    r32 t = (r32) (i+1) / (r32) ReactiveSize.RowCount;
-    
-
     rect2f RowRect = ReactiveRow.RowRect;
-    RowRect.X += ClipRect.X;
-    RowRect.Y += ClipRect.Y + ClipRect.H - ReactiveSize.TotalSize.Y;
+    RowRect.X += StartX;
+    RowRect.Y += StartY - ListSize.Y;
     RowRect.W = ClipRect.W;
-    render::DrawOverlayQuadCanonicalSpace(CenteredRect(RowRect), i % 2 == 0 ? EvenColorBack : OddColorBack);
+
+    if( (Bot(RowRect) > Top(ClipRect)) ||
+        (Top(RowRect) < Bot(ClipRect)))
+    {
+      continue;
+    }
+    
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(Clip(RowRect, ClipRect)), i % 2 == 0 ? EvenColorBack : OddColorBack);
+
     u32 DivIndex = 0;
-
     const imgui_row::header* Header = ImguiRow.m_head;
-
     r32 X0 = 0;
-    r32 Y0 = 0;
     while(Header)
     {
       rect2f DivRect = ReactiveRow.DivRects[DivIndex];
 
-      DivRect.X += ClipRect.X;
-      DivRect.Y += ClipRect.Y + ClipRect.H - ReactiveSize.TotalSize.Y;
+      DivRect.X += StartX;
+      DivRect.Y += StartY - ListSize.Y;
+ 
+      rect2f ClipRectForDiv = Clip(DivRect, ClipRect);
 
       switch(Header->Type)
       {
         case imgui_row::type::PADDING: {
           imgui_row::padding* Padding = (imgui_row::padding*) Header->Data;
-          rect2f PadRect = Rect2f(X0 + DivRect.X, Y0 + DivRect.Y, Header->Size.X, Header->Size.Y);
+          rect2f PadRect = Rect2f(X0 + DivRect.X, DivRect.Y, Header->Size.X, Header->Size.Y);
           X0 += Header->Size.X;
         }break;
         case imgui_row::type::ICON: {
           imgui_row::icon* Icon = (imgui_row::icon*) Header->Data;
-          rect2f IconRect = Rect2f(X0 + DivRect.X, Y0 + DivRect.Y, Header->Size.X, Header->Size.Y);
+          rect2f IconRect = Rect2f(X0 + DivRect.X, DivRect.Y, Header->Size.X, Header->Size.Y);
           v4 TexCoords = GlobalImguiContext->Icons.Coordinates[Icon->IconType];
-          ImguiPlainButton(GlobalImguiContext, Header->ImguiID, IconRect, i % 2 == 0 ? ButtonColorEven : ButtonColorOdd);
-          render::DrawIconCanonicalSpace(CenteredRect(IconRect), TexCoords, Icon->Color);
+          ImguiButton(GlobalImguiContext, Header->ImguiID, IconRect);
+          render::DrawIconCanonicalSpace2(IconRect, ClipRectForDiv, TexCoords, Icon->Color);
           X0 += Header->Size.X;
         }break;
         case imgui_row::type::TEXT: {
@@ -505,7 +537,7 @@ void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& Imgu
 
           r32 DiffY = 0.5 * (DivRect.H - LineHeight);
 
-          render::DrawTextCanonicalSpace(V2(X0 + DivRect.X,  Y0 + DivRect.Y + DescentOffset + DiffY), Text->FontSize, (const utf8_byte*) Text->Text, Text->Color);
+          render::DrawTextCanonicalSpace(V2(X0 + DivRect.X,  DivRect.Y + DescentOffset + DiffY), ClipRectForDiv, Text->FontSize, (const utf8_byte*) Text->Text, Text->Color);
           X0 += Header->Size.X;
         }break;
         case imgui_row::type::DIV_HINT: {
@@ -513,11 +545,19 @@ void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& Imgu
           Assert(DivHint->Header == Header);
           DivIndex++;
           X0 = 0;
-          Y0 = 0;
         }break;
       }
-
       Header = Header->Next;
     }
+
+    if(RowRect.Y < EndY){
+      break;
+    }
   }
+
+  if(ReactiveSize.TotalSize.Y < ClipRect.H){
+    rect2f RemainingRect = Rect2f(ClipRect.X, ClipRect.Y, ClipRect.W, ClipRect.H - ReactiveSize.TotalSize.Y);
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(RemainingRect), ImguiRows.Size() % 2 == 0 ? EvenColorBack : OddColorBack);
+  }
+
 }

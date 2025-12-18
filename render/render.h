@@ -56,7 +56,7 @@ namespace render {
 
   struct overlay_sprite {
     rect2f Rect;
-    v4 TexCoord;
+    v4 TexCoord; // u0,v0,u1,v1
     v4 Color;
     u32 SpriteDepth;      // Depth within the 2dArray
     u32 SpriteColorCount; // 0,1,3 or 4
@@ -138,6 +138,11 @@ namespace render {
   void DrawOverlayQuadCanonicalSpace(rect2f CanonicalRect, v4 Color);
   void DrawIconPixelSpace(rect2f PixelRect, v4 TextureCoords, v4 Color);
   void DrawIconCanonicalSpace(rect2f CanonicalRect, v4 TextureCoords, v4 Color);
+  void DrawIconPixelSpace(rect2f PixelRect, rect2f PixelClipRect, v4 TexCoords, v4 Color);
+  void DrawIconCanonicalSpace(rect2f CanonicalRect, rect2f CanonicalClipRect, v4 TexCoords, v4 Color);
+
+  void DrawIconPixelSpace2(rect2f PixelRect, rect2f PixelClipRect, v4 TexCoords, v4 Color);
+  void DrawIconCanonicalSpace2(rect2f CanonicalRect, rect2f CanonicalClipRect, v4 TexCoords, v4 Color);
 
   void NewOverlayLevel();
 

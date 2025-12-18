@@ -73,7 +73,7 @@ u32 CreateSDFRenderProgram(render_group* RenderGroup)
 
 struct sprite_varying {
   v4 Color;
-  v4 TexCoord;
+  v4 TexCoord; // u0, v0, u1, v1
   u32 TexDepth;
   m4 ModelMatrix; // PixelSpace
 };

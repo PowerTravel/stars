@@ -574,7 +574,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::render::component* RenderComponent = GetRenderComponent(&Entity);
         RenderComponent->PhongMaterial = asset::FindPhongMaterial(asset::ToKey(asset::type::PHONG_MATERIAL, "silver"));
       }
-#endif        
+#endif
+      GlobalState->DebugBW = ImguiBorderedWindow(Rect2f(0.25,0.25,0.5,0.5), PixelToCanonicalSpace(V2(3,3)), 0.02);
     }
   }else{
     render::Begin();
@@ -619,11 +620,21 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
-
+  #if 1
   render::NewOverlayLevel();
   DrawColorList(&GlobalState->ApplicationImgui);
   render::NewOverlayLevel();
   DrawEntityTree(&GlobalState->ApplicationImgui);
+  #else
+  render::NewOverlayLevel();
+
+  rect2f DebugIconRect = Rect2f(0.25,0.25,0.5,0.5);
+  
+  DoImguiBorderWindow(&GlobalState->DebugBW, "kek");
+
+  v4 DebugTexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_UNKNOWN];
+  render::DrawIconCanonicalSpace2(Shrink(DebugIconRect, 0.1), GetContentRect(&GlobalState->DebugBW), DebugTexCoords, V4(1,1,1,1));
+  #endif
   ImguiEnd();
   //if(GlobalRenderer->ActiveCamera)
   //{

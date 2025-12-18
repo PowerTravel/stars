@@ -640,9 +640,9 @@ file_local void DrawOverlaySprites(render_group* RenderGroup, overlay_level* Ove
     ModelMatrix = Transpose(ModelMatrix);
 
     common_shaders::sprite_varying Varying = {};
-    Varying.Color = Sprite->Color;
-    Varying.TexCoord = Sprite->TexCoord;
-    Varying.TexDepth = Sprite->SpriteDepth;
+    Varying.Color       = Sprite->Color;
+    Varying.TexCoord    = Sprite->TexCoord;
+    Varying.TexDepth    = Sprite->SpriteDepth;
     Varying.ModelMatrix = ModelMatrix;
 
     switch(Sprite->SpriteColorCount)
@@ -1033,16 +1033,6 @@ void DrawTextPixelSpace(v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_b
   cmn::list<overlay_sdf>& OverlaySDFList = GetOverlaySDF(OverlayLevel);
   for (int i = 0; i < UnicodeLen; ++i){
     OverlaySDFList.PushBack( OverlaySDFFromPrintCoordinate(TextPrintCoordinates+i, Color, 128/255.f, 32/255.f));
-
-#if 0
-  m4 Result = M4Identity();
-  Scale(V4(Size,1,0), Result);
-  Translate(V4(Pos, 0, 1), Result);
-  Result = Transpose(Result);
-#endif
-
-
-
   }
 }
 
@@ -1092,7 +1082,6 @@ file_local cmn::list<overlay_sprite>& GetOverlaySprite(overlay_level* OverlayLev
   return OverlayLevel->OverlaySprite;
 }
 
-
 void DrawOverlaySprite(rect2f PixelRect, v4 TextureCoords, v4 Color, u32 SpriteColorCount)
 {
   overlay_sprite Sprite = {};
@@ -1122,8 +1111,7 @@ void DrawOverlayQuadPixelSpace(rect2f PixelRect, v4 Color) {
 
 void DrawOverlayQuadCanonicalSpace(rect2f CanonicalRect, v4 Color)
 {
-  rect2f PixelRect = Rect2f( CanonicalToPixelSpace(V2(CanonicalRect.X, CanonicalRect.Y)),
-                             CanonicalToPixelSpace(V2(CanonicalRect.W, CanonicalRect.H)));
+  rect2f PixelRect = CanonicalToPixelSpace(CanonicalRect);
   DrawOverlaySprite(PixelRect, {}, Color, 0);
 }
 
@@ -1135,9 +1123,133 @@ void DrawIconPixelSpace(rect2f PixelRect, v4 TextureCoords, v4 Color)
 
 void DrawIconCanonicalSpace(rect2f CanonicalRect, v4 TextureCoords, v4 Color)
 {
-  rect2f PixelRect = Rect2f( CanonicalToPixelSpace(V2(CanonicalRect.X,CanonicalRect.Y)),
-                             CanonicalToPixelSpace(V2(CanonicalRect.W,CanonicalRect.H)));
+  rect2f PixelRect = CanonicalToPixelSpace(CanonicalRect);
   DrawOverlaySprite(PixelRect, TextureCoords, Color, 1);
+}
+
+struct clipped_sprite_result {
+  rect2f Rect;
+  v4 TexCoords; // u0,v0,u1,v1
+};
+/*
+file_local inline print_coordinates ClippedPrintCoordinates(r32 u0, r32 u1, r32 v0, r32 v1, r32 x, r32 y, r32 sx, r32 sy, rect2f CharRect, rect2f ClipRect){
+  print_coordinates Result = PrintCoordinates(u0, u1, v0, v1, x, y, sx, sy);
+  r32 X0 = Left(CharRect);
+  r32 X1 = Right(CharRect);
+  r32 Y0 = Bot(CharRect);
+  r32 Y1 = Top(CharRect);
+  if(X0 < Left(ClipRect)){
+    r32 Percentage = Unlerp(ClipRect.X, X0, X1);
+    Result.sx *= (1-Percentage);
+    Result.x = 0.5*(X1 + ClipRect.X);
+    Result.u0 = u0 + (u1-u0) * Percentage;
+  }
+  if(X1 > Right(ClipRect)){
+    r32 Percentage = Unlerp(ClipRect.X + ClipRect.W, X0, X1);
+    Result.sx *= Percentage;
+    Result.x = 0.5*(X0 + ClipRect.X+ClipRect.W);
+    Result.u1 = u0 + (u1-u0) * Percentage;
+  }
+  if(Y0 < Bot(ClipRect)){
+    r32 Percentage = Unlerp(ClipRect.Y, Y0, Y1);
+    Result.sy *= (1-Percentage);
+    Result.y = 0.5*(Y1 + ClipRect.Y);
+    Result.v0 = v0 + Percentage * (v1 - v0);
+  }
+  if(Y1 > Top(ClipRect)){
+    r32 Percentage = Unlerp(ClipRect.Y + ClipRect.H, Y0, Y1);
+    Result.sy *= Percentage;
+    Result.y = 0.5*(Y0 + ClipRect.Y + ClipRect.H);
+    Result.v1 = v0 + Percentage * (v1-v0);
+  }
+  return Result;
+}
+*/
+
+file_local inline clipped_sprite_result ClippedSprite(rect2f Rect, v4 TexCoords, rect2f ClipRect) {
+  clipped_sprite_result Result = {};
+  Result.Rect = Rect;
+  Result.TexCoords = TexCoords;
+
+  r32 u0 = TexCoords.X;
+  r32 u1 = TexCoords.Z;
+  r32 v0 = TexCoords.Y;
+  r32 v1 = TexCoords.W;
+
+  r32 X0 = Left(Rect);
+  r32 X1 = Right(Rect);
+  r32 Y0 = Bot(Rect);
+  r32 Y1 = Top(Rect);
+
+  r32 NewX0 = Left(Rect);
+  r32 NewX1 = Right(Rect);;
+  r32 NewY0 = Bot(Rect);
+  r32 NewY1 = Top(Rect);
+
+  if(X0 < Left(ClipRect)) {
+    r32 Percentage = Unlerp(ClipRect.X, X0, X1);
+    NewX0 = Left(ClipRect);
+    Result.TexCoords.X = u0 + (u1-u0) * Percentage;
+  }
+  if(X1 > Right(ClipRect)) {
+    r32 Percentage = Unlerp(ClipRect.X + ClipRect.W, X0, X1);
+    NewX1 = Right(ClipRect);
+    Result.TexCoords.Z = u0 + (u1-u0) * Percentage;
+  }
+  if(Y0 < Bot(ClipRect)) {
+    r32 Percentage = Unlerp(ClipRect.Y, Y0, Y1);
+    NewY0 = Bot(ClipRect);
+    Result.Rect.H = Rect.H * (1-Percentage);
+    Result.TexCoords.Y = v0 + Percentage * (v1 - v0);
+  }
+  if(Y1 > Top(ClipRect)) {
+    r32 Percentage = Unlerp(ClipRect.Y + ClipRect.H, Y0, Y1);
+    NewY1 = Top(ClipRect);
+    Result.TexCoords.W = v0 + Percentage * (v1-v0);
+  }
+
+  Result.Rect = Rect2f(NewX0,NewY0,NewX1 -NewX0, NewY1 -NewY0);
+  return Result;
+}
+
+void DrawIconPixelSpace(rect2f PixelRect, rect2f PixelClipRect, v4 TexCoords, v4 Color)
+{
+  if(WhollyInside(PixelRect, PixelClipRect))
+  {
+    DrawOverlaySprite(PixelRect, TexCoords, Color, 1);
+  }else if(Intersects(PixelRect,PixelClipRect)){
+    clipped_sprite_result ClippedCoords = ClippedSprite(PixelRect, TexCoords, PixelClipRect);
+    DrawOverlaySprite(ClippedCoords.Rect, ClippedCoords.TexCoords, Color, 1);
+  }else{
+    int a = 10;
+  }
+}
+
+void DrawIconCanonicalSpace(rect2f CanonicalRect, rect2f CanonicalClipRect, v4 TexCoords, v4 Color)
+{
+  rect2f PixelRect     = CanonicalToPixelSpace(CanonicalRect);
+  rect2f PixelClipRect = CanonicalToPixelSpace(CanonicalClipRect);
+  DrawIconPixelSpace(PixelRect, PixelClipRect, TexCoords, Color);
+}
+
+void DrawIconPixelSpace2(rect2f PixelRect, rect2f PixelClipRect, v4 TexCoords, v4 Color)
+{
+  if(WhollyInside(PixelRect, PixelClipRect))
+  {
+    DrawOverlaySprite(CenteredRect(PixelRect), TexCoords, Color, 1);
+  }else if(Intersects(PixelRect,PixelClipRect)){
+    clipped_sprite_result ClippedCoords = ClippedSprite(PixelRect, TexCoords, PixelClipRect);
+    DrawOverlaySprite(CenteredRect(ClippedCoords.Rect), ClippedCoords.TexCoords, Color, 1);
+  }else{
+    int a = 10;
+  }
+}
+
+void DrawIconCanonicalSpace2(rect2f CanonicalRect, rect2f CanonicalClipRect, v4 TexCoords, v4 Color)
+{
+  rect2f PixelRect     = CanonicalToPixelSpace(CanonicalRect);
+  rect2f PixelClipRect = CanonicalToPixelSpace(CanonicalClipRect);
+  DrawIconPixelSpace2(PixelRect, PixelClipRect, TexCoords, Color);
 }
 
 void NewOverlayLevel() {
