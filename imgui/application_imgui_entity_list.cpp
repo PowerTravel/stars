@@ -216,10 +216,9 @@ file_local imgui_row CreateEntityRow(menu_entity_row* MenuRowData, render::font&
   char NameBuffer[128] = {};
   GetEntityName(EntityNode,sizeof(NameBuffer),NameBuffer);
   RowRenderer.Push(imgui_row::Text(FontSize, &Font, sizeof(NameBuffer), NameBuffer));
-
+  RowRenderer.Push(imgui_row::DivHint(XOffset+IconPaddingSize.X));
   for (int i = 0; i < MenuRowData->ComponentImguiIDs.Size(); ++i)
   {
-    RowRenderer.Push(imgui_row::DivHint(XOffset+IconPaddingSize.X));
     menu_entity_component_id* ComponentID = &MenuRowData->ComponentImguiIDs[i];
     switch(ComponentID->Type)
     {
@@ -297,8 +296,15 @@ file_local cmn::vector<imgui_row> BuildTransientImguiRows(me_tree& MenuTree, ecs
   return Result;
 }
 
+struct list_add_helper_struct {
+  me_node* MenuNode;
+  ecs::entity_node* EntityNode;
+};
+
 file_local void PushNewlyOpenedChildEntities(me_tree& MenuTree, ecs::entity_tree& EntityTree)
 {
+  SCOPED_TRANSIENT_ARENA;
+  cmn::list<list_add_helper_struct> NodesToAdd = cmn::list<list_add_helper_struct>::CreateTransient();
   me_iterator It = MenuTree.PreOrderIterator(EntityTree.NodeCount());
   bool SkipSubTree = false;
   while(me_node* MenuNode = It.Next(SkipSubTree))
@@ -313,9 +319,20 @@ file_local void PushNewlyOpenedChildEntities(me_tree& MenuTree, ecs::entity_tree
       if(MenuRowData->Open && !MenuNode->FirstChild && EntityNode->FirstChild)
       {
         SkipSubTree = !MenuRowData->Open;
-        AddChildEntitiesLoadedToMenuTree(MenuTree, MenuNode, EntityTree, EntityNode);
+        list_add_helper_struct NodesHelper = {};
+        NodesHelper.MenuNode = MenuNode;
+        NodesHelper.EntityNode = EntityNode;
+        NodesToAdd.PushBack(NodesHelper);
       }
     }
+  }
+
+  cmn::list<list_add_helper_struct>::element* ListElement = NodesToAdd.First();
+  while(!NodesToAdd.IsEnd(ListElement))
+  {
+    list_add_helper_struct NodesHelper = ListElement->GetCopy();
+    AddChildEntitiesLoadedToMenuTree(MenuTree, NodesHelper.MenuNode, EntityTree, NodesHelper.EntityNode);
+    ListElement = ListElement->Next;
   }
 }
 
@@ -333,16 +350,41 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f 
   rect2f ContentRect = Rect2f(WindowRegion.X, WindowRegion.Y, WindowRegion.W-ScrollbarWidth, WindowRegion.H);
   rect2f ScrollbarRect = Rect2f(ContentRect.X + WindowRegion.W-ScrollbarWidth, ContentRect.Y, ScrollbarWidth, WindowRegion.H);
 
+  // Reactive size keeps a stack of all the sizes of all rects for the the elements in ImguiRows.
+  // They are positioned such that the bottom of the list is at Lower Left in canonical cooordinates (0,0)
   reactive_size ReactiveSizes = CreateReactiveSize(ImguiRows, ContentRect, 0);  
 
-  DrawRowList(ReactiveSizes, ImguiRows, WindowRegion, MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y);
-  
-  b32 MouseScrollActive = Intersects(WindowRegion, V2(GlobalImguiContext->MouseX, GlobalImguiContext->MouseY));
-  if(ReactiveSizes.TotalSize.Y >= WindowRegion.H)
+  b32 ScrollbarVisible = ReactiveSizes.TotalSize.Y >= WindowRegion.H;
+  if(!ScrollbarVisible)
   {
+    // Drawing the list takes: 
+    //  the ReactiveSizes keeping the outline of the list,
+    //  a region to draw in where the list is visible
+    //  and a scroll ammount where
+    //    0 says the top of the list should be at the top of the region
+    //    1 says the bot of the list should be at the bot of the region
+    // Note: - An issue with this is that the scroll ammount is the only thing telling us where to draw the list.
+    //       If the list is collapsed such that before it was larger than the region and after it is smaller, the scroll ammount won't have 
+    //       changed and the list rendering breaks.
+    //       - A quick and hacky way to solve this (done below) is to set the scroll ammount to 0 if the list size is smaller than the region.
+    //       An issue with this solution is that if the list changes size it moves around a bit in the region.
+    //       - What we maybe want to do is to instead of using the scroll ammount to position the list is to have a rownumber and row offset 
+    //       stored in menu_entity_tree which makes sure that no matter how the list size changes, the first (top) part of the list which is
+    //       drawn is always the same. However this makes the interaction with the scroll ammount a bit iffy.
+    //       However this is good enough for now.
+    MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y = 0;
+    DrawRowList(ReactiveSizes, ImguiRows, WindowRegion, MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y);
+  }else{
+    DrawRowList(ReactiveSizes, ImguiRows, ContentRect, MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y);
+    b32 MouseScrollActive = Intersects(WindowRegion, V2(GlobalImguiContext->MouseX, GlobalImguiContext->MouseY));
     DoVerticalScrollbar(&MenuEntityTree->VerticalScrollbar, ScrollbarRect, MouseScrollActive, ReactiveSizes.TotalSize.Y);
   }
 
+  // NOTE: There is a bug here which causes a crash when expanding the enityt-list. Especially after hot-reloading.
+  //       I think this is because I change the tree while iterating. It's done very naively.
+  //       A solution can be to either
+  //        - Load the entire entity tree to the MenuTree so expanding and contracting the list doesnt change the tree.
+  //        - Cache all the entitites to be added and add them after iterating.
   PushNewlyOpenedChildEntities(MenuTree, EntityTree);
   
   return ReactiveSizes.TotalSize;

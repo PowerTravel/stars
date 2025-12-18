@@ -438,11 +438,7 @@ reactive_size CreateReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipR
   return Result;
 }
 
-file_local v2 GetListOffset(r32 ScrollAmmount, v2 ListSize, rect2f ClipRect){
-  r32 WindowHeight = ClipRect.H;
-  r32 ContentHeight = ListSize.Y;
-
-  r32 VisiblePercentage = WindowHeight / ContentHeight;
+file_local v2 GetListOffset(r32 ScrollAmmount, v2 ListSize, rect2f ClipRect) {
 
   v2 ScreenMid = CenterPoint(ClipRect);
 
@@ -452,22 +448,8 @@ file_local v2 GetListOffset(r32 ScrollAmmount, v2 ListSize, rect2f ClipRect){
   v2 ContentMid = V2(ListSize.X*0.5f, Lerp(ScrollAmmount, TopLimit, BotLimit));
 
   v2 Diff = ScreenMid - ContentMid;
-  #if 0
-  rect2f ListRect = Rect2f(Diff, ListSize);
-  render::DrawOverlayQuadCanonicalSpace(CenteredRect(ListRect), V4(1,1,1,1));
 
-  rect2f WindowRect = Rect2f(ClipRect.X, ClipRect.Y, ClipRect.W, ClipRect.H);
-  render::DrawOverlayQuadCanonicalSpace(CenteredRect(WindowRect), V4(0,0,0,1));
-
-  v2 SquareSize = PixelToCanonicalSpace(V2(4,4));
-  rect2f DotRect = Rect2f((ClipRect.W - SquareSize.X)/2.0, ContentMid.Y - SquareSize.X/2.0, SquareSize.X, SquareSize.Y);
-  render::DrawOverlayQuadCanonicalSpace(CenteredRect(DotRect), V4(0,1,0,1));
-  #endif
   return Diff;
-}
-
-file_local u32 GetEndRowIndex(r32 ScrollAmmount, const reactive_size& ReactiveSize, rect2f ClipRect){
-  return 0;
 }
 
 void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmmount)
@@ -483,6 +465,10 @@ void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& Imgu
 
   r32 StartX = ClipRect.X;
   r32 StartY = ListOffset.Y + ListSize.Y;
+  if(StartY < Top(ClipRect))
+  {
+    StartY = Top(ClipRect);
+  }
   r32 EndY   = ListOffset.Y;
 
   for (int i = 0; i < ImguiRows.Size(); ++i)

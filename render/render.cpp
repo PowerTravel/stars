@@ -1220,8 +1220,6 @@ void DrawIconPixelSpace(rect2f PixelRect, rect2f PixelClipRect, v4 TexCoords, v4
   }else if(Intersects(PixelRect,PixelClipRect)){
     clipped_sprite_result ClippedCoords = ClippedSprite(PixelRect, TexCoords, PixelClipRect);
     DrawOverlaySprite(ClippedCoords.Rect, ClippedCoords.TexCoords, Color, 1);
-  }else{
-    int a = 10;
   }
 }
 
@@ -1240,8 +1238,6 @@ void DrawIconPixelSpace2(rect2f PixelRect, rect2f PixelClipRect, v4 TexCoords, v
   }else if(Intersects(PixelRect,PixelClipRect)){
     clipped_sprite_result ClippedCoords = ClippedSprite(PixelRect, TexCoords, PixelClipRect);
     DrawOverlaySprite(CenteredRect(ClippedCoords.Rect), ClippedCoords.TexCoords, Color, 1);
-  }else{
-    int a = 10;
   }
 }
 
