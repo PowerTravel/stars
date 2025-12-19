@@ -547,9 +547,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         GlobalState->FloorEntity = BaseEntity;
         ecs::position::component* Position = GetPositionComponent(&BaseEntity);
         ecs::position::Set(Position, V3(0,-1.1,0),  0, V3(0,1,0), V3(10,1,10));
-        int a = 10;
       }
-#if 1
       { // Transparent Cube
         ecs::entity_id Entity = CreateRenderEntitiesFromRenderTree("Transparent Cube", "Cube", &GlobalState->FloorEntity);
         ecs::position::Set(GetPositionComponent(&Entity), V3(2,1,0), 0, V3(0,1,0), V3(1,1,1));
@@ -574,7 +572,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         ecs::render::component* RenderComponent = GetRenderComponent(&Entity);
         RenderComponent->PhongMaterial = asset::FindPhongMaterial(asset::ToKey(asset::type::PHONG_MATERIAL, "silver"));
       }
-#endif
     }
   }else{
     render::Begin();
@@ -587,23 +584,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     //FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,0,1)));
   }
   LoadAndRenderGLTFEngine();
-  
-  if(!GlobalState->DEBUGMenuInitiated)
-  {
-    ecs::entity_node* EN = GlobalEntityManager->EntityTree.m_root->FirstChild; 
-    if(EN)
-    {
-      do
-      {
-        ecs::entity* a = *EN->Data;
-        imgui::app::me_tree* MenuTree = &GlobalState->ApplicationMenu.EntityList->EntityTree;
-        imgui::app::me_node* Root = MenuTree->m_root;
-        PushNewEntity(MenuTree, Root, &a->ID);
-        EN = EN->NextSibling;
-      }while(EN != GlobalEntityManager->EntityTree.m_root->FirstChild);
-    }
-    GlobalState->DEBUGMenuInitiated = true;
-  }
+  imgui::app::LoadNewEntitiesToEntityList();
 
   if((imgui::ImguiNoneSelected() && imgui::ImguiIsInactive())|| imgui::ImguiIsDragging())
   {

@@ -421,5 +421,21 @@ void DrawEntityTree(menu* Menu) {
   v2 TotalSize = ImguiEntityComponentTree(EntityList, ContentRect);
 }
 
+void LoadNewEntitiesToEntityList()
+{
+  ecs::entity_node* TopLevelEntity = GlobalEntityManager->EntityTree.m_root->FirstChild; 
+  if(TopLevelEntity)
+  {
+    do
+    {
+      ecs::entity* Entity = *TopLevelEntity->Data;
+      imgui::app::me_tree* MenuTree = &GlobalState->ApplicationMenu.EntityList->EntityTree;
+      imgui::app::me_node* Root = MenuTree->m_root;
+      PushNewEntity(MenuTree, Root, &Entity->ID);
+      TopLevelEntity = TopLevelEntity->NextSibling;
+    }while(TopLevelEntity != GlobalEntityManager->EntityTree.m_root->FirstChild);
+  }
+}
+
 } // namespace app
 } // namespace imgui

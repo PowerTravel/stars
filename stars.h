@@ -57,8 +57,6 @@ struct application_state
   // Value is u32, Handle from the render system
 
   u32 Skybox;
-  b32 DEBUGMenuInitiated;
-
   function_pool* FunctionPool;
   imgui::color_table ColorTable;
   world World;

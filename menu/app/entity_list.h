@@ -41,6 +41,6 @@ struct entity_list {
 entity_list* CreateEntityList(memory_arena* Arena);
 void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity);
 void DrawEntityTree(menu* AppImgui);
-
+void LoadNewEntitiesToEntityList();
 } // namespace app
 } // namespace imgui
