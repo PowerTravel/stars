@@ -383,8 +383,11 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f 
   // NOTE: There is a bug here which causes a crash when expanding the enityt-list. Especially after hot-reloading.
   //       I think this is because I change the tree while iterating. It's done very naively.
   //       A solution can be to either
-  //        - Load the entire entity tree to the MenuTree so expanding and contracting the list doesnt change the tree.
-  //        - Cache all the entitites to be added and add them after iterating.
+  //        1 Load the entire entity tree to the MenuTree so expanding and contracting the list doesnt change the tree.
+  //        2 Cache all the entitites to be added and add them after iterating.
+  // NOTE2: I implemented solution number 2. I encountered the bug immediately after 'fixing it' but never again since.
+  //        Maybe I fixed it, and I didnt compile properly the one time it failed. Idk, keeping theese notes around a bit
+  //        longer in case it happens again.
   PushNewlyOpenedChildEntities(MenuTree, EntityTree);
   
   return ReactiveSizes.TotalSize;
