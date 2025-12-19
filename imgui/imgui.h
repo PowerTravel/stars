@@ -5,7 +5,7 @@
 #include "platform/text_input.h"
 #include "render/render.h"
 
-enum imgui_icon {
+enum icon {
   ICON_DOUBLE_ANGLE_UP,
   ICON_DOUBLE_ANGLE_DOWN,
   ICON_DOUBLE_ANGLE_LEFT,
@@ -38,9 +38,9 @@ enum imgui_icon {
 
 namespace imgui { 
 
-struct imgui_icon_atlas {
+struct icon_atlas {
   u32 Atlas;
-  v4 Coordinates[imgui_icon::ICON_COUNT];
+  v4 Coordinates[icon::ICON_COUNT];
 };
 
 struct imgui_id {
@@ -50,7 +50,7 @@ struct imgui_id {
 
 struct imgui_context {
   
-  imgui_icon_atlas Icons;
+  icon_atlas Icons;
 
   u32 ButtonCounter;
 
@@ -71,7 +71,7 @@ struct imgui_context {
 extern imgui::imgui_context* GlobalImguiContext;
 
 namespace imgui {
-imgui_icon_atlas LoadImguiIcons(render_group* RenderGroup);
+icon_atlas LoadImguiIcons(render_group* RenderGroup);
 
 
 inline imgui_id Update(imgui_id Id, u32 Value)

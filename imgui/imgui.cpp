@@ -30,9 +30,9 @@ file_local u32 PushImguiIconAtlasToGPU(render_group* RenderGroup)
   return Result;
 }
 
-imgui_icon_atlas LoadImguiIcons(render_group* RenderGroup)
+icon_atlas LoadImguiIcons(render_group* RenderGroup)
 {
-  imgui_icon_atlas Icons = {};
+  icon_atlas Icons = {};
   Icons.Atlas = PushImguiIconAtlasToGPU(RenderGroup);
 
   u32 IconSize = 64;
@@ -177,6 +177,18 @@ utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, const c8* Text, co
     AppendStringToBuffer((utf8_byte*)Suffix, &Buff);
   }
   return Buff;
+}
+
+u32 ImguiTextButton(imgui_id Id, c8* Text, rect2f ButtonRect, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
+  v2 MousePos = V2(GlobalImguiContext->MouseX,GlobalImguiContext->MouseY);
+  if(Intersects(ButtonRect, MousePos))
+  {
+    ImguiSetHot(Id);
+    if(ImguiIsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
+      ImguiSetActive(Id);
+    }
+  }
+  return 0;
 }
 
 u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
