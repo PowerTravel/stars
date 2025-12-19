@@ -1251,6 +1251,24 @@ void DrawIconCanonicalSpace2(rect2f CanonicalRect, rect2f CanonicalClipRect, v4 
 void NewOverlayLevel() {
   GlobalRenderer->OverlayLevels.PushBack({});
 }
-  
+
+r32 GetDescenOffset(u32 FontEnum, r32 FontSize){
+  Assert(FontEnum == 0); // We only have one font. Later maybe have a font enum to choose between different loaded fonts.
+  r32 Result = GlobalRenderer->Font.GetCanonicalFontDescenOffset(FontSize);
+  return Result;
+}
+
+r32 GetLineSpacing(u32 FontEnum, r32 FontSize){
+  Assert(FontEnum == 0); // We only have one font. Later maybe have a font enum to choose between different loaded fonts.
+  r32 Result = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(FontSize);
+  return Result;
+}
+
+v2 GetTextSize(u32 FontEnum, r32 FontSize, const c8* Text){
+  Assert(FontEnum == 0); // We only have one font. Later maybe have a font enum to choose between different loaded fonts.
+  v2 Result = GlobalRenderer->Font.GetTextSize(FontSize, (utf8_byte const *) Text);
+  Result = PixelToCanonicalSpace(Result);
+  return Result;
+}
 
 } // namespace render 

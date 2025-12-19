@@ -211,7 +211,7 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
 
     if((jwin::Active(Input->Keyboard.Key_LSHIFT) || jwin::Active(Input->Keyboard.Key_RSHIFT)))
     {
-      if(Pushed(Input->Keyboard.Key_UP))
+      if(jwin::Pushed(Input->Keyboard.Key_UP))
       {
         m4 V = Camera->V;
         r32 AngleOfView = Camera->AngleOfView;
@@ -220,7 +220,7 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
         InitiateCamera(Camera, AngleOfView+1, AspectRatio, near);
         Camera->V = V;
         Platform.DEBUGPrint("AngleOfView: %f\n", AspectRatio*Camera->AngleOfView);
-      }else if(Pushed(Input->Keyboard.Key_DOWN))
+      }else if(jwin::Pushed(Input->Keyboard.Key_DOWN))
       {
         m4 V = Camera->V;
         r32 AngleOfView = Camera->AngleOfView;
@@ -232,7 +232,7 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
         Platform.DEBUGPrint("AngleOfView: %f\n", AspectRatio*Camera->AngleOfView);
       }
     }else{
-      if(Pushed(Input->Keyboard.Key_UP))
+      if(jwin::Pushed(Input->Keyboard.Key_UP))
       {
         m4 V = Camera->V;
         r32 AngleOfView = Camera->AngleOfView;
@@ -241,7 +241,7 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
         InitiateCamera(Camera, AngleOfView, AspectRatio, near);
         Camera->V = V;
         Platform.DEBUGPrint("Near: %f\n", near);
-      }else if(Pushed(Input->Keyboard.Key_DOWN))
+      }else if(jwin::Pushed(Input->Keyboard.Key_DOWN))
       {
         m4 V = Camera->V;
         r32 AngleOfView = Camera->AngleOfView;
@@ -386,6 +386,10 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
     if(jwin::Active(Input->Keyboard.Key_F))
     {
       TranslateCamera(Camera, V3(0,-CamSpeed,0));
+    }
+    if(jwin::Pushed(Input->Keyboard.Key_TAB))
+    {
+      imgui::app::ToggleTopMenu();
     }
   }
 
@@ -600,11 +604,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
-
-  render::NewOverlayLevel();
-  DrawColorList(&GlobalState->ApplicationMenu);
-  render::NewOverlayLevel();
-  DrawEntityTree(&GlobalState->ApplicationMenu);
+  imgui::app::DoMenu();
 
   imgui::ImguiEnd();
   //if(GlobalRenderer->ActiveCamera)

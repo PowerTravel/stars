@@ -33,6 +33,11 @@ static window_size_pixel WindowSizePixel(application_render_commands* RenderComm
   return Result;
 }
 
+inline r32 GetAspectRatio()
+{
+  return GlobalWindowSize.ApplicationAspectRatio;
+}
+
 inline r32 PixelToCanonicalWidth(const r32 X)
 {
   r32 Result = LinearRemap(X, 0, GlobalWindowSize.ApplicationWidth,  0, GlobalWindowSize.ApplicationAspectRatio);

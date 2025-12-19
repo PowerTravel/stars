@@ -129,6 +129,10 @@ namespace render {
   void DrawTextPixelSpace(v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
   void DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Text, v4 Color);
 
+  r32 GetDescenOffset(u32 FontEnum, r32 FontSize);
+  r32 GetLineSpacing(u32 FontEnum, r32 FontSize);
+  v2 GetTextSize(u32 FontEnum, r32 FontSize, const c8* Text);
+
   // Note: Merge this into maybe DrawSprite. Somehting like
   // void DrawSprite(v2 PixelPos, rect2f PixelClipRect, v4 TextureCoords, asset::texture* Texture);
   // Food for thought
@@ -145,5 +149,6 @@ namespace render {
   void DrawIconCanonicalSpace2(rect2f CanonicalRect, rect2f CanonicalClipRect, v4 TexCoords, v4 Color);
 
   void NewOverlayLevel();
+
 
 } // namespace render
