@@ -3,8 +3,9 @@
 #include "menu/imgui/imgui.h"
 
 namespace imgui { 
+namespace app {
 
-struct menu_color_list {
+struct color_list {
   id* ImguiIDs; // ColorListIndeces
   s32* ColorIDs;      // Mapping IDS from Colors in the ColorTable to list indeces.
   id TextInputID;
@@ -14,12 +15,12 @@ struct menu_color_list {
   u32 SelectedRow;
 };
 
-menu_color_list* CreateColorList(memory_arena* Arena, size_t ColorCount){
+color_list* CreateColorList(memory_arena* Arena, size_t ColorCount){
 
   u32 InputLen = 512;
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
 
-  menu_color_list* Result   = PushStruct(Arena, menu_color_list);
+  color_list* Result   = PushStruct(Arena, color_list);
   Result->TextInputBuffer   = ImguiNewTextInputBuffer(InputLen, PushArray(Arena, InputLen, utf8_byte));
   Result->TextInputID       = NewButtonID();
   Result->ImguiIDs          = PushArray(Arena, ColorCount, id);
@@ -34,6 +35,7 @@ menu_color_list* CreateColorList(memory_arena* Arena, size_t ColorCount){
   }
   return Result;
 }
-void DrawColorList(application_menu* AppImgui);
+void DrawColorList(menu* Menu);
 
+} // namespace app
 } // namespace imgui 

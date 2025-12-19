@@ -98,10 +98,10 @@ b32 ImguiSelectabeRegion(context* ImguiContext, id Id, rect2f RegionRect, jwin::
 imgui_button_color ImguiDefaultButtonColor()
 {
   imgui_button_color Result = {};
-  Result.InactiveColor =  menu::GetColor(&GlobalState->ColorTable, "taupe");
-  Result.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "old gold"); 
-  Result.ActiveColor = menu::GetColor(&GlobalState->ColorTable, "sandy taupe");
-  Result.HotColor = menu::GetColor(&GlobalState->ColorTable, "sandy taupe");
+  Result.InactiveColor =  imgui::GetColor(&GlobalState->ColorTable, "taupe");
+  Result.ActiveAndHotColor = imgui::GetColor(&GlobalState->ColorTable, "old gold"); 
+  Result.ActiveColor = imgui::GetColor(&GlobalState->ColorTable, "sandy taupe");
+  Result.HotColor = imgui::GetColor(&GlobalState->ColorTable, "sandy taupe");
   return Result;
 }
 
@@ -200,7 +200,7 @@ u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32
   }
 
   v2 ClickOffset = {};
-  v4 Color = menu::GetColor(&GlobalState->ColorTable, "plum");
+  v4 Color = imgui::GetColor(&GlobalState->ColorTable, "plum");
   r32 ButtonTextWidth = ButtonWidth;
   r32 ButtonTextHeight = ButtonHeight;
   if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
@@ -209,17 +209,17 @@ u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32
       ClickOffset.X = ClickOffsetPx/GlobalWindowSize.ApplicationWidth;
       ClickOffset.Y = -ClickOffsetPx/GlobalWindowSize.ApplicationWidth; 
     }
-    Color = menu::GetColor(&GlobalState->ColorTable, "waterspout");
+    Color = imgui::GetColor(&GlobalState->ColorTable, "waterspout");
   }else if(ImguiIsActive(Id)){
     // Button is Pressed
     if(ClickOffsetPx != 0){
       ClickOffset.X = 4.f/GlobalWindowSize.ApplicationWidth;
       ClickOffset.Y = -4.f/GlobalWindowSize.ApplicationWidth;
     }
-    Color = menu::GetColor(&GlobalState->ColorTable, "old gold");
+    Color = imgui::GetColor(&GlobalState->ColorTable, "old gold");
   }else if(ImguiIsHot(Id)){
     // Button is only highlighted
-    Color = menu::GetColor(&GlobalState->ColorTable, "khaki");
+    Color = imgui::GetColor(&GlobalState->ColorTable, "khaki");
     if(FontSize && Text && *Text != '\0')
     {
       r32 TextWidth = GlobalRenderer->Font.GetTextSizeCanonicalSpace(FontSize, (utf8_byte*) Text).X;
@@ -230,7 +230,7 @@ u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32
     }
   }else{
     // Button is inactive
-    Color = menu::GetColor(&GlobalState->ColorTable, "taupe");
+    Color = imgui::GetColor(&GlobalState->ColorTable, "taupe");
   }
 
   v2 CenterRect = V2(ButtonX + ButtonTextWidth * 0.5f, ButtonY + ButtonHeight * 0.5f); 
@@ -241,7 +241,7 @@ u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32
     rect2f ShadowRect = Rect2f(
       CenterRect.X + ShadowOffsetX,
       CenterRect.Y + ShadowOffsetY, ButtonTextWidth, ButtonHeight);
-    render::DrawOverlayQuadCanonicalSpace(ShadowRect, menu::GetColor(&GlobalState->ColorTable, "rich carmine"));
+    render::DrawOverlayQuadCanonicalSpace(ShadowRect, imgui::GetColor(&GlobalState->ColorTable, "rich carmine"));
   }
 
   rect2f ButtonRect = Rect2f(

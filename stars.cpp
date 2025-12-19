@@ -19,9 +19,9 @@
 #include "menu/imgui/row.cpp"
 #include "menu/imgui/border_window.cpp"
 #include "menu/imgui/text_input_buffer.cpp"
-#include "menu/application/menu.cpp"
-#include "menu/application/entity_list.cpp"
-#include "menu/application/color_list.cpp"
+#include "menu/app/menu.cpp"
+#include "menu/app/entity_list.cpp"
+#include "menu/app/color_list.cpp"
 #include "broad_phase_collision_tree.cpp"
 #include "asset_manager/asset_manager.cpp"
 #include "dynamic_aabb_tree.cpp"
@@ -504,7 +504,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   if(!GlobalState->Initialized)
   {
     //PowerOfTwoMiddles(1000000000);
-    GlobalState->ColorTable = menu::CreateColorTable(GlobalPersistentArena);
+    GlobalState->ColorTable = imgui::CreateColorTable(GlobalPersistentArena);
     GlobalState->AssetManager = asset::CreateAssetManager();
     GlobalAssetManager = GlobalState->AssetManager;
 
@@ -531,7 +531,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
 
     GlobalState->ImguiContext.Icons = imgui::LoadImguiIcons(RenderGroup);
-    GlobalState->ApplicationMenu = imgui::CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
+    GlobalState->ApplicationMenu    = imgui::app::CreateAppllicationMenu(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
     GlobalState->Initialized = true;
 
@@ -596,8 +596,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       do
       {
         ecs::entity* a = *EN->Data;
-        imgui::me_tree* MenuTree = &GlobalState->ApplicationMenu.MenuEntityTree->EntityTree;
-        imgui::me_node* Root = MenuTree->m_root;
+        imgui::app::me_tree* MenuTree = &GlobalState->ApplicationMenu.MenuEntityTree->EntityTree;
+        imgui::app::me_node* Root = MenuTree->m_root;
         PushNewEntity(MenuTree, Root, &a->ID);
         EN = EN->NextSibling;
       }while(EN != GlobalEntityManager->EntityTree.m_root->FirstChild);

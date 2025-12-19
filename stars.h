@@ -18,10 +18,10 @@
 #include "containers/chunk_list.h"
 #include "ecs/entity_components.h"
 #include "ecs/systems/system_position.h"
-#include "color_table.h"
+#include "menu/imgui/color_table.h"
 #include "menu/imgui/imgui.h"
 #include "menu/imgui/border_window.h"
-#include "menu/application/menu.h"
+#include "menu/app/menu.h"
 #include "asset_manager/asset_manager.h"
 #include "render/render.h"
 typedef void(*func_ptr_void)(void); 
@@ -60,13 +60,13 @@ struct application_state
   b32 DEBUGMenuInitiated;
 
   function_pool* FunctionPool;
-  menu::color_table ColorTable;
+  imgui::color_table ColorTable;
   world World;
 
   window_size_pixel WindowSize;
 
   imgui::context ImguiContext;
-  imgui::application_menu ApplicationMenu;
+  imgui::app::menu ApplicationMenu;
 
   asset::package* DebugPackage;
 
@@ -92,7 +92,7 @@ inline ecs::entity_manager* GetEntityManager() {
   return GlobalState->World.EntityManager;
 }
 
-inline menu::color_table* GetColorTable()
+inline imgui::color_table* GetColorTable()
 {
   return &GlobalState->ColorTable;
 }

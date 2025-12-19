@@ -5,7 +5,7 @@
 #include "containers/rb_tree.h"
 #include "containers/vector_list.h"
 
-namespace menu {
+namespace imgui {
 
 struct named_color_hex
 {

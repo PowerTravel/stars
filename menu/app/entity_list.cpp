@@ -1,6 +1,7 @@
 #include "entity_list.h"
 
 namespace imgui { 
+namespace app {
 #if 0
 
 Functions which were used when rendering old entity list. 
@@ -117,14 +118,14 @@ void StorePitch(float Val, void* Data)
 
 #endif
 
-file_local menu_entity_row MenuEntityRow(ecs::entity_id EntityID)
+file_local entity_row MenuEntityRow(ecs::entity_id EntityID)
 {
-  menu_entity_row NewRow = {};
+  entity_row NewRow = {};
   NewRow.EntityID = EntityID;
   NewRow.ImguiID = NewButtonID();
   NewRow.Open = false;
   u32 ComponentCount = ecs::GetComponentCount(GetEntityManager(), &EntityID);
-  NewRow.ComponentImguiIDs = cmn::vector<menu_entity_component_id>::Create(ComponentCount);
+  NewRow.ComponentImguiIDs = cmn::vector<entity_component_id>::Create(ComponentCount);
   
   if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::POSITION))
   {
@@ -180,7 +181,7 @@ void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id*
   }
 
   ecs::entity* E = GetEntityFromID(GetEntityManager(), NewEntity);
-  menu_entity_row NewRow = MenuEntityRow(*NewEntity);
+  entity_row NewRow = MenuEntityRow(*NewEntity);
   MenuEntityTree->NewNode(MenuParent, NewRow);
 }
 
@@ -198,7 +199,7 @@ file_local void GetEntityName(ecs::entity_node* EntityNode, size_t BuffLen, char
   FormatString(TextBuff, BuffLen-1, "%s%s", Entity->Name, EntityNode->ChildCount > 0 ? SuffixBuff : "");
 }
 
-file_local imgui_row CreateEntityRow(menu_entity_row* MenuRowData, render::font& Font, r32 FontSize, r32 XOffset, r32 IconSize){
+file_local imgui_row CreateEntityRow(entity_row* MenuRowData, render::font& Font, r32 FontSize, r32 XOffset, r32 IconSize){
    
   ecs::entity_id* EntityID = &MenuRowData->EntityID;
   ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
@@ -220,7 +221,7 @@ file_local imgui_row CreateEntityRow(menu_entity_row* MenuRowData, render::font&
   RowRenderer.Push(imgui_row::DivHint(XOffset+IconPaddingSize.X));
   for (int i = 0; i < MenuRowData->ComponentImguiIDs.Size(); ++i)
   {
-    menu_entity_component_id* ComponentID = &MenuRowData->ComponentImguiIDs[i];
+    entity_component_id* ComponentID = &MenuRowData->ComponentImguiIDs[i];
     switch(ComponentID->Type)
     {
       case ecs::flag::POSITION: {
@@ -259,14 +260,14 @@ file_local void AddChildEntitiesLoadedToMenuTree(me_tree& MenuTree, me_node* Men
   do
   {
     // Is it smart to edit the me_tree while we are iterating through it....? I don't feel confident
-    menu_entity_row NewRow = MenuEntityRow((*EntityChild->Data)->ID);
+    entity_row NewRow = MenuEntityRow((*EntityChild->Data)->ID);
     MenuTree.NewNode(MenuNode, NewRow);
     EntityChild = EntityChild->NextSibling;
   }while(EntityChild != EntityNode->FirstChild);
 }
 
 
-file_local void DoEntityButtonRect(context* ImguiContext, menu_entity_row* MenuRowData) {
+file_local void DoEntityButtonRect(context* ImguiContext, entity_row* MenuRowData) {
   if(ImguiIsActive(MenuRowData->ImguiID) && ImguiIsHot(MenuRowData->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
   {
     MenuRowData->Open = !MenuRowData->Open;
@@ -286,7 +287,7 @@ file_local cmn::vector<imgui_row> BuildTransientImguiRows(me_tree& MenuTree, ecs
   {
     int Index = It.Depth() - 1;
     if(Index != 0){
-      menu_entity_row* MenuRowData = MenuNode->Data;
+      entity_row* MenuRowData = MenuNode->Data;
       r32 XOffset = (Index-1)*TabWidth;
 
       imgui_row RowRenderer = CreateEntityRow(MenuRowData, Font, GlobalImguiContext->FontSize, XOffset, IconSize);
@@ -312,7 +313,7 @@ file_local void PushNewlyOpenedChildEntities(me_tree& MenuTree, ecs::entity_tree
   {
     int Index = It.Depth() - 1;
     if(Index != 0){
-      menu_entity_row* MenuRowData = MenuNode->Data;
+      entity_row* MenuRowData = MenuNode->Data;
       DoEntityButtonRect(GlobalImguiContext, MenuRowData);
       ecs::entity_id* EntityID = &MenuRowData->EntityID;
       ecs::entity* Entity = GetEntityFromID(GetEntityManager(), EntityID);
@@ -339,7 +340,7 @@ file_local void PushNewlyOpenedChildEntities(me_tree& MenuTree, ecs::entity_tree
 
 
 
-file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f WindowRegion) {
+file_local v2 ImguiEntityComponentTree(entity_tree* MenuEntityTree, rect2f WindowRegion) {
   SCOPED_TRANSIENT_ARENA;
 
   ecs::entity_tree& EntityTree = GlobalEntityManager->EntityTree;
@@ -370,7 +371,7 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f 
     //       - A quick and hacky way to solve this (done below) is to set the scroll ammount to 0 if the list size is smaller than the region.
     //       An issue with this solution is that if the list changes size it moves around a bit in the region as the list is fixed at a percentage position interpolated from the scroll amount.
     //       - What we maybe want to do is to instead of using the scroll ammount to position the list is to have a rownumber and row offset 
-    //       stored in menu_entity_tree which makes sure that no matter how the list size changes, the first (top) part of the list which is
+    //       stored in entity_tree which makes sure that no matter how the list size changes, the first (top) part of the list which is
     //       drawn is always the same. However this makes the interaction with the scroll ammount a bit iffy.
     //       However this is good enough for now.
     MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y = 0;
@@ -394,9 +395,9 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f 
   return ReactiveSizes.TotalSize;
 }
 
-void DrawEntityTree(application_menu* Menu) {
+void DrawEntityTree(menu* Menu) {
 
-  menu_entity_tree* MenuEntityTree = Menu->MenuEntityTree;
+  entity_tree* MenuEntityTree = Menu->MenuEntityTree;
 
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalState->ImguiContext.FontSize);
   
@@ -410,4 +411,5 @@ void DrawEntityTree(application_menu* Menu) {
   v2 TotalSize = ImguiEntityComponentTree(MenuEntityTree, ContentRect);
 }
 
+} // namespace app
 } // namespace imgui

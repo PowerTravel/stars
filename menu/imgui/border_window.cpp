@@ -38,10 +38,10 @@ void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[
   rect2f TopRightCorner = Rect2f(RegionPos + RegionSize, CornerSize);
 
   imgui_button_color BorderColor = {};
-  BorderColor.InactiveColor = menu::GetColor(&GlobalState->ColorTable, "taupe");
-  BorderColor.ActiveAndHotColor = menu::GetColor(&GlobalState->ColorTable, "sandy taupe");
+  BorderColor.InactiveColor = imgui::GetColor(&GlobalState->ColorTable, "taupe");
+  BorderColor.ActiveAndHotColor = imgui::GetColor(&GlobalState->ColorTable, "sandy taupe");
   BorderColor.ActiveColor = V4(0.098039, 0.349020, 0.019608, 1.000000);
-  BorderColor.HotColor =  menu::GetColor(&GlobalState->ColorTable, "golden brown");
+  BorderColor.HotColor =  imgui::GetColor(&GlobalState->ColorTable, "golden brown");
   
   rect2f HeaderBarRect = Rect2f(Region.X, Region.Y + Region.H - BorderWindow->HeaderSize, Region.W, BorderWindow->HeaderSize);
 
@@ -152,7 +152,7 @@ void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[
   r32 TextWidth = GlobalRenderer->Font.GetTextSizeCanonicalSpace(GlobalState->ImguiContext.FontSize, (utf8_byte*) Header).X;
   v2 TextOrigin = V2(HeaderBarRect.X + (HeaderBarRect.W - TextWidth) * 0.5f, HeaderBarRect.Y + DescentOffset);
   render::DrawTextCanonicalSpace(TextOrigin, HeaderBarRect, GlobalState->ImguiContext.FontSize, (utf8_byte *) Header, V4(1.0,1.0,1.0,1.0));  
-  render::DrawOverlayQuadCanonicalSpace(CenteredRect(HeaderBarRect), menu::GetColor(&GlobalState->ColorTable, "seal brown"));
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(HeaderBarRect), imgui::GetColor(&GlobalState->ColorTable, "seal brown"));
   if(ImguiButton(&GlobalState->ImguiContext, BorderWindow->HeaderID, HeaderBarRect))
   {
     if(GlobalState->ImguiContext.ActiveID.idEdge)
