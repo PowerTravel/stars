@@ -40,7 +40,7 @@ struct imgui_row {
     type Type;
     v2 Size;
     void* Data;
-    imgui_id ImguiID;
+    id ImguiID;
     header* Next;
   };
 
@@ -58,8 +58,8 @@ struct imgui_row {
   header* m_tail;
 
   void Push(padding Padding);
-  void Push(icon Icon, imgui_id ImguiID = {});
-  void Push(text Text, imgui_id ImguiID = {});
+  void Push(icon Icon, id ImguiID = {});
+  void Push(text Text, id ImguiID = {});
   void Push(div_hint DivHint);
   void Push(header* Header);
 };

@@ -266,7 +266,7 @@ file_local void AddChildEntitiesLoadedToMenuTree(me_tree& MenuTree, me_node* Men
 }
 
 
-file_local void DoEntityButtonRect(imgui_context* ImguiContext, menu_entity_row* MenuRowData) {
+file_local void DoEntityButtonRect(context* ImguiContext, menu_entity_row* MenuRowData) {
   if(ImguiIsActive(MenuRowData->ImguiID) && ImguiIsHot(MenuRowData->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
   {
     MenuRowData->Open = !MenuRowData->Open;
@@ -394,9 +394,9 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f 
   return ReactiveSizes.TotalSize;
 }
 
-void DrawEntityTree(application_imgui* AppImgui) {
+void DrawEntityTree(application_menu* Menu) {
 
-  menu_entity_tree* MenuEntityTree = AppImgui->MenuEntityTree;
+  menu_entity_tree* MenuEntityTree = Menu->MenuEntityTree;
 
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalState->ImguiContext.FontSize);
   

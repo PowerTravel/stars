@@ -10,7 +10,7 @@ namespace imgui {
 
 struct menu_entity_component_id {
   ecs::flag::component_type Type;
-  imgui_id ImguiID;
+  id ImguiID;
 };
 
 inline menu_entity_component_id ImguiEntityComponent(ecs::flag::component_type Type){
@@ -23,7 +23,7 @@ inline menu_entity_component_id ImguiEntityComponent(ecs::flag::component_type T
 struct menu_entity_row {
   ecs::entity_id EntityID;
   cmn::vector<menu_entity_component_id> ComponentImguiIDs;
-  imgui_id ImguiID;
+  id ImguiID;
   b32 Open;
 };
 
@@ -38,6 +38,6 @@ struct menu_entity_tree {
 };
 
 void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity);
-void DrawEntityTree(application_imgui* AppImgui);
+void DrawEntityTree(application_menu* AppImgui);
 
 } // namespace imgui

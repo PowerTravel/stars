@@ -43,21 +43,21 @@ struct icon_atlas {
   v4 Coordinates[icon::ICON_COUNT];
 };
 
-struct imgui_id {
+struct id {
   u32 id;
   b32 idEdge;
 };
 
-struct imgui_context {
+struct context {
   
   icon_atlas Icons;
 
   u32 ButtonCounter;
 
-  imgui_id ActiveID;
-  imgui_id HotID;
-  imgui_id SelectedID;
-  imgui_id PreviouslySelectedID;
+  id ActiveID;
+  id HotID;
+  id SelectedID;
+  id PreviouslySelectedID;
 
   r32 MouseX;
   r32 MouseY;
@@ -68,27 +68,27 @@ struct imgui_context {
 };
 
 } // namespace imgui
-extern imgui::imgui_context* GlobalImguiContext;
+extern imgui::context* GlobalImguiContext;
 
 namespace imgui {
+
 icon_atlas LoadImguiIcons(render_group* RenderGroup);
 
-
-inline imgui_id Update(imgui_id Id, u32 Value)
+inline id Update(id Id, u32 Value)
 {
   Id.idEdge = (Id.id != Value); // <- Edge is true if Id changed
   Id.id = Value;
   return Id;
 }
 
-imgui_id NewButtonID()
+id NewButtonID()
 {
-  imgui_id Result = {};
+  id Result = {};
   Result.id = ++GlobalImguiContext->ButtonCounter;
   return Result;
 }
 
-b32 ImguiIsActive(imgui_id Id){
+b32 ImguiIsActive(id Id){
   return GlobalImguiContext->ActiveID.id == Id.id;
 }
 
@@ -100,11 +100,11 @@ b32 ImguiIsInactive(){
   return GlobalImguiContext->ActiveID.id == 0;
 }
 
-b32 ImguiIsHot(imgui_id Id){
+b32 ImguiIsHot(id Id){
   return GlobalImguiContext->HotID.id == Id.id;
 }
 
-void ImguiSetActive(imgui_id Id) {
+void ImguiSetActive(id Id) {
   GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, Id.id);
 }
 
@@ -112,20 +112,20 @@ void ImguiSetInactive() {
   GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, 0);
 }
 
-void ImguiSetSelected(imgui_id Id) {
+void ImguiSetSelected(id Id) {
   GlobalImguiContext->PreviouslySelectedID = Update(GlobalImguiContext->PreviouslySelectedID, GlobalImguiContext->SelectedID.id);
   GlobalImguiContext->SelectedID = Update(GlobalImguiContext->SelectedID, Id.id);
 }
 
-b32 ImguiIsSelected(imgui_id Id) {
+b32 ImguiIsSelected(id Id) {
   return GlobalImguiContext->SelectedID.id == Id.id;
 }
 
-b32 ImguiWasDeselected(imgui_id Id) {
+b32 ImguiWasDeselected(id Id) {
   return GlobalImguiContext->PreviouslySelectedID.id == Id.id && Id.id != GlobalImguiContext->SelectedID.id;
 }
 
-void ImguiDeselect(imgui_id Id) {
+void ImguiDeselect(id Id) {
   if(ImguiIsSelected(Id)){
     ImguiSetSelected({});
   }
@@ -139,7 +139,7 @@ void ImguiSetDragging() {
   GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, -1);
 }
 
-void ImguiSetHot(imgui_id Id){
+void ImguiSetHot(id Id){
   GlobalImguiContext->HotID = Update(GlobalImguiContext->HotID, Id.id);
 }
 
@@ -147,7 +147,7 @@ void ImguiSetCold(){
   GlobalImguiContext->HotID = Update(GlobalImguiContext->HotID, 0);
 }
 
-b32 ImguiMenuPushed(imgui_id Id) 
+b32 ImguiMenuPushed(id Id) 
 {
   return GlobalImguiContext->ActiveID.id == Id.id && GlobalImguiContext->ActiveID.idEdge;
 }
@@ -180,10 +180,10 @@ struct imgui_button_color {
 };
 
 imgui_button_color ImguiDefaultButtonColor();
-v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors);
-b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect);
-b32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor);
-u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx);
-b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect, jwin::device_input* Input);
+v4 ImguiGetButtonColor(id ButtonId, imgui_button_color ButtonColors);
+b32 ImguiButton(context* ImguiContext, id Id, rect2f ButtonRect);
+b32 ImguiPlainButton(context* ImguiContext, id Id, rect2f ButtonRect, imgui_button_color ButtonColor);
+u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx);
+b32 ImguiSelectabeRegion(context* ImguiContext, id Id, rect2f RegionRect, jwin::device_input* Input);
 
 } // namespace imgui

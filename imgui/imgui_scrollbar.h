@@ -5,7 +5,7 @@
 namespace imgui { 
 
 struct imgui_vertical_scrollbar {
-  imgui_id ButtonID;
+  id ButtonID;
   v2 ScrollAmmount;
   v2 ScrollButtonDiff;
 };

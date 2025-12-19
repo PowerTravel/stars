@@ -84,7 +84,7 @@ void imgui_row::Push(imgui_row::padding Padding){
   Push(Header);
 }
 
-void imgui_row::Push(imgui_row::icon Icon, imgui_id ImguiID){
+void imgui_row::Push(imgui_row::icon Icon, id ImguiID){
   header* Header = (header*) PushStruct(GlobalTransientArena, header);
   Header->Type = type::ICON;
   Header->Size = PixelToCanonicalSpace(V2(Icon.Size,Icon.Size));
@@ -96,7 +96,7 @@ void imgui_row::Push(imgui_row::icon Icon, imgui_id ImguiID){
   Push(Header);
 }
 
-void imgui_row::Push(imgui_row::text Text, imgui_id ImguiID) {
+void imgui_row::Push(imgui_row::text Text, id ImguiID) {
   header* Header = (header*) PushStruct(GlobalTransientArena, header);
   Header->Type = type::TEXT;
   Header->Size = GlobalRenderer->Font.GetTextSizeCanonicalSpace(Text.FontSize, (utf8_byte*) Text.Text);

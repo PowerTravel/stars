@@ -18,15 +18,15 @@ struct imgui_bordered_window {
   v2 TopLeftDiff;
   v2 TopRightDiff;
   v2 HeaderDiff;
-  imgui_id LeftID;
-  imgui_id RightID;
-  imgui_id TopID;
-  imgui_id BotID;
-  imgui_id BotLeftID;
-  imgui_id BotRightID;
-  imgui_id TopLeftID;
-  imgui_id TopRightID;
-  imgui_id HeaderID;
+  id LeftID;
+  id RightID;
+  id TopID;
+  id BotID;
+  id BotLeftID;
+  id BotRightID;
+  id TopLeftID;
+  id TopRightID;
+  id HeaderID;
 };
 
 imgui_bordered_window ImguiBorderedWindow( rect2f Region, v2 CornerSize, r32 HeaderSize);

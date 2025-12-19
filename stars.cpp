@@ -531,7 +531,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
 
     GlobalState->ImguiContext.Icons = imgui::LoadImguiIcons(RenderGroup);
-    GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
+    GlobalState->ApplicationMenu = imgui::CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
     GlobalState->Initialized = true;
 
@@ -596,7 +596,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       do
       {
         ecs::entity* a = *EN->Data;
-        imgui::me_tree* MenuTree = &GlobalState->ApplicationImgui.MenuEntityTree->EntityTree;
+        imgui::me_tree* MenuTree = &GlobalState->ApplicationMenu.MenuEntityTree->EntityTree;
         imgui::me_node* Root = MenuTree->m_root;
         PushNewEntity(MenuTree, Root, &a->ID);
         EN = EN->NextSibling;
@@ -621,9 +621,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   DrawAllRenderObjects();
 
   render::NewOverlayLevel();
-  DrawColorList(&GlobalState->ApplicationImgui);
+  DrawColorList(&GlobalState->ApplicationMenu);
   render::NewOverlayLevel();
-  DrawEntityTree(&GlobalState->ApplicationImgui);
+  DrawEntityTree(&GlobalState->ApplicationMenu);
 
   imgui::ImguiEnd();
   //if(GlobalRenderer->ActiveCamera)

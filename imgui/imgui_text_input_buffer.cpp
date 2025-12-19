@@ -30,7 +30,7 @@ void ClearBuffer(imgui_text_input_buffer* TextInputBuffer)
   TextInputBuffer->CharCount = 0;
 }
 
-b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor)
+b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, id DialogID, v2 DialogPos, v2 TextWidth, v4 BackgroundColor)
 {
   rect2f DialogRect = Rect2f(DialogPos.X, DialogPos.Y, TextWidth.X, TextWidth.Y);
   b32 Result = ImguiSelectabeRegion(&GlobalState->ImguiContext, DialogID, DialogRect, GlobalInput);
@@ -89,7 +89,7 @@ file_local void DrawNumber(r32 Number, r32 FontSize, rect2f Rect)
   DrawNumber(NumBuf, FontSize, Rect);
 }
 
-file_local void ImguiRenderTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, v2 DialogPos, v2 DialogSize, v4 BackgroundColor)
+file_local void ImguiRenderTextDialog(imgui_text_input_buffer* TextInputBuffer, id DialogID, v2 DialogPos, v2 DialogSize, v4 BackgroundColor)
 {
   r32 FontSize = 14;
   s32 InputLen = 512;
@@ -137,7 +137,7 @@ file_local void DeleteSelection(imgui_text_input_buffer* TextInputBuffer){
   TextInputBuffer->CharCount -= End-Start;
 }
 
-void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffer* TextInputBuffer, rect2f DialogRect, jwin::device_input* Input, float (*DataToFloat)(void* Data), void (*StoreFloat)(float Val, void* Data), void* Data) {
+void ReadNumber(context* ImguiContext, id ID, imgui_text_input_buffer* TextInputBuffer, rect2f DialogRect, jwin::device_input* Input, float (*DataToFloat)(void* Data), void (*StoreFloat)(float Val, void* Data), void* Data) {
   b32 SelectAll = !ImguiIsSelected(ID);
   v2 DialogPosition = V2(DialogRect.X,DialogRect.Y);
   v2 DialogSize     = V2(DialogRect.W,DialogRect.H);
@@ -172,7 +172,7 @@ void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffe
   }
 }
 
-void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID, jwin::device_input* Input, v2 TextPos, b32 HighlightAll)
+void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, id DialogID, jwin::device_input* Input, v2 TextPos, b32 HighlightAll)
 {
   u32 InputLen = 512;
   r32 FontSize = 14;

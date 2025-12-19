@@ -65,8 +65,8 @@ struct application_state
 
   window_size_pixel WindowSize;
 
-  imgui::imgui_context ImguiContext;
-  imgui::application_imgui ApplicationImgui;
+  imgui::context ImguiContext;
+  imgui::application_menu ApplicationMenu;
 
   asset::package* DebugPackage;
 
@@ -77,7 +77,7 @@ global_variable ecs::entity_manager* GlobalEntityManager = 0;
 global_variable application_render_commands* GlobalRenderCommands = 0;
 global_variable application_state* GlobalState = 0;
 global_variable jwin::device_input* GlobalInput = 0;
-global_variable imgui::imgui_context* GlobalImguiContext = 0;
+global_variable imgui::context* GlobalImguiContext = 0;
 global_variable asset::manager* GlobalAssetManager = 0;
 global_variable render::renderer* GlobalRenderer = 0;
 global_variable float GlobalTime = 0;

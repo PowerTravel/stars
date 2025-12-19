@@ -2,7 +2,7 @@
 
 namespace imgui { 
 
-file_local void DrawColorRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
+file_local void DrawColorRow(context* ImguiContext, id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
 {
   menu_color_list* ColorListData = (menu_color_list*) Data;
   umm ColorIndex = (umm) ColorListData->ColorIDs[ListIndex];
@@ -57,7 +57,7 @@ file_local rect2f GetRowRect(rect2f ListRect, s32 Index, r32 FirstRow, r32 RowHe
   return Rect2f(RowPos,RowSize);
 }
 
-file_local b32 DrawColorListContent(menu_color_list* MenuColorList, v2 Pos, v2 Size, u32 RowCount, r32 RowHeight, imgui_id* RowIDs, void* Data) {
+file_local b32 DrawColorListContent(menu_color_list* MenuColorList, v2 Pos, v2 Size, u32 RowCount, r32 RowHeight, id* RowIDs, void* Data) {
 
   imgui_vertical_scrollbar* VerticalScrollbar = &MenuColorList->VerticalScrollbar;
 
@@ -111,17 +111,17 @@ file_local b32 DrawColorListContent(menu_color_list* MenuColorList, v2 Pos, v2 S
   return Result;
 }
 
-void DrawColorList(application_imgui* AppImgui) {
+void DrawColorList(application_menu* Menu) {
   
   u32 ColorCount = GlobalState->ColorTable.ColorCount;
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
 
-  menu_color_list* ColorListData = AppImgui->ColorListData;
+  menu_color_list* ColorListData = Menu->ColorListData;
 
 #if 1
   s32 RowCount = 0;
   ZeroArray(ColorCount, ColorListData->ColorIDs);
-  imgui_id* ImguiIDs = PushArray(GlobalTransientArena, ColorCount, imgui_id);
+  id* ImguiIDs = PushArray(GlobalTransientArena, ColorCount, id);
   for (u32 i = 0; i < ColorCount; ++i) {
     menu::named_color_hex* NamedColor = menu::GetNamedColor(&GlobalState->ColorTable, (umm) i);
     char ColorNameLower[512] = {};

@@ -4,8 +4,8 @@
 #include "application_imgui_color_list.h"
 
 namespace imgui { 
-application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* ImguiContext, u32 ColorCount) {
-  application_imgui Result = {};
+application_menu CreateApplicationImgui(memory_arena* Arena, context* ImguiContext, u32 ColorCount) {
+  application_menu Result = {};
 
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
 

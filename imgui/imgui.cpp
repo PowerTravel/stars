@@ -68,10 +68,7 @@ icon_atlas LoadImguiIcons(render_group* RenderGroup)
   return Icons;
 }
 
-
-
-
-b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect, jwin::device_input* Input)
+b32 ImguiSelectabeRegion(context* ImguiContext, id Id, rect2f RegionRect, jwin::device_input* Input)
 {
   if(Intersects(RegionRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
   {
@@ -108,7 +105,7 @@ imgui_button_color ImguiDefaultButtonColor()
   return Result;
 }
 
-v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors){
+v4 ImguiGetButtonColor(id ButtonId, imgui_button_color ButtonColors){
   v4 Color = ButtonColors.InactiveColor;
   if(ImguiIsHot(ButtonId) && ImguiIsActive(ButtonId)) {
     // Button is Highlighted and pressed
@@ -123,7 +120,7 @@ v4 ImguiGetButtonColor(imgui_id ButtonId, imgui_button_color ButtonColors){
   return Color;
 }
 
-b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect)
+b32 ImguiButton(context* ImguiContext, id Id, rect2f ButtonRect)
 {
   if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
   {
@@ -136,7 +133,7 @@ b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect)
   return ImguiIsActive(Id);
 }
 
-b32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor) {
+b32 ImguiPlainButton(context* ImguiContext, id Id, rect2f ButtonRect, imgui_button_color ButtonColor) {
   if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
   {
     ImguiSetHot(Id);
@@ -179,7 +176,7 @@ utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, const c8* Text, co
   return Buff;
 }
 
-u32 ImguiTextButton(imgui_id Id, c8* Text, rect2f ButtonRect, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
+u32 ImguiTextButton(id Id, c8* Text, rect2f ButtonRect, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
   v2 MousePos = V2(GlobalImguiContext->MouseX,GlobalImguiContext->MouseY);
   if(Intersects(ButtonRect, MousePos))
   {
@@ -191,7 +188,7 @@ u32 ImguiTextButton(imgui_id Id, c8* Text, rect2f ButtonRect, r32 TextOffsetX, r
   return 0;
 }
 
-u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
+u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
 
   if(GlobalImguiContext->MouseX >= ButtonX && GlobalImguiContext->MouseX <= ButtonX + ButtonWidth &&
      GlobalImguiContext->MouseY >= ButtonY && GlobalImguiContext->MouseY <= ButtonY + ButtonHeight)

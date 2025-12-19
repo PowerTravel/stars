@@ -5,12 +5,12 @@
 
 namespace imgui { 
 
-struct application_imgui {
+struct application_menu {
   struct menu_color_list*  ColorListData;
   struct menu_entity_tree* MenuEntityTree;
 };
 
-application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* ImguiContext, u32 ColorCount);
+application_menu CreateApplicationImgui(memory_arena* Arena, context* ImguiContext, u32 ColorCount);
 
 
 } // namespace imgui

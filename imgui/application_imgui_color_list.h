@@ -5,9 +5,9 @@
 namespace imgui { 
 
 struct menu_color_list {
-  imgui_id* ImguiIDs; // ColorListIndeces
+  id* ImguiIDs; // ColorListIndeces
   s32* ColorIDs;      // Mapping IDS from Colors in the ColorTable to list indeces.
-  imgui_id TextInputID;
+  id TextInputID;
   imgui_text_input_buffer TextInputBuffer;
   imgui_bordered_window   BorderWindow;
   imgui_vertical_scrollbar VerticalScrollbar;
@@ -22,7 +22,7 @@ menu_color_list* CreateColorList(memory_arena* Arena, size_t ColorCount){
   menu_color_list* Result   = PushStruct(Arena, menu_color_list);
   Result->TextInputBuffer   = ImguiNewTextInputBuffer(InputLen, PushArray(Arena, InputLen, utf8_byte));
   Result->TextInputID       = NewButtonID();
-  Result->ImguiIDs          = PushArray(Arena, ColorCount, imgui_id);
+  Result->ImguiIDs          = PushArray(Arena, ColorCount, id);
   Result->ColorIDs          = PushArray(Arena, ColorCount, s32);
   Result->VerticalScrollbar = CreateVerticalScrollbar();
   Result->BorderWindow      = ImguiBorderedWindow(Rect2f(V2(0.1,0.25), V2(0.1,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
@@ -34,6 +34,6 @@ menu_color_list* CreateColorList(memory_arena* Arena, size_t ColorCount){
   }
   return Result;
 }
-void DrawColorList(application_imgui* AppImgui);
+void DrawColorList(application_menu* AppImgui);
 
 } // namespace imgui 
