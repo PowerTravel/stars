@@ -1,5 +1,5 @@
 #include "imgui_row.h"
-
+namespace imgui {
 file_local size_t TypeToSize(imgui_row::type Type) {
   switch(Type) {
     case imgui_row::type::PADDING: {
@@ -520,9 +520,8 @@ void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& Imgu
           imgui_row::text* Text = (imgui_row::text*) Header->Data;
           r32 DescentOffset = Text->Font->GetCanonicalFontDescenOffset(Text->FontSize);
           r32 LineHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(Text->FontSize);
-
           r32 DiffY = 0.5 * (DivRect.H - LineHeight);
-
+          //ImguiTextButton(Header->ImguiID, 16, (c8*) Text->Text, X0 + DivRect.X, DivRect.Y + DescentOffset + DiffY, Header->Size.X, Header->Size.Y, 0, 0, -4, -2);
           render::DrawTextCanonicalSpace(V2(X0 + DivRect.X,  DivRect.Y + DescentOffset + DiffY), ClipRectForDiv, Text->FontSize, (const utf8_byte*) Text->Text, Text->Color);
           X0 += Header->Size.X;
         }break;
@@ -547,3 +546,5 @@ void DrawRowList(const reactive_size& ReactiveSize, cmn::vector<imgui_row>& Imgu
   }
 
 }
+
+} // namespace imgui

@@ -2,6 +2,8 @@
 
 #include "imgui.h"
 
+namespace imgui { 
+
 struct menu_color_list {
   imgui_id* ImguiIDs; // ColorListIndeces
   s32* ColorIDs;      // Mapping IDS from Colors in the ColorTable to list indeces.
@@ -33,3 +35,5 @@ menu_color_list* CreateColorList(memory_arena* Arena, size_t ColorCount){
   return Result;
 }
 void DrawColorList(application_imgui* AppImgui);
+
+} // namespace imgui 

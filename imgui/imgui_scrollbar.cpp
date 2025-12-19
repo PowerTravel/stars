@@ -1,5 +1,8 @@
 #include "imgui_scrollbar.h"
 
+
+namespace imgui { 
+
 file_local r32 MouseScroll(u32 TotalListSize)
 {
   // Use as function parameter?
@@ -75,3 +78,5 @@ b32 DoVerticalScrollbar(imgui_vertical_scrollbar* VerticalScrollbar, rect2f Scro
 
   return ImguiIsActive(VerticalScrollbar->ButtonID);
 }
+
+} // namespace imgui 

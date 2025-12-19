@@ -2,6 +2,8 @@
 #include "imgui.h"
 #include "platform/jwin_platform_memory.h"
 
+namespace imgui { 
+
 file_local inline v4 PositionToCoordinate(u32 X, u32 Y, u32 IconSizePx, u32 AtlasSizePx) {
   r32 X0 = (X * IconSizePx) + 1;
   r32 Y0 = (Y * IconSizePx) + 1;
@@ -178,11 +180,12 @@ utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, const c8* Text, co
 }
 
 u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx) {
-  if(GlobalState->ImguiContext.MouseX >= ButtonX && GlobalState->ImguiContext.MouseX <= ButtonX + ButtonWidth &&
-     GlobalState->ImguiContext.MouseY >= ButtonY && GlobalState->ImguiContext.MouseY <= ButtonY + ButtonHeight)
+
+  if(GlobalImguiContext->MouseX >= ButtonX && GlobalImguiContext->MouseX <= ButtonX + ButtonWidth &&
+     GlobalImguiContext->MouseY >= ButtonY && GlobalImguiContext->MouseY <= ButtonY + ButtonHeight)
   {
     ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
+    if(ImguiIsInactive() && jwin::Active(GlobalImguiContext->LeftMouse)){
       ImguiSetActive(Id);
     }
   }
@@ -248,4 +251,4 @@ u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 Button
   return ImguiIsActive(Id);
 }
 
-
+} // namespace imgui

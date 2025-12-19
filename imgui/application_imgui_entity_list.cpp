@@ -1,5 +1,6 @@
 #include "application_imgui_entity_list.h"
 
+namespace imgui { 
 #if 0
 
 Functions which were used when rendering old entity list. 
@@ -367,7 +368,7 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f 
     //       If the list is collapsed such that before it was larger than the region and after it is smaller, the scroll ammount won't have 
     //       changed and the list rendering breaks.
     //       - A quick and hacky way to solve this (done below) is to set the scroll ammount to 0 if the list size is smaller than the region.
-    //       An issue with this solution is that if the list changes size it moves around a bit in the region.
+    //       An issue with this solution is that if the list changes size it moves around a bit in the region as the list is fixed at a percentage position interpolated from the scroll amount.
     //       - What we maybe want to do is to instead of using the scroll ammount to position the list is to have a rownumber and row offset 
     //       stored in menu_entity_tree which makes sure that no matter how the list size changes, the first (top) part of the list which is
     //       drawn is always the same. However this makes the interaction with the scroll ammount a bit iffy.
@@ -387,7 +388,7 @@ file_local v2 ImguiEntityComponentTree(menu_entity_tree* MenuEntityTree, rect2f 
   //        2 Cache all the entitites to be added and add them after iterating.
   // NOTE2: I implemented solution number 2. I encountered the bug immediately after 'fixing it' but never again since.
   //        Maybe I fixed it, and I didnt compile properly the one time it failed. Idk, keeping theese notes around a bit
-  //        longer in case it happens again.
+  //        longer in case it happens again. 
   PushNewlyOpenedChildEntities(MenuTree, EntityTree);
   
   return ReactiveSizes.TotalSize;
@@ -408,3 +409,5 @@ void DrawEntityTree(application_imgui* AppImgui) {
 
   v2 TotalSize = ImguiEntityComponentTree(MenuEntityTree, ContentRect);
 }
+
+} // namespace imgui

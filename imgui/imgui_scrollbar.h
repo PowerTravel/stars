@@ -2,6 +2,8 @@
 
 #include "imgui.h"
 
+namespace imgui { 
+
 struct imgui_vertical_scrollbar {
   imgui_id ButtonID;
   v2 ScrollAmmount;
@@ -15,3 +17,5 @@ imgui_vertical_scrollbar CreateVerticalScrollbar() {
 }
 
 b32 DoVerticalScrollbar(imgui_vertical_scrollbar* VerticalScrollbar, rect2f ScrollbarRect, b32 MousescrollActive,  r32 TotalContentHeight);
+
+} // namespace imgui

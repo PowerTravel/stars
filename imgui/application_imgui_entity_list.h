@@ -6,6 +6,8 @@
 #include "imgui_border_window.h"
 #include "imgui_scrollbar.h"
 
+namespace imgui { 
+
 struct menu_entity_component_id {
   ecs::flag::component_type Type;
   imgui_id ImguiID;
@@ -37,3 +39,5 @@ struct menu_entity_tree {
 
 void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity);
 void DrawEntityTree(application_imgui* AppImgui);
+
+} // namespace imgui

@@ -1,6 +1,8 @@
 #include "imgui_text_input_buffer.h"
 
 
+namespace imgui { 
+
 imgui_text_input_buffer ImguiNewTextInputBuffer(s32 InputLen, utf8_byte* InputBuffer)
 {
   imgui_text_input_buffer Result = {};
@@ -327,3 +329,4 @@ void ImguiReadInput(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
       TextInputBuffer->CharCount, TextInputBuffer->CaretPosition, TextInputBuffer->SelectionStart, TextInputBuffer->SelectMode ? "'On'" : "'off'");
   }
 }
+} // namespace imgui

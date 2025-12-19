@@ -2,6 +2,8 @@
 
 #include "imgui.h"
 
+namespace imgui { 
+
 struct imgui_bordered_window {
   v2 CornerSize;
   r32 HeaderSize;
@@ -34,3 +36,5 @@ rect2f GetContentRect(imgui_bordered_window* BorderWindow){
   rect2f Result = Rect2f(BorderWindow->Region.X, BorderWindow->Region.Y, BorderWindow->Region.W, BorderWindow->Region.H - BorderWindow->HeaderSize);
   return Result;
 }
+
+}// namespace imgui

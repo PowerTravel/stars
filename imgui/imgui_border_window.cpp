@@ -1,5 +1,6 @@
 #include "imgui_border_window.h"
 
+namespace imgui { 
 
 imgui_bordered_window ImguiBorderedWindow( rect2f Region, v2 CornerSize, r32 HeaderSize )
 {
@@ -164,3 +165,5 @@ void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[
 
   BorderWindow->Region = Region;
 }
+
+} // namespace imgui

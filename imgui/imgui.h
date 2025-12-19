@@ -36,6 +36,8 @@ enum imgui_icon {
   ICON_COUNT
 };
 
+namespace imgui { 
+
 struct imgui_icon_atlas {
   u32 Atlas;
   v4 Coordinates[imgui_icon::ICON_COUNT];
@@ -65,9 +67,10 @@ struct imgui_context {
   r32 FontSize;
 };
 
+} // namespace imgui
+extern imgui::imgui_context* GlobalImguiContext;
 
-extern imgui_context* GlobalImguiContext;
-
+namespace imgui {
 imgui_icon_atlas LoadImguiIcons(render_group* RenderGroup);
 
 
@@ -182,3 +185,5 @@ b32 ImguiButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect);
 b32 ImguiPlainButton(imgui_context* ImguiContext, imgui_id Id, rect2f ButtonRect, imgui_button_color ButtonColor);
 u32 ImguiTextButton(imgui_id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx);
 b32 ImguiSelectabeRegion(imgui_context* ImguiContext, imgui_id Id, rect2f RegionRect, jwin::device_input* Input);
+
+} // namespace imgui

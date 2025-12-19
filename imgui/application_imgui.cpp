@@ -3,6 +3,7 @@
 #include "application_imgui_entity_list.h"
 #include "application_imgui_color_list.h"
 
+namespace imgui { 
 application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* ImguiContext, u32 ColorCount) {
   application_imgui Result = {};
 
@@ -19,5 +20,5 @@ application_imgui CreateApplicationImgui(memory_arena* Arena, imgui_context* Img
   return Result;
 }
 
-/// Start Entity Tree
+} // namespace imgui
 

@@ -2,6 +2,8 @@
 
 #include "imgui.h"
 
+namespace imgui { 
+
 struct imgui_text_input_buffer {
   utf8_string_buffer Buffer;
   s32 CaretPosition;
@@ -16,3 +18,6 @@ b32 ImguiTextDialog(imgui_text_input_buffer* TextInputBuffer, imgui_id DialogID,
 void ReadNumber(imgui_context* ImguiContext, imgui_id ID, imgui_text_input_buffer* TextInputBuffer, rect2f DialogRect, jwin::device_input* Input, float (*DataToFloat)(void* Data), void (*StoreFloat)(float Val, void* Data), void* Data);
 void ClearBuffer(imgui_text_input_buffer* TextInputBuffer);
 void PushString(imgui_text_input_buffer* TextInputBuffer, c8* String);
+
+
+} // namespace imgui;

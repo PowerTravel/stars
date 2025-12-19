@@ -1,5 +1,6 @@
 #include "application_imgui_color_list.h"
 
+namespace imgui { 
 
 file_local void DrawColorRow(imgui_context* ImguiContext, imgui_id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
 {
@@ -172,3 +173,5 @@ void DrawColorList(application_imgui* AppImgui) {
     }
   }
 }
+
+} // namespace imgui

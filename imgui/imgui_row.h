@@ -2,6 +2,8 @@
 
 #include "imgui.h"
 
+namespace imgui { 
+
 struct imgui_row { 
 
   struct padding {
@@ -81,3 +83,4 @@ struct reactive_size {
 
 reactive_size CreateReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmount);
 
+} // namespace imgui 

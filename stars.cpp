@@ -496,7 +496,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
-  ImguiBegin(Input);
+  imgui::ImguiBegin(Input);
   GlobalTime = Input->Time;
 
   asset::key BoxTextured = {};
@@ -530,7 +530,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     asset::Load("..\\data\\plane.obj", "Plane");
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
 
-    GlobalState->ImguiContext.Icons = LoadImguiIcons(RenderGroup);
+    GlobalState->ImguiContext.Icons = imgui::LoadImguiIcons(RenderGroup);
     GlobalState->ApplicationImgui = CreateApplicationImgui(GlobalPersistentArena, &GlobalState->ImguiContext, GlobalState->ColorTable.ColorCount);
 
     GlobalState->Initialized = true;
@@ -575,7 +575,6 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
         RenderComponent->PhongMaterial = asset::FindPhongMaterial(asset::ToKey(asset::type::PHONG_MATERIAL, "silver"));
       }
 #endif
-      GlobalState->DebugBW = ImguiBorderedWindow(Rect2f(0.25,0.25,0.5,0.5), PixelToCanonicalSpace(V2(3,3)), 0.02);
     }
   }else{
     render::Begin();
@@ -597,8 +596,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       do
       {
         ecs::entity* a = *EN->Data;
-        me_tree* MenuTree = &GlobalState->ApplicationImgui.MenuEntityTree->EntityTree;
-        me_node* Root = MenuTree->m_root;
+        imgui::me_tree* MenuTree = &GlobalState->ApplicationImgui.MenuEntityTree->EntityTree;
+        imgui::me_node* Root = MenuTree->m_root;
         PushNewEntity(MenuTree, Root, &a->ID);
         EN = EN->NextSibling;
       }while(EN != GlobalEntityManager->EntityTree.m_root->FirstChild);
@@ -606,7 +605,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     GlobalState->DEBUGMenuInitiated = true;
   }
 
-  if((ImguiNoneSelected() && ImguiIsInactive())|| ImguiIsDragging())
+  if((imgui::ImguiNoneSelected() && imgui::ImguiIsInactive())|| imgui::ImguiIsDragging())
   {
     SceneInput(&GlobalState->Camera, Input);
   }
@@ -620,22 +619,13 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
-  #if 1
+
   render::NewOverlayLevel();
   DrawColorList(&GlobalState->ApplicationImgui);
   render::NewOverlayLevel();
   DrawEntityTree(&GlobalState->ApplicationImgui);
-  #else
-  render::NewOverlayLevel();
 
-  rect2f DebugIconRect = Rect2f(0.25,0.25,0.5,0.5);
-  
-  DoImguiBorderWindow(&GlobalState->DebugBW, "kek");
-
-  v4 DebugTexCoords = GlobalImguiContext->Icons.Coordinates[ICON_COMPONENT_UNKNOWN];
-  render::DrawIconCanonicalSpace2(Shrink(DebugIconRect, 0.1), GetContentRect(&GlobalState->DebugBW), DebugTexCoords, V4(1,1,1,1));
-  #endif
-  ImguiEnd();
+  imgui::ImguiEnd();
   //if(GlobalRenderer->ActiveCamera)
   //{
   //  render::RenderScene(GlobalRenderer->ActiveCamera->P, GlobalRenderer->ActiveCamera->V);
