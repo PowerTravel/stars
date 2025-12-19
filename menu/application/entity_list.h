@@ -3,8 +3,8 @@
 #include "ecs/entity_components.h"
 #include "ecs/entity_components_backend.h"
 #include "containers/chunk_list.h"
-#include "imgui_border_window.h"
-#include "imgui_scrollbar.h"
+#include "menu/imgui/border_window.h"
+#include "menu/imgui/scrollbar.h"
 
 namespace imgui { 
 

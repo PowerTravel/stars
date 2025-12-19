@@ -19,11 +19,11 @@
 #include "ecs/entity_components.h"
 #include "ecs/systems/system_position.h"
 #include "color_table.h"
-#include "imgui/imgui.h"
-#include "imgui/application_imgui.h"
+#include "menu/imgui/imgui.h"
+#include "menu/imgui/border_window.h"
+#include "menu/application/menu.h"
 #include "asset_manager/asset_manager.h"
 #include "render/render.h"
-#include "imgui/imgui_border_window.h"
 typedef void(*func_ptr_void)(void); 
 
 #define DEBUGPrintRect(Rect) Platform.DEBUGPrint("%1.2f,%1.2f,%1.2f,%1.2f\n",(Rect).X, (Rect).Y ,(Rect).W, (Rect).H);

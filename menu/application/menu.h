@@ -1,7 +1,7 @@
 #pragma once
 
-#include "imgui.h"
-#include "imgui_scrollbar.h"
+#include "menu/imgui/imgui.h"
+#include "menu/imgui/scrollbar.h"
 
 namespace imgui { 
 

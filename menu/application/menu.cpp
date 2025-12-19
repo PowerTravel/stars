@@ -1,7 +1,7 @@
-#include "application_imgui.h"
+#include "menu.h"
 #include "platform/jwin_platform_memory.h"
-#include "application_imgui_entity_list.h"
-#include "application_imgui_color_list.h"
+#include "entity_list.h"
+#include "color_list.h"
 
 namespace imgui { 
 application_menu CreateApplicationImgui(memory_arena* Arena, context* ImguiContext, u32 ColorCount) {
