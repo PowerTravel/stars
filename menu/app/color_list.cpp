@@ -6,8 +6,8 @@ namespace app {
 
 file_local void DrawColorRow(context* ImguiContext, id ButtonID, rect2f RowRect, rect2f ClippedRowRect, u32 ListIndex, void* Data)
 {
-  color_list* ColorListData = (color_list*) Data;
-  umm ColorIndex = (umm) ColorListData->ColorIDs[ListIndex];
+  color_list* ColorList = (color_list*) Data;
+  umm ColorIndex = (umm) ColorList->ColorIDs[ListIndex];
   named_color_hex* NamedColor = imgui::GetNamedColor(&GlobalState->ColorTable, (umm) ColorIndex);
   char* ColorName = NamedColor->Name;
   v4 ColorValue   = HexCodeToColorV4(NamedColor->Color);
@@ -118,26 +118,26 @@ void DrawColorList(menu* Menu) {
   u32 ColorCount = GlobalState->ColorTable.ColorCount;
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace( GlobalState->ImguiContext.FontSize);
 
-  color_list* ColorListData = Menu->ColorListData;
+  color_list* ColorList = Menu->ColorList;
 
   s32 RowCount = 0;
-  ZeroArray(ColorCount, ColorListData->ColorIDs);
+  ZeroArray(ColorCount, ColorList->ColorIDs);
   id* ImguiIDs = PushArray(GlobalTransientArena, ColorCount, id);
   for (u32 i = 0; i < ColorCount; ++i) {
     named_color_hex* NamedColor = imgui::GetNamedColor(&GlobalState->ColorTable, (umm) i);
     char ColorNameLower[512] = {};
     Utf8ToLower( (utf8_byte*) NamedColor->Name, (utf8_byte*) ColorNameLower);
     char InputStringLower[512] = {};
-    Utf8ToLower( ColorListData->TextInputBuffer.Buffer.Buffer, (utf8_byte*) InputStringLower);
-    if(ColorListData->TextInputBuffer.CharCount == 0 || jstr::Contains( InputStringLower, ColorNameLower))
+    Utf8ToLower( ColorList->TextInputBuffer.Buffer.Buffer, (utf8_byte*) InputStringLower);
+    if(ColorList->TextInputBuffer.CharCount == 0 || jstr::Contains( InputStringLower, ColorNameLower))
     {
-      ColorListData->ColorIDs[RowCount] = i;
-      ImguiIDs[RowCount] = ColorListData->ImguiIDs[i];
+      ColorList->ColorIDs[RowCount] = i;
+      ImguiIDs[RowCount] = ColorList->ImguiIDs[i];
       RowCount++;
     }
   }
 
-  imgui_bordered_window* BorderWindow = &ColorListData->BorderWindow;
+  imgui_bordered_window* BorderWindow = &ColorList->BorderWindow;
 
   // SearchIcon
   v4 SearchBoxBackgroundColor = imgui::GetColor(&GlobalState->ColorTable, "bole");
@@ -151,9 +151,9 @@ void DrawColorList(menu* Menu) {
   
   v2 FilterBarDialogPos  = V2(BorderWindow->Region.X + RowHeight, BorderWindow->Region.Y);
   v2 FilterBarDialogSize = V2(BorderWindow->Region.W - RowHeight, RowHeight);
-  if(ImguiTextDialog(&ColorListData->TextInputBuffer, ColorListData->TextInputID, FilterBarDialogPos, FilterBarDialogSize, SearchBoxBackgroundColor))
+  if(ImguiTextDialog(&ColorList->TextInputBuffer, ColorList->TextInputID, FilterBarDialogPos, FilterBarDialogSize, SearchBoxBackgroundColor))
   {
-    ImguiReadInput(&ColorListData->TextInputBuffer, ColorListData->TextInputID, GlobalInput, FilterBarDialogPos);
+    ImguiReadInput(&ColorList->TextInputBuffer, ColorList->TextInputID, GlobalInput, FilterBarDialogPos);
   }
 
   v2 ScrollListPos  = V2(BorderWindow->Region.X, BorderWindow->Region.Y + RowHeight);
@@ -161,11 +161,11 @@ void DrawColorList(menu* Menu) {
   
   DoImguiBorderWindow(BorderWindow, "Colors");
 
-  if(DrawColorListContent(ColorListData, ScrollListPos, ScrollListSize, RowCount, RowHeight, ImguiIDs, (void*) ColorListData))
+  if(DrawColorListContent(ColorList, ScrollListPos, ScrollListSize, RowCount, RowHeight, ImguiIDs, (void*) ColorList))
   {
     if(GlobalState->ImguiContext.ActiveID.idEdge)
     {
-      named_color_hex* NamedColor = imgui::GetNamedColor(&GlobalState->ColorTable, ColorListData->ColorIDs[ColorListData->SelectedRow] );
+      named_color_hex* NamedColor = imgui::GetNamedColor(&GlobalState->ColorTable, ColorList->ColorIDs[ColorList->SelectedRow] );
       v4 Color =  HexCodeToColorV4(NamedColor->Color);
       v4 HexColor = 255 * Color;
       Platform.DEBUGPrint("V4(%f, %f, %f, %f) - %s\n", Color.X, Color.Y, Color.Z, Color.W, 

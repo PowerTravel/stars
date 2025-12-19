@@ -118,6 +118,16 @@ void StorePitch(float Val, void* Data)
 
 #endif
 
+entity_list* CreateEntityList(memory_arena* Arena){
+  entity_list* Result = PushStruct(Arena, entity_list);
+  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalImguiContext->FontSize);
+  Result->BorderWindow      = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
+  Result->VerticalScrollbar = CreateVerticalScrollbar();
+  Result->EntityTree     = me_tree::Create();
+  Result->EntityTree.NewNode(); // EmptyRoot
+  return Result;
+}
+
 file_local entity_row MenuEntityRow(ecs::entity_id EntityID)
 {
   entity_row NewRow = {};
@@ -162,7 +172,7 @@ file_local entity_row MenuEntityRow(ecs::entity_id EntityID)
   return NewRow;
 }
 
-void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity)
+void PushNewEntity(me_tree* MenuTree, me_node* MenuParent, ecs::entity_id* NewEntity)
 {
   // Just making sure that the parent of NewEntity in the entity Manager is the same as MenuParent
   //Assert(ecs::Compare(&(*ecs::GetEntityFromID(GetEntityManager(), NewEntity)->Node->Parent->Data)->ID, &MenuParent->Data->EntityID));
@@ -182,7 +192,7 @@ void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id*
 
   ecs::entity* E = GetEntityFromID(GetEntityManager(), NewEntity);
   entity_row NewRow = MenuEntityRow(*NewEntity);
-  MenuEntityTree->NewNode(MenuParent, NewRow);
+  MenuTree->NewNode(MenuParent, NewRow);
 }
 
 inline file_local b32 EntityHasChildren(ecs::entity_node* EntityNode){
@@ -340,11 +350,11 @@ file_local void PushNewlyOpenedChildEntities(me_tree& MenuTree, ecs::entity_tree
 
 
 
-file_local v2 ImguiEntityComponentTree(entity_tree* MenuEntityTree, rect2f WindowRegion) {
+file_local v2 ImguiEntityComponentTree(entity_list* EntityList, rect2f WindowRegion) {
   SCOPED_TRANSIENT_ARENA;
 
   ecs::entity_tree& EntityTree = GlobalEntityManager->EntityTree;
-  me_tree& MenuTree = MenuEntityTree->EntityTree;
+  me_tree& MenuTree = EntityList->EntityTree;
 
   cmn::vector<imgui_row> ImguiRows = BuildTransientImguiRows(MenuTree, EntityTree);
 
@@ -374,12 +384,12 @@ file_local v2 ImguiEntityComponentTree(entity_tree* MenuEntityTree, rect2f Windo
     //       stored in entity_tree which makes sure that no matter how the list size changes, the first (top) part of the list which is
     //       drawn is always the same. However this makes the interaction with the scroll ammount a bit iffy.
     //       However this is good enough for now.
-    MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y = 0;
-    DrawRowList(ReactiveSizes, ImguiRows, WindowRegion, MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y);
+    EntityList->VerticalScrollbar.ScrollAmmount.Y = 0;
+    DrawRowList(ReactiveSizes, ImguiRows, WindowRegion, EntityList->VerticalScrollbar.ScrollAmmount.Y);
   }else{
-    DrawRowList(ReactiveSizes, ImguiRows, ContentRect, MenuEntityTree->VerticalScrollbar.ScrollAmmount.Y);
+    DrawRowList(ReactiveSizes, ImguiRows, ContentRect, EntityList->VerticalScrollbar.ScrollAmmount.Y);
     b32 MouseScrollActive = Intersects(WindowRegion, V2(GlobalImguiContext->MouseX, GlobalImguiContext->MouseY));
-    DoVerticalScrollbar(&MenuEntityTree->VerticalScrollbar, ScrollbarRect, MouseScrollActive, ReactiveSizes.TotalSize.Y);
+    DoVerticalScrollbar(&EntityList->VerticalScrollbar, ScrollbarRect, MouseScrollActive, ReactiveSizes.TotalSize.Y);
   }
 
   // NOTE: There is a bug here which causes a crash when expanding the enityt-list. Especially after hot-reloading.
@@ -397,18 +407,18 @@ file_local v2 ImguiEntityComponentTree(entity_tree* MenuEntityTree, rect2f Windo
 
 void DrawEntityTree(menu* Menu) {
 
-  entity_tree* MenuEntityTree = Menu->MenuEntityTree;
+  entity_list* EntityList = Menu->EntityList;
 
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalState->ImguiContext.FontSize);
   
-  rect2f ContentRect = GetContentRect(&MenuEntityTree->BorderWindow);
+  rect2f ContentRect = GetContentRect(&EntityList->BorderWindow);
 
   v2 ScrollListPos  = LowerLeftPoint(ContentRect);
   v2 ScrollListSize = RectSize(ContentRect);
 
-  DoImguiBorderWindow(&MenuEntityTree->BorderWindow, "Entities");
+  DoImguiBorderWindow(&EntityList->BorderWindow, "Entities");
 
-  v2 TotalSize = ImguiEntityComponentTree(MenuEntityTree, ContentRect);
+  v2 TotalSize = ImguiEntityComponentTree(EntityList, ContentRect);
 }
 
 } // namespace app

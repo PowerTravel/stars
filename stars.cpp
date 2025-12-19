@@ -596,7 +596,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       do
       {
         ecs::entity* a = *EN->Data;
-        imgui::app::me_tree* MenuTree = &GlobalState->ApplicationMenu.MenuEntityTree->EntityTree;
+        imgui::app::me_tree* MenuTree = &GlobalState->ApplicationMenu.EntityList->EntityTree;
         imgui::app::me_node* Root = MenuTree->m_root;
         PushNewEntity(MenuTree, Root, &a->ID);
         EN = EN->NextSibling;

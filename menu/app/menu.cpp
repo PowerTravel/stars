@@ -8,9 +8,8 @@ namespace app {
 menu CreateAppllicationMenu(memory_arena* Arena, context* ImguiContext, u32 ColorCount) {
   menu Result = {};
 
-  Result.ColorListData = CreateColorList(Arena, ColorCount);
-
-  Result.MenuEntityTree = CreateEntityTree(Arena);
+  Result.ColorList = CreateColorList(Arena, ColorCount);
+  Result.EntityList = CreateEntityList(Arena);
 
   return Result;
 }

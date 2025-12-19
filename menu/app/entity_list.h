@@ -32,22 +32,13 @@ typedef cmn::n_tree<entity_row> me_tree;
 typedef cmn::n_tree<entity_row>::node me_node;
 typedef cmn::n_tree<entity_row>::pre_order_iterator me_iterator;
 
-struct entity_tree {
+struct entity_list {
   imgui_vertical_scrollbar VerticalScrollbar;
   imgui_bordered_window BorderWindow;
   me_tree EntityTree;
 };
 
-entity_tree* CreateEntityTree(memory_arena* Arena){
-  entity_tree* Result = PushStruct(Arena, entity_tree);
-  r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalImguiContext->FontSize);
-  Result->BorderWindow      = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
-  Result->VerticalScrollbar = CreateVerticalScrollbar();
-  Result->EntityTree     = me_tree::Create();
-  Result->EntityTree.NewNode(); // EmptyRoot
-  return Result;
-}
-
+entity_list* CreateEntityList(memory_arena* Arena);
 void PushNewEntity(me_tree* MenuEntityTree, me_node* MenuParent, ecs::entity_id* NewEntity);
 void DrawEntityTree(menu* AppImgui);
 

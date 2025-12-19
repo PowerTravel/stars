@@ -6,8 +6,8 @@
 namespace imgui { 
 namespace app {
 struct menu {
-  struct color_list*  ColorListData;
-  struct entity_tree* MenuEntityTree;
+  struct color_list*  ColorList;
+  struct entity_list* EntityList;
 };
 
 menu CreateAppllicationMenu(memory_arena* Arena, context* ImguiContext, u32 ColorCount);

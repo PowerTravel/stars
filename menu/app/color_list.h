@@ -9,8 +9,8 @@ struct color_list {
   id* ImguiIDs; // ColorListIndeces
   s32* ColorIDs;      // Mapping IDS from Colors in the ColorTable to list indeces.
   id TextInputID;
-  imgui_text_input_buffer TextInputBuffer;
-  imgui_bordered_window   BorderWindow;
+  imgui_text_input_buffer  TextInputBuffer;
+  imgui_bordered_window    BorderWindow;
   imgui_vertical_scrollbar VerticalScrollbar;
   u32 SelectedRow;
 };
