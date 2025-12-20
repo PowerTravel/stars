@@ -389,7 +389,7 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
     }
     if(jwin::Pushed(Input->Keyboard.Key_TAB))
     {
-      imgui::app::ToggleTopMenu();
+      imgui::app::ToggleMenu();
     }
   }
 
@@ -605,6 +605,11 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
   imgui::app::DoMenu();
+
+
+  Platform.DEBUGPrint("Current %d %d Previous %d %d\n",
+      GlobalState->ImguiContext.ActiveID.id, GlobalState->ImguiContext.ActiveID.idEdge,
+      GlobalState->ImguiContext.PreviouslyActiveID.id, GlobalState->ImguiContext.PreviouslyActiveID.idEdge);
 
   imgui::ImguiEnd();
   //if(GlobalRenderer->ActiveCamera)

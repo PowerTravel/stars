@@ -5,17 +5,7 @@
 
 namespace imgui {
 namespace app {
-/*
-struct menu_bar {
-  struct item {
-    c8 Name[128];
-    id ButtonID;
-    cmn::vector<item> Items;
-  };
 
-  cmn::vector<item> TopItems;
-};
-*/
 menu_bar* CreateMenuBar(memory_arena* Arena){
 
   menu_bar::item ColorList = {};
@@ -36,20 +26,20 @@ menu_bar* CreateMenuBar(memory_arena* Arena){
   menu_bar* Result = PushStruct(Arena, menu_bar);
   Result->TopItems = cmn::vector<menu_bar::item>::Create(1);
   Result->TopItems.PushBack(Windows);
-  Result->Visible = true;
+
+  r32 HeaderSize = render::GetLineSpacing(0,GlobalImguiContext->FontSize);
+  Result->HeaderBarRegion = Rect2f(0, 1.0-HeaderSize, GetAspectRatio(), HeaderSize);
 
   return Result;
 }
 
 b32 DoMenuBar(){
-  menu_bar* MenuBar = GlobalState->ApplicationMenu.MenuBar;
-  if(MenuBar->Visible)
+  if(GlobalState->ApplicationMenu.MenuBarActive)
   {
+    menu_bar* MenuBar = GlobalState->ApplicationMenu.MenuBar;
     const r32 FontSize = GlobalImguiContext->FontSize;
     const r32 DescentOffset = render::GetDescenOffset(0, FontSize);
-    r32 HeaderSize = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(FontSize);
-    r32 AspectRatio = GetAspectRatio();
-    rect2f BackgroundRect = Rect2f(0, 1.0-HeaderSize, AspectRatio, HeaderSize);
+    rect2f BackgroundRect = MenuBar->HeaderBarRegion;
 
     v4 HeaderColor = GetColor(&GlobalState->ColorTable, "taupe");
     render::DrawOverlayQuadCanonicalSpace(CenteredRect(BackgroundRect), HeaderColor);
@@ -113,10 +103,9 @@ b32 DoMenuBar(){
   return false;
 }
 
-bool ToggleTopMenu(){
-  menu_bar* MenuBar = GlobalState->ApplicationMenu.MenuBar;
-  MenuBar->Visible = !MenuBar->Visible;
-  return MenuBar->Visible;
+bool ToggleMenu(){
+  GlobalState->ApplicationMenu.MenuBarActive = !GlobalState->ApplicationMenu.MenuBarActive;
+  return GlobalState->ApplicationMenu.MenuBarActive;
 }
 
 menu CreateAppllicationMenu(memory_arena* Arena, context* ImguiContext, u32 ColorCount) {
@@ -125,23 +114,29 @@ menu CreateAppllicationMenu(memory_arena* Arena, context* ImguiContext, u32 Colo
   Result.MenuBar = CreateMenuBar(Arena);
   Result.ColorList = CreateColorList(Arena, ColorCount);
   Result.EntityList = CreateEntityList(Arena);
+  Result.MenuBarActive = false;
   Result.ColorListActive = false;
   Result.EntityListActive = false;
+  Result.EnclosingRegion = Rect2f(0,0,GetAspectRatio(), 1 - Result.MenuBar->HeaderBarRegion.H);
   return Result;
 }
 
 void DoMenu(){
-  render::NewOverlayLevel();
-  imgui::app::DoMenuBar();
-  if(GlobalState->ApplicationMenu.ColorListActive)
+
+  if(GlobalState->ApplicationMenu.MenuBarActive)
   {
     render::NewOverlayLevel();
-    DrawColorList(&GlobalState->ApplicationMenu);
-  }
-  if(GlobalState->ApplicationMenu.EntityListActive)
-  {
-    render::NewOverlayLevel();
-    DrawEntityTree(&GlobalState->ApplicationMenu);
+    imgui::app::DoMenuBar();
+    if(GlobalState->ApplicationMenu.ColorListActive)
+    {
+      render::NewOverlayLevel();
+      DrawColorList(&GlobalState->ApplicationMenu);
+    }
+    if(GlobalState->ApplicationMenu.EntityListActive)
+    {
+      render::NewOverlayLevel();
+      DrawEntityTree(&GlobalState->ApplicationMenu);
+    }
   }
 }
 

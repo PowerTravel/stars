@@ -55,7 +55,9 @@ struct context {
   u32 ButtonCounter;
 
   id ActiveID;
+  id PreviouslyActiveID;
   id HotID;
+  id PreviouslyHotID;
   id SelectedID;
   id PreviouslySelectedID;
 
@@ -88,7 +90,7 @@ id NewButtonID()
   return Result;
 }
 
-b32 ImguiIsActive(id Id){
+b32 ImguiIsActive(id Id) {
   return GlobalImguiContext->ActiveID.id == Id.id;
 }
 
@@ -105,10 +107,12 @@ b32 ImguiIsHot(id Id){
 }
 
 void ImguiSetActive(id Id) {
+  GlobalImguiContext->PreviouslyActiveID = Update(GlobalImguiContext->PreviouslyActiveID, GlobalImguiContext->ActiveID.id);
   GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, Id.id);
 }
 
 void ImguiSetInactive() {
+  GlobalImguiContext->PreviouslyActiveID = Update(GlobalImguiContext->PreviouslyActiveID, GlobalImguiContext->ActiveID.id);
   GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, 0);
 }
 
@@ -140,6 +144,7 @@ void ImguiSetDragging() {
 }
 
 void ImguiSetHot(id Id){
+  GlobalImguiContext->PreviouslyHotID = Update(GlobalImguiContext->PreviouslyHotID, GlobalImguiContext->HotID.id);
   GlobalImguiContext->HotID = Update(GlobalImguiContext->HotID, Id.id);
 }
 
@@ -150,6 +155,11 @@ void ImguiSetCold(){
 b32 ImguiMenuPushed(id Id) 
 {
   return GlobalImguiContext->ActiveID.id == Id.id && GlobalImguiContext->ActiveID.idEdge;
+}
+
+b32 ImguiWasActive(id Id) 
+{
+  return GlobalImguiContext->PreviouslyActiveID.id == Id.id && Id.id != GlobalImguiContext->ActiveID.id && GlobalImguiContext->PreviouslyActiveID.idEdge;
 }
 
 void ImguiBegin(jwin::device_input* Input){

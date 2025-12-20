@@ -159,7 +159,7 @@ void DrawColorList(menu* Menu) {
   v2 ScrollListPos  = V2(BorderWindow->Region.X, BorderWindow->Region.Y + RowHeight);
   v2 ScrollListSize = V2(BorderWindow->Region.W, BorderWindow->Region.H - 2* RowHeight);
   
-  DoImguiBorderWindow(BorderWindow, "Colors");
+  DoImguiBorderWindow(BorderWindow, GlobalState->ApplicationMenu.EnclosingRegion, "Colors");
 
   if(DrawColorListContent(ColorList, ScrollListPos, ScrollListSize, RowCount, RowHeight, ImguiIDs, (void*) ColorList))
   {

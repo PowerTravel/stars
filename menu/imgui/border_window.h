@@ -5,9 +5,22 @@
 namespace imgui { 
 
 struct imgui_bordered_window {
+
+  enum class position {
+    FLOATING,
+    LEFT,
+    RIGHT,
+    BOT,
+    TOP,
+    FULL_SCREEN,
+  };
+
   v2 CornerSize;
   r32 HeaderSize;
   rect2f Region;
+  rect2f PreviousRegion;
+
+  position Position;
 
   r32 LeftDiff;
   r32 RightDiff;
@@ -30,7 +43,7 @@ struct imgui_bordered_window {
 };
 
 imgui_bordered_window ImguiBorderedWindow( rect2f Region, v2 CornerSize, r32 HeaderSize);
-void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[]);
+void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, rect2f EnclosingRegion, const char Header[]);
 
 rect2f GetContentRect(imgui_bordered_window* BorderWindow){
   rect2f Result = Rect2f(BorderWindow->Region.X, BorderWindow->Region.Y, BorderWindow->Region.W, BorderWindow->Region.H - BorderWindow->HeaderSize);

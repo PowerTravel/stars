@@ -17,10 +17,12 @@ imgui_bordered_window ImguiBorderedWindow( rect2f Region, v2 CornerSize, r32 Hea
   Result.Region = Region;
   Result.CornerSize = CornerSize;
   Result.HeaderSize = HeaderSize;
+  Result.Position = imgui_bordered_window::position::FLOATING;
+  Result.PreviousRegion = Region;
   return Result;
 }
 
-void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[])
+void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, rect2f EnclosingRegion, const char Header[])
 {
   v2 CornerSize  = BorderWindow->CornerSize;
   rect2f Region  = BorderWindow->Region;
@@ -153,16 +155,65 @@ void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, const char Header[
   v2 TextOrigin = V2(HeaderBarRect.X + (HeaderBarRect.W - TextWidth) * 0.5f, HeaderBarRect.Y + DescentOffset);
   render::DrawTextCanonicalSpace(TextOrigin, HeaderBarRect, GlobalState->ImguiContext.FontSize, (utf8_byte *) Header, V4(1.0,1.0,1.0,1.0));  
   render::DrawOverlayQuadCanonicalSpace(CenteredRect(HeaderBarRect), imgui::GetColor(&GlobalState->ColorTable, "seal brown"));
+
   if(ImguiButton(&GlobalState->ImguiContext, BorderWindow->HeaderID, HeaderBarRect))
   {
     if(GlobalState->ImguiContext.ActiveID.idEdge)
     {
       BorderWindow->HeaderDiff = V2(GlobalState->ImguiContext.MouseX - Region.X, GlobalState->ImguiContext.MouseY - Region.Y);
     }
-    Region.X = GlobalState->ImguiContext.MouseX - BorderWindow->HeaderDiff.X; 
-    Region.Y = GlobalState->ImguiContext.MouseY - BorderWindow->HeaderDiff.Y;
+
+    Region.X = Clamp(GlobalState->ImguiContext.MouseX - BorderWindow->HeaderDiff.X,
+      Left(EnclosingRegion) - BorderWindow->HeaderDiff.X,
+      Right(EnclosingRegion)- BorderWindow->HeaderDiff.X);
+    Region.Y = Clamp(GlobalState->ImguiContext.MouseY - BorderWindow->HeaderDiff.Y,
+      Bot(EnclosingRegion) - BorderWindow->HeaderDiff.Y,
+      Top(EnclosingRegion) - Region.H);
+
+    r32 SnapPadding = 0.01;
+
+    imgui_bordered_window::position PreviousPosition = BorderWindow->Position;
+    if(GlobalState->ImguiContext.MouseX < Left(EnclosingRegion) +  SnapPadding)
+    {
+      v4 Color = imgui::GetColor(&GlobalState->ColorTable, "seal brown");
+      Color.W =0.7;
+      rect2f Rect = Rect2f(EnclosingRegion.X, EnclosingRegion.Y, Region.W, EnclosingRegion.H);
+      render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect), Color);
+      BorderWindow->Position = imgui_bordered_window::position::LEFT;
+    }else if (GlobalState->ImguiContext.MouseX > Right(EnclosingRegion) -  SnapPadding){
+      v4 Color = imgui::GetColor(&GlobalState->ColorTable, "seal brown");
+      Color.W =0.7;
+      rect2f Rect = Rect2f(EnclosingRegion.X + EnclosingRegion.W - Region.W, EnclosingRegion.Y, Region.W, EnclosingRegion.H);
+      render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect), Color);
+      BorderWindow->Position = imgui_bordered_window::position::RIGHT;
+    }else{
+      //if(GlobalState->ImguiContext.ActiveID.idEdge &&
+      //  PreviousPosition != imgui_bordered_window::position::FLOATING){
+      //  Region = BorderWindow->PreviousRegion;
+      //}
+    }
+  }
+#if 1
+  if(ImguiWasActive(BorderWindow->HeaderID)){
+    /*
+    switch(BorderWindow->Position){
+      case imgui_bordered_window::position::LEFT: {
+        BorderWindow->PreviousRegion = Region;
+        Region = Rect2f(EnclosingRegion.X, EnclosingRegion.Y, Region.W, EnclosingRegion.H);
+      }break;
+      case imgui_bordered_window::position::RIGHT: {
+        BorderWindow->PreviousRegion = Region;
+        Region = Rect2f(EnclosingRegion.X + EnclosingRegion.W - Region.W, EnclosingRegion.Y, Region.W, EnclosingRegion.H);
+      }break;
+    }
+    */
+    Platform.DEBUGPrint("ActiveID %d HeaderID %d HeaderEdge %s\n",
+      GlobalState->ImguiContext.ActiveID.id,
+      BorderWindow->HeaderID.id,
+      BorderWindow->HeaderID.idEdge ? "true" : "false");
   }
 
+#endif
   BorderWindow->Region = Region;
 }
 

@@ -416,7 +416,7 @@ void DrawEntityTree(menu* Menu) {
   v2 ScrollListPos  = LowerLeftPoint(ContentRect);
   v2 ScrollListSize = RectSize(ContentRect);
 
-  DoImguiBorderWindow(&EntityList->BorderWindow, "Entities");
+  DoImguiBorderWindow(&EntityList->BorderWindow, GlobalState->ApplicationMenu.EnclosingRegion, "Entities");
 
   v2 TotalSize = ImguiEntityComponentTree(EntityList, ContentRect);
 }
