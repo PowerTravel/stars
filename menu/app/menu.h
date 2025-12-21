@@ -6,6 +6,17 @@
 namespace imgui { 
 namespace app {
 
+
+struct styling {
+  text_styling HeaderTextStykling;
+  text_styling BodyTextStyling;
+  region_styling HeaderStyling;
+  region_styling PlainButtonStyling;
+  region_styling BorderStyling;
+  region_styling ListStylingEven;
+  region_styling ListStylingOdd;
+};
+
 struct menu_bar {
   struct item {
     c8 Name[128];
@@ -31,6 +42,8 @@ struct menu {
 
   struct entity_list* EntityList;
   b32 EntityListActive;
+
+  styling DefaultStyling;
 };
 
 menu CreateAppllicationMenu(memory_arena* Arena, context* ImguiContext, u32 ColorCount);

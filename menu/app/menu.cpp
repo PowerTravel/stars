@@ -54,7 +54,7 @@ b32 DoMenuBar(){
       v2 ItemSize = render::GetTextSize(0, FontSize,  NameBuff);
       rect2f ButtonRect = Rect2f(X0, BackgroundRect.Y, ItemSize.X, BackgroundRect.H);
 
-      if(ImguiIsSelected(Item->ButtonID)){
+      if(IsSelected(Item->ButtonID)){
         r32 LineSpacing = render::GetLineSpacing(0,FontSize);
         r32 MaxWidth = 0;
         for (int j = 0; j < Item->Items.Size(); ++j)
@@ -108,6 +108,28 @@ bool ToggleMenu(){
   return GlobalState->ApplicationMenu.MenuBarActive;
 }
 
+file_local styling GetDefaultStyling()
+{
+  text_styling HeaderTextStykling = {};
+  text_styling BodyTextStyling = {};
+  region_styling HeaderStyling = {};
+  region_styling PlainButtonStyling = {};
+  region_styling BorderStyling = {};
+  region_styling ListStylingEven = {};
+  region_styling ListStylingOdd = {};
+
+  styling Result = {};
+  Result.HeaderTextStykling = HeaderTextStykling;
+  Result.BodyTextStyling = BodyTextStyling;
+  Result.HeaderStyling = HeaderStyling;
+  Result.PlainButtonStyling = PlainButtonStyling;
+  Result.BorderStyling = BorderStyling;
+  Result.HeaderStyling = HeaderStyling;
+  Result.ListStylingEven = ListStylingEven;
+  Result.ListStylingOdd = ListStylingOdd;
+  return Result;
+}
+
 menu CreateAppllicationMenu(memory_arena* Arena, context* ImguiContext, u32 ColorCount) {
   menu Result = {};
 
@@ -118,6 +140,7 @@ menu CreateAppllicationMenu(memory_arena* Arena, context* ImguiContext, u32 Colo
   Result.ColorListActive = false;
   Result.EntityListActive = false;
   Result.EnclosingRegion = Rect2f(0,0,GetAspectRatio(), 1 - Result.MenuBar->HeaderBarRegion.H);
+  Result.DefaultStyling = GetDefaultStyling();
   return Result;
 }
 

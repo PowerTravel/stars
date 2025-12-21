@@ -40,7 +40,7 @@ b32 DoVerticalScrollbar(imgui_vertical_scrollbar* VerticalScrollbar, rect2f Scro
   
   imgui_button_color ButtonColor = ImguiDefaultButtonColor();
   
-  if(!ImguiIsHot(VerticalScrollbar->ButtonID))
+  if(!IsHot(VerticalScrollbar->ButtonID))
   {
     render::DrawOverlayQuadCanonicalSpace(CenteredRect(ScrollWheelRect), ButtonColor.InactiveColor);
   }else{
@@ -48,7 +48,7 @@ b32 DoVerticalScrollbar(imgui_vertical_scrollbar* VerticalScrollbar, rect2f Scro
   }
   
   v2 MousePos = V2(GlobalState->ImguiContext.MouseX, GlobalState->ImguiContext.MouseY);
-  if(ImguiIsActive(VerticalScrollbar->ButtonID)) {
+  if(IsActive(VerticalScrollbar->ButtonID)) {
     // Mouse is clickedUp on the scrollbarButton, Cache the mouseDiff.
     if(GlobalState->ImguiContext.ActiveID.idEdge)
     {
@@ -76,7 +76,7 @@ b32 DoVerticalScrollbar(imgui_vertical_scrollbar* VerticalScrollbar, rect2f Scro
   }
   VerticalScrollbar->ScrollAmmount.Y = Clamp(VerticalScrollbar->ScrollAmmount.Y, 0,1);
 
-  return ImguiIsActive(VerticalScrollbar->ButtonID);
+  return IsActive(VerticalScrollbar->ButtonID);
 }
 
 } // namespace imgui 

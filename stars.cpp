@@ -500,7 +500,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
-  imgui::ImguiBegin(Input);
+  imgui::Begin(Input);
   GlobalTime = Input->Time;
 
   asset::key BoxTextured = {};
@@ -590,7 +590,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   LoadAndRenderGLTFEngine();
   imgui::app::LoadNewEntitiesToEntityList();
 
-  if((imgui::ImguiNoneSelected() && imgui::ImguiIsInactive())|| imgui::ImguiIsDragging())
+  if((imgui::NoneSelected() && imgui::IsInactive())|| imgui::ImguiIsDragging())
   {
     SceneInput(&GlobalState->Camera, Input);
   }
@@ -604,14 +604,32 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
+  
+  #if 1
   imgui::app::DoMenu();
+  #else
+  static imgui::id DebugID1 = imgui::NewButtonID();
+  static imgui::id DebugID2 = imgui::NewButtonID();
+  rect2f DebugSquare1 = Rect2f(0.15,0.15,0.5,0.5);
+  rect2f DebugSquare2 = Rect2f(0.45,0.15,0.5,0.5);
+  
+  //Platform.DEBUGPrint("Button 1 Returned True\n");
+  imgui::region_styling DebugStyling = {};
+  DebugStyling.InactiveColor = imgui::GetColor(&GlobalState->ColorTable, "taupe");
+  DebugStyling.ActiveAndHotColor = imgui::GetColor(&GlobalState->ColorTable, "taupe gray");
+  DebugStyling.ActiveColor = imgui::GetColor(&GlobalState->ColorTable, "sandy taupe");
+  DebugStyling.HotColor = imgui::GetColor(&GlobalState->ColorTable, "rose taupe");
+  DebugStyling.SelectedColor = imgui::GetColor(&GlobalState->ColorTable, "purple taupe");
+  DebugStyling.ShadowColor = V4(0,0,0,1);
+  DebugStyling.ClickOffset = PixelToCanonicalSpace(V2(10,10));
+  DebugStyling.ShadowOffset = PixelToCanonicalSpace(V2(10,10));
 
+  u32 ButtonResult = imgui::DoButton(GlobalImguiContext, DebugID1, DebugSquare1);
+  
+  imgui::DrawButton(ButtonResult, DebugSquare1, DebugStyling);
+#endif
 
-  Platform.DEBUGPrint("Current %d %d Previous %d %d\n",
-      GlobalState->ImguiContext.ActiveID.id, GlobalState->ImguiContext.ActiveID.idEdge,
-      GlobalState->ImguiContext.PreviouslyActiveID.id, GlobalState->ImguiContext.PreviouslyActiveID.idEdge);
-
-  imgui::ImguiEnd();
+  imgui::End();
   //if(GlobalRenderer->ActiveCamera)
   //{
   //  render::RenderScene(GlobalRenderer->ActiveCamera->P, GlobalRenderer->ActiveCamera->V);

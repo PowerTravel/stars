@@ -138,7 +138,7 @@ file_local void DeleteSelection(imgui_text_input_buffer* TextInputBuffer){
 }
 
 void ReadNumber(context* ImguiContext, id ID, imgui_text_input_buffer* TextInputBuffer, rect2f DialogRect, jwin::device_input* Input, float (*DataToFloat)(void* Data), void (*StoreFloat)(float Val, void* Data), void* Data) {
-  b32 SelectAll = !ImguiIsSelected(ID);
+  b32 SelectAll = !IsSelected(ID);
   v2 DialogPosition = V2(DialogRect.X,DialogRect.Y);
   v2 DialogSize     = V2(DialogRect.W,DialogRect.H);
   float DataValue   = DataToFloat(Data);
@@ -156,7 +156,7 @@ void ReadNumber(context* ImguiContext, id ID, imgui_text_input_buffer* TextInput
 
     ImguiRenderTextDialog(TextInputBuffer, ID, DialogPosition, DialogSize, V4(0.5,0.5,0.5,1));
   } else {
-    if(ImguiWasDeselected(ID))
+    if(IsDeselected(ID))
     {
       if(!jwin::Pushed(Input->Keyboard.Key_ESCAPE))
       {

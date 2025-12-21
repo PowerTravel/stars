@@ -4,6 +4,57 @@
 
 namespace imgui { 
 
+file_local void ActivateID(id Id) {
+  GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, Id.id);
+}
+
+file_local void SelectID(id Id) {
+  GlobalImguiContext->PreviouslySelectedID = Update(GlobalImguiContext->PreviouslySelectedID, GlobalImguiContext->SelectedID.id);
+  GlobalImguiContext->SelectedID = Update(GlobalImguiContext->SelectedID, Id.id);
+}
+
+file_local void DeselectID(id Id) {
+  if(IsSelected(Id)){
+    SelectID({});
+  }
+}
+
+file_local void SetHotID(id Id){
+  GlobalImguiContext->PreviouslyHotID = Update(GlobalImguiContext->PreviouslyHotID, GlobalImguiContext->HotID.id);
+  GlobalImguiContext->HotID = Update(GlobalImguiContext->HotID, Id.id);
+}
+
+file_local void SetDragging() {
+  GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, -1);
+}
+
+file_local void SetCold(){
+  GlobalImguiContext->HotID = Update(GlobalImguiContext->HotID, 0);
+}
+
+void Begin(jwin::device_input* Input){
+  SetCold();
+  ActivateID(GlobalImguiContext->ActiveID);
+  SelectID(GlobalImguiContext->SelectedID);
+  GlobalImguiContext->MouseX = Input->Mouse.X;
+  GlobalImguiContext->MouseY = Input->Mouse.Y;
+  GlobalImguiContext->MouseDZ = Input->Mouse.dZ;
+  GlobalImguiContext->LeftMouse = Input->Mouse.Button[jwin::MouseButton_Left];
+  GlobalImguiContext->FontSize = 14;
+}
+
+void End(){
+  if(!jwin::Active(GlobalImguiContext->LeftMouse)) {
+    // Set inactive.
+    GlobalImguiContext->PreviouslyActiveID = Update(GlobalImguiContext->PreviouslyActiveID, GlobalImguiContext->ActiveID.id);
+    GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, 0);
+  }else if(IsInactive()){
+    SetDragging();
+  }
+}
+
+
+
 file_local inline v4 PositionToCoordinate(u32 X, u32 Y, u32 IconSizePx, u32 AtlasSizePx) {
   r32 X0 = (X * IconSizePx) + 1;
   r32 Y0 = (Y * IconSizePx) + 1;
@@ -72,22 +123,22 @@ b32 ImguiSelectabeRegion(context* ImguiContext, id Id, rect2f RegionRect, jwin::
 {
   if(Intersects(RegionRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
   {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
-      ImguiSetActive(Id);
-      ImguiSetSelected(Id);
+    SetHotID(Id);
+    if(IsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
+      ActivateID(Id);
+      SelectID(Id);
     }
   }else if(jwin::Pushed(GlobalState->ImguiContext.LeftMouse)){
-    ImguiDeselect(Id);
+    DeselectID(Id);
   }
 
   if(jwin::Pushed(Input->Keyboard.Key_ENTER)) {
-    ImguiDeselect(Id);
+    DeselectID(Id);
   }else if(jwin::Pushed(Input->Keyboard.Key_ESCAPE)){
-    ImguiDeselect(Id);
+    DeselectID(Id);
   } 
 
-  return ImguiIsSelected(Id) || ImguiIsActive(Id);
+  return IsSelected(Id) || IsActive(Id);
 }
 
 
@@ -107,13 +158,13 @@ imgui_button_color ImguiDefaultButtonColor()
 
 v4 ImguiGetButtonColor(id ButtonId, imgui_button_color ButtonColors){
   v4 Color = ButtonColors.InactiveColor;
-  if(ImguiIsHot(ButtonId) && ImguiIsActive(ButtonId)) {
+  if(IsHot(ButtonId) && IsActive(ButtonId)) {
     // Button is Highlighted and pressed
     Color = ButtonColors.ActiveAndHotColor;
-  }else if(ImguiIsActive(ButtonId)){
+  }else if(IsActive(ButtonId)){
     // Button is Pressed
     Color = ButtonColors.ActiveColor;
-  }else if(ImguiIsHot(ButtonId)){
+  }else if(IsHot(ButtonId)){
     // Button is only highlighted
     Color = ButtonColors.HotColor;
   }
@@ -124,37 +175,120 @@ b32 ImguiButton(context* ImguiContext, id Id, rect2f ButtonRect)
 {
   if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
   {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
-      ImguiSetActive(Id);
+    SetHotID(Id);
+    if(IsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
+      ActivateID(Id);
     }
   }
 
-  return ImguiIsActive(Id);
+  return IsActive(Id);
 }
 
-b32 ImguiPlainButton(context* ImguiContext, id Id, rect2f ButtonRect, imgui_button_color ButtonColor) {
+u32 DoButton(context* ImguiContext, id Id, rect2f ButtonRect) {
+  u32 Result = button_state::INACTIVE;
   if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
   {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
-      ImguiSetActive(Id);
+    SetHotID(Id);
+    if(IsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
+      ActivateID(Id);
+      SelectID(Id);
+    }
+  }else if(jwin::Pushed(GlobalState->ImguiContext.LeftMouse)){
+    DeselectID(Id);
+  }
+
+/* // Maybe pass some default "deselect keys"
+  if(jwin::Pushed(Input->Keyboard.Key_ENTER)) {
+    DeselectID(Id);
+  }else if(jwin::Pushed(Input->Keyboard.Key_ESCAPE)){
+    DeselectID(Id);
+  } */
+
+
+  if(IsHot(Id)){
+    Result |= button_state::HOT;
+  }
+  if(IsActive(Id)){
+    Result |= button_state::ACTIVE;
+  }
+  if(IsClicked(Id)){
+    Result |= button_state::CLICKED;
+  }
+  if(IsReleased(Id)){
+    Result |= button_state::RELEASED;
+  }
+  if(IsSelected(Id)){
+    Result |= button_state::SELECTED;
+  }
+  if(IsDeselected(Id)){
+    Result |= button_state::DESELECTED;
+  }
+
+  return Result;
+}
+
+void DrawButton(u32 ButtonState, rect2f ButtonRect, const region_styling& Styling)
+{
+  v4 Color = Styling.InactiveColor;
+  rect2f Rect = ButtonRect;
+  if((ButtonState & button_state::ACTIVE) && (ButtonState & button_state::HOT)) {
+    // Button is Highlighted and pressed
+    Color = Styling.ActiveAndHotColor;
+    if(Styling.ClickOffset.X || Styling.ClickOffset.Y)
+    {
+      Rect.X += Styling.ClickOffset.X;
+      Rect.Y -= Styling.ClickOffset.Y;
+    }
+  }else if(ButtonState & button_state::ACTIVE){
+    // Button is Pressed
+    Color = Styling.ActiveColor;
+    if(Styling.ClickOffset.X || Styling.ClickOffset.Y)
+    {
+      Rect.X += Styling.ClickOffset.X;
+      Rect.Y -= Styling.ClickOffset.Y;
+    }
+  }else if(ButtonState & button_state::HOT){
+    // Button is only highlighted
+    Color = Styling.HotColor;
+  }else if(ButtonState & button_state::SELECTED){
+    // Button is only highlighted
+    Color = Styling.SelectedColor;
+  }
+
+  if(Styling.ShadowOffset.X || Styling.ShadowOffset.Y)
+  {
+    rect2f ShadowRect = Rect2f(
+      ButtonRect.X + Styling.ShadowOffset.X,
+      ButtonRect.Y - Styling.ShadowOffset.Y, ButtonRect.W, ButtonRect.H);
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(ShadowRect), Styling.ShadowColor);
+  }
+
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect), Color);
+}
+
+b32 ImguiPlainButton(context* ImguiContext, id Id, rect2f ButtonRect, const imgui_button_color& ButtonColor) {
+  if(Intersects(ButtonRect, V2(ImguiContext->MouseX, ImguiContext->MouseY)))
+  {
+    SetHotID(Id);
+    if(IsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
+      ActivateID(Id);
     }
   }
+
   v4 Color = ButtonColor.InactiveColor;
-  if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
+  if(IsHot(Id) && IsActive(Id)) {
     // Button is Highlighted and pressed
     Color = ButtonColor.ActiveAndHotColor;
-  }else if(ImguiIsActive(Id)){
+  }else if(IsActive(Id)){
     // Button is Pressed
     Color = ButtonColor.ActiveColor;
-  }else if(ImguiIsHot(Id)){
+  }else if(IsHot(Id)){
     // Button is only highlighted
     Color = ButtonColor.HotColor;
   }
 
   render::DrawOverlayQuadCanonicalSpace(CenteredRect(ButtonRect), Color);
-  return ImguiIsActive(Id);
+  return IsActive(Id);
 }
 
 utf8_string_buffer SetStringToFit(r32 FontSize, r32 MaxWidth, const c8* Text, const c8* Suffix = "...")
@@ -180,9 +314,9 @@ u32 ImguiTextButton(id Id, c8* Text, rect2f ButtonRect, r32 TextOffsetX, r32 Tex
   v2 MousePos = V2(GlobalImguiContext->MouseX,GlobalImguiContext->MouseY);
   if(Intersects(ButtonRect, MousePos))
   {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
-      ImguiSetActive(Id);
+    SetHotID(Id);
+    if(IsInactive() && jwin::Active(GlobalState->ImguiContext.LeftMouse)){
+      ActivateID(Id);
     }
   }
   return 0;
@@ -193,9 +327,9 @@ u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32
   if(GlobalImguiContext->MouseX >= ButtonX && GlobalImguiContext->MouseX <= ButtonX + ButtonWidth &&
      GlobalImguiContext->MouseY >= ButtonY && GlobalImguiContext->MouseY <= ButtonY + ButtonHeight)
   {
-    ImguiSetHot(Id);
-    if(ImguiIsInactive() && jwin::Active(GlobalImguiContext->LeftMouse)){
-      ImguiSetActive(Id);
+    SetHotID(Id);
+    if(IsInactive() && jwin::Active(GlobalImguiContext->LeftMouse)){
+      ActivateID(Id);
     }
   }
 
@@ -203,21 +337,21 @@ u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32
   v4 Color = imgui::GetColor(&GlobalState->ColorTable, "plum");
   r32 ButtonTextWidth = ButtonWidth;
   r32 ButtonTextHeight = ButtonHeight;
-  if(ImguiIsHot(Id) && ImguiIsActive(Id)) {
+  if(IsHot(Id) && IsActive(Id)) {
     // Button is Highlighted and pressed
     if(ClickOffsetPx != 0){
       ClickOffset.X = ClickOffsetPx/GlobalWindowSize.ApplicationWidth;
       ClickOffset.Y = -ClickOffsetPx/GlobalWindowSize.ApplicationWidth; 
     }
     Color = imgui::GetColor(&GlobalState->ColorTable, "waterspout");
-  }else if(ImguiIsActive(Id)){
+  }else if(IsActive(Id)){
     // Button is Pressed
     if(ClickOffsetPx != 0){
       ClickOffset.X = 4.f/GlobalWindowSize.ApplicationWidth;
       ClickOffset.Y = -4.f/GlobalWindowSize.ApplicationWidth;
     }
     Color = imgui::GetColor(&GlobalState->ColorTable, "old gold");
-  }else if(ImguiIsHot(Id)){
+  }else if(IsHot(Id)){
     // Button is only highlighted
     Color = imgui::GetColor(&GlobalState->ColorTable, "khaki");
     if(FontSize && Text && *Text != '\0')
@@ -257,7 +391,7 @@ u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32
     render::DrawTextCanonicalSpace(TextOrigin , Rect2f(ButtonX,ButtonY,ButtonTextWidth,ButtonHeight), FontSize, StringBuffer.Buffer, V4(1.0,1.0,1.0,1.0));  
   }
   
-  return ImguiIsActive(Id);
+  return IsActive(Id);
 }
 
 } // namespace imgui

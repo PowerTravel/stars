@@ -18,7 +18,7 @@ file_local void DrawColorRow(context* ImguiContext, id ButtonID, rect2f RowRect,
   r32 ColorSquareWidth = RowRect.H;
   r32 TextWidth = RowRect.W - ColorSquareWidth;
 
-  if(ImguiIsHot(ButtonID) && ImguiIsInactive() && RowRect.H == ClippedRowRect.H){
+  if(IsHot(ButtonID) && IsInactive() && RowRect.H == ClippedRowRect.H){
     r32 TextWidthTmp = GlobalRenderer->Font.GetTextSizeCanonicalSpace(ImguiContext->FontSize, (utf8_byte*) ColorName).X;
     if(TextWidthTmp > TextWidth)
     {
@@ -104,7 +104,7 @@ file_local b32 DrawColorListContent(color_list* MenuColorList, v2 Pos, v2 Size, 
 
       DrawColorRow(&GlobalState->ImguiContext, RowIDs[Index],  RowRect, ClippedRow, Index, Data);
 
-      if(ImguiIsActive(RowIDs[Index]))
+      if(IsActive(RowIDs[Index]))
       {
         MenuColorList->SelectedRow = Index;
       }

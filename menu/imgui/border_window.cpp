@@ -194,7 +194,7 @@ void DoImguiBorderWindow(imgui_bordered_window* BorderWindow, rect2f EnclosingRe
     }
   }
 #if 1
-  if(ImguiWasActive(BorderWindow->HeaderID)){
+  if(IsReleased(BorderWindow->HeaderID)){
     /*
     switch(BorderWindow->Position){
       case imgui_bordered_window::position::LEFT: {

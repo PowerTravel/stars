@@ -48,6 +48,42 @@ struct id {
   b32 idEdge;
 };
 
+enum button_state {
+  INACTIVE   = 0,
+  ACTIVE     = 1<<0,
+  HOT        = 1<<1,
+  CLICKED    = 1<<2,
+  RELEASED   = 1<<3,
+  SELECTED   = 1<<4,
+  DESELECTED = 1<<5
+};
+
+// Styling of interactive elements
+struct region_styling {
+  v4 InactiveColor;
+  v4 ActiveAndHotColor;
+  v4 ActiveColor;
+  v4 HotColor;
+  v4 SelectedColor;
+  v4 ShadowColor;
+  v2 ClickOffset;
+  v2 ShadowOffset;
+};
+
+struct text_styling {
+  render::font* Font;
+  r32 FontSize;
+  v4 TextColor;
+};
+
+
+struct imgui_button_color {
+  v4 InactiveColor;
+  v4 ActiveAndHotColor;
+  v4 ActiveColor;
+  v4 HotColor;
+};
+
 struct context {
   
   icon_atlas Icons;
@@ -83,116 +119,80 @@ inline id Update(id Id, u32 Value)
   return Id;
 }
 
-id NewButtonID()
+inline id NewButtonID()
 {
   id Result = {};
   Result.id = ++GlobalImguiContext->ButtonCounter;
   return Result;
 }
 
-b32 ImguiIsActive(id Id) {
+inline b32 IsActive(id Id) {
   return GlobalImguiContext->ActiveID.id == Id.id;
 }
-
-b32 ImguiIsDragging(){
-  return GlobalImguiContext->ActiveID.id == -1;
+inline b32 IsActive(u32 ButtonResult) {
+  return ButtonResult & imgui::button_state::ACTIVE;
 }
-
-b32 ImguiIsInactive(){
+inline b32 IsInactive() {
   return GlobalImguiContext->ActiveID.id == 0;
 }
-
-b32 ImguiIsHot(id Id){
+inline b32 IsInactive(u32 ButtonResult) {
+  return ButtonResult & imgui::button_state::INACTIVE;
+}
+inline b32 IsHot(id Id) {
   return GlobalImguiContext->HotID.id == Id.id;
 }
-
-void ImguiSetActive(id Id) {
-  GlobalImguiContext->PreviouslyActiveID = Update(GlobalImguiContext->PreviouslyActiveID, GlobalImguiContext->ActiveID.id);
-  GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, Id.id);
+inline b32 IsHot(u32 ButtonResult) {
+  return ButtonResult & imgui::button_state::HOT;
 }
-
-void ImguiSetInactive() {
-  GlobalImguiContext->PreviouslyActiveID = Update(GlobalImguiContext->PreviouslyActiveID, GlobalImguiContext->ActiveID.id);
-  GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, 0);
+inline b32 IsClicked(id Id) {
+  return GlobalImguiContext->ActiveID.id == Id.id && GlobalImguiContext->ActiveID.idEdge;
 }
-
-void ImguiSetSelected(id Id) {
-  GlobalImguiContext->PreviouslySelectedID = Update(GlobalImguiContext->PreviouslySelectedID, GlobalImguiContext->SelectedID.id);
-  GlobalImguiContext->SelectedID = Update(GlobalImguiContext->SelectedID, Id.id);
+inline b32 IsClicked(u32 ButtonResult) {
+  return ButtonResult & imgui::button_state::CLICKED;
 }
-
-b32 ImguiIsSelected(id Id) {
+inline b32 IsReleased(id Id) {
+  return GlobalImguiContext->ActiveID.id != Id.id &&
+         GlobalImguiContext->PreviouslyActiveID.id == Id.id &&
+         GlobalImguiContext->PreviouslyActiveID.idEdge;
+}
+inline b32 IsReleased(u32 ButtonResult) {
+  return ButtonResult & imgui::button_state::RELEASED;
+}
+inline b32 IsSelected(id Id) {
   return GlobalImguiContext->SelectedID.id == Id.id;
 }
-
-b32 ImguiWasDeselected(id Id) {
+inline b32 IsSlected(u32 ButtonResult) {
+  return ButtonResult & imgui::button_state::SELECTED;
+}
+inline b32 BecameSlected(u32 ButtonResult) {
+  return (ButtonResult == imgui::button_state::SELECTED) && (ButtonResult == imgui::button_state::CLICKED);
+}
+inline b32 IsDeselected(id Id) {
   return GlobalImguiContext->PreviouslySelectedID.id == Id.id && Id.id != GlobalImguiContext->SelectedID.id;
 }
-
-void ImguiDeselect(id Id) {
-  if(ImguiIsSelected(Id)){
-    ImguiSetSelected({});
-  }
+inline b32 IsDeselected(u32 ButtonResult) {
+  return ButtonResult & imgui::button_state::DESELECTED;
 }
-
-b32 ImguiNoneSelected() {
+inline b32 ImguiIsDragging(){
+  return GlobalImguiContext->ActiveID.id == -1;
+}
+inline b32 NoneSelected() {
   return GlobalImguiContext->SelectedID.id == 0;
 }
 
-void ImguiSetDragging() {
-  GlobalImguiContext->ActiveID = Update(GlobalImguiContext->ActiveID, -1);
-}
+void Begin(jwin::device_input* Input);
 
-void ImguiSetHot(id Id){
-  GlobalImguiContext->PreviouslyHotID = Update(GlobalImguiContext->PreviouslyHotID, GlobalImguiContext->HotID.id);
-  GlobalImguiContext->HotID = Update(GlobalImguiContext->HotID, Id.id);
-}
-
-void ImguiSetCold(){
-  GlobalImguiContext->HotID = Update(GlobalImguiContext->HotID, 0);
-}
-
-b32 ImguiMenuPushed(id Id) 
-{
-  return GlobalImguiContext->ActiveID.id == Id.id && GlobalImguiContext->ActiveID.idEdge;
-}
-
-b32 ImguiWasActive(id Id) 
-{
-  return GlobalImguiContext->PreviouslyActiveID.id == Id.id && Id.id != GlobalImguiContext->ActiveID.id && GlobalImguiContext->PreviouslyActiveID.idEdge;
-}
-
-void ImguiBegin(jwin::device_input* Input){
-  ImguiSetCold();
-  ImguiSetActive(GlobalImguiContext->ActiveID);
-  ImguiSetSelected(GlobalImguiContext->SelectedID);
-  GlobalImguiContext->MouseX = Input->Mouse.X;
-  GlobalImguiContext->MouseY = Input->Mouse.Y;
-  GlobalImguiContext->MouseDZ = Input->Mouse.dZ;
-  GlobalImguiContext->LeftMouse = Input->Mouse.Button[jwin::MouseButton_Left];
-  GlobalImguiContext->FontSize = 14;
-}
-
-void ImguiEnd(){
-  if(!jwin::Active(GlobalImguiContext->LeftMouse)) {
-    ImguiSetInactive();
-  }else if(ImguiIsInactive()){
-    ImguiSetDragging();
-  }
-}
+void End();
 
 
-struct imgui_button_color {
-  v4 InactiveColor;
-  v4 ActiveAndHotColor;
-  v4 ActiveColor;
-  v4 HotColor;
-};
+
 
 imgui_button_color ImguiDefaultButtonColor();
 v4 ImguiGetButtonColor(id ButtonId, imgui_button_color ButtonColors);
 b32 ImguiButton(context* ImguiContext, id Id, rect2f ButtonRect);
-b32 ImguiPlainButton(context* ImguiContext, id Id, rect2f ButtonRect, imgui_button_color ButtonColor);
+u32 DoButton(context* ImguiContext, id Id, rect2f ButtonRect);
+void DrawButton(u32 ButtonState, rect2f ButtonRect, const region_styling& Styling);
+b32 ImguiPlainButton(context* ImguiContext, id Id, rect2f ButtonRect, const imgui_button_color& ButtonColor);
 u32 ImguiTextButton(id Id, u32 FontSize, c8* Text, r32 ButtonX, r32 ButtonY, r32 ButtonWidth, r32 ButtonHeight, r32 TextOffsetX, r32 TextOffsetY, r32 ClickOffsetPx, r32 ShadowOffsetPx);
 b32 ImguiSelectabeRegion(context* ImguiContext, id Id, rect2f RegionRect, jwin::device_input* Input);
 

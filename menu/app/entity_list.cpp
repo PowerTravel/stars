@@ -278,7 +278,7 @@ file_local void AddChildEntitiesLoadedToMenuTree(me_tree& MenuTree, me_node* Men
 
 
 file_local void DoEntityButtonRect(context* ImguiContext, entity_row* MenuRowData) {
-  if(ImguiIsActive(MenuRowData->ImguiID) && ImguiIsHot(MenuRowData->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
+  if(IsActive(MenuRowData->ImguiID) && IsHot(MenuRowData->ImguiID) && jwin::Released(ImguiContext->LeftMouse))
   {
     MenuRowData->Open = !MenuRowData->Open;
   }
