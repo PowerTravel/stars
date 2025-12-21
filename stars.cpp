@@ -460,32 +460,6 @@ void PowerOfTwoMiddles(u32 MaxNum){
   }
 }
 
-// Mesh ID 3122231961 2 Primitives
-void LoadAndRenderGLTFEngine()
-{
-  if(!GlobalState->DebugPackage)
-  {
-    asset::package_id PackageID = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
-    //asset::package_id PackageID = asset::Load("..\\data\\gltf\\testbox\\box.gltf", "testbox");
-    //asset::package_id PackageID = asset::Load("..\\data\\gltf\\BoxTextured\\BoxTextured.gltf", "BoxTextured");
-    //asset::package_id PackageID = asset::Load("..\\data\\gltf\\testsphere\\testsphere.gltf", "testsphere");
-    GlobalState->DebugPackage = (asset::package*) asset::Find(asset::type::PACKAGE, PackageID);
-
-    for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
-    {
-      asset::render_tree* RenderTree = asset::FindRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
-      CreateRenderEntitiesFromRenderTree("2CylinderEngine", RenderTree, NULL);
-    }
-  }
-#if 1
-  for (int i = 0; i < GlobalState->DebugPackage->RenderTreeCount; ++i)
-  {
-  //  render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
-    //ecs::render::DrawRenderTree(GlobalState->DebugPackage->RenderTrees[i]);
-  }
-#endif
-}
-
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -532,6 +506,16 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     asset::Load("..\\data\\cylinder.obj", "Cylinder");
     asset::Load("..\\data\\triangle.obj", "Triangle");
     asset::Load("..\\data\\plane.obj", "Plane");
+    {
+      // Load Cylinder Engine and create entities
+      asset::package_id EnginePackageID = asset::Load("..\\data\\gltf\\2CylinderEngine\\2CylinderEngine.gltf", "2CylinderEngine");
+      asset::package* EnginePackage = (asset::package*) asset::Find(asset::type::PACKAGE, EnginePackageID);
+      for (int i = 0; i < EnginePackage->RenderTreeCount; ++i)
+      {
+        asset::render_tree* RenderTree = asset::FindRenderTree(EnginePackage->RenderTrees[i]);
+        CreateRenderEntitiesFromRenderTree("2CylinderEngine", RenderTree, NULL);
+      }
+    }
     Platform.DEBUGPrint("Total load time %f sec\n", Platform.DEBUGGetTime() - InitTime);
 
     GlobalState->ImguiContext.Icons = imgui::LoadImguiIcons(RenderGroup);
@@ -582,12 +566,15 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     ResetRenderGroup(RenderCommands->RenderGroup);
   }
 
-  if(ecs::IsValid(&GlobalState->FloorEntity))
   {
-    //ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
-    //FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,0,1)));
+    // Test hierarchichal positioning
+    if(ecs::IsValid(&GlobalState->FloorEntity))
+    {
+      ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
+      FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,1,0)));
+    }
   }
-  LoadAndRenderGLTFEngine();
+
   imgui::app::LoadNewEntitiesToEntityList();
 
   if((imgui::NoneSelected() && imgui::IsInactive())|| imgui::ImguiIsDragging())

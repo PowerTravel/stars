@@ -66,8 +66,6 @@ struct application_state
   imgui::context ImguiContext;
   imgui::app::menu ApplicationMenu;
 
-  asset::package* DebugPackage;
-
   ecs::entity_id FloorEntity;
 };
 
