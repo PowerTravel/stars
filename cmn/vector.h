@@ -20,89 +20,37 @@ namespace cmn {
 //             those heap allocated objects are what these types use for custom allocators.
 
 
-template <typename T>
+template <typename T, _cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
 struct vector {
-  _cmn_malloc* m_malloc;
-  _cmn_realloc* m_realloc;
-  _cmn_free* m_free;
   size_t m_reservedCount; // How many elements there is room for
   size_t m_count;         // The number of stored elements using Push and Pop functions.
   T* m_data;              // A byte array of count elementSize * reservedCount bytes.
 
-  bool m_transient;      // TODO: Fix so we have two different classes for Transient and not transiend so we don't have to do late state if/else.
-
+  // Tested in function TestConstructor
   vector() = default;
 
-
-  void* Malloc(size_t sz)
-  {
-    if(m_malloc)
-    {
-      return m_malloc(sz);
-    }
-    
-    return m_transient ? _g_cmn_transient_malloc(sz) : _g_cmn_malloc(sz);
-  }
-
-  void* Realloc(void * p, size_t sz)
-  {
-    Assert(p);
-    if(m_realloc)
-    {
-      return m_realloc(p,sz);
-    }
-
-    return m_transient ? _g_cmn_transient_realloc(p,sz) : _g_cmn_realloc(p, sz);
-  }
-
-  void Free(void * p)
-  {
-    Assert(p);
-    if(m_free){
-      m_free(p);
-    }else{
-      m_transient ? _g_cmn_transient_free(p) : _g_cmn_free(p);
-    }
-  }
-
-
-  // Reserved initialization
-  static inline vector Create(size_t reservedCount = 0, bool aTransient = false, _cmn_malloc* aMalloc = 0, _cmn_realloc* aRealloc = 0, _cmn_free* aFree = 0) {
-    vector<T> Result = {};
-    Result.m_malloc  = aMalloc;
-    Result.m_realloc = aRealloc;
-    Result.m_free    = aFree;
+  // Reserved initialization (Tested in function TestCreateDelete)
+  static inline vector Create(size_t reservedCount = 0) {
+    vector<T, Allocate, Reallocate, Free> Result = {};
     Result.m_reservedCount = reservedCount;
-    Result.m_transient = aTransient;
     if(Result.m_reservedCount)
     {
-      Result.m_data = (T*) Result.Malloc(Result.m_reservedCount * sizeof(T));
+      Result.m_data = (T*) Allocate(Result.m_reservedCount * sizeof(T));
 
       cmn::utils::Zero(Result.m_reservedCount * sizeof(T), (uint8_t*) Result.m_data);
     }
     return Result;
   }
 
-  static inline vector CreateTransient(size_t reservedCount = 0)
-  {
-    vector Result = Create(reservedCount, true);
-    return Result;
-  }
-
   // Array initialization
-  static inline vector Create(size_t Count, const T* Data, bool aTransient = false, _cmn_malloc* aMalloc = 0, _cmn_realloc* aRealloc = 0, _cmn_free* aFree = 0)
+  static inline vector Create(size_t Count, const T* Data)
   {
-    vector Result = vector::Create(Count, aTransient, aMalloc, aRealloc, aFree);
+    vector Result = vector::Create(Count);
     utils::Copy(Count*sizeof(T), Data, Result.m_data);
     Result.m_count = Count;
     return Result;
   }
 
-  static inline vector CreateTransient(size_t Count, const T* Data)
-  {
-    return Create(Count, Data, false);
-  }
-  
   void Delete()
   {
     Free(m_data);
@@ -131,9 +79,9 @@ struct vector {
       size_t newMemSizeBytes = m_reservedCount*sizeof(T);
       if(m_data)
       {
-        m_data = (T*) Realloc((void*)m_data, newMemSizeBytes);
+        m_data = (T*) Reallocate((void*)m_data, newMemSizeBytes);
       }else{
-        m_data = (T*) Malloc(newMemSizeBytes);
+        m_data = (T*) Allocate(newMemSizeBytes);
       }
     }
     m_data[m_count++] = Value;
@@ -145,27 +93,24 @@ struct vector {
     return m_data[m_count];
   };
 
-  vector Copy(_cmn_malloc* aMalloc,_cmn_realloc* aRealloc,_cmn_free* aFree)
+  template <_cmn_malloc* OtherAllocate, _cmn_realloc* OtherReallocate, _cmn_free* OtherFree>
+  vector<T, OtherAllocate, OtherReallocate, OtherFree> CustomCopy()
   {
-    vector Result = vector::Create(m_reservedCount, m_data, m_transient, aMalloc, aRealloc, aFree);
+    vector<T, OtherAllocate, OtherReallocate, OtherFree> Result = vector<T, OtherAllocate, OtherReallocate, OtherFree>::Create(m_reservedCount);
     if(m_count)
     {
       Result.m_count = m_count;
       size_t MemSize = sizeof(T) * m_reservedCount;
-      Result.m_data = (T*) Result.Malloc(MemSize);
       utils::Copy(MemSize, (void*) m_data, (void*) Result.m_data);
     }
     return Result;
   }
-  
+
   vector Copy()
   {
-    return Copy(m_malloc, m_realloc, m_free);
+    vector<T, Allocate, Reallocate, Free> Result = CustomCopy<Allocate, Reallocate, Free>();
+    return Result;
   }
 };
-
-
-
-template struct vector<int>;
 
 } // cmn

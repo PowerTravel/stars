@@ -15,7 +15,7 @@ namespace cmn{
 //             those heap allocated objects are what these types use for custom allocators.
 // Note: Never move list elements between lists which has different allocators
 
-template  <typename T>
+template <typename T, _cmn_malloc* Allocate, _cmn_free* Free>
 struct list {
   struct element {
     T* Data;
@@ -32,36 +32,12 @@ struct list {
     };
   };
 
-  _cmn_malloc*  m_malloc;
-  _cmn_free*    m_free;
-
-  bool m_transient;
-
-  void* Malloc(size_t sz)
-  {
-    if(m_malloc)
-    {
-      return m_malloc(sz);
-    }
-    
-    return m_transient ? _g_cmn_transient_malloc(sz) : _g_cmn_malloc(sz);
-  }
-
-  void Free(void * p)
-  {
-    if(m_free){
-      return m_free(p);
-    }
-    return m_transient ? _g_cmn_transient_free(p) : _g_cmn_free(p);
-  }
-
-
   size_t m_count;
   element* m_sentinel;
 
   element* NewElement(const T& Data) {
-    element* Result = (element*)Malloc(sizeof(element));
-    Result->Data = (T*)Malloc(sizeof(T));
+    element* Result = (element*)Allocate(sizeof(element));
+    Result->Data = (T*)Allocate(sizeof(T));
     utils::Copy(sizeof(T), (void*) &Data, (void*) Result->Data);
     m_count++;
     return Result;
@@ -71,23 +47,14 @@ struct list {
 
   list() = default;
 
-  static inline list Create(_cmn_malloc* aMalloc = 0, _cmn_free* aFree = 0){
+  static inline list Create(){
     list Result = {};
-    Result.m_malloc = aMalloc;
-    Result.m_free = aFree;
-    Result.m_transient = false;
-    return Result;
-  }
-
-  static inline list CreateTransient(){
-    list Result = list::Create(0,0);
-    Result.m_transient = true;
     return Result;
   }
 
   element* GetSentinel(){
     if(!m_sentinel){
-      m_sentinel =  (element*) Malloc(sizeof(element));
+      m_sentinel =  (element*) Allocate(sizeof(element));
       *m_sentinel = {};
       ListInitiate(m_sentinel);
     }
@@ -220,8 +187,6 @@ struct list {
   bool Initiated(){return m_sentinel;}
 
 };
-
-template struct list<int>;
 
 }
 

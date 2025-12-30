@@ -6,10 +6,13 @@
 
 bool gShouldPrint = false;
 
+
+template<typename T> using list_dbg = cmn::list<T, customMalloc, customFree>;
+template<typename T> using list_std = cmn::list<T, malloc, free>;
+
 void TestConstructDestructEmpty()
 {
-  dbg::SetCustomGlobalAllocators();
-  cmn::list<int> List = cmn::list<int>::Create();
+  list_dbg<int> List = list_dbg<int>::Create();
   List.Delete();
   DBG_Assert(gMallocCount, 0, "Malloc Call Count");
   DBG_Assert(gReallocCount, 0,  "Realloc Call Count");
@@ -17,12 +20,10 @@ void TestConstructDestructEmpty()
 }
 
 void TestPushPop_1(){
-  dbg::SetCustomGlobalAllocators();
-
   int N = 32;
   int AllocFreeCount = N*2+1; // There are two allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
   
-  cmn::list<int> List = cmn::list<int>::Create();
+  list_dbg<int> List = list_dbg<int>::Create();
 
   DBG_Assert(List.Empty(), true, "List Empty");
   DBG_Assert(List.Size(), 0, "List Size");
@@ -53,12 +54,10 @@ void TestPushPop_1(){
 
 void TestPushPop_2(){
 
-  dbg::SetCustomGlobalAllocators();
-
   int N = 32;
   int AllocFreeCount =2*(N*2+1); // There are two lists and allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
   {
-    cmn::list<int> List = cmn::list<int>::Create();
+    list_dbg<int> List = list_dbg<int>::Create();
 
     DBG_Assert(List.Empty(), true, "List Empty");
     DBG_Assert(List.Size(), 0, "List Size");
@@ -83,7 +82,7 @@ void TestPushPop_2(){
     List.Delete();
   }
   {
-    cmn::list<int> List = cmn::list<int>::Create();
+    list_dbg<int> List = list_dbg<int>::Create();
 
     DBG_Assert(List.Empty(), true, "List Empty");
     DBG_Assert(List.Size(), 0, "List Size");
@@ -97,7 +96,7 @@ void TestPushPop_2(){
 
     // Test looping Right
     {
-      cmn::list<int>::element* Element = List.First();
+      list_dbg<int>::element* Element = List.First();
       int ListValue = N-1;
       while (!List.IsEnd(Element))
       {
@@ -109,7 +108,7 @@ void TestPushPop_2(){
     // Test looping Left
     {
       int ListValue = 0;
-      cmn::list<int>::element* Element = List.Last();
+      list_dbg<int>::element* Element = List.Last();
       while (!List.IsEnd(Element))
       {
         DBG_Assert(Element->GetCopy(), ListValue++, "Loop Left");
@@ -145,12 +144,10 @@ void TestPushPop_2(){
 }
 
 void TestLoop(){
-  dbg::SetCustomGlobalAllocators();
-
   int N = 32;
   int AllocFreeCount = N*2+1; // There are two allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
 
-  cmn::list<int> List = cmn::list<int>::Create();
+  list_dbg<int> List = list_dbg<int>::Create();
 
   for (int i = 0; i < N; ++i)
   {
@@ -158,7 +155,7 @@ void TestLoop(){
   }
 
   int Index = 0;
-  cmn::list<int>::element* E = List.First();
+  list_dbg<int>::element* E = List.First();
   while( !List.IsEnd(E) )
   {
     int truVal = Index++;
@@ -189,7 +186,7 @@ void TestConstructDestruct()
   int N = 32;
   int AllocFreeCount = N*2+1; // There are two allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
 
-  cmn::list<int> List = cmn::list<int>::Create();
+  list_dbg<int> List = list_dbg<int>::Create();
 
   DBG_Assert(List.Empty(), true, "List Empty");
   DBG_Assert(List.Size(), 0, "List Size");
