@@ -41,6 +41,34 @@ namespace cmn {
 #ifndef CMN_ALLOC_FUNCTIONS
 #include <cstdlib>
 
+CMN_MALLOC_FUNCTION(CmnAllocate){
+  return malloc(sz);  
+}
+CMN_REALLOC_FUNCTION(CmnReallocate){
+  return realloc(p,sz);
+}
+CMN_FREE_FUNCTION(CmnFree){
+  free(p);
+}
+CMN_MALLOC_FUNCTION(CmnTransientAllocate){
+  return malloc(sz);  
+}
+CMN_REALLOC_FUNCTION(CmnTransientReallocate){
+  return realloc(p,sz);
+}
+CMN_FREE_FUNCTION(CmnTransientFree){
+  free(p);
+}
+CMN_MALLOC_FUNCTION(CmnFrameTransientAllocate){
+  return malloc(sz);  
+}
+CMN_REALLOC_FUNCTION(CmnFrameTransientReallocate){
+  return realloc(p,sz);
+}
+CMN_FREE_FUNCTION(CmnFrameTransientFree){
+  free(p);
+}
+
 namespace cmn {
   _cmn_malloc*  _g_cmn_malloc  = malloc;
   _cmn_realloc* _g_cmn_realloc = realloc;

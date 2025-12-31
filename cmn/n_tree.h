@@ -15,8 +15,6 @@ namespace cmn {
 
   template <typename T>
   struct n_tree {
-
-
     struct node {
       T* Data;
       node* Parent;
@@ -141,6 +139,7 @@ namespace cmn {
       return Result;
     }
     
+    template <_cmn_malloc* Allocate, _cmn_free* Free>
     void Delete();
   
     n_tree::node* AllocateNode() {
@@ -186,18 +185,28 @@ namespace cmn {
     }
 
     size_t NodeCount(){return m_nodeCount;};
+
+    template <_cmn_malloc* Allocate, _cmn_free* Free>
     size_t CountNodes();
+    
     size_t MaxDepth(){
       return m_maxDepth;
     }
+
+    template <_cmn_malloc* Allocate, _cmn_free* Free>
     size_t CalculateMaxDepth();
 
     // Create a copy of Tree
-    cmn::list<node*>   GetLevelOrderList  (_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_free* Free = _g_cmn_free);
-    cmn::vector<node*> GetLevelOrderVector(_cmn_malloc* Malloc = _g_cmn_malloc, _cmn_realloc* Realloc = _g_cmn_realloc, _cmn_free* Free = _g_cmn_free, bool m_transient = false);
-    n_tree<T> Copy(bool Transient, _cmn_malloc* Malloc = 0, _cmn_free* Free = 0); // If 0 the allocators of 'this' are used
+    template<_cmn_malloc* Allocate, _cmn_free* Free>
+    cmn::list<node*, Allocate, Free>   GetLevelOrderList  ();
 
+    template<_cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
+    cmn::vector<node*, Allocate, Reallocate, Free> GetLevelOrderVector();
+    
+    template<_cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
+    n_tree<T> Copy(bool aTransient, _cmn_malloc* aMalloc = 0, _cmn_free* aFree = 0);
 
+    template <_cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
     struct pre_order_iterator {
 
       struct node_step {
@@ -206,7 +215,7 @@ namespace cmn {
         int SiblingCount;
       };
 
-      cmn::vector<node_step> NodeLadder;
+      cmn::vector<node_step, Allocate, Reallocate, Free> NodeLadder;
       size_t MaxSize;
       n_tree<T>* Tree;
 
@@ -251,7 +260,7 @@ namespace cmn {
         {
           // First step, add root.
           size_t MaxDepth = MaxSize ? MaxSize : Tree->MaxDepth();
-          NodeLadder = cmn::vector<node_step>::CreateTransient(MaxDepth);
+          NodeLadder = cmn::vector<node_step, Allocate, Reallocate, Free>::Create(MaxDepth);
           node_step Step = CreateStep(Tree->m_root, 0);
           NodeLadder.PushBack(Step);
         } else {
@@ -285,8 +294,9 @@ namespace cmn {
       int Depth() { return NodeLadder.Size(); }
     };
     
-    pre_order_iterator PreOrderIterator(int MaxSize = 0) {
-      pre_order_iterator Result = {};
+    template <_cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
+    pre_order_iterator<Allocate, Reallocate, Free> PreOrderIterator(int MaxSize = 0) {
+      pre_order_iterator<Allocate, Reallocate, Free> Result = {};
       Result.MaxSize = MaxSize;
       Result.Tree = this;
       return Result;
@@ -299,15 +309,15 @@ template<class T> using n_tree_node_callback = _NodeVisitFunction((*));
 #define NodeVisitFunction(name) template<typename T> _NodeVisitFunction(name)
 
 template<class T> using n_tree_node = typename cmn::n_tree<T>::node;
-template<class T> using node_list = cmn::list< n_tree_node<T>* >;
-template<class T> using node_vec = cmn::vector< n_tree_node<T>* >;
+template<class T, _cmn_malloc* Allocate, _cmn_free* Free> using node_list = cmn::list<n_tree_node<T>* , Allocate, Free>;
+template<class T, _cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free> using node_vec = cmn::vector< n_tree_node<T>*, Allocate, Reallocate, Free>;
 template<class T> using n_tree_pre_order_it = typename cmn::n_tree<T>::pre_order_iterator;
 template<class T> using n_tree_pre_order_step = typename cmn::n_tree<T>::pre_order_iterator::node_step;
-template<typename T>
 
-void PreOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, void* UserData){
+template<typename T, _cmn_malloc* Allocate, _cmn_free* Free>
+void PreOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, void* UserData) {
   if(!Tree.m_root) return;
-  node_list<T> NodeQueue = node_list<T>::Create(_g_cmn_transient_malloc, _g_cmn_transient_free);
+  node_list<T, Allocate, Free> NodeQueue = node_list<T,Allocate, Free>::Create();
 
   NodeQueue.PushBack(Tree.m_root);
 
@@ -329,11 +339,11 @@ void PreOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, v
   NodeQueue.Delete();
 }
 
-template<typename T>
+template<typename T, _cmn_malloc* Allocate, _cmn_free* Free>
 void LevelOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, void* UserData) {
   if(!Tree.m_root) return;
 
-  node_list<T> NodeQueue = node_list<T>::CreateTransient();
+  node_list<T, Allocate, Free> NodeQueue = node_list<T, Allocate, Free>::Create();
   NodeQueue.PushBack(Tree.m_root);
 
   while(!NodeQueue.Empty())
@@ -360,8 +370,9 @@ namespace internal {
     n_tree_node<T>* Node;
     bool Opened;
   };
-  template<typename T>
-  static void Push(cmn::list< post_order_traverse<T> >& Queue, n_tree_node<T>* Node)
+
+  template<typename T, _cmn_malloc* Allocate, _cmn_free* Free>
+  static void Push(cmn::list< post_order_traverse<T>, Allocate, Free>& Queue, n_tree_node<T>* Node)
   {
     if(!Node) return;
     post_order_traverse<T> TraversePair = {};
@@ -371,11 +382,11 @@ namespace internal {
   }
 } // internal
 
-template<typename T>
+template<typename T, _cmn_malloc* Allocate, _cmn_free* Free>
 void PostOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, void* UserData)
 {
   if(!Tree.m_root) return;
-  cmn::list< internal::post_order_traverse<T> > NodeQueue = cmn::list<internal::post_order_traverse<T>>::Create();
+  cmn::list<internal::post_order_traverse<T>, Allocate, Free> NodeQueue = cmn::list<internal::post_order_traverse<T>, Allocate, Free>::Create();
   internal::Push(NodeQueue, Tree.m_root);
   while(!NodeQueue.Empty())
   {
@@ -407,9 +418,10 @@ NodeVisitFunction(CountNodeCallback){
 }
 
 template <typename T>
+template <_cmn_malloc* Allocate, _cmn_free* Free>
 size_t n_tree<T>::CountNodes(){
   size_t Result = 0;
-  cmn::LevelOrderTraversal(*this, CountNodeCallback,(void*) &Result);
+  cmn::LevelOrderTraversal<T, Allocate, Free>(*this, CountNodeCallback,(void*) &Result);
   m_nodeCount = Result;
   return Result;
 };
@@ -429,9 +441,10 @@ NodeVisitFunction(CalcDepthCallback){
 }
 
 template <typename T>
+template <_cmn_malloc* Allocate, _cmn_free* Free>
 size_t n_tree<T>::CalculateMaxDepth(){
   size_t Result = 0;
-  cmn::LevelOrderTraversal(*this, CalcDepthCallback,(void*) &Result);
+  cmn::LevelOrderTraversal<T, Allocate, Free>(*this, CalcDepthCallback,(void*) &Result);
   m_nodeCount = Result;
   return Result;
 };
@@ -446,37 +459,40 @@ NodeVisitFunction(DeleteLeafNode){
 }
 
 template <typename T>
+template <_cmn_malloc* Allocate, _cmn_free* Free>
 void n_tree<T>::Delete()
 {
   if(m_root){
-    PostOrderTraversal(*this, DeleteLeafNode, 0);
+    PostOrderTraversal<T, Allocate, Free>(*this, DeleteLeafNode, 0);
   }
 }
 
 NodeVisitFunction(LevelOrderNodeList){
   //Tree, Node, UserData;
-  node_list<T>* NodeList = (node_list<T>*) UserData;
+  node_list<T, CmnTransientAllocate, CmnTransientFree>* NodeList = (node_list<T, CmnTransientAllocate, CmnTransientFree>*) UserData;
   NodeList->PushBack(Node);
 }
-
+ 
 template <typename T>
-node_list<T> n_tree<T>::GetLevelOrderList(_cmn_malloc* Malloc, _cmn_free* Free) {
-  node_list<T> NodeList = node_list<T>::Create(Malloc, Free);
-  LevelOrderTraversal(*this, LevelOrderNodeList, (void*) &NodeList);
+template < _cmn_malloc* Allocate, _cmn_free* Free>
+node_list<T, Allocate, Free> n_tree<T>::GetLevelOrderList() {
+  auto NodeList = node_list<T, Allocate, Free>::Create();
+  LevelOrderTraversal<T, Allocate, Free>(*this, LevelOrderNodeList, (void*) &NodeList);
   return NodeList;
 }
 
 NodeVisitFunction(LevelOrderNodeVec){
   //Tree, Node, UserData;
-  node_vec<T>* NodeList = (node_vec<T>*) UserData;
+  node_vec<T, CmnTransientAllocate, CmnTransientReallocate, CmnTransientFree>* NodeList = (node_vec<T, CmnTransientAllocate, CmnTransientReallocate, CmnTransientFree>*) UserData;
   NodeList->PushBack(Node);
 }
 
 template <typename T>
-node_vec<T> n_tree<T>::GetLevelOrderVector(_cmn_malloc* Malloc, _cmn_realloc* Realloc, _cmn_free* Free, bool transient) {
+template <_cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
+node_vec<T, Allocate, Reallocate, Free> n_tree<T>::GetLevelOrderVector() {
   size_t NodeCount = this->NodeCount();
-  node_vec<T> NodeVec = node_vec<T>::Create(NodeCount, transient, Malloc, Realloc, Free);
-  LevelOrderTraversal(*this, LevelOrderNodeVec, (void*) &NodeVec);
+  auto NodeVec = node_vec<T, Allocate, Reallocate, Free>::Create(NodeCount);
+  LevelOrderTraversal<T, Allocate, Free>(*this, LevelOrderNodeVec, (void*) &NodeVec);
 
   return NodeVec;
 }
@@ -487,7 +503,7 @@ NodeVisitFunction(PreOrderValueVec){
   NodeVec->PushBack(Node->Data);
 }
 
-template <typename T>
+template <typename T, _cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
 struct copy_n_tree_help_struct {
   
   template <typename T> 
@@ -496,12 +512,12 @@ struct copy_n_tree_help_struct {
     n_tree_node<T>* DstNode;
   };
 
-  cmn::vector<pair<T>> NodePair;
+  cmn::vector<pair<T>, Allocate, Reallocate, Free> NodePair;
   n_tree<T>* DstTree;
 
   copy_n_tree_help_struct(n_tree<T>* aDstTree, size_t aSize)
   {
-    NodePair = cmn::vector<pair<T>>::CreateTransient(aSize);
+    NodePair = cmn::vector<pair<T>, Allocate, Reallocate, Free>::Create(aSize);
     DstTree = aDstTree;
   }
   ~copy_n_tree_help_struct(){
@@ -558,25 +574,26 @@ struct copy_n_tree_help_struct {
 
 
 //Tree, Node, UserData;
-NodeVisitFunction(CopyTreeFun){
-  copy_n_tree_help_struct<T>* NodeMap = (copy_n_tree_help_struct<T>*) UserData;
+NodeVisitFunction(CopyTreeFun) {
+  auto* NodeMap = (copy_n_tree_help_struct<T, CmnTransientAllocate, CmnTransientReallocate, CmnTransientFree>*) UserData;
   n_tree_node<T>* NewParent = NodeMap->GetDstParent(Node);
   n_tree_node<T>* NewNode = NodeMap->DstTree->NewNode(NewParent, *Node->Data);
   NodeMap->PushNewPair(Node,NewNode);
 }
 
 template <typename T>
-n_tree<T> n_tree<T>::Copy(bool Transient, _cmn_malloc* aMalloc, _cmn_free* aFree) {
+template <_cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
+n_tree<T> n_tree<T>::Copy(bool aTransient, _cmn_malloc* aMalloc, _cmn_free* aFree) {
   // Both or None of the allocators need to be defined in this function
   Assert((aMalloc==0 && aFree==0) || (aMalloc!=0 && aFree!=0));
 
-  n_tree<T> Result = n_tree<T>::Create(Transient, aMalloc, aFree);
+  n_tree<T> Result = n_tree<T>::Create(aTransient, aMalloc, aFree);
   
   size_t nodeCount = NodeCount();
   size_t VecSize = utils::GetNextPowerOfTwo(nodeCount);
-  copy_n_tree_help_struct<T> HelpStruct = copy_n_tree_help_struct<T>(&Result, VecSize);
+  copy_n_tree_help_struct<T, Allocate, Reallocate, Free> HelpStruct = copy_n_tree_help_struct<T,Allocate, Reallocate, Free>(&Result, VecSize);
 
-  LevelOrderTraversal(*this, CopyTreeFun, &HelpStruct); 
+  LevelOrderTraversal<T, Allocate, Free>(*this, CopyTreeFun, &HelpStruct);
 
   return Result;
 }

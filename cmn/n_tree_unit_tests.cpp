@@ -16,6 +16,9 @@ bool gShouldPrint = false;
 #include <string>
 #include <iostream>
 
+template<class T> using vector_dbg = cmn::vector<T, customMalloc, customRealloc, customFree>;
+template<class T> using vector_std = cmn::vector<T, malloc, realloc, free>;
+
 NodeVisitFunction(treeTraversealAssert){
   user_data* data = (user_data*) UserData;
   #if 1
@@ -28,7 +31,7 @@ NodeVisitFunction(treeTraversealAssert){
 
 struct user_data {
   int i;
-  cmn::vector<int> vec;
+  vector_dbg<int> vec;
 };
 
 /*
@@ -88,9 +91,9 @@ void Test_Traversal()
     cmn::n_tree<int> tree = createTree();
     int PreOrderBuf[] = {1,2,3,5,8,6,4,7,9};
     user_data PreOrderData = {};
-    PreOrderData.vec = cmn::vector<int>::Create(ArrayCount(PreOrderBuf), PreOrderBuf);
-    cmn::PreOrderTraversal(tree, treeTraversealAssert,(void*) &PreOrderData);
-    tree.Delete();
+    PreOrderData.vec = vector_dbg<int>::Create(ArrayCount(PreOrderBuf), PreOrderBuf);
+    cmn::PreOrderTraversal<int, customMalloc, customFree>(tree, treeTraversealAssert,(void*) &PreOrderData);
+    tree.Delete<customMalloc, customFree>();
     PreOrderData.vec.Delete();
   }
   DBG_Assert(gMallocCount, gFreeCount, "Alloc equal to free");
@@ -99,9 +102,9 @@ void Test_Traversal()
     cmn::n_tree<int> tree = createTree();
     int PostOrderBuf[] = {2,8,5,6,3,9,7,4,1};
     user_data PostOrderData = {};
-    PostOrderData.vec = cmn::vector<int>::Create(ArrayCount(PostOrderBuf), PostOrderBuf);
-    cmn::PostOrderTraversal(tree, treeTraversealAssert,(void*) &PostOrderData);
-    tree.Delete();
+    PostOrderData.vec = vector_dbg<int>::Create(ArrayCount(PostOrderBuf), PostOrderBuf);
+    cmn::PostOrderTraversal<int, customMalloc, customFree>(tree, treeTraversealAssert,(void*) &PostOrderData);
+    tree.Delete<customMalloc, customFree>();
     PostOrderData.vec.Delete();
   }
   DBG_Assert(gMallocCount, gFreeCount, "Alloc equal to free");
@@ -110,9 +113,9 @@ void Test_Traversal()
     cmn::n_tree<int> tree = createTree();
     int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
     user_data LevelOrderData = {};
-    LevelOrderData.vec = cmn::vector<int>::Create(ArrayCount(LevelOrderBuf), LevelOrderBuf);
-    cmn::LevelOrderTraversal(tree, treeTraversealAssert,(void*) &LevelOrderData);
-    tree.Delete();
+    LevelOrderData.vec = vector_dbg<int>::Create(ArrayCount(LevelOrderBuf), LevelOrderBuf);
+    cmn::LevelOrderTraversal<int, customMalloc, customFree>(tree, treeTraversealAssert,(void*) &LevelOrderData);
+    tree.Delete<customMalloc, customFree>();
     LevelOrderData.vec.Delete();
   }  
   DBG_Assert(gMallocCount, gFreeCount, "Alloc equal to free");
@@ -121,14 +124,13 @@ void Test_Traversal()
 
 void Test_LevelOrderVecList()
 {
-  dbg::SetCustomGlobalAllocators();
   cmn::n_tree<int> tree = createTree();
-  cmn::node_list<int> TreeList = tree.GetLevelOrderList();
-  cmn::node_vec<int> TreeVec = tree.GetLevelOrderVector();
+  cmn::node_list<int, customMalloc, customFree> TreeList = tree.GetLevelOrderList<customMalloc, customFree>();
+  cmn::node_vec<int, customMalloc, customRealloc, customFree> TreeVec = tree.GetLevelOrderVector<customMalloc, customRealloc, customFree>();
 
   int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
   user_data LevelOrderData = {};
-  LevelOrderData.vec = cmn::vector<int>::Create(ArrayCount(LevelOrderBuf), LevelOrderBuf);
+  LevelOrderData.vec = vector_dbg<int>::Create(ArrayCount(LevelOrderBuf), LevelOrderBuf);
 
   DBG_Assert(TreeList.Size(), tree.NodeCount(), "Vector Size");
   for (int i = 0; i < TreeList.Size(); ++i)
@@ -138,7 +140,7 @@ void Test_LevelOrderVecList()
   }
 
   TreeList.Delete();
-  tree.Delete();
+  tree.Delete<customMalloc, customFree>();
   TreeVec.Delete();
   LevelOrderData.vec.Delete();
 
@@ -147,20 +149,18 @@ void Test_LevelOrderVecList()
 
 void Test_Copy()
 {
-  dbg::SetCustomGlobalAllocators();
   cmn::n_tree<int> tree = createTree();
-  cmn::n_tree<int> treeCopy = tree.Copy(true);
+  cmn::n_tree<int> treeCopy = tree.Copy<customMalloc, customRealloc, customFree>(true,customMalloc, customFree);
   DBG_AssertFalse(tree.m_root, treeCopy.m_root, "m_root Pointer" );
-  treeCopy.Delete();
-  tree.Delete();
+  treeCopy.Delete<customMalloc, customFree>();
+  tree.Delete<customMalloc, customFree>();
   DBG_Assert(gMallocCount, gFreeCount, "Alloc equal to free");
 }
 
 void Test_PreOrderIterator()
 {
-  dbg::SetCustomGlobalAllocators();
   cmn::n_tree<int> Tree = createTree();
-  cmn::n_tree<int>::pre_order_iterator It = Tree.PreOrderIterator();
+  auto It = Tree.PreOrderIterator<customMalloc, customRealloc, customFree>();
 
   int GroundTruthDepth[] = {2,4,3,4};
   int GroundTruth[4][4] = { 
@@ -178,7 +178,7 @@ void Test_PreOrderIterator()
       DBG_Assert(It.Depth(), GroundTruthDepth[LeafCount], "Depth");
       for (int i = 0; i < It.NodeLadder.Size(); ++i)
       {
-        cmn::n_tree<int>::pre_order_iterator::node_step Step = It.NodeLadder[i];
+        auto Step = It.NodeLadder[i];
         DBG_Assert(*(Step.Node->Data),  GroundTruth[LeafCount][i], "Value");
         DBG_Assert(Step.Node->Depth, i, "NodeDepth");
       }
@@ -187,19 +187,18 @@ void Test_PreOrderIterator()
     
   }
   It.Delete(); // Not necessary in real code since It only uses transient memory. 
-  Tree.Delete();
+  Tree.Delete<customMalloc, customFree>();
   DBG_Assert(gMallocCount, gFreeCount, "Malloc Equal to Free");
 }
 
 void Test_Sum()
 {
-  dbg::SetCustomGlobalAllocators();
   cmn::n_tree<int> Tree = createTree();
-  cmn::n_tree<int>::pre_order_iterator It = Tree.PreOrderIterator();
+  auto It = Tree.PreOrderIterator<customMalloc, customRealloc, customFree>();
 
   int GroundTruthSum[]   = {3,17,10,21};
   int LeafCount = 0;
-  cmn::vector<int> IntSumVec = cmn::vector<int>::CreateTransient(Tree.MaxDepth());
+  vector_dbg<int> IntSumVec = vector_dbg<int>::Create(Tree.MaxDepth());
   while(cmn::n_tree_node<int>* Node = It.Next())
   {
     int Depth = It.Depth()-1;
@@ -212,7 +211,7 @@ void Test_Sum()
   }
   IntSumVec.Delete(); // Not necessary in real code since It only uses transient memory. 
   It.Delete();        // Not necessary in real code since It only uses transient memory. 
-  Tree.Delete();
+  Tree.Delete<customMalloc, customFree>();
   DBG_Assert(gMallocCount, gFreeCount, "Malloc Equal to Free");
 }
 
