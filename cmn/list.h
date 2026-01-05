@@ -13,37 +13,53 @@ namespace cmn{
 //          2: Collecting the allocator function pointers into heap-allocated objects.
 //             The objects gets updated on DLL reload to point to the proper function and
 //             those heap allocated objects are what these types use for custom allocators.
-// Note: Never move list list_elements between lists which has different allocators
+// Note: Never move list basic_list::elements between lists which has different allocators
 
-struct list_element {
-  void* Data;
-  list_element* Next;
-  list_element* Previous;
+struct basic_list {
+  struct element {
+    void* Data;
+    basic_list::element* Next;
+    basic_list::element* Previous;
+  };
+
+  size_t m_dataSize;
+  size_t m_count;
+  element* m_sentinel;
+
+  inline bool IsEnd(basic_list::element* Position){return !m_sentinel || Position == m_sentinel;};
+  inline bool Empty(){return !m_sentinel || m_sentinel == m_sentinel->Next;}
+  inline bool Initiated(){return m_sentinel;}
+  inline size_t Size() const { return m_count; };
+  inline void* Get(basic_list::element* Element){ return Element->Data; };
+  virtual basic_list::element* First(){return m_sentinel ? m_sentinel->Next : 0;}
+  virtual basic_list::element* Last() {return m_sentinel ? m_sentinel->Previous : 0;}
+
+  void InsertAt(basic_list::element* Position, const void* Data) {
+    Assert(Position->Next && Position->Previous && Position->Data);
+    utils::Copy(m_dataSize, Data, Position->Data);
+  }
+
 };
 
-
 template <typename T, _cmn_malloc* Allocate, _cmn_free* Free>
-struct list {
+struct list : public basic_list {
 
-  inline T* GetPtr(list_element* Element) const {
+  inline T* GetPtr(basic_list::element* Element) const {
     T* Result = (T*) Element->Data;
     return Result;
   }
-  inline T& GetRef(list_element* Element) const {
+  inline T& GetRef(basic_list::element* Element) const {
     T* Result = (T*) Element->Data;
     return *Result;
   };
-  inline T GetCopy(list_element* Element) const{
+  inline T GetCopy(basic_list::element* Element) const{
     T* Result = ( (T*) Element->Data);
     return *Result;
   };
 
-  size_t m_count;
-  list_element* m_sentinel;
-
-  list_element* NewElement(const T* Data = 0) {
-    list_element* Result = (list_element*) Allocate(sizeof(list_element));
-    Result->Data = (T*) Allocate(sizeof(T));
+  basic_list::element* NewElement(const T* Data = 0) {
+    basic_list::element* Result = (basic_list::element*) Allocate(sizeof(basic_list::element));
+    Result->Data = Allocate(sizeof(T));
     if(Data){
       utils::Copy(sizeof(T), (void*) Data, (void*) Result->Data);
     }
@@ -51,53 +67,49 @@ struct list {
     return Result;
   }
 
-  size_t Size() const { return m_count; };
 
   list() = default;
 
+  basic_list ToBasic()
+  {
+    return *this;
+  }
+
   static inline list Create(size_t InitialCount = 0){
     list Result = {};
+    Result.m_dataSize = sizeof(T);
     if(InitialCount)
     {
       Result.m_sentinel = Result.GetSentinel();
       for (int i = 0; i < InitialCount; ++i)
       {
-        list_element* NewElement = Result.NewElement();
+        basic_list::element* NewElement = Result.NewElement();
         ListInsertBefore(Result.m_sentinel, NewElement);
       }
     }
     return Result;
   }
 
-  list_element* GetSentinel(){
+  basic_list::element* GetSentinel(){
     if(!m_sentinel){
-      m_sentinel =  (list_element*) Allocate(sizeof(list_element));
+      m_sentinel =  (basic_list::element*) Allocate(sizeof(basic_list::element));
       *m_sentinel = {};
       ListInitiate(m_sentinel);
     }
     return m_sentinel;
   }
 
-  list_element* First(){
-    return GetSentinel()->Next;
-  }
-  list_element* Last(){
-    return GetSentinel()->Previous;
-  }
+  basic_list::element* First() override {return GetSentinel()->Next;}
+  basic_list::element* Last()  override {return GetSentinel()->Previous;}
 
-  void InsertBefore(list_element* Position, const T& Data) {
-    list_element* e = NewElement(&Data);
+  void InsertBefore(basic_list::element* Position, const T& Data) {
+    basic_list::element* e = NewElement(&Data);
     ListInsertBefore(Position, e);
   }
 
-  void InsertAfter(list_element* Position, const T& Data) {
-    list_element* e = NewElement(&Data);
+  void InsertAfter(basic_list::element* Position, const T& Data) {
+    basic_list::element* e = NewElement(&Data);
     ListInsertAfter(Position, e);
-  }
-
-  void InsertAt(list_element* Position, const T& Data) {
-    Assert(Position->Next && Position->Previous);
-    utils::Copy(sizeof(T), (void*) &Data, (void*) Position->Data);
   }
 
   void PushBack(const T& Data) {
@@ -108,7 +120,7 @@ struct list {
     InsertAfter(GetSentinel(), Data);
   }
 
-  list_element* Detach(list_element* ElementToDetach) {
+  basic_list::element* Detach(basic_list::element* ElementToDetach) {
     if(m_count == 0 || IsEnd(ElementToDetach)){
       return 0;
     }
@@ -118,7 +130,7 @@ struct list {
     return ElementToDetach;
   }
 
-  void Delete(list_element* ElementToRemove) {
+  void Delete(basic_list::element* ElementToRemove) {
     if(m_count == 0 || IsEnd(ElementToRemove)){
       return;
     }
@@ -131,10 +143,10 @@ struct list {
 
     if(m_sentinel)
     {
-      list_element* e = m_sentinel->Next;
+      basic_list::element* e = m_sentinel->Next;
       while(e != m_sentinel)
       {
-        list_element* eNext = e->Next;
+        basic_list::element* eNext = e->Next;
         Free(e->Data);
         Free(e);
         e = eNext;
@@ -164,12 +176,12 @@ struct list {
     return Result;
   }
 
-  list_element* At(size_t Index)
+  basic_list::element* At(size_t Index)
   {
     if(!m_sentinel) return 0;
     if(Index >= m_count) return 0;
 
-    list_element* Result = 0;
+    basic_list::element* Result = 0;
     size_t Midpoint = m_count / 2;
     if(Index <= Midpoint)
     {
@@ -190,23 +202,20 @@ struct list {
     return Result;
   }
 
-
   T GetCopy(size_t Index){
-    list_element* E = At(Index);
+    basic_list::element* E = At(Index);
     return GetCopy(E);
   }
   T& GetRef(size_t Index){
-    list_element* E = At(Index);
+    basic_list::element* E = At(Index);
     return GetRef(E);
   }
   T* GetPtr(size_t Index){
-    list_element* E = At(Index);
+    basic_list::element* E = At(Index);
     return GetPtr(E);
   }
 
-  bool IsEnd(list_element* Position){return !m_sentinel || Position == m_sentinel;};
-  bool Empty(){return !m_sentinel || m_sentinel == m_sentinel->Next;}
-  bool Initiated(){return m_sentinel;}
+
 
 };
 
