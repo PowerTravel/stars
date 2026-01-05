@@ -468,16 +468,14 @@ void n_tree<T>::Delete()
 }
 
 struct level_order_node_list_helper {
-  list_element* Sentinel;
-  list_element* Last;
+  basic_list BasicList;
+  basic_list::element* Last;
 };
 
 NodeVisitFunction(LevelOrderNodeList){
   //Tree, Node, UserData;
   level_order_node_list_helper* Helper = (level_order_node_list_helper*) UserData;
-  Assert(Helper->Last != Helper->Sentinel);
-  n_tree_node<T>** ListData = (n_tree_node<T>**) Helper->Last->Data;
-  *ListData = Node;
+  Helper->BasicList.InsertAt(Helper->Last, (void*) &Node);
   Helper->Last = Helper->Last->Next;
 }
  
@@ -486,8 +484,8 @@ template < _cmn_malloc* Allocate, _cmn_free* Free>
 node_list<T, Allocate, Free> n_tree<T>::GetLevelOrderList() {
   node_list<T, Allocate, Free> NodeList = node_list<T, Allocate, Free>::Create(NodeCount());
   level_order_node_list_helper Helper = {};
-  Helper.Sentinel = NodeList.GetSentinel();
-  Helper.Last     = Helper.Sentinel->Next;
+  Helper.BasicList = NodeList.ToBasic();
+  Helper.Last = NodeList.First();
   LevelOrderTraversal<T, Allocate, Free>(*this, LevelOrderNodeList, (void*) &Helper);
   return NodeList;
 }
