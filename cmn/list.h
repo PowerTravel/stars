@@ -13,32 +13,40 @@ namespace cmn{
 //          2: Collecting the allocator function pointers into heap-allocated objects.
 //             The objects gets updated on DLL reload to point to the proper function and
 //             those heap allocated objects are what these types use for custom allocators.
-// Note: Never move list elements between lists which has different allocators
+// Note: Never move list list_elements between lists which has different allocators
+
+struct list_element {
+  void* Data;
+  list_element* Next;
+  list_element* Previous;
+};
+
 
 template <typename T, _cmn_malloc* Allocate, _cmn_free* Free>
 struct list {
-  struct element {
-    T* Data;
-    element* Next;
-    element* Previous;
-    T* GetPtr() const {
-      return Data;
-    }
-    T& GetRef() const {
-      return *Data;
-    };
-    T GetCopy() const{
-      return *Data;
-    };
+
+  inline T* GetPtr(list_element* Element) const {
+    return (T*) Element->Data;
+  }
+  inline T& GetRef(list_element* Element) const {
+    return *( (T*) Element->Data);
+  };
+  inline T GetCopy(list_element* Element) const{
+    return *( (T*) Element->Data);;
   };
 
   size_t m_count;
-  element* m_sentinel;
+  list_element* m_sentinel;
 
-  element* NewElement(const T& Data) {
-    element* Result = (element*)Allocate(sizeof(element));
-    Result->Data = (T*)Allocate(sizeof(T));
-    utils::Copy(sizeof(T), (void*) &Data, (void*) Result->Data);
+  list_element* NewElement(const T* Data = 0) {
+    list_element* Result = (list_element*) Allocate(sizeof(list_element));
+    if(Data)
+    {
+      Result->Data = (T*) Allocate(sizeof(T));
+      utils::Copy(sizeof(T), (void*) Data, (void*) Result->Data);
+    }else{
+      Result->Data = 0;
+    }
     m_count++;
     return Result;
   }
@@ -47,35 +55,54 @@ struct list {
 
   list() = default;
 
-  static inline list Create(){
+  static inline list Create(size_t InitialCount = 0){
     list Result = {};
+    if(InitialCount)
+    {
+      Result.m_sentinel = Result.GetSentinel();
+      for (int i = 0; i < InitialCount; ++i)
+      {
+        list_element* NewElement = Result.NewElement();
+        ListInsertBefore(Result.m_sentinel, NewElement);
+      }
+    }
     return Result;
   }
 
-  element* GetSentinel(){
+  list_element* GetSentinel(){
     if(!m_sentinel){
-      m_sentinel =  (element*) Allocate(sizeof(element));
+      m_sentinel =  (list_element*) Allocate(sizeof(list_element));
       *m_sentinel = {};
       ListInitiate(m_sentinel);
     }
     return m_sentinel;
   }
 
-  element* First(){
+  list_element* First(){
     return GetSentinel()->Next;
   }
-  element* Last(){
+  list_element* Last(){
     return GetSentinel()->Previous;
   }
 
-  void InsertBefore(element* Position, const T& Data) {
-    element* e = NewElement(Data);
+  void InsertBefore(list_element* Position, const T& Data) {
+    list_element* e = NewElement(&Data);
     ListInsertBefore(Position, e);
   }
 
-  void InsertAfter(element* Position, const T& Data) {
-    element* e = NewElement(Data);
+  void InsertAfter(list_element* Position, const T& Data) {
+    list_element* e = NewElement(&Data);
     ListInsertAfter(Position, e);
+  }
+
+  void InsertAt(list_element* Position, const T& Data) {
+    Assert(Position->Next && Position->Previous);
+    
+    if(!Position->Data)
+    {
+      Position->Data = (T*) Allocate(sizeof(T));
+    }
+    utils::Copy(sizeof(T), (void*) &Data, (void*) Position->Data);
   }
 
   void PushBack(const T& Data) {
@@ -86,7 +113,7 @@ struct list {
     InsertAfter(GetSentinel(), Data);
   }
 
-  element* Detach(element* ElementToDetach) {
+  list_element* Detach(list_element* ElementToDetach) {
     if(m_count == 0 || IsEnd(ElementToDetach)){
       return 0;
     }
@@ -96,7 +123,7 @@ struct list {
     return ElementToDetach;
   }
 
-  void Delete(element* ElementToRemove) {
+  void Delete(list_element* ElementToRemove) {
     if(m_count == 0 || IsEnd(ElementToRemove)){
       return;
     }
@@ -109,10 +136,10 @@ struct list {
 
     if(m_sentinel)
     {
-      element* e = m_sentinel->Next;
+      list_element* e = m_sentinel->Next;
       while(e != m_sentinel)
       {
-        element* eNext = e->Next;
+        list_element* eNext = e->Next;
         Free(e->Data);
         Free(e);
         e = eNext;
@@ -127,7 +154,7 @@ struct list {
   T PopBack() {
     T Result = {};
     if(!Empty()){
-      Result = Last()->GetCopy();
+      Result = GetCopy(Last());
       Delete(Last());
     }
     return Result;
@@ -136,18 +163,18 @@ struct list {
   T PopFront() {
     T Result = {};
     if(!Empty()){
-      Result = First()->GetCopy();
+      Result = GetCopy(First());
       Delete(First());
     }
     return Result;
   }
 
-  element* At(size_t Index)
+  list_element* At(size_t Index)
   {
     if(!m_sentinel) return 0;
     if(Index >= m_count) return 0;
 
-    element* Result = 0;
+    list_element* Result = 0;
     size_t Midpoint = m_count / 2;
     if(Index <= Midpoint)
     {
@@ -170,19 +197,19 @@ struct list {
 
 
   T GetCopy(size_t Index){
-    element* E = At(Index);
-    return E->GetCopy();
+    list_element* E = At(Index);
+    return GetCopy(E);
   }
   T& GetRef(size_t Index){
-    element* E = At(Index);
-    return E->GetRef();
+    list_element* E = At(Index);
+    return GetRef(E);
   }
   T* GetPtr(size_t Index){
-    element* E = At(Index);
-    return E->GetPtr();
+    list_element* E = At(Index);
+    return GetPtr(E);
   }
 
-  bool IsEnd(element* Position){return !m_sentinel || Position == m_sentinel;};
+  bool IsEnd(list_element* Position){return !m_sentinel || Position == m_sentinel;};
   bool Empty(){return !m_sentinel || m_sentinel == m_sentinel->Next;}
   bool Initiated(){return m_sentinel;}
 

@@ -6,8 +6,8 @@
 
 bool gShouldPrint = false;
 
-
 template<typename T> using list_dbg = cmn::list<T, customMalloc, customFree>;
+//template<typename T> using list_element_dbg = cmn::list<T, customMalloc, customFree>::element;
 template<typename T> using list_std = cmn::list<T, malloc, free>;
 
 void TestConstructDestructEmpty()
@@ -96,11 +96,11 @@ void TestPushPop_2(){
 
     // Test looping Right
     {
-      list_dbg<int>::element* Element = List.First();
+      cmn::list_element* Element = List.First();
       int ListValue = N-1;
       while (!List.IsEnd(Element))
       {
-        DBG_Assert(Element->GetCopy(), ListValue--, "Loop Right");
+        DBG_Assert(List.GetCopy(Element), ListValue--, "Loop Right");
         Element = Element->Next;
       }
     }
@@ -108,10 +108,10 @@ void TestPushPop_2(){
     // Test looping Left
     {
       int ListValue = 0;
-      list_dbg<int>::element* Element = List.Last();
+      cmn::list_element* Element = List.Last();
       while (!List.IsEnd(Element))
       {
-        DBG_Assert(Element->GetCopy(), ListValue++, "Loop Left");
+        DBG_Assert(List.GetCopy(Element), ListValue++, "Loop Left");
         Element = Element->Previous;
       }
     }
@@ -120,7 +120,7 @@ void TestPushPop_2(){
     {
       for (int i = 0; i < N; ++i)
       {
-        DBG_Assert(List.At(i)->GetCopy(), N-i-1, "List At");
+        DBG_Assert(List.GetCopy(List.At(i)), N-i-1, "List At");
       }
     }
 
@@ -155,11 +155,11 @@ void TestLoop(){
   }
 
   int Index = 0;
-  list_dbg<int>::element* E = List.First();
+  cmn::list_element* E = List.First();
   while( !List.IsEnd(E) )
   {
     int truVal = Index++;
-    DBG_Assert(E->GetCopy(), truVal, "Data");
+    DBG_Assert(List.GetCopy(E), truVal, "Data");
     E = E->Next;
   }
   DBG_Assert(Index, N, "Index");
@@ -169,7 +169,7 @@ void TestLoop(){
   while( !List.IsEnd(E) )
   {
     int truVal = N-1-Index++;
-    DBG_Assert(E->GetCopy(), truVal, "Data");
+    DBG_Assert(List.GetCopy(E), truVal, "Data");
     E = E->Previous;
   }
   DBG_Assert(Index, N, "Index");
@@ -182,7 +182,6 @@ void TestLoop(){
 
 void TestConstructDestruct()
 {
-  dbg::SetCustomGlobalAllocators();
   int N = 32;
   int AllocFreeCount = N*2+1; // There are two allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
 
@@ -205,6 +204,41 @@ void TestConstructDestruct()
   DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
 }
 
+void TestPreallocatedCreateAndInserAt(){
+
+  size_t N = 10;
+  int AllocFreeCount = N*2+1;
+  list_dbg<int> List = list_dbg<int>::Create(N);
+  auto* Sentinel = List.GetSentinel();
+  {
+    auto* Element = List.First();
+    int Num = 0;
+    while(Element != Sentinel)
+    {
+      List.InsertAt(Element, Num++);
+      Element = Element->Next;
+    }
+  }
+
+  int CreatedCount = 0;
+  {
+    auto* Element = List.First();
+    while(Element != Sentinel)
+    {
+      DBG_Assert(CreatedCount++, List.GetCopy(Element), "ListValue");
+      Element = Element->Next;
+    }
+  }
+  
+  DBG_Assert(List.Size(), N, "List Size");
+
+  List.Delete();
+
+  DBG_Assert(gMallocCount, AllocFreeCount, "Malloc Call Count");
+  DBG_Assert(gReallocCount, 0,             "Realloc Call Count");
+  DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
+}
+
 int main(int argc, char* argv[]) {
   gShouldPrint = argc > 1;
   DBG_RunTest(TestConstructDestructEmpty);
@@ -212,6 +246,7 @@ int main(int argc, char* argv[]) {
   DBG_RunTest(TestPushPop_2);
   DBG_RunTest(TestConstructDestruct);
   DBG_RunTest(TestLoop);
+  DBG_RunTest(TestPreallocatedCreateAndInserAt);
   printf("Success\n");
   return 0;
 }
