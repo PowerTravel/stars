@@ -41,6 +41,14 @@
     Counter++;                                \
   }                                           \
 }
+
+
+#define ListAdvanceBytePointer(Pointer, ByteCount) ((uint8_t*)Pointer) + (ByteCount);
+#define ListRetreatBytePointer(Pointer, ByteCount) ((uint8_t*)Pointer) - (ByteCount);
+#define ListAdvanceByType(Pointer, Type) ListAdvanceBytePointer(Pointer, sizeof(Type));
+#define ListRetreatByType(Pointer, Type) ListRetreatBytePointer(Pointer, sizeof(Type));
+
+
 #endif // LIST_MACROS
 
 #ifndef TREE_MACROS

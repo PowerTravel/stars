@@ -26,13 +26,16 @@ template <typename T, _cmn_malloc* Allocate, _cmn_free* Free>
 struct list {
 
   inline T* GetPtr(list_element* Element) const {
-    return (T*) Element->Data;
+    T* Result = (T*) Element->Data;
+    return Result;
   }
   inline T& GetRef(list_element* Element) const {
-    return *( (T*) Element->Data);
+    T* Result = (T*) Element->Data;
+    return *Result;
   };
   inline T GetCopy(list_element* Element) const{
-    return *( (T*) Element->Data);;
+    T* Result = ( (T*) Element->Data);
+    return *Result;
   };
 
   size_t m_count;
@@ -40,12 +43,9 @@ struct list {
 
   list_element* NewElement(const T* Data = 0) {
     list_element* Result = (list_element*) Allocate(sizeof(list_element));
-    if(Data)
-    {
-      Result->Data = (T*) Allocate(sizeof(T));
+    Result->Data = (T*) Allocate(sizeof(T));
+    if(Data){
       utils::Copy(sizeof(T), (void*) Data, (void*) Result->Data);
-    }else{
-      Result->Data = 0;
     }
     m_count++;
     return Result;
@@ -97,11 +97,6 @@ struct list {
 
   void InsertAt(list_element* Position, const T& Data) {
     Assert(Position->Next && Position->Previous);
-    
-    if(!Position->Data)
-    {
-      Position->Data = (T*) Allocate(sizeof(T));
-    }
     utils::Copy(sizeof(T), (void*) &Data, (void*) Position->Data);
   }
 

@@ -124,6 +124,7 @@ void Test_Traversal()
 
 void Test_LevelOrderVecList()
 {
+  dbg::SetCustomGlobalAllocators();
   cmn::n_tree<int> tree = createTree();
   cmn::node_list<int, customMalloc, customFree> TreeList = tree.GetLevelOrderList<customMalloc, customFree>();
   cmn::node_vec<int, customMalloc, customRealloc, customFree> TreeVec = tree.GetLevelOrderVector<customMalloc, customRealloc, customFree>();
@@ -135,8 +136,8 @@ void Test_LevelOrderVecList()
   DBG_Assert(TreeList.Size(), tree.NodeCount(), "Vector Size");
   for (int i = 0; i < TreeList.Size(); ++i)
   {
-    DBG_Assert(*TreeList.GetCopy(i)->Data, LevelOrderData.vec[i], "Vector Size");
-    DBG_Assert(*TreeVec[i]->Data, LevelOrderData.vec[i], "Vector Size");
+    DBG_Assert(*TreeList.GetCopy(i)->Data, LevelOrderData.vec[i], "List Value");
+    DBG_Assert(*TreeVec[i]->Data, LevelOrderData.vec[i], "Vector Value");
   }
 
   TreeList.Delete();
@@ -145,6 +146,7 @@ void Test_LevelOrderVecList()
   LevelOrderData.vec.Delete();
 
   DBG_Assert(gMallocCount, gFreeCount, "Alloc equal to free");
+
 }
 
 void Test_Copy()

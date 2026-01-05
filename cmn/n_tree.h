@@ -390,7 +390,7 @@ void PostOrderTraversal(cmn::n_tree<T>& Tree, n_tree_node_callback<T> Callback, 
   internal::Push(NodeQueue, Tree.m_root);
   while(!NodeQueue.Empty())
   {
-    internal::post_order_traverse<T>& TraversePair = NodeQueue.Last()->GetRef();
+    internal::post_order_traverse<T>& TraversePair = NodeQueue.GetRef(NodeQueue.Last());
     n_tree_node<T>* Node = TraversePair.Node;
     
 
@@ -467,17 +467,28 @@ void n_tree<T>::Delete()
   }
 }
 
+struct level_order_node_list_helper {
+  list_element* Sentinel;
+  list_element* Last;
+};
+
 NodeVisitFunction(LevelOrderNodeList){
   //Tree, Node, UserData;
-  node_list<T, CmnTransientAllocate, CmnTransientFree>* NodeList = (node_list<T, CmnTransientAllocate, CmnTransientFree>*) UserData;
-  NodeList->PushBack(Node);
+  level_order_node_list_helper* Helper = (level_order_node_list_helper*) UserData;
+  Assert(Helper->Last != Helper->Sentinel);
+  n_tree_node<T>** ListData = (n_tree_node<T>**) Helper->Last->Data;
+  *ListData = Node;
+  Helper->Last = Helper->Last->Next;
 }
  
 template <typename T>
 template < _cmn_malloc* Allocate, _cmn_free* Free>
 node_list<T, Allocate, Free> n_tree<T>::GetLevelOrderList() {
-  auto NodeList = node_list<T, Allocate, Free>::Create();
-  LevelOrderTraversal<T, Allocate, Free>(*this, LevelOrderNodeList, (void*) &NodeList);
+  node_list<T, Allocate, Free> NodeList = node_list<T, Allocate, Free>::Create(NodeCount());
+  level_order_node_list_helper Helper = {};
+  Helper.Sentinel = NodeList.GetSentinel();
+  Helper.Last     = Helper.Sentinel->Next;
+  LevelOrderTraversal<T, Allocate, Free>(*this, LevelOrderNodeList, (void*) &Helper);
   return NodeList;
 }
 
