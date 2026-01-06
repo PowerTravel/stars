@@ -15,35 +15,34 @@ int gReallocCount = 0;
 int gMallocCount = 0;
 int gFreeCount = 0;
 
-CMN_MALLOC_FUNCTION(customAllocate){
-  gMallocCount++;
-  return malloc(sz);
-}
-CMN_REALLOC_FUNCTION(customRealloc){
-  gReallocCount++;
-  return realloc(p, sz);
-}
-CMN_FREE_FUNCTION(customFree){
-  gFreeCount++;
-  free(p);
-}
+struct CustomAllocators {
+  static CMN_MALLOC_FUNCTION {
+    gMallocCount++;
+    return malloc(sz);
+  }
+  static CMN_REALLOC_FUNCTION {
+    gReallocCount++;
+    return realloc(p, sz);
+  }
+  static CMN_FREE_FUNCTION {
+    gFreeCount++;
+    free(p);
+  }  
+};
 
-CMN_MALLOC_FUNCTION(customTempAllocate){
-  gMallocCount++;
-  return malloc(sz);
-}
-CMN_REALLOC_FUNCTION(customTempRealloc){
-  gReallocCount++;
-  return realloc(p, sz);
-}
-CMN_FREE_FUNCTION(customTempFree){
-  gFreeCount++;
-  free(p);
-}
+struct StdAllocators {
+  static CMN_MALLOC_FUNCTION {
+    return malloc(sz);
+  }
+  static CMN_REALLOC_FUNCTION {
+    return realloc(p, sz);
+  }
+  static CMN_FREE_FUNCTION {
+    free(p);
+  }  
+};
 
-#define DebugAllocators customAllocate, customRealloc, customFree
-
-namespace dbg{
+namespace dbg {
 
   void ResetAllocationCounters()
   {
@@ -52,18 +51,9 @@ namespace dbg{
     gFreeCount = 0;
   }
 
-  void SetDefaultGlobalAllocators(){
-    cmn::SetDefaultCustomAllocators(malloc, realloc, free, malloc, realloc, free);
-  }
-
-  void SetCustomGlobalAllocators(){
-    cmn::SetDefaultCustomAllocators(customAllocate, customRealloc, customFree, customAllocate, customRealloc, customFree);
-  }
-
   void ResetTestEnvironment()
   {
     ResetAllocationCounters();
-    SetDefaultGlobalAllocators();
   }
 
 

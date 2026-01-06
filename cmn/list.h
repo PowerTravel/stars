@@ -42,7 +42,7 @@ struct basic_list {
 
 };
 
-template <typename T, _AllocatorParams(My)>
+template <typename T, typename Allocators>
 struct list : public basic_list {
 
   inline T* GetPtr(basic_list::element* Element) const {
@@ -59,8 +59,8 @@ struct list : public basic_list {
   };
 
   basic_list::element* NewElement(const T* Data = 0) {
-    basic_list::element* Result = (basic_list::element*) MyAllocate(sizeof(basic_list::element));
-    Result->Data = MyAllocate(sizeof(T));
+    basic_list::element* Result = (basic_list::element*) Allocators::Allocate(sizeof(basic_list::element));
+    Result->Data = Allocators::Allocate(sizeof(T));
     if(Data){
       utils::Copy(sizeof(T), (void*) Data, (void*) Result->Data);
     }
@@ -92,7 +92,7 @@ struct list : public basic_list {
 
   basic_list::element* GetSentinel(){
     if(!m_sentinel){
-      m_sentinel =  (basic_list::element*) MyAllocate(sizeof(basic_list::element));
+      m_sentinel =  (basic_list::element*) Allocators::Allocate(sizeof(basic_list::element));
       *m_sentinel = {};
       ListInitiate(m_sentinel);
     }
@@ -135,8 +135,8 @@ struct list : public basic_list {
       return;
     }
     ElementToRemove = Detach(ElementToRemove);
-    MyFree(ElementToRemove->Data);
-    MyFree(ElementToRemove);
+    Allocators::Free(ElementToRemove->Data);
+    Allocators::Free(ElementToRemove);
   }
 
   void Delete() {
@@ -147,12 +147,12 @@ struct list : public basic_list {
       while(e != m_sentinel)
       {
         basic_list::element* eNext = e->Next;
-        MyFree(e->Data);
-        MyFree(e);
+        Allocators::Free(e->Data);
+        Allocators::Free(e);
         e = eNext;
       }
       
-      MyFree(m_sentinel);
+      Allocators::Free(m_sentinel);
       m_sentinel = 0;
       m_count = 0;
     }

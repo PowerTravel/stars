@@ -6,7 +6,7 @@
 
 bool gShouldPrint = false;
 
-template<typename T> using list_dbg = cmn::list<T, DebugAllocators>;
+template<typename T> using list_dbg = cmn::list<T, CustomAllocators>;
 
 void TestConstructDestructEmpty()
 {

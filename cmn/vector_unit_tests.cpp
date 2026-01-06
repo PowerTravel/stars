@@ -6,8 +6,8 @@
 
 bool gShouldPrint = false;
 
-template<class T> using vector_dbg = cmn::vector<T, DebugAllocators>;
-template<class T> using vector_std = cmn::vector<T, malloc, realloc, free>;
+template<class T> using vector_dbg = cmn::vector<T, CustomAllocators>;
+template<class T> using vector_std = cmn::vector<T, StdAllocators>;
 
 void TestConstructor()
 {
@@ -21,7 +21,6 @@ void TestConstructor()
 
 void TestCreateDelete()
 {
-  dbg::SetCustomGlobalAllocators();
   vector_dbg<int> v = vector_dbg<int>::Create(10);
   v.Delete();
   DBG_Assert(gMallocCount, 1, "Malloc Call Count");
@@ -80,7 +79,7 @@ void TestCustomCopy()
   }
 
   // Copy over v1 to v2 and delete v1
-  cmn::vector<int, malloc, realloc, free> v2 = v1.CustomCopy<malloc, realloc, free>();
+  cmn::vector<int, StdAllocators> v2 = v1.CustomCopy<StdAllocators>();
   v1.Delete();
   DBG_Assert(v1.Reserved(), 0, "v1 Reserved");
   DBG_Assert(v1.Size(), 0, "v1 Size");
@@ -100,8 +99,8 @@ void TestCustomCopy()
   DBG_Assert(gFreeCount, 1, "Free Call Count");
 }
 
-template <cmn::_cmn_malloc* Allocate, cmn::_cmn_realloc* Reallocate, cmn::_cmn_free* Free>
-void BasicPushPop(cmn::vector<int, Allocate, Reallocate, Free>& v) {
+template<typename Allocs>
+void BasicPushPop(cmn::vector<int, Allocs>& v) {
 
   const size_t SizeOfVecPowTwo_1 = 64;
   const size_t SizeOfVecPowTwo_2 = 128;

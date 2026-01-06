@@ -16,9 +16,8 @@ bool gShouldPrint = false;
 #include <string>
 #include <iostream>
 
-template<class T> using vector_dbg = cmn::vector<T, _AllocatorArgs(custom)>;
-template<class T> using vector_std = cmn::vector<T, malloc, realloc, free>;
-template<class T> using tree_dbg   = cmn::n_tree<T, _TreeAllocatorArgs(custom)>;
+template<class T> using vector_dbg = cmn::vector<T, CustomAllocators>;
+template<class T> using tree_dbg   = cmn::n_tree<T, CustomAllocators, CustomAllocators>;
 
 NodeVisitFunction(treeTraversealAssert){
   user_data* data = (user_data*) UserData;
@@ -87,13 +86,12 @@ tree_dbg<int> createTree()
 
 void Test_Traversal()
 {
-  dbg::SetCustomGlobalAllocators();
   {
     tree_dbg<int> tree = createTree();
     int PreOrderBuf[] = {1,2,3,5,8,6,4,7,9};
     user_data PreOrderData = {};
     PreOrderData.vec = vector_dbg<int>::Create(ArrayCount(PreOrderBuf), PreOrderBuf);
-    cmn::PreOrderTraversal<int, _TreeAllocatorArgs(custom)>(tree, treeTraversealAssert,(void*) &PreOrderData);
+    cmn::PreOrderTraversal<int, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert,(void*) &PreOrderData);
     tree.Delete();
     PreOrderData.vec.Delete();
   }
@@ -104,7 +102,7 @@ void Test_Traversal()
     int PostOrderBuf[] = {2,8,5,6,3,9,7,4,1};
     user_data PostOrderData = {};
     PostOrderData.vec = vector_dbg<int>::Create(ArrayCount(PostOrderBuf), PostOrderBuf);
-    cmn::PostOrderTraversal<int, _TreeAllocatorArgs(custom)>(tree, treeTraversealAssert,(void*) &PostOrderData);
+    cmn::PostOrderTraversal<int, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert,(void*) &PostOrderData);
     tree.Delete();
     PostOrderData.vec.Delete();
   }
@@ -115,7 +113,7 @@ void Test_Traversal()
     int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
     user_data LevelOrderData = {};
     LevelOrderData.vec = vector_dbg<int>::Create(ArrayCount(LevelOrderBuf), LevelOrderBuf);
-    cmn::LevelOrderTraversal<int, _TreeAllocatorArgs(custom)>(tree, treeTraversealAssert,(void*) &LevelOrderData);
+    cmn::LevelOrderTraversal<int, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert,(void*) &LevelOrderData);
     tree.Delete();
     LevelOrderData.vec.Delete();
   }  
@@ -125,10 +123,9 @@ void Test_Traversal()
 
 void Test_LevelOrderVecList()
 {
-  dbg::SetCustomGlobalAllocators();
   tree_dbg<int> tree = createTree();
-  cmn::node_list<int,_TreeAllocatorArgs(custom), _AllocatorArgs(custom)> TreeList = tree.GetLevelOrderList<_AllocatorArgs(custom)>();
-  cmn::node_vec<int, _TreeAllocatorArgs(custom), _AllocatorArgs(custom)> TreeVec = tree.GetLevelOrderVector<_AllocatorArgs(custom)>();
+  cmn::node_list<int,CustomAllocators, CustomAllocators, CustomAllocators> TreeList = tree.GetLevelOrderList<CustomAllocators>();
+  cmn::node_vec<int, CustomAllocators, CustomAllocators, CustomAllocators> TreeVec = tree.GetLevelOrderVector<CustomAllocators>();
 
   int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
   user_data LevelOrderData = {};
@@ -153,7 +150,7 @@ void Test_LevelOrderVecList()
 void Test_Copy()
 {
   tree_dbg<int> tree = createTree();
-  tree_dbg<int> treeCopy = tree.Copy<_TreeAllocatorArgs(custom)>();
+  tree_dbg<int> treeCopy = tree.Copy<CustomAllocators>();
   DBG_AssertFalse(tree.m_root, treeCopy.m_root, "m_root Pointer" );
   treeCopy.Delete();
   tree.Delete();
@@ -163,7 +160,7 @@ void Test_Copy()
 void Test_PreOrderIterator()
 {
   tree_dbg<int> Tree = createTree();
-  auto It = Tree.PreOrderIterator<_AllocatorArgs(custom)>();
+  auto It = Tree.PreOrderIterator<CustomAllocators>();
 
   int GroundTruthDepth[] = {2,4,3,4};
   int GroundTruth[4][4] = { 
@@ -174,7 +171,7 @@ void Test_PreOrderIterator()
   };
 
   int LeafCount = 0;
-  while(cmn::n_tree_node<int, _TreeAllocatorArgs(custom)>* Node = It.Next())
+  while(cmn::n_tree_node<int, CustomAllocators, CustomAllocators>* Node = It.Next())
   {
     if(It.AtLeaf())
     {
@@ -197,12 +194,12 @@ void Test_PreOrderIterator()
 void Test_Sum()
 {
   tree_dbg<int> Tree = createTree();
-  auto It = Tree.PreOrderIterator<_AllocatorArgs(custom)>();
+  auto It = Tree.PreOrderIterator<CustomAllocators>();
 
   int GroundTruthSum[]   = {3,17,10,21};
   int LeafCount = 0;
   vector_dbg<int> IntSumVec = vector_dbg<int>::Create(Tree.MaxDepth());
-  while(cmn::n_tree_node<int, _TreeAllocatorArgs(custom)>* Node = It.Next())
+  while(cmn::n_tree_node<int, CustomAllocators, CustomAllocators>* Node = It.Next())
   {
     int Depth = It.Depth()-1;
     IntSumVec[Depth] = *It.GetNode()->Data + (Depth == 0 ? 0 : IntSumVec[Depth-1]);

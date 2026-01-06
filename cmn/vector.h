@@ -19,7 +19,7 @@ namespace cmn {
 //             The objects gets updated on DLL reload to point to the proper function and
 //             those heap allocated objects are what these types use for custom allocators.
 
-template <typename T, _AllocatorParams(My)>
+template <typename T, typename Allocator>
 struct vector {
   size_t m_reservedCount; // How many elements there is room for
   size_t m_count;         // The number of stored elements using Push and Pop functions.
@@ -34,7 +34,7 @@ struct vector {
     Result.m_reservedCount = reservedCount;
     if(Result.m_reservedCount)
     {
-      Result.m_data = (T*) MyAllocate(Result.m_reservedCount * sizeof(T));
+      Result.m_data = (T*) Allocator::Allocate(Result.m_reservedCount * sizeof(T));
       cmn::utils::Zero(Result.m_reservedCount * sizeof(T), (uint8_t*) Result.m_data);
     }
     return Result;
@@ -49,9 +49,8 @@ struct vector {
     return Result;
   }
 
-  void Delete()
-  {
-    MyFree(m_data);
+  void Delete() {
+    Allocator::Free(m_data);
     m_data = 0;
     m_reservedCount = 0;
     m_count = 0;
@@ -77,9 +76,9 @@ struct vector {
       size_t newMemSizeBytes = m_reservedCount*sizeof(T);
       if(m_data)
       {
-        m_data = (T*) MyRealloc((void*)m_data, newMemSizeBytes);
+        m_data = (T*) Allocator::Reallocate((void*)m_data, newMemSizeBytes);
       }else{
-        m_data = (T*) MyAllocate(newMemSizeBytes);
+        m_data = (T*) Allocator::Allocate(newMemSizeBytes);
       }
     }
     m_data[m_count++] = Value;
@@ -91,10 +90,10 @@ struct vector {
     return m_data[m_count];
   };
 
-  template <_AllocatorParams(Other)>
-  vector<T, _AllocatorArgs(Other)> CustomCopy()
+  template <typename OtherAllocator>
+  vector<T, OtherAllocator> CustomCopy()
   {
-    auto Result = vector<T, _AllocatorArgs(Other)>::Create(m_reservedCount);
+    auto Result = vector<T, OtherAllocator>::Create(m_reservedCount);
     if(m_count)
     {
       Result.m_count = m_count;
@@ -106,7 +105,7 @@ struct vector {
 
   vector Copy()
   {
-    vector<T, _AllocatorArgs(My)> Result = CustomCopy<_AllocatorArgs(My)>();
+    vector<T, Allocator> Result = CustomCopy<Allocator>();
     return Result;
   }
 };
