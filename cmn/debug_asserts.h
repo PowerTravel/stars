@@ -28,6 +28,19 @@ CMN_FREE_FUNCTION(customFree){
   free(p);
 }
 
+CMN_MALLOC_FUNCTION(customTempAllocate){
+  gMallocCount++;
+  return malloc(sz);
+}
+CMN_REALLOC_FUNCTION(customTempRealloc){
+  gReallocCount++;
+  return realloc(p, sz);
+}
+CMN_FREE_FUNCTION(customTempFree){
+  gFreeCount++;
+  free(p);
+}
+
 #define DebugAllocators customAllocate, customRealloc, customFree
 
 namespace dbg{

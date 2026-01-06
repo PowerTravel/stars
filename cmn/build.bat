@@ -1,7 +1,7 @@
 @echo off
 
 REM set shoudprint=true
-set shoudprint=true
+set shoudprint=
 
 IF NOT EXIST build mkdir build
 pushd build
