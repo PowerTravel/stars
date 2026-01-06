@@ -5,7 +5,6 @@
 #define CMN_FREE_FUNCTION(name)    void  name(void* p)
 
 // Note: Move this to jwin so that it can safely be referenced form jwin_platform
-
 namespace cmn {
   typedef CMN_MALLOC_FUNCTION(_cmn_malloc);
   typedef CMN_REALLOC_FUNCTION(_cmn_realloc);
@@ -36,6 +35,9 @@ namespace cmn {
     _g_cmn_transient_free = aTransientFree;
   }
 } // cmn
+
+#define _AllocatorParams(Prefix) cmn::_cmn_malloc* Prefix##Allocate, cmn::_cmn_realloc* Prefix##Realloc, cmn::_cmn_free* Prefix##Free
+#define _AllocatorArgs(Prefix) Prefix##Allocate, Prefix##Realloc, Prefix##Free
 
 // If CMN_ALLOC_FUNCTIONS is not defined, we assume no global allocators have been set and use the C++ library to assign them.
 #ifndef CMN_ALLOC_FUNCTIONS

@@ -6,7 +6,7 @@
 
 bool gShouldPrint = false;
 
-template<class T> using vector_dbg = cmn::vector<T, customMalloc, customRealloc, customFree>;
+template<class T> using vector_dbg = cmn::vector<T, DebugAllocators>;
 template<class T> using vector_std = cmn::vector<T, malloc, realloc, free>;
 
 void TestConstructor()

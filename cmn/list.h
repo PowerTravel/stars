@@ -15,6 +15,7 @@ namespace cmn{
 //             those heap allocated objects are what these types use for custom allocators.
 // Note: Never move list basic_list::elements between lists which has different allocators
 
+
 struct basic_list {
   struct element {
     void* Data;
@@ -41,7 +42,7 @@ struct basic_list {
 
 };
 
-template <typename T, _cmn_malloc* Allocate, _cmn_free* Free>
+template <typename T, _AllocatorParams(My)>
 struct list : public basic_list {
 
   inline T* GetPtr(basic_list::element* Element) const {
@@ -58,15 +59,14 @@ struct list : public basic_list {
   };
 
   basic_list::element* NewElement(const T* Data = 0) {
-    basic_list::element* Result = (basic_list::element*) Allocate(sizeof(basic_list::element));
-    Result->Data = Allocate(sizeof(T));
+    basic_list::element* Result = (basic_list::element*) MyAllocate(sizeof(basic_list::element));
+    Result->Data = MyAllocate(sizeof(T));
     if(Data){
       utils::Copy(sizeof(T), (void*) Data, (void*) Result->Data);
     }
     m_count++;
     return Result;
   }
-
 
   list() = default;
 
@@ -92,7 +92,7 @@ struct list : public basic_list {
 
   basic_list::element* GetSentinel(){
     if(!m_sentinel){
-      m_sentinel =  (basic_list::element*) Allocate(sizeof(basic_list::element));
+      m_sentinel =  (basic_list::element*) MyAllocate(sizeof(basic_list::element));
       *m_sentinel = {};
       ListInitiate(m_sentinel);
     }
@@ -135,8 +135,8 @@ struct list : public basic_list {
       return;
     }
     ElementToRemove = Detach(ElementToRemove);
-    Free(ElementToRemove->Data);
-    Free(ElementToRemove);
+    MyFree(ElementToRemove->Data);
+    MyFree(ElementToRemove);
   }
 
   void Delete() {
@@ -147,12 +147,12 @@ struct list : public basic_list {
       while(e != m_sentinel)
       {
         basic_list::element* eNext = e->Next;
-        Free(e->Data);
-        Free(e);
+        MyFree(e->Data);
+        MyFree(e);
         e = eNext;
       }
       
-      Free(m_sentinel);
+      MyFree(m_sentinel);
       m_sentinel = 0;
       m_count = 0;
     }

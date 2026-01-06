@@ -15,7 +15,7 @@ int gReallocCount = 0;
 int gMallocCount = 0;
 int gFreeCount = 0;
 
-CMN_MALLOC_FUNCTION(customMalloc){
+CMN_MALLOC_FUNCTION(customAllocate){
   gMallocCount++;
   return malloc(sz);
 }
@@ -28,6 +28,7 @@ CMN_FREE_FUNCTION(customFree){
   free(p);
 }
 
+#define DebugAllocators customAllocate, customRealloc, customFree
 
 namespace dbg{
 
@@ -43,7 +44,7 @@ namespace dbg{
   }
 
   void SetCustomGlobalAllocators(){
-    cmn::SetDefaultCustomAllocators(customMalloc, customRealloc, customFree, customMalloc, customRealloc, customFree);
+    cmn::SetDefaultCustomAllocators(customAllocate, customRealloc, customFree, customAllocate, customRealloc, customFree);
   }
 
   void ResetTestEnvironment()

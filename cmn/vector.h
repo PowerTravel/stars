@@ -19,8 +19,7 @@ namespace cmn {
 //             The objects gets updated on DLL reload to point to the proper function and
 //             those heap allocated objects are what these types use for custom allocators.
 
-
-template <typename T, _cmn_malloc* Allocate, _cmn_realloc* Reallocate, _cmn_free* Free>
+template <typename T, _AllocatorParams(My)>
 struct vector {
   size_t m_reservedCount; // How many elements there is room for
   size_t m_count;         // The number of stored elements using Push and Pop functions.
@@ -31,12 +30,11 @@ struct vector {
 
   // Reserved initialization (Tested in function TestCreateDelete)
   static inline vector Create(size_t reservedCount = 0) {
-    vector<T, Allocate, Reallocate, Free> Result = {};
+    vector Result = {};
     Result.m_reservedCount = reservedCount;
     if(Result.m_reservedCount)
     {
-      Result.m_data = (T*) Allocate(Result.m_reservedCount * sizeof(T));
-
+      Result.m_data = (T*) MyAllocate(Result.m_reservedCount * sizeof(T));
       cmn::utils::Zero(Result.m_reservedCount * sizeof(T), (uint8_t*) Result.m_data);
     }
     return Result;
@@ -53,7 +51,7 @@ struct vector {
 
   void Delete()
   {
-    Free(m_data);
+    MyFree(m_data);
     m_data = 0;
     m_reservedCount = 0;
     m_count = 0;
@@ -79,9 +77,9 @@ struct vector {
       size_t newMemSizeBytes = m_reservedCount*sizeof(T);
       if(m_data)
       {
-        m_data = (T*) Reallocate((void*)m_data, newMemSizeBytes);
+        m_data = (T*) MyRealloc((void*)m_data, newMemSizeBytes);
       }else{
-        m_data = (T*) Allocate(newMemSizeBytes);
+        m_data = (T*) MyAllocate(newMemSizeBytes);
       }
     }
     m_data[m_count++] = Value;
@@ -93,10 +91,10 @@ struct vector {
     return m_data[m_count];
   };
 
-  template <_cmn_malloc* OtherAllocate, _cmn_realloc* OtherReallocate, _cmn_free* OtherFree>
-  vector<T, OtherAllocate, OtherReallocate, OtherFree> CustomCopy()
+  template <_AllocatorParams(Other)>
+  vector<T, _AllocatorArgs(Other)> CustomCopy()
   {
-    vector<T, OtherAllocate, OtherReallocate, OtherFree> Result = vector<T, OtherAllocate, OtherReallocate, OtherFree>::Create(m_reservedCount);
+    auto Result = vector<T, _AllocatorArgs(Other)>::Create(m_reservedCount);
     if(m_count)
     {
       Result.m_count = m_count;
@@ -108,7 +106,7 @@ struct vector {
 
   vector Copy()
   {
-    vector<T, Allocate, Reallocate, Free> Result = CustomCopy<Allocate, Reallocate, Free>();
+    vector<T, _AllocatorArgs(My)> Result = CustomCopy<_AllocatorArgs(My)>();
     return Result;
   }
 };
