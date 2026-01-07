@@ -126,12 +126,13 @@ void Test_LevelOrderVecList()
 {
   tree_dbg<int> tree = createTree();
   cmn::node_list<int,CustomAllocators, CustomAllocators, CustomAllocators> TreeList = tree.GetLevelOrderList<CustomAllocators>();
-  cmn::node_vec<int, CustomAllocators, CustomAllocators, CustomAllocators> TreeVec = tree.GetLevelOrderVector<CustomAllocators>();
+  cmn::node_vec<int, CustomAllocators, CustomAllocators, CustomAllocators> TreeVec  = tree.GetLevelOrderVector<CustomAllocators>();
 
   int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
   user_data LevelOrderData = {};
   LevelOrderData.vec = vector_dbg<int>::Create(ArrayCount(LevelOrderBuf), LevelOrderBuf);
 
+  DBG_Assert(TreeVec.Size(), tree.NodeCount(), "Vector Size");
   DBG_Assert(TreeList.Size(), tree.NodeCount(), "Vector Size");
   for (int i = 0; i < TreeList.Size(); ++i)
   {

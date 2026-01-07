@@ -445,33 +445,24 @@ void n_tree<T, TreeAllocators, TempAllocators>::Delete()
   }
 }
 
-struct level_order_node_list_helper {
-  basic_list BasicList;
-  basic_list::element* Last;
-};
-
 NodeVisitFunction(LevelOrderNodeList){
   //Tree, Node, UserData;
-  level_order_node_list_helper* Helper = (level_order_node_list_helper*) UserData;
-  Helper->BasicList.InsertAt(Helper->Last, (void*) &Node);
-  Helper->Last = Helper->Last->Next;
+  auto List = UserData;
+  List->PushBack(Node);
 }
  
 template <typename T, typename TreeAllocators, typename TempAllocators>
 template <typename ListAllocators>
 node_list<T, TreeAllocators, TempAllocators, ListAllocators> n_tree<T, TreeAllocators, TempAllocators>::GetLevelOrderList() {
-  auto NodeList = node_list<T, TreeAllocators, TempAllocators, ListAllocators>::Create(NodeCount());
-  level_order_node_list_helper Helper = {};
-  Helper.BasicList = NodeList.ToBasic();
-  Helper.Last = NodeList.First();
-  LevelOrderTraversal<>(LevelOrderNodeList, &Helper);
+  auto NodeList = node_list<T, TreeAllocators, TempAllocators, ListAllocators>::Create();
+  LevelOrderTraversal<>(LevelOrderNodeList, &NodeList);
   return NodeList;
 }
 
 NodeVisitFunction(LevelOrderNodeVec){
   //Tree, Node, UserData;
-  node_vec<T, TreeAllocators, TempAllocators, TempAllocators>* NodeList= UserData;
-  NodeList->PushBack(Node);
+  auto* NodeVec = UserData;
+  NodeVec->PushBack(Node);
 }
 
 template <typename T, typename TreeAllocators, typename TempAllocators>

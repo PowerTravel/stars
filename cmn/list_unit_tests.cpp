@@ -94,7 +94,7 @@ void TestPushPop_2(){
 
     // Test looping Right
     {
-      cmn::basic_list::element* Element = List.First();
+      list_dbg<int>::element* Element = List.First();
       int ListValue = N-1;
       while (!List.IsEnd(Element))
       {
@@ -106,7 +106,7 @@ void TestPushPop_2(){
     // Test looping Left
     {
       int ListValue = 0;
-      cmn::basic_list::element* Element = List.Last();
+      list_dbg<int>::element* Element = List.Last();
       while (!List.IsEnd(Element))
       {
         DBG_Assert(List.GetCopy(Element), ListValue++, "Loop Left");
@@ -153,7 +153,7 @@ void TestLoop(){
   }
 
   int Index = 0;
-  cmn::basic_list::element* E = List.First();
+  list_dbg<int>::element* E = List.First();
   while( !List.IsEnd(E) )
   {
     int truVal = Index++;
@@ -202,82 +202,6 @@ void TestConstructDestruct()
   DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
 }
 
-void TestPreallocatedCreateAndInserAt(){
-
-  size_t N = 10;
-  int AllocFreeCount = N*2+1;
-  list_dbg<int> List = list_dbg<int>::Create(N);
-  auto* Sentinel = List.GetSentinel();
-  {
-    auto* Element = List.First();
-    int Num = 0;
-    while(Element != Sentinel)
-    {
-      List.InsertAt(Element, (void*) &Num);
-      Num++;
-      Element = Element->Next;
-    }
-  }
-
-  int CreatedCount = 0;
-  {
-    auto* Element = List.First();
-    while(Element != Sentinel)
-    {
-      DBG_Assert(CreatedCount++, List.GetCopy(Element), "ListValue");
-      Element = Element->Next;
-    }
-  }
-  
-  DBG_Assert(List.Size(), N, "List Size");
-
-  List.Delete();
-
-  DBG_Assert(gMallocCount, AllocFreeCount, "Malloc Call Count");
-  DBG_Assert(gReallocCount, 0,             "Realloc Call Count");
-  DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
-}
-
-
-void TestToBasic(){
-  int N = 32;
-  int AllocFreeCount = N*2+1; // There are two allocs per node. One for the node + 1 for the data. The sentinel receives one alloc but no data alloc.
-
-  list_dbg<int> List = list_dbg<int>::Create();
-
-  DBG_Assert(List.Empty(), true, "List Empty");
-  DBG_Assert(List.Size(), 0, "List Size");
-
-  for (int i = 0; i < N; ++i)
-  {
-    List.InsertAfter(List.Last(),i);
-  }
-  DBG_Assert(List.Empty(), false, "List Empty");
-  DBG_Assert(List.Size(), N, "List Size");
-
-  cmn::basic_list BasicList = List.ToBasic();
-
-  DBG_Assert(List.Size(), BasicList.Size(), "ListSizes");
-
-  cmn::basic_list::element* E1 = BasicList.First();
-  cmn::basic_list::element* E2 = List.First();
-  int val = 0;
-  while(BasicList.IsEnd(E1)){
-    DBG_Assert(E1, E2, "ListElements Are Equal");
-    DBG_Assert(*(int*) BasicList.Get(E1), List.GetCopy(E2), "List Elements Are Equal");
-    DBG_Assert( (int*) BasicList.Get(E1), List.GetPtr(E2),   "List Elements Are Equal");
-    DBG_Assert(List.GetCopy(E2), val++, "ListElements Are Equal");
-    E1 = E1->Next;
-    E2 = E2->Next;
-  }
-
-  List.Delete();
-
-  DBG_Assert(gMallocCount, AllocFreeCount, "Malloc Call Count");
-  DBG_Assert(gReallocCount, 0,  "Realloc Call Count");
-  DBG_Assert(gFreeCount, AllocFreeCount,   "Free Call Count");
-}
-
 int main(int argc, char* argv[]) {
   gShouldPrint = argc > 1;
   DBG_RunTest(TestConstructDestructEmpty);
@@ -285,8 +209,6 @@ int main(int argc, char* argv[]) {
   DBG_RunTest(TestPushPop_2);
   DBG_RunTest(TestConstructDestruct);
   DBG_RunTest(TestLoop);
-  DBG_RunTest(TestPreallocatedCreateAndInserAt);
-  DBG_RunTest(TestToBasic);
   printf("Success\n");
   return 0;
 }

@@ -15,52 +15,46 @@ namespace cmn{
 //             those heap allocated objects are what these types use for custom allocators.
 // Note: Never move list basic_list::elements between lists which has different allocators
 
+template <typename T, typename Allocators>
+struct list {
 
-struct basic_list {
   struct element {
-    void* Data;
-    basic_list::element* Next;
-    basic_list::element* Previous;
+    T* Data;
+    element* Next;
+    element* Previous;
   };
 
-  size_t m_dataSize;
   size_t m_count;
   element* m_sentinel;
 
-  inline bool IsEnd(basic_list::element* Position){return !m_sentinel || Position == m_sentinel;};
+  inline bool IsEnd(element* Position){return !m_sentinel || Position == m_sentinel;};
   inline bool Empty(){return !m_sentinel || m_sentinel == m_sentinel->Next;}
   inline bool Initiated(){return m_sentinel;}
   inline size_t Size() const { return m_count; };
-  inline void* Get(basic_list::element* Element){ return Element->Data; };
-  virtual basic_list::element* First(){return m_sentinel ? m_sentinel->Next : 0;}
-  virtual basic_list::element* Last() {return m_sentinel ? m_sentinel->Previous : 0;}
+  inline void* Get(element* Element){ return Element->Data; };
 
-  void InsertAt(basic_list::element* Position, const void* Data) {
+  void InsertAt(element* Position, const void* Data) {
     Assert(Position->Next && Position->Previous && Position->Data);
-    utils::Copy(m_dataSize, Data, Position->Data);
+    utils::Copy(sizeof(T), Data, Position->Data);
   }
 
-};
 
-template <typename T, typename Allocators>
-struct list : public basic_list {
-
-  inline T* GetPtr(basic_list::element* Element) const {
-    T* Result = (T*) Element->Data;
+  inline T* GetPtr(element* Element) const {
+    T* Result = Element->Data;
     return Result;
   }
-  inline T& GetRef(basic_list::element* Element) const {
-    T* Result = (T*) Element->Data;
+  inline T& GetRef(element* Element) const {
+    T* Result = Element->Data;
     return *Result;
   };
-  inline T GetCopy(basic_list::element* Element) const{
-    T* Result = ( (T*) Element->Data);
+  inline T GetCopy(element* Element) const{
+    T* Result = Element->Data;
     return *Result;
   };
 
-  basic_list::element* NewElement(const T* Data = 0) {
-    basic_list::element* Result = (basic_list::element*) Allocators::Allocate(sizeof(basic_list::element));
-    Result->Data = Allocators::Allocate(sizeof(T));
+  element* NewElement(const T* Data = 0) {
+    element* Result = (element*) Allocators::Allocate(sizeof(element));
+    Result->Data = (T*) Allocators::Allocate(sizeof(T));
     if(Data){
       utils::Copy(sizeof(T), (void*) Data, (void*) Result->Data);
     }
@@ -70,45 +64,30 @@ struct list : public basic_list {
 
   list() = default;
 
-  basic_list ToBasic()
-  {
-    return *this;
-  }
-
-  static inline list Create(size_t InitialCount = 0){
+  static inline list Create(){
     list Result = {};
-    Result.m_dataSize = sizeof(T);
-    if(InitialCount)
-    {
-      Result.m_sentinel = Result.GetSentinel();
-      for (int i = 0; i < InitialCount; ++i)
-      {
-        basic_list::element* NewElement = Result.NewElement();
-        ListInsertBefore(Result.m_sentinel, NewElement);
-      }
-    }
     return Result;
   }
 
-  basic_list::element* GetSentinel(){
+  element* GetSentinel(){
     if(!m_sentinel){
-      m_sentinel =  (basic_list::element*) Allocators::Allocate(sizeof(basic_list::element));
+      m_sentinel =  (element*) Allocators::Allocate(sizeof(element));
       *m_sentinel = {};
       ListInitiate(m_sentinel);
     }
     return m_sentinel;
   }
 
-  basic_list::element* First() override {return GetSentinel()->Next;}
-  basic_list::element* Last()  override {return GetSentinel()->Previous;}
+  element* First() {return GetSentinel()->Next;}
+  element* Last()  {return GetSentinel()->Previous;}
 
-  void InsertBefore(basic_list::element* Position, const T& Data) {
-    basic_list::element* e = NewElement(&Data);
+  void InsertBefore(element* Position, const T& Data) {
+    element* e = NewElement(&Data);
     ListInsertBefore(Position, e);
   }
 
-  void InsertAfter(basic_list::element* Position, const T& Data) {
-    basic_list::element* e = NewElement(&Data);
+  void InsertAfter(element* Position, const T& Data) {
+    element* e = NewElement(&Data);
     ListInsertAfter(Position, e);
   }
 
@@ -120,7 +99,7 @@ struct list : public basic_list {
     InsertAfter(GetSentinel(), Data);
   }
 
-  basic_list::element* Detach(basic_list::element* ElementToDetach) {
+  element* Detach(element* ElementToDetach) {
     if(m_count == 0 || IsEnd(ElementToDetach)){
       return 0;
     }
@@ -130,7 +109,7 @@ struct list : public basic_list {
     return ElementToDetach;
   }
 
-  void Delete(basic_list::element* ElementToRemove) {
+  void Delete(element* ElementToRemove) {
     if(m_count == 0 || IsEnd(ElementToRemove)){
       return;
     }
@@ -143,10 +122,10 @@ struct list : public basic_list {
 
     if(m_sentinel)
     {
-      basic_list::element* e = m_sentinel->Next;
+      element* e = m_sentinel->Next;
       while(e != m_sentinel)
       {
-        basic_list::element* eNext = e->Next;
+        element* eNext = e->Next;
         Allocators::Free(e->Data);
         Allocators::Free(e);
         e = eNext;
@@ -176,12 +155,12 @@ struct list : public basic_list {
     return Result;
   }
 
-  basic_list::element* At(size_t Index)
+  element* At(size_t Index)
   {
     if(!m_sentinel) return 0;
     if(Index >= m_count) return 0;
 
-    basic_list::element* Result = 0;
+    element* Result = 0;
     size_t Midpoint = m_count / 2;
     if(Index <= Midpoint)
     {
@@ -203,20 +182,17 @@ struct list : public basic_list {
   }
 
   T GetCopy(size_t Index){
-    basic_list::element* E = At(Index);
+    element* E = At(Index);
     return GetCopy(E);
   }
   T& GetRef(size_t Index){
-    basic_list::element* E = At(Index);
+    element* E = At(Index);
     return GetRef(E);
   }
   T* GetPtr(size_t Index){
-    basic_list::element* E = At(Index);
+    element* E = At(Index);
     return GetPtr(E);
   }
-
-
-
 };
 
 }
