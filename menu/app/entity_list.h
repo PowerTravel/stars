@@ -23,14 +23,14 @@ inline entity_component_id ImguiEntityComponent(ecs::flag::component_type Type){
 
 struct entity_row {
   ecs::entity_id EntityID;
-  cmn::vector<entity_component_id> ComponentImguiIDs;
+  cmn::vector_lm<entity_component_id> ComponentImguiIDs;
   id ImguiID;
   b32 Open;
 };
 
-typedef cmn::n_tree<entity_row> me_tree;
-typedef cmn::n_tree<entity_row>::node me_node;
-typedef cmn::n_tree<entity_row>::pre_order_iterator me_iterator;
+typedef cmn::n_tree_lm<entity_row> me_tree;
+typedef cmn::n_tree_lm<entity_row>::node me_node;
+typedef cmn::n_tree_lm<entity_row>::pre_order_iterator<TransientAllocators> me_iterator;
 
 struct entity_list {
   imgui_vertical_scrollbar VerticalScrollbar;

@@ -135,7 +135,7 @@ file_local entity_row MenuEntityRow(ecs::entity_id EntityID)
   NewRow.ImguiID = NewButtonID();
   NewRow.Open = false;
   u32 ComponentCount = ecs::GetComponentCount(GetEntityManager(), &EntityID);
-  NewRow.ComponentImguiIDs = cmn::vector<entity_component_id>::Create(ComponentCount);
+  NewRow.ComponentImguiIDs = cmn::vector_lm<entity_component_id>::Create(ComponentCount);
   
   if(ecs::HasComponents(GetEntityManager(), &EntityID, ecs::flag::POSITION))
   {
@@ -284,14 +284,14 @@ file_local void DoEntityButtonRect(context* ImguiContext, entity_row* MenuRowDat
   }
 }
 
-file_local cmn::vector<imgui_row> BuildTransientImguiRows(me_tree& MenuTree, ecs::entity_tree& EntityTree)
+file_local cmn::vector_t<imgui_row> BuildTransientImguiRows(me_tree& MenuTree, ecs::entity_tree& EntityTree)
 {
   render::font& Font = GlobalRenderer->Font;
   r32 TabWidth = Font.GetTextSizeCanonicalSpace(GlobalImguiContext->FontSize, (const utf8_byte*) "  ").X;
 
-  cmn::vector<imgui_row> Result = cmn::vector<imgui_row>::CreateTransient(EntityTree.NodeCount());
+  cmn::vector_t<imgui_row> Result = cmn::vector_t<imgui_row>::Create(EntityTree.NodeCount());
   bool SkipSubTree = false;
-  me_iterator It = MenuTree.PreOrderIterator(EntityTree.NodeCount());
+  me_iterator It = MenuTree.PreOrderIterator<TransientAllocators>(EntityTree.NodeCount());
   const r32 IconSize = 20;
   while(me_node* MenuNode = It.Next(SkipSubTree))
   {
@@ -316,8 +316,8 @@ struct list_add_helper_struct {
 file_local void PushNewlyOpenedChildEntities(me_tree& MenuTree, ecs::entity_tree& EntityTree)
 {
   SCOPED_TRANSIENT_ARENA;
-  cmn::list<list_add_helper_struct> NodesToAdd = cmn::list<list_add_helper_struct>::CreateTransient();
-  me_iterator It = MenuTree.PreOrderIterator(EntityTree.NodeCount());
+  cmn::list_t<list_add_helper_struct> NodesToAdd = cmn::list_t<list_add_helper_struct>::Create();
+  me_iterator It = MenuTree.PreOrderIterator<TransientAllocators>(EntityTree.NodeCount());
   bool SkipSubTree = false;
   while(me_node* MenuNode = It.Next(SkipSubTree))
   {
@@ -339,10 +339,10 @@ file_local void PushNewlyOpenedChildEntities(me_tree& MenuTree, ecs::entity_tree
     }
   }
 
-  cmn::list<list_add_helper_struct>::element* ListElement = NodesToAdd.First();
+  cmn::list_t<list_add_helper_struct>::element* ListElement = NodesToAdd.First();
   while(!NodesToAdd.IsEnd(ListElement))
   {
-    list_add_helper_struct NodesHelper = ListElement->GetCopy();
+    list_add_helper_struct NodesHelper = NodesToAdd.GetCopy(ListElement);
     AddChildEntitiesLoadedToMenuTree(MenuTree, NodesHelper.MenuNode, EntityTree, NodesHelper.EntityNode);
     ListElement = ListElement->Next;
   }
@@ -356,7 +356,7 @@ file_local v2 ImguiEntityComponentTree(entity_list* EntityList, rect2f WindowReg
   ecs::entity_tree& EntityTree = GlobalEntityManager->EntityTree;
   me_tree& MenuTree = EntityList->EntityTree;
 
-  cmn::vector<imgui_row> ImguiRows = BuildTransientImguiRows(MenuTree, EntityTree);
+  cmn::vector_t<imgui_row> ImguiRows = BuildTransientImguiRows(MenuTree, EntityTree);
 
   r32 ScrollbarWidth = 0.01;
   rect2f ContentRect = Rect2f(WindowRegion.X, WindowRegion.Y, WindowRegion.W-ScrollbarWidth, WindowRegion.H);

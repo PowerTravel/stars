@@ -13,6 +13,8 @@
 
 namespace render {
 
+  struct RenderAllocator;
+
   enum class shader_type {
     PHONG,
     PBR
@@ -43,8 +45,8 @@ namespace render {
     m4 Transform;
   };
 
-  typedef cmn::list<asset_render_object> render_list;
-  typedef render_list::element render_list_element;
+  template <typename T> using render_list = cmn::list<T, RenderAllocator>;
+  template <typename T> using render_list_element = render_list<T>::element;
 
   struct overlay_sdf {
     v4 Color;
@@ -64,14 +66,14 @@ namespace render {
 
   struct overlay_level {
     u32 SDFHandle;
-    cmn::list<overlay_sdf> OverlaySDF;
+    render_list<overlay_sdf> OverlaySDF;
     
     u32 SolidQuad;
     u32 SpriteA;
     u32 SpriteRGB;
     u32 SpriteRGBA;
     u32 SpriteHandle; // GPU-Handle of a 2dArrayTexture
-    cmn::list<overlay_sprite> OverlaySprite;
+    render_list<overlay_sprite> OverlaySprite;
   };
 
   struct renderer {
@@ -89,9 +91,8 @@ namespace render {
 
     render_group* RenderGroup;
 
-    render_list RenderList;
-
-    cmn::list<overlay_level> OverlayLevels;
+    render_list<asset_render_object> RenderObjects;
+    render_list<overlay_level> OverlayLevels;
 
     u32* InternalTextures;
     u32* FrameBuffers;
@@ -117,7 +118,6 @@ namespace render {
   u32 LoadGeometryToGPU(asset::mesh::primitive* AssetPrimitive);
   u32 LoadImageToGpu(asset::image* Image, texture_params TextureParams);
   u32 GetOrCreateTexture(asset::texture* Texture);
-  cmn::vector<primitive>& GetOrCreateMeshHandle(render_group* RenderGroup, asset::mesh_id MeshID);
 
   void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix);
   void RecompileAllPrograms();

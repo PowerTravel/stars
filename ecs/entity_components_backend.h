@@ -2,6 +2,7 @@
 #include "commons/types.h"
 #include "containers/chunk_list.h"
 #include "cmn/n_tree.h"
+#include "platform/platform_containers.h"
 
 namespace ecs{
 
@@ -35,12 +36,17 @@ struct entity
   entity_component_link* FirstComponentLink; // Points us to the associated components in the component list.
 
   c8 Name[MAX_ENTITY_NAME_LENGTH];
-  cmn::n_tree<entity*>::node* Node;
+  cmn::n_tree_lm<entity*>::node* Node;
 };
 
-typedef cmn::n_tree<entity*> entity_tree;
-typedef cmn::n_tree<entity*>::node entity_node;
-typedef cmn::n_tree<entity*>::pre_order_iterator entity_iterator;
+typedef cmn::n_tree_lm<entity*> entity_tree;
+typedef cmn::n_tree_lm<entity*>::node entity_node;
+typedef cmn::n_tree_lm<entity*>::pre_order_iterator<TransientAllocators> entity_pre_order_iterator;
+
+/*
+cmn::n_tree<ecs::entity *,void *LMMalloc(size_t),void *LMRealloc(void *,size_t), void LMFree(void *), void *TransientMalloc(size_t),void *TransientRealloc(void *,size_t),void TransientFree(void *)>::pre_order_iterator'
+C:\Users\jh\Documents\dev\stars\cmn/n_tree.h(175): note: see declaration of 'cmn::n_tree<ecs::entity *,void *LMMalloc(size_t),void *LMRealloc(void *,size_t),void LMFree(void *),void *TransientMalloc(size_t),void *TransientRealloc(void *,size_t),void TransientFree(void *)>::pre_order_iterator'
+*/
 
 struct entity_manager
 {
@@ -54,7 +60,7 @@ struct entity_manager
   chunk_list EntityComponentLinks;
 
   // List relation of entities
-  cmn::n_tree<entity*> EntityTree;
+  entity_tree EntityTree;
 
   u32 ComponentTypeCount;
   component_list* ComponentTypeVector;

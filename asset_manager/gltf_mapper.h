@@ -241,17 +241,18 @@ namespace mapper {
     return Result;
   }
 
+  template <typename Allocator = TransientAllocators>
   struct node_pair {
     int RawNodeIndex;
-    asset::render_tree::node* Node;
+    asset::render_tree<Allocator>::node* Node;
   };
 
-  asset::render_tree ToRenderTree(size_t NodeCount, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
+  asset::render_tree<TransientAllocators> ToRenderTree(size_t NodeCount, int RawRootNodeIndex, gltf::raw_node* RawNodes, asset::key* LoadedMeshes, asset::key* LoadedCameras)
   {
-    asset::render_tree Result = asset::render_tree::Create(true,TransientMalloc, TransientFree);
-    cmn::vector<node_pair> NodeQueue = cmn::vector<node_pair>::CreateTransient(NodeCount);
+    auto Result = asset::render_tree<TransientAllocators>::Create();
+    cmn::vector_t<node_pair<>> NodeQueue = cmn::vector_t<node_pair<>>::Create(NodeCount);
     
-    node_pair RootPair = {};
+    node_pair<> RootPair = {};
     RootPair.RawNodeIndex = RawRootNodeIndex;
     RootPair.Node = Result.NewNode();
     NodeQueue.PushBack(RootPair);
@@ -271,6 +272,7 @@ namespace mapper {
         NodeQueue.PushBack(Pair);
       }
     }
+    NodeQueue.Delete();
 
     return Result;
   }
@@ -323,7 +325,7 @@ namespace mapper {
       temporary_memory TempMem = BeginTemporaryMemory(GlobalTransientArena);
       int RootNodeIndex = RootNodeIndeces[i];
       size_t NodeCount = GetTreeNodeCount(RootNodeIndex, RawNodeCount, RawNodes);
-      asset::render_tree Tree = ToRenderTree(NodeCount, RootNodeIndex, RawNodes, LoadedMeshes, LoadedCameras);
+      asset::render_tree<TransientAllocators> Tree = ToRenderTree(NodeCount, RootNodeIndex, RawNodes, LoadedMeshes, LoadedCameras);
       c8* UnqName = asset::CreateUniqueName("",Name,"", i, RootCount);
 
       asset::LoadRenderTree(UnqName, Path, &Tree, &Result[i]);
@@ -476,8 +478,6 @@ namespace mapper {
           asset::geometry Geometry = ToGeometry(ExtractedPrimitive);
           c8* Name = SetName(UniqueName, RawMesh->Name, "geometry", GeometryIndex++, Package.GeometryCount);
           asset::LoadGeometry(Name, &Geometry, &GeometryIdsForMesh[j]);
-
-
         }
         asset::mesh Mesh = ToMesh(RawMesh, GeometryIdsForMesh, Package.PBRMaterials);
         c8* Name = SetName(UniqueName, RawMesh->Name, "mesh", i, Package.MeshCount);

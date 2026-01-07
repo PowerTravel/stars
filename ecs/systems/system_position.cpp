@@ -9,9 +9,9 @@ namespace position {
 void UpdatePositions()
 {
   ecs::entity_tree* EntityTree = &GlobalEntityManager->EntityTree;
-  cmn::vector<m4> TransformVec1 = cmn::vector<m4>::CreateTransient(EntityTree->MaxDepth());
-  cmn::vector<m4> TransformVec2 = cmn::vector<m4>::CreateTransient(EntityTree->MaxDepth());
-  cmn::n_tree_pre_order_it<entity*> It = EntityTree->PreOrderIterator();
+  cmn::vector_t<m4> TransformVec1 = cmn::vector_t<m4>::Create(EntityTree->MaxDepth());
+  cmn::vector_t<m4> TransformVec2 = cmn::vector_t<m4>::Create(EntityTree->MaxDepth());
+  entity_pre_order_iterator It = EntityTree->PreOrderIterator<TransientAllocators>();
   while(entity_node* Node = It.Next())
   {
     int Index = It.Depth() - 1;

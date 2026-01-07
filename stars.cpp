@@ -135,12 +135,12 @@ void SetRenderComponent(ecs::entity_id* Entity, asset::mesh::primitive* Primitiv
   }
 }
 
-ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, asset::render_tree* RenderTree, ecs::entity_id* RootEntity)
+ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, asset::render_tree_a* RenderTree, ecs::entity_id* RootEntity)
 {
-  cmn::n_tree<asset::render_tree_data>::pre_order_iterator It = RenderTree->PreOrderIterator();
-  cmn::vector<ecs::entity_id> EntityChain = cmn::vector<ecs::entity_id>::CreateTransient(RenderTree->MaxDepth());
+  asset::render_tree_a::pre_order_iterator<TransientAllocators> It = RenderTree->PreOrderIterator<TransientAllocators>();
+  cmn::vector_t<ecs::entity_id> EntityChain = cmn::vector_t<ecs::entity_id>::Create(RenderTree->MaxDepth());
   int id = 0;
-  while(cmn::n_tree_node<asset::render_tree_data>* RenderTreeNode = It.Next())
+  while(asset::render_tree_a::node* RenderTreeNode = It.Next())
   {
     int EntityChainIndex = It.Depth()-1;
     asset::render_tree_data* RenderTreeData = RenderTreeNode->Data;
@@ -190,7 +190,7 @@ ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, asset:
 ecs::entity_id CreateRenderEntitiesFromRenderTree(const char* EntityName, const char* RenderTreeName, ecs::entity_id* ParentEntity)
 {
   asset::render_tree_id RenderTreeID = asset::ToKey(asset::type::RENDER_TREE, RenderTreeName);
-  asset::render_tree* RenderTree     = asset::FindRenderTree(RenderTreeID);
+  asset::render_tree_a* RenderTree   = asset::FindRenderTree(RenderTreeID);
   return CreateRenderEntitiesFromRenderTree(EntityName, RenderTree, ParentEntity);
 }
 
@@ -463,6 +463,7 @@ void PowerOfTwoMiddles(u32 MaxNum){
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
+  #if 1
   GlobalState          = JwinBeginFrameMemory(application_state);
   GlobalInput          = Input;
   GlobalImguiContext   = &GlobalState->ImguiContext;
@@ -512,7 +513,7 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
       asset::package* EnginePackage = (asset::package*) asset::Find(asset::type::PACKAGE, EnginePackageID);
       for (int i = 0; i < EnginePackage->RenderTreeCount; ++i)
       {
-        asset::render_tree* RenderTree = asset::FindRenderTree(EnginePackage->RenderTrees[i]);
+        asset::render_tree_a* RenderTree = asset::FindRenderTree(EnginePackage->RenderTrees[i]);
         CreateRenderEntitiesFromRenderTree("2CylinderEngine", RenderTree, NULL);
       }
     }
@@ -623,4 +624,5 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   //}else{
     render::RenderScene(GlobalState->Camera.P, GlobalState->Camera.V);
   //}
+  #endif
 }

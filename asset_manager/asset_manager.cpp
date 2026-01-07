@@ -2,6 +2,7 @@
 #include "io/obj.h"
 #include "renderer/render_push_buffer/render_push_buffer.h"
 
+
 extern asset::manager* GlobalAssetManager;
 extern memory_arena* GlobalTransientArena;
 
@@ -42,7 +43,7 @@ header* CreateHeader(type Type, const c8* UniqueName, const c8* Name, const c8* 
 
   midx HeaderSize = sizeof(header) + NameSize + PathSize + KeyStringLength;
   midx MemorySize = HeaderSize + DataSize;
-  header* Result = (header*) Allocate(&GlobalAssetManager->Memory, MemorySize);
+  header* Result = (header*) LmAllocate(&GlobalAssetManager->Memory, MemorySize);
 
   Result->Type = Type;
   Result->DataSize = DataSize;
@@ -95,15 +96,14 @@ string CreateString(const c8* Str, u32 MaxLength) {
   string Result = {};
   Result.Length = jstr::StringLength(Str);
   Assert(Result.Length < MaxLength);
-  Result.String = (c8*) Allocate(&GlobalAssetManager->Memory, (Result.Length+1) * sizeof(c8));
+  Result.String = (c8*) LmAllocate(&GlobalAssetManager->Memory, (Result.Length+1) * sizeof(c8));
   jstr::CopyStrings(Result.Length, Str, Result.Length, Result.String);
   return Result;
 }
 
 void DeleteString(string String) {
-  if(String.String)
-  {
-    FreeMemory(&GlobalAssetManager->Memory, String.String);
+  if(String.String){
+    LmFree(&GlobalAssetManager->Memory, (void*) String.String);
   }
 }
 
@@ -123,11 +123,11 @@ void FreeAsset(header* Header)
   {
     case type::MESH: {
       // LoadGLVertexBuffer allocates the whole mesh as a contious block
-      FreeMemory(&GlobalAssetManager->Memory, Header);
+      LmFree(&GlobalAssetManager->Memory, Header);
     }break;
     case type::PHONG_MATERIAL: {
       // LoadGLVertexBuffer allocates the whole mesh as a contious block
-      FreeMemory(&GlobalAssetManager->Memory, Header);
+      LmFree(&GlobalAssetManager->Memory, Header);
     }break;
     default: {
       INVALID_CODE_PATH
@@ -541,32 +541,19 @@ camera* LoadCamera(const c8* UniqueName, const camera* Camera, key* ResultKey)
   return Result;
 }
 
-CMN_MALLOC_FUNCTION(AssetManager_Alloc){
-  return Allocate(&GlobalAssetManager->Memory, sz);
-}
-CMN_REALLOC_FUNCTION(AssetManager_Realloc){
-  Assert(0); // If we use it, we wanna know about it. A realloc is annoying to implement efficiently with memory_arena because we dont know the 
-             //  size of the allocated memory, so we don't know how much to copy.
-  return p;
-}
-CMN_FREE_FUNCTION(AssetManager_Free){
-  FreeMemory(&GlobalAssetManager->Memory, p);
-}
-
-
-render_tree* LoadRenderTree(const c8* UniqueName, const c8* Path, render_tree* RenderTree, render_tree_id* ResultKey)
-{
-  midx RenderTreeSize = sizeof(render_tree);
-  header* Header = CreateHeader(type::RENDER_TREE, UniqueName, UniqueName, Path, RenderTreeSize);
-  render_tree* Result = (render_tree*) Header->Data;
-  *Result = RenderTree->Copy(false, AssetManager_Alloc,AssetManager_Free);
-  
-  if(ResultKey)
-  {
-    *ResultKey = Header->Key;
+struct AssetManagerAllocators {
+  static CMN_MALLOC_FUNCTION {
+    return LmAllocate(&GlobalAssetManager->Memory, sz);
   }
-  return Result;
-}
+  static CMN_REALLOC_FUNCTION{
+    NOT_IMPLEMENTED; // If we use it, we wanna know about it. A realloc is annoying to implement efficiently with memory_arena because we dont know the 
+               //  size of the allocated memory, so we don't know how much to copy.
+    return p;
+  }
+  static CMN_FREE_FUNCTION{
+    LmFree(&GlobalAssetManager->Memory, p);
+  }
+};
 
 size_t GetPackageSize(const package* Package)
 {

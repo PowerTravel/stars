@@ -2,6 +2,7 @@
 
 #include "asset_types.h"
 #include "io/obj.h"
+#include "platform/platform_containers.h"
 
 
 namespace obj {
@@ -404,9 +405,9 @@ static asset::mesh_id LoadMesh(const char* UniqueName, obj_loaded_file* Obj, mat
   return ResultKey;
 }
 
-static asset::render_tree CreateRenderTree(asset::mesh_id MeshId)
+static asset::render_tree<TransientAllocators> CreateRenderTree(asset::mesh_id MeshId)
 {
-  asset::render_tree Result = asset::render_tree::Create(true, TransientMalloc, TransientFree);
+  auto Result = asset::render_tree<TransientAllocators>::Create();
   asset::render_tree_data Data = {};
   Data.Mesh = MeshId;
   Result.NewNode(NULL, Data);

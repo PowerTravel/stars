@@ -2,7 +2,7 @@
 
 #include "commons/types.h"
 #include "commons/jstring.h"
-#include "cmn/n_tree.h"
+#include "platform/platform_containers.h"
 #include "math/aabb.h"
 
 namespace asset {
@@ -230,8 +230,8 @@ namespace asset {
     bool HasTransform;
     m4 Transform;
   };
-
-  typedef cmn::n_tree<render_tree_data> render_tree;
+  
+  template<typename TreeAllocators> using render_tree = cmn::n_tree_<render_tree_data, TreeAllocators>;
 
   // A package is a collection of assets grouped by being loaded by the same base file such as OBJ or GLTF.
   // Files like PNGs or similar do not get a package file.

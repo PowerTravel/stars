@@ -19,12 +19,12 @@ menu_bar* CreateMenuBar(memory_arena* Arena){
   menu_bar::item Windows = {};
   FormatString(Windows.Name, sizeof(Windows.Name), "%s", "Windows");
   Windows.ButtonID = NewButtonID();
-  Windows.Items = cmn::vector<menu_bar::item>::Create(2);
+  Windows.Items = cmn::vector_p<menu_bar::item>::Create(2);
   Windows.Items.PushBack(ColorList);
   Windows.Items.PushBack(EntityTree);
 
   menu_bar* Result = PushStruct(Arena, menu_bar);
-  Result->TopItems = cmn::vector<menu_bar::item>::Create(1);
+  Result->TopItems = cmn::vector_p<menu_bar::item>::Create(1);
   Result->TopItems.PushBack(Windows);
 
   r32 HeaderSize = render::GetLineSpacing(0,GlobalImguiContext->FontSize);

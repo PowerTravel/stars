@@ -9,9 +9,20 @@
 #include "shaders/common/shaders.h"
 #include "shaders/common/gaussian_blur.h"
 
-extern render::renderer* GlobalRenderer;
+extern struct render::renderer* GlobalRenderer;
 
 namespace render {
+
+struct RenderAllocator {
+  static CMN_MALLOC_FUNCTION {
+    return PushSize(&GlobalRenderer->RenderTransientArena, sz);  
+  }
+  static CMN_REALLOC_FUNCTION {
+    ILLEGAL_STATE;
+  }
+  static CMN_FREE_FUNCTION {
+  }
+};
 
 enum internal_textures {
   INT_TEX_MSAA_COLOR,
@@ -202,12 +213,6 @@ file_local u32* CreateInternalShaders(render_group* RenderGroup)
   return Result;
 }
 
-CMN_MALLOC_FUNCTION(RenderTransientMalloc){
-  return PushSize(&GlobalRenderer->RenderTransientArena, sz);
-}
-CMN_FREE_FUNCTION(RenderTransientFree){
-}
-
 renderer* CreateRenderer(render_group* RenderGroup, r32 ApplicationWidth, r32 ApplicationHeight, application_render_commands* RenderCommands)
 {
   renderer* Result         = BootstrapPushStruct(renderer, RenderTransientArena);
@@ -230,8 +235,8 @@ renderer* CreateRenderer(render_group* RenderGroup, r32 ApplicationWidth, r32 Ap
 
 
   Result->TempMem          = BeginTemporaryMemory(&Result->RenderTransientArena);
-  Result->RenderList       = render_list::Create(RenderTransientMalloc, RenderTransientFree);
-  Result->OverlayLevels    = cmn::list<overlay_level>::Create(RenderTransientMalloc, RenderTransientFree);
+  Result->RenderObjects    = render_list<asset_render_object>::Create();
+  Result->OverlayLevels    = render_list<overlay_level>::Create();
   return Result;
 }
 
@@ -241,8 +246,8 @@ void Begin()
   EndTemporaryMemory( GlobalRenderer->TempMem );
   GlobalRenderer->TempMem = BeginTemporaryMemory(&GlobalRenderer->RenderTransientArena);
 
-  GlobalRenderer->RenderList = render_list::Create(RenderTransientMalloc, RenderTransientFree);
-  GlobalRenderer->OverlayLevels = cmn::list<overlay_level>::Create(RenderTransientMalloc, RenderTransientFree);
+  GlobalRenderer->RenderObjects = render_list<asset_render_object>::Create();
+  GlobalRenderer->OverlayLevels = render_list<overlay_level>::Create();
 }
 
 file_local inline u32 InternalTexture(u32 Index)
@@ -624,15 +629,15 @@ file_local void DrawSprites(render_group* RenderGroup, u32 ProgramHandle, u32 Te
 #define CMN_LIST_FOR_EACH( _ListName, _ElementName ) for( auto* _ElementName = _ListName.First(); !_ListName.IsEnd(_ElementName); _ElementName = _ElementName->Next)
 file_local void DrawOverlaySprites(render_group* RenderGroup, overlay_level* OverlayLevel, m4& OrthoProjectionMatrix)
 {
-  cmn::list<overlay_sprite>& OverlaySprites = OverlayLevel->OverlaySprite;
+  cmn::list<overlay_sprite, RenderAllocator>& OverlaySprites = OverlayLevel->OverlaySprite;
 
-  cmn::vector<common_shaders::sprite_varying> SolidQuads  = cmn::vector<common_shaders::sprite_varying>::CreateTransient(OverlayLevel->SolidQuad);
-  cmn::vector<common_shaders::sprite_varying> SpriteAs    = cmn::vector<common_shaders::sprite_varying>::CreateTransient(OverlayLevel->SpriteA);
-  cmn::vector<common_shaders::sprite_varying> SpriteRGBs  = cmn::vector<common_shaders::sprite_varying>::CreateTransient(OverlayLevel->SpriteRGB);
-  cmn::vector<common_shaders::sprite_varying> SpriteRGBAs = cmn::vector<common_shaders::sprite_varying>::CreateTransient(OverlayLevel->SpriteRGBA);
+  cmn::vector_t<common_shaders::sprite_varying> SolidQuads  = cmn::vector_t<common_shaders::sprite_varying>::Create(OverlayLevel->SolidQuad);
+  cmn::vector_t<common_shaders::sprite_varying> SpriteAs    = cmn::vector_t<common_shaders::sprite_varying>::Create(OverlayLevel->SpriteA);
+  cmn::vector_t<common_shaders::sprite_varying> SpriteRGBs  = cmn::vector_t<common_shaders::sprite_varying>::Create(OverlayLevel->SpriteRGB);
+  cmn::vector_t<common_shaders::sprite_varying> SpriteRGBAs = cmn::vector_t<common_shaders::sprite_varying>::Create(OverlayLevel->SpriteRGBA);
   CMN_LIST_FOR_EACH(OverlaySprites, Element)
   {
-    overlay_sprite* Sprite = Element->GetPtr();
+    overlay_sprite* Sprite = OverlaySprites.GetPtr(Element);
     m4 ModelMatrix = M4Identity();
     Scale(V4(0.5,0.5, 0, 1), ModelMatrix);
     Scale(V4(Sprite->Rect.W, Sprite->Rect.H, 0, 1), ModelMatrix);
@@ -680,7 +685,7 @@ file_local void DrawOverlaySprites(render_group* RenderGroup, overlay_level* Ove
   }
 }
 
-file_local void DrawSDF(render_group* RenderGroup, cmn::list<overlay_sdf>& OverlaySDF, m4& OrthoProjectionMatrix)
+file_local void DrawSDF(render_group* RenderGroup, render_list<overlay_sdf>& OverlaySDFs, m4& OrthoProjectionMatrix)
 {
   render_object* OverlaySDFProgram     = PushNewRenderObject(RenderGroup);
   OverlaySDFProgram->ProgramHandle     = InternalShader(INTERNAL_SHADER_OVERLAY_SDF);
@@ -694,12 +699,12 @@ file_local void DrawSDF(render_group* RenderGroup, cmn::list<overlay_sdf>& Overl
   PushUniform(OverlaySDFProgram, GetUniformHandle(RenderGroup, OverlaySDFProgram->ProgramHandle, "OnEdgeValue"),        (r32) 128/255.f);
   PushUniform(OverlaySDFProgram, GetUniformHandle(RenderGroup, OverlaySDFProgram->ProgramHandle, "PixelDistanceScale"), (r32) 32/255.f);
   
-  size_t SDFCount = OverlaySDF.Size();
+  size_t SDFCount = OverlaySDFs.Size();
   common_shaders::sdf_varying* SDF = PushArray(&GlobalRenderer->RenderTransientArena, SDFCount, common_shaders::sdf_varying);
   int i = 0;
-  CMN_LIST_FOR_EACH(OverlaySDF, SDFElement)
+  CMN_LIST_FOR_EACH(OverlaySDFs, SDFElement)
   { 
-    overlay_sdf* OverlaySDF = SDFElement->GetPtr();
+    overlay_sdf* OverlaySDF = OverlaySDFs.GetPtr(SDFElement);
     common_shaders::sdf_varying SDFVarying = {};
     SDFVarying.Color = OverlaySDF->Color;
     SDFVarying.TextCoord = OverlaySDF->TextCoord;
@@ -726,13 +731,14 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   ResetRenderState(Renderer);
 
   r32 InitTime = Platform.DEBUGGetTime();
-  cmn::list<primitive> SolidMesh = cmn::list<primitive>::CreateTransient();
-  cmn::list<primitive> TransparentMesh = cmn::list<primitive>::CreateTransient();
-  render_list_element* Element = Renderer->RenderList.First();
-  r32 ElementCount = Renderer->RenderList.Size();
-  while (!Renderer->RenderList.IsEnd(Element))
+  auto SolidMesh = cmn::list_t<primitive>::Create();
+  auto TransparentMesh = cmn::list_t<primitive>::Create();
+  render_list<asset_render_object> RenderObjects = Renderer->RenderObjects;
+  render_list_element<asset_render_object>* Element = Renderer->RenderObjects.First();
+  r32 ElementCount = Renderer->RenderObjects.Size();
+  while (!Renderer->RenderObjects.IsEnd(Element))
   {
-    asset_render_object* AssetRenderObject = Element->Data;
+    asset_render_object* AssetRenderObject = Renderer->RenderObjects.GetPtr(Element);
     
     primitive LoadedPrimitive  = {};
     LoadedPrimitive.GeometryID  = GetOrCreateGeometryID(RenderGroup, AssetRenderObject->Geometry);
@@ -758,17 +764,17 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   //Platform.DEBUGPrint("%f Meshes in %f sec\n", ElementCount, Platform.DEBUGGetTime() - InitTime);
   ActivateMSAAFrameBuffer(RenderGroup);
   
-  for(cmn::list<primitive>::element* SolidElement = SolidMesh.First(); !SolidMesh.IsEnd(SolidElement); SolidElement = SolidElement->Next)
+  for(cmn::list_t<primitive>::element* SolidElement = SolidMesh.First(); !SolidMesh.IsEnd(SolidElement); SolidElement = SolidElement->Next)
   {
-    DrawPrimitive(RenderGroup, SolidElement->Data, ProjectionMatrix, ViewMatrix);
+    DrawPrimitive(RenderGroup, SolidMesh.GetPtr(SolidElement), ProjectionMatrix, ViewMatrix);
   }
 
   if(TransparentMesh.Size())
   {
     PrepareOrderIndependentTransparentRendering(RenderGroup);
-    for(cmn::list<primitive>::element* TransparentElement = TransparentMesh.First(); !TransparentMesh.IsEnd(TransparentElement); TransparentElement = TransparentElement->Next)
+    CMN_LIST_FOR_EACH(TransparentMesh, TransparentElement)
     {
-      DrawPrimitive(RenderGroup, TransparentElement->Data, ProjectionMatrix, ViewMatrix);
+      DrawPrimitive(RenderGroup, TransparentMesh.GetPtr(TransparentElement), ProjectionMatrix, ViewMatrix);
     }
     FinalizeOrderIndependentTransparentRendering(RenderGroup);
   }
@@ -785,12 +791,12 @@ void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
   TurnOffDepthTest(RenderGroup);
   //render_state* ScaleViewport = PushNewState(RenderGroup);
   m4 OrthoProjectionMatrix = GetOrthographicProjection(-1, 1, Window->ApplicationWidth, 0, Window->ApplicationHeight, 0);
-  cmn::list<overlay_level>& OverlayLevels = Renderer->OverlayLevels;
+  render_list<overlay_level>& OverlayLevels = Renderer->OverlayLevels;
   CMN_LIST_FOR_EACH(OverlayLevels,LevelElement)
   {
-    overlay_level* OverlayLevel = LevelElement->GetPtr();
+    overlay_level* OverlayLevel = OverlayLevels.GetPtr(LevelElement);
     DrawOverlaySprites(RenderGroup, OverlayLevel, OrthoProjectionMatrix);
-    DrawSDF (RenderGroup,  OverlayLevel->OverlaySDF,    OrthoProjectionMatrix);
+    DrawSDF(RenderGroup,  OverlayLevel->OverlaySDF,    OrthoProjectionMatrix);
   }
 }
 
@@ -875,7 +881,7 @@ void DrawAssetRenderObject(asset::geometry* Geometry, asset::phong_material* Mat
   Object.ShaderType = shader_type::PHONG;
   Object.PhongMaterial = Material;
   Object.Transform = Transform;
-  GlobalRenderer->RenderList.PushBack(Object);
+  GlobalRenderer->RenderObjects.PushBack(Object);
 }
 
 void DrawAssetRenderObject(asset::geometry* Geometry, asset::pbr_material* Material, m4 Transform)
@@ -885,7 +891,7 @@ void DrawAssetRenderObject(asset::geometry* Geometry, asset::pbr_material* Mater
   Object.ShaderType = shader_type::PBR;
   Object.PbrMaterial = Material;
   Object.Transform = Transform;
-  GlobalRenderer->RenderList.PushBack(Object);
+  GlobalRenderer->RenderObjects.PushBack(Object);
 }
 
 void DrawRenderComponent(ecs::render::component* RenderComponent, m4& Transform)
@@ -930,12 +936,12 @@ void UseCamera(asset::camera_id CameraID, m4& Transform)
 
 void DrawRenderTree(asset::render_tree_id ID) {
 
-  asset::render_tree* RenderTree = (asset::render_tree*) asset::Find(asset::type::RENDER_TREE, ID);
+  asset::render_tree_a* RenderTree = (asset::render_tree_a*) asset::Find(asset::type::RENDER_TREE, ID);
   if(RenderTree)
   {
-    cmn::vector<m4> TransformVec = cmn::vector<m4>::CreateTransient(RenderTree->MaxDepth());
-    cmn::n_tree_pre_order_it<asset::render_tree_data> It = RenderTree->PreOrderIterator();
-    while(cmn::n_tree_node<asset::render_tree_data>* Node = It.Next())
+    auto TransformVec = cmn::vector_t<m4>::Create(RenderTree->MaxDepth());
+    auto It = RenderTree->PreOrderIterator<TransientAllocators>();
+    while(auto* Node = It.Next())
     {
       int Index = It.Depth() - 1;
       m4& CurrentTransform = TransformVec[Index];
@@ -971,18 +977,18 @@ void RecompileAllPrograms()
 
 file_local overlay_level* GetTopOverlayLevel()
 {
-  cmn::list<overlay_level>& OverlayLevels = GlobalRenderer->OverlayLevels;
+  render_list<overlay_level>& OverlayLevels = GlobalRenderer->OverlayLevels;
   if(OverlayLevels.IsEnd(OverlayLevels.Last()))
   {
     OverlayLevels.PushBack({});
   }
-  return OverlayLevels.Last()->Data;
+  return OverlayLevels.GetPtr(OverlayLevels.Last());
 }
 
-file_local cmn::list<overlay_sdf>& GetOverlaySDF(overlay_level* OverlayLevel){
+file_local render_list<overlay_sdf>& GetOverlaySDF(overlay_level* OverlayLevel){
   if(!OverlayLevel->OverlaySDF.Initiated())
   {
-    OverlayLevel->OverlaySDF = cmn::list<overlay_sdf>::Create(RenderTransientMalloc, RenderTransientFree);
+    OverlayLevel->OverlaySDF = render_list<overlay_sdf>::Create();
   }
   return OverlayLevel->OverlaySDF;
 }
@@ -1030,7 +1036,7 @@ void DrawTextPixelSpace(v2 PixelPos, rect2f PixelClipRect, r32 PixelSize, utf8_b
 
   overlay_level* OverlayLevel = GetTopOverlayLevel();
   OverlayLevel->SDFHandle = GlobalRenderer->Font.FontMapHandle; // TODO: Handle SDF handles more dynamically
-  cmn::list<overlay_sdf>& OverlaySDFList = GetOverlaySDF(OverlayLevel);
+  render_list<overlay_sdf>& OverlaySDFList = GetOverlaySDF(OverlayLevel);
   for (int i = 0; i < UnicodeLen; ++i){
     OverlaySDFList.PushBack( OverlaySDFFromPrintCoordinate(TextPrintCoordinates+i, Color, 128/255.f, 32/255.f));
   }
@@ -1060,7 +1066,7 @@ void DrawTextPixelSpace(v2 PixelPos, r32 PixelSize, utf8_byte const * Text, v4 C
 
   overlay_level* OverlayLevel = GetTopOverlayLevel();
   OverlayLevel->SDFHandle = GlobalRenderer->Font.FontMapHandle; // TODO: Handle SDF handles more dynamically
-  cmn::list<overlay_sdf>& OverlaySDFList = GetOverlaySDF(OverlayLevel);
+  render_list<overlay_sdf>& OverlaySDFList = GetOverlaySDF(OverlayLevel);
   for (int i = 0; i < UnicodeLen; ++i){
     OverlaySDFList.PushBack( OverlaySDFFromPrintCoordinate(TextPrintCoordinates+i, Color, 128/255.f, 32/255.f));
   }
@@ -1074,10 +1080,10 @@ void DrawTextCanonicalSpace(v2 CanonicalPos, r32 PixelSize, utf8_byte const * Te
 }
 
 
-file_local cmn::list<overlay_sprite>& GetOverlaySprite(overlay_level* OverlayLevel){
+file_local render_list<overlay_sprite>& GetOverlaySprite(overlay_level* OverlayLevel){
   if(!OverlayLevel->OverlaySprite.Initiated())
   {
-    OverlayLevel->OverlaySprite = cmn::list<overlay_sprite>::Create(RenderTransientMalloc, RenderTransientFree);
+    OverlayLevel->OverlaySprite = render_list<overlay_sprite>::Create();
   }
   return OverlayLevel->OverlaySprite;
 }
@@ -1101,7 +1107,7 @@ void DrawOverlaySprite(rect2f PixelRect, v4 TextureCoords, v4 Color, u32 SpriteC
     case 4: {OverlayLevel->SpriteRGBA++;  } break;
     default: INVALID_CODE_PATH;      
   }
-  cmn::list<overlay_sprite>& OverlaySpriteList = GetOverlaySprite(OverlayLevel);
+  render_list<overlay_sprite>& OverlaySpriteList = GetOverlaySprite(OverlayLevel);
   OverlaySpriteList.PushBack(Sprite);
 }
 

@@ -81,6 +81,6 @@ struct reactive_size {
   v2 TotalSize;
 };
 
-reactive_size CreateReactiveSize(cmn::vector<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmount);
+reactive_size CreateReactiveSize(cmn::vector_t<imgui_row>& ImguiRows, rect2f ClipRect, r32 ScrollAmount);
 
 } // namespace imgui 

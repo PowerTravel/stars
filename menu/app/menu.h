@@ -21,10 +21,10 @@ struct menu_bar {
   struct item {
     c8 Name[128];
     id ButtonID;
-    cmn::vector<item> Items;
+    cmn::vector_p<item> Items;
   };
   rect2f HeaderBarRegion;
-  cmn::vector<item> TopItems;
+  cmn::vector_p<item> TopItems;
 };
 
 menu_bar* CreateMenuBar(memory_arena* Arena);

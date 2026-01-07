@@ -439,7 +439,7 @@ entity_manager* CreateEntityManager(u32 EntityChunkCount, u32 EntityMapChunkCoun
   }
 
 
-  Result->EntityTree = cmn::n_tree<entity*>::Create();
+  Result->EntityTree = cmn::n_tree_lm<entity*>::Create();
   Result->EntityTree.NewNode();
 
   Result->EntityIdCounter = 1;
