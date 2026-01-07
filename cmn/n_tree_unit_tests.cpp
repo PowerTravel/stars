@@ -18,13 +18,14 @@ bool gShouldPrint = false;
 
 template<class T> using vector_dbg = cmn::vector<T, CustomAllocators>;
 template<class T> using tree_dbg   = cmn::n_tree<T, CustomAllocators, CustomAllocators>;
+template<class T> using tree_std   = cmn::n_tree<T, StdAllocators, CustomAllocators>;
 
 struct user_data {
   int i;
   vector_dbg<int> vec;
 };
 
-NodeVisitFunction(treeTraversealAssert){
+NodeVisitFunction2(treeTraversealAssert){
   DBG_Assert(*Node->Data, UserData->vec[UserData->i],"Values");
   UserData->i++;
 }
@@ -74,8 +75,13 @@ tree_dbg<int> createTree()
   tree_dbg<int>::node* n7   = CreateAndAssertNode(&Tree, n4,   7, 7, 2, 3, 1);
   tree_dbg<int>::node* n8   = CreateAndAssertNode(&Tree, n5,   8, 8, 3, 4, 1);
   tree_dbg<int>::node* n9   = CreateAndAssertNode(&Tree, n7,   9, 9, 3, 4, 1);
+  DBG_Assert(Tree.NodeCount(), 9, "Node Count");
   DBG_Assert(Tree.MaxDepth(), 4, "Max Depth");
-  
+  DBG_Assert(Tree.CountNodes(), 9, "Node Count Calc");
+  Tree.CalculateMaxDepth();
+  //DBG_Assert(Tree.CalculateMaxDepth(), 4, "Max Depth calc");
+  DBG_Assert(Tree.MaxDepth(), 4, "Max Depth");
+  DBG_Assert(Tree.NodeCount(), 9, "Node Count");
   return Tree;
 }
 
@@ -86,7 +92,7 @@ void Test_Traversal()
     int PreOrderBuf[] = {1,2,3,5,8,6,4,7,9};
     user_data PreOrderData = {};
     PreOrderData.vec = vector_dbg<int>::Create(ArrayCount(PreOrderBuf), PreOrderBuf);
-    cmn::PreOrderTraversal<int, user_data, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert, &PreOrderData);
+    tree.PreOrderTraversal<user_data>(treeTraversealAssert, &PreOrderData);
     tree.Delete();
     PreOrderData.vec.Delete();
   }
@@ -97,7 +103,7 @@ void Test_Traversal()
     int PostOrderBuf[] = {2,8,5,6,3,9,7,4,1};
     user_data PostOrderData = {};
     PostOrderData.vec = vector_dbg<int>::Create(ArrayCount(PostOrderBuf), PostOrderBuf);
-    cmn::PostOrderTraversal<int, user_data, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert, &PostOrderData);
+    tree.PostOrderTraversal<>(treeTraversealAssert, &PostOrderData);
     tree.Delete();
     PostOrderData.vec.Delete();
   }
@@ -108,7 +114,7 @@ void Test_Traversal()
     int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
     user_data LevelOrderData = {};
     LevelOrderData.vec = vector_dbg<int>::Create(ArrayCount(LevelOrderBuf), LevelOrderBuf);
-    cmn::LevelOrderTraversal<int, user_data, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert, &LevelOrderData);
+    tree.LevelOrderTraversal<user_data>(treeTraversealAssert, &LevelOrderData);
     tree.Delete();
     LevelOrderData.vec.Delete();
   }  
@@ -145,7 +151,7 @@ void Test_LevelOrderVecList()
 void Test_Copy()
 {
   tree_dbg<int> tree = createTree();
-  tree_dbg<int> treeCopy = tree.Copy<CustomAllocators>();
+  tree_std<int> treeCopy = tree.Copy<StdAllocators>();
   DBG_AssertFalse(tree.m_root, treeCopy.m_root, "m_root Pointer" );
   treeCopy.Delete();
   tree.Delete();

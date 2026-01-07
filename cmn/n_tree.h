@@ -10,11 +10,10 @@
 #define Assert(Expression) if(!(Expression)){ *(int *)0 = 0;}
 #endif
 
-#define _TreeAllocatorParams(Prefix) _AllocatorParams(Prefix), _AllocatorParams(Prefix##Temp)
-#define _TreeAllocatorArgs(Prefix)   _AllocatorArgs(Prefix), _AllocatorArgs(Prefix##Temp)
 
-// Interaface
 namespace cmn {
+
+
 
   template <typename T, typename TreeAllocators, typename TempAllocators>
   struct n_tree {
@@ -99,6 +98,11 @@ namespace cmn {
         return Result;
       }
     };
+    
+    #define _NodeVisitFunction2(name) void name(typename cmn::n_tree<T, TreeAllocators, TempAllocators>* Tree, typename cmn::n_tree<T, TreeAllocators, TempAllocators>::node* Node, D* UserData)
+    template<typename T, typename D, typename TreeAllocators, typename TempAllocators> using n_tree_node_callback_2 = _NodeVisitFunction2((*));     // Function Pointer
+    #define NodeVisitFunction2(name) template<typename T, typename D, typename TreeAllocators, typename TempAllocators> _NodeVisitFunction2(name) // Implementation macro
+
 
     node* m_root;
     size_t m_nodeCount;
@@ -169,6 +173,15 @@ namespace cmn {
     
     template<typename OtherAllocators>
     n_tree<T, OtherAllocators, TempAllocators> Copy();
+
+    template<typename D>
+    void PreOrderTraversal(n_tree_node_callback_2<T, D, TreeAllocators, TempAllocators> Callback, D* UserData);
+
+    template<typename D>
+    void LevelOrderTraversal(n_tree_node_callback_2<T, D, TreeAllocators, TempAllocators> Callback, D* UserData);
+
+    template<typename D>
+    void PostOrderTraversal(n_tree_node_callback_2<T, D, TreeAllocators, TempAllocators> Callback, D* UserData);
 
     template <typename ItAllocators>
     struct pre_order_iterator {
@@ -278,17 +291,19 @@ template<typename T, typename TreeAllocators, typename TempAllocators, typename 
 template<typename T, typename TreeAllocators, typename TempAllocators> using n_tree_pre_order_it = typename cmn::n_tree<T, TreeAllocators, TempAllocators>::pre_order_iterator;
 template<typename T, typename TreeAllocators, typename TempAllocators> using n_tree_pre_order_step = typename cmn::n_tree<T, TreeAllocators, TempAllocators>::pre_order_iterator::node_step;
 
-template<typename T, typename D, typename TreeAllocators, typename TempAllocators>
-void PreOrderTraversal(cmn::n_tree<T, TreeAllocators, TempAllocators>& Tree, n_tree_node_callback<T, D, TreeAllocators, TempAllocators> Callback, D* UserData) {
-  if(!Tree.m_root) return;
+template<typename T, typename TreeAllocators, typename TempAllocators>
+template<typename D>
+void n_tree<T, TreeAllocators, TempAllocators>::PreOrderTraversal(n_tree_node_callback_2<T, D, TreeAllocators, TempAllocators> Callback, D* UserData)
+{
+  if(!m_root) return;
   auto NodeQueue = node_list<T, TreeAllocators, TempAllocators, TempAllocators >::Create();
 
-  NodeQueue.PushBack(Tree.m_root);
+  NodeQueue.PushBack(m_root);
 
   while(!NodeQueue.Empty())
   {
     n_tree_node<T, TreeAllocators, TempAllocators>* Node = NodeQueue.PopBack();
-    Callback(&Tree, Node, UserData);
+    Callback(this, Node, UserData);
     if(Node->FirstChild)
     {
       n_tree_node<T, TreeAllocators, TempAllocators>* Start = Node->FirstChild->PreviousSibling;
@@ -303,17 +318,19 @@ void PreOrderTraversal(cmn::n_tree<T, TreeAllocators, TempAllocators>& Tree, n_t
   NodeQueue.Delete();
 }
 
-template<typename T, typename D, typename TreeAllocators, typename TempAllocators>
-void LevelOrderTraversal(cmn::n_tree<T,TreeAllocators, TempAllocators>& Tree, n_tree_node_callback<T, D, TreeAllocators, TempAllocators> Callback, D* UserData) {
-  if(!Tree.m_root) return;
+template<typename T, typename TreeAllocators, typename TempAllocators>
+template<typename D>
+void n_tree<T, TreeAllocators, TempAllocators>::LevelOrderTraversal(n_tree_node_callback_2<T, D, TreeAllocators, TempAllocators> Callback, D* UserData)
+{
+  if(!m_root) return;
 
   auto NodeQueue = node_list<T, TreeAllocators, TempAllocators, TempAllocators>::Create();
-  NodeQueue.PushBack(Tree.m_root);
+  NodeQueue.PushBack(m_root);
 
   while(!NodeQueue.Empty())
   {
     n_tree_node<T,TreeAllocators, TempAllocators>* Node = NodeQueue.PopFront();
-    Callback(&Tree, Node, UserData);
+    Callback(this, Node, UserData);
 
     if(Node->FirstChild)
     {
@@ -346,12 +363,13 @@ namespace internal {
   }
 } // internal
 
-template<typename T, typename D, typename TreeAllocators, typename TempAllocators>
-void PostOrderTraversal(cmn::n_tree<T, TreeAllocators, TempAllocators>& Tree, n_tree_node_callback<T, D, TreeAllocators, TempAllocators> Callback, D* UserData)
+template<typename T, typename TreeAllocators, typename TempAllocators>
+template<typename D>
+void n_tree<T, TreeAllocators, TempAllocators>::PostOrderTraversal(n_tree_node_callback_2<T, D, TreeAllocators, TempAllocators> Callback, D* UserData)
 {
-  if(!Tree.m_root) return;
+  if(!m_root) return;
   auto NodeQueue = cmn::list<internal::post_order_traverse<T, TreeAllocators, TempAllocators>, TempAllocators>::Create();
-  internal::Push(NodeQueue, Tree.m_root);
+  internal::Push(NodeQueue, m_root);
   while(!NodeQueue.Empty())
   {
     internal::post_order_traverse<T, TreeAllocators, TempAllocators>& TraversePair = NodeQueue.GetRef(NodeQueue.Last());
@@ -369,21 +387,21 @@ void PostOrderTraversal(cmn::n_tree<T, TreeAllocators, TempAllocators>& Tree, n_
       TraversePair.Opened = true;
     }else{
       NodeQueue.PopBack();
-      Callback(&Tree, Node, UserData);
+      Callback(this, Node, UserData);
     }
   }
   NodeQueue.Delete();
 }
 
 NodeVisitFunction(CountNodeCallback){
-  size_t* NodeCount = (size_t*) UserData;
-  *NodeCount = *NodeCount + 1;
+  size_t* NodeCount = UserData;
+  *NodeCount = (*NodeCount) + 1;
 }
 
 template <typename T, typename TreeAllocators, typename TempAllocators>
 size_t n_tree<T, TreeAllocators, TempAllocators>::CountNodes(){
   size_t Result = 0;
-  cmn::LevelOrderTraversal<T, TreeAllocators, TempAllocators>(*this, CountNodeCallback,(void*) &Result);
+  LevelOrderTraversal<size_t>(CountNodeCallback, &Result);
   m_nodeCount = Result;
   return Result;
 };
@@ -391,10 +409,10 @@ size_t n_tree<T, TreeAllocators, TempAllocators>::CountNodes(){
 NodeVisitFunction(CalcDepthCallback){
   if(!Node->FirstChild) {
     // Leaf;
-    int TmpDepth = Node->Depth;
+    size_t TmpDepth = Node->Depth;
     Assert(Node->CalculateDepth() == TmpDepth);
 
-    size_t* MaxDepth = (size_t*) UserData;
+    size_t* MaxDepth = UserData;
     if(*MaxDepth < Node->Depth)
     {
       *MaxDepth = Node->Depth;
@@ -405,8 +423,8 @@ NodeVisitFunction(CalcDepthCallback){
 template <typename T, typename TreeAllocators, typename TempAllocators>
 size_t n_tree<T, TreeAllocators, TempAllocators>::CalculateMaxDepth(){
   size_t Result = 0;
-  cmn::LevelOrderTraversal<T, TreeAllocators, TempAllocators>(*this, CalcDepthCallback,(void*) &Result);
-  m_nodeCount = Result;
+  LevelOrderTraversal<size_t>(CalcDepthCallback, &Result);
+  m_maxDepth = Result+1; // Max depth is large enough to crete a vector containing all nodes in a chain. Root is at depth 0, but a tree with only a root has depth one.
   return Result;
 };
 
@@ -423,7 +441,7 @@ template <typename T, typename TreeAllocators, typename TempAllocators>
 void n_tree<T, TreeAllocators, TempAllocators>::Delete()
 {
   if(m_root){
-    PostOrderTraversal<T, TreeAllocators, TempAllocators>(*this, DeleteLeafNode, 0);
+    PostOrderTraversal<void>(DeleteLeafNode, 0);
   }
 }
 
@@ -446,13 +464,13 @@ node_list<T, TreeAllocators, TempAllocators, ListAllocators> n_tree<T, TreeAlloc
   level_order_node_list_helper Helper = {};
   Helper.BasicList = NodeList.ToBasic();
   Helper.Last = NodeList.First();
-  LevelOrderTraversal<T, level_order_node_list_helper, TreeAllocators, TempAllocators>(*this, LevelOrderNodeList, &Helper);
+  LevelOrderTraversal<>(LevelOrderNodeList, &Helper);
   return NodeList;
 }
 
 NodeVisitFunction(LevelOrderNodeVec){
   //Tree, Node, UserData;
-  auto* NodeList = (node_vec<T, TreeAllocators, TempAllocators, TempAllocators>*) UserData;
+  node_vec<T, TreeAllocators, TempAllocators, TempAllocators>* NodeList= UserData;
   NodeList->PushBack(Node);
 }
 
@@ -461,7 +479,7 @@ template <typename VecAllocators>
 node_vec<T, TreeAllocators, TempAllocators, VecAllocators> n_tree<T,TreeAllocators, TempAllocators>::GetLevelOrderVector() {
   size_t NodeCount = this->NodeCount();
   auto NodeVec = node_vec<T, TreeAllocators, TempAllocators, VecAllocators>::Create(NodeCount);
-  LevelOrderTraversal<T, node_vec<T, TreeAllocators, TempAllocators, VecAllocators>, TreeAllocators, TempAllocators>(*this, LevelOrderNodeVec, &NodeVec);
+  LevelOrderTraversal<>(LevelOrderNodeVec, &NodeVec);
 
   return NodeVec;
 }
@@ -500,7 +518,7 @@ struct copy_n_tree_help_struct {
     return utils::SuperFastHash(C, len);
   }
 
-  n_tree_node<T, DstAllocators, TempAllocators>* GetDstParent(n_tree_node<T, DstAllocators, TempAllocators>* SrcNode) {
+  n_tree_node<T, DstAllocators, TempAllocators>* GetDstParent(n_tree_node<T, SrcAllocators, TempAllocators>* SrcNode) {
 
     size_t ReservedSize = NodePair.Reserved();
     n_tree_node<T, SrcAllocators, TempAllocators>* SrcParent = SrcNode->Parent;
@@ -540,13 +558,10 @@ struct copy_n_tree_help_struct {
   }
 };
 
-
-//Tree, Node, UserData;
 NodeVisitFunction(CopyTreeFun) {
-  D* NodeMap = UserData;
-  n_tree_node<T, TreeAllocators, TempAllocators>* NewParent = NodeMap->GetDstParent(Node);
-  n_tree_node<T, TreeAllocators, TempAllocators>* NewNode = NodeMap->DstTree->NewNode(NewParent, *Node->Data);
-  NodeMap->PushNewPair(Node,NewNode);
+  auto* NewParent = UserData->GetDstParent(Node);
+  auto* NewNode = UserData->DstTree->NewNode(NewParent, *Node->Data);
+  UserData->PushNewPair(Node,NewNode);
 }
 
 template <typename T, typename TreeAllocators, typename TempAllocators>
@@ -559,7 +574,7 @@ n_tree<T, OtherAllocators, TempAllocators> n_tree<T, TreeAllocators, TempAllocat
   size_t VecSize = utils::GetNextPowerOfTwo(nodeCount);
   auto HelpStruct = copy_n_tree_help_struct<T, TreeAllocators, OtherAllocators, TempAllocators>(&Result, VecSize);
 
-  LevelOrderTraversal<T, copy_n_tree_help_struct<T, TreeAllocators, OtherAllocators, TempAllocators>, OtherAllocators, TempAllocators>(*this, CopyTreeFun, &HelpStruct);
+  LevelOrderTraversal<>(CopyTreeFun, &HelpStruct);
 
   return Result;
 }
