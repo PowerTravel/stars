@@ -19,20 +19,15 @@ bool gShouldPrint = false;
 template<class T> using vector_dbg = cmn::vector<T, CustomAllocators>;
 template<class T> using tree_dbg   = cmn::n_tree<T, CustomAllocators, CustomAllocators>;
 
-NodeVisitFunction(treeTraversealAssert){
-  user_data* data = (user_data*) UserData;
-  #if 1
-  DBG_Assert(*Node->Data, data->vec[data->i],"Values");
-  #else
-  printf("Vec[%d] = %d, Node %d\n", data->i, data->vec[data->i], (int) *Node->Data);
-  #endif
-  data->i++;
-}
-
 struct user_data {
   int i;
   vector_dbg<int> vec;
 };
+
+NodeVisitFunction(treeTraversealAssert){
+  DBG_Assert(*Node->Data, UserData->vec[UserData->i],"Values");
+  UserData->i++;
+}
 
 /*
       1
@@ -91,7 +86,7 @@ void Test_Traversal()
     int PreOrderBuf[] = {1,2,3,5,8,6,4,7,9};
     user_data PreOrderData = {};
     PreOrderData.vec = vector_dbg<int>::Create(ArrayCount(PreOrderBuf), PreOrderBuf);
-    cmn::PreOrderTraversal<int, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert,(void*) &PreOrderData);
+    cmn::PreOrderTraversal<int, user_data, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert, &PreOrderData);
     tree.Delete();
     PreOrderData.vec.Delete();
   }
@@ -102,7 +97,7 @@ void Test_Traversal()
     int PostOrderBuf[] = {2,8,5,6,3,9,7,4,1};
     user_data PostOrderData = {};
     PostOrderData.vec = vector_dbg<int>::Create(ArrayCount(PostOrderBuf), PostOrderBuf);
-    cmn::PostOrderTraversal<int, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert,(void*) &PostOrderData);
+    cmn::PostOrderTraversal<int, user_data, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert, &PostOrderData);
     tree.Delete();
     PostOrderData.vec.Delete();
   }
@@ -113,7 +108,7 @@ void Test_Traversal()
     int LevelOrderBuf[] = {1,2,3,4,5,6,7,8,9};
     user_data LevelOrderData = {};
     LevelOrderData.vec = vector_dbg<int>::Create(ArrayCount(LevelOrderBuf), LevelOrderBuf);
-    cmn::LevelOrderTraversal<int, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert,(void*) &LevelOrderData);
+    cmn::LevelOrderTraversal<int, user_data, CustomAllocators, CustomAllocators>(tree, treeTraversealAssert, &LevelOrderData);
     tree.Delete();
     LevelOrderData.vec.Delete();
   }  
