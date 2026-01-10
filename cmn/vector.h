@@ -10,15 +10,6 @@
 
 namespace cmn {
 
-// Note: Having allocators as function pointers messes up live code editing.
-//       When building a new DLL the allocation functions will get new adressess 
-//       ones that are stored here are invalid.
-//       There are workarounds such as 
-//          1: using the funciton pointer pool or
-//          2: Collecting the allocator function pointers into heap-allocated objects.
-//             The objects gets updated on DLL reload to point to the proper function and
-//             those heap allocated objects are what these types use for custom allocators.
-
 template <typename T, typename Allocator>
 struct vector {
   size_t m_reservedCount; // How many elements there is room for
@@ -56,17 +47,17 @@ struct vector {
     m_count = 0;
   }
 
-  bool   Empty()             {return m_count==0;};
-  size_t Size()              {return m_count;};
-  size_t Reserved()          {return m_reservedCount;};
-  T  operator[](int i) const {Assert(i<m_reservedCount); return m_data[i];};
-  T& operator[](int i)       {Assert(i<m_reservedCount); return m_data[i];};
-  T  Back()            const {Assert(m_count>0);         return m_data[m_count-1];};
-  T& Back()                  {Assert(m_count>0);         return m_data[m_count-1];};
-  T* BackPtr()               {return m_count ? &m_data[m_count-1] : 0;};
-  T& Front()                 {Assert(m_count>0); return m_data[0];};
-  T  Front()           const {Assert(m_count>0); return m_data[0];};
-  T* FrontPtr()              {return m_count ? &m_data[0] : 0;};
+  bool   Empty()                {return m_count==0;};
+  size_t Size()                 {return m_count;};
+  size_t Reserved()             {return m_reservedCount;};
+  T  operator[](size_t i) const {Assert(i<m_reservedCount); return m_data[i];};
+  T& operator[](size_t i)       {Assert(i<m_reservedCount); return m_data[i];};
+  T  Back()               const {Assert(m_count>0);         return m_data[m_count-1];};
+  T& Back()                     {Assert(m_count>0);         return m_data[m_count-1];};
+  T* BackPtr()                  {return m_count ? &m_data[m_count-1] : 0;};
+  T& Front()                    {Assert(m_count>0); return m_data[0];};
+  T  Front()              const {Assert(m_count>0); return m_data[0];};
+  T* FrontPtr()                 {return m_count ? &m_data[0] : 0;};
 
   void PushBack(const T& Value){
     if(m_count >= m_reservedCount)

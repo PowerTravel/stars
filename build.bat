@@ -13,12 +13,17 @@ set DisabledWarnings=-wd4805
 set CPP17=/std:c++17
 set CPP20=/std:c++20 /EHsc
 
+REM define JWIN_PROFILE to activate the profiling layer (debug statistics)
+REM define JWIN_SLOW to activate extra program verifications checks
+REM define JWIN_INTERNAL to activate pieces of code to be used during development that is not going to be used when running the program as a user
+
+
 set OutputFiles=/Fm%OutputFileName%.map /Fe%OutputFileName%.exe /Fo%OutputFileName%.obj
 set LinkFlags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib opengl32.lib shcore.lib
 REM -fp:fast -fp:except- -GR- -EHa- -Zo -Oi -WX -W4 -wd4018 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -wd4706 -FC -Z7 -GS- -Gs9999999 -wd4702
 set CommonLinkerFlags=%LinkFlags%
 set CommonCompilerFlags=%IncludeDirectories% /DEBUG:FULL -nologo %DisableOptimization% %GenerateDebugInfo% 
-set CommonCompilerFlags=%CommonCompilerFlags% -DJWIN_SLOW -DJWIN_INTERNAL %DisabledWarnings%
+set CommonCompilerFlags=%CommonCompilerFlags% -DJWIN_SLOW -DJWIN_INTERNAL -DJWIN_PROFILE %DisabledWarnings%
 REM "USER_APPLICATION_TMP.dll"
   
 
@@ -28,7 +33,7 @@ pushd build
 del *.pdb > NUL 2> NUL
 REM echo create lock file
 echo WAITING FOR PDB > lock.tmp
-cl  %CommonCompilerFlags% %CPP20% -DTRANSLATION_UNIT_INDEX=0 %ApplicationSrcMainFile%  -Fm%OutputFileName%.map -MTd -LD /link -incremental:no -opt:ref  %CommonLinkerFlags% -PDB:%OutputFileName%_%random%.pdb -EXPORT:ApplicationUpdateAndRender 
+cl  %CommonCompilerFlags% %CPP20% -DTRANSLATION_UNIT_INDEX=0 %ApplicationSrcMainFile%  -Fm%OutputFileName%.map -MTd -LD /link -incremental:no -opt:ref  %CommonLinkerFlags% -PDB:%OutputFileName%_%random%.pdb -EXPORT:ApplicationUpdateAndRender -EXPORT:DEBUGApplicationFrameEnd
 set LastError=%ERRORLEVEL%
 del lock.tmp
 cl  %CommonCompilerFlags% %CPP20% -DTRANSLATION_UNIT_INDEX=1  ..\jwin\win32\win32_main.cpp -Fmwin32_main.map /link %CommonLinkerFlags% 

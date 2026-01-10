@@ -12,6 +12,7 @@
 
 #include "platform/jwin_platform.h"
 #include "platform/jfont.h"
+#include "platform/jwin_debug.h"
 #include "commons/random.h"
 #include "camera.h"
 #include "io/obj.h"
@@ -78,6 +79,17 @@ global_variable asset::manager* GlobalAssetManager = 0;
 global_variable render::renderer* GlobalRenderer = 0;
 global_variable float GlobalTime = 0;
 global_variable window_size_pixel GlobalWindowSize = {};
+#if JWIN_PROFILE
+global_variable debug_table* GlobalDebugTable;
+#endif
+#if 0
+#if JWIN_PROFILE
+global_variable debug_table GlobalDebugTable_;
+debug_table* GlobalDebugTable = &GlobalDebugTable_;
+#else
+debug_table* GlobalDebugTable = 0;
+#endif
+#endif
 
 // Global Singleton Getter
 inline render::renderer* GetRenderer() {

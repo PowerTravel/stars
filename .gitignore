@@ -1,5 +1,5 @@
 build/*
-cmn/build/*
+cmn/test/build/*
 *.rdbg
 stars.sublime-build
 data

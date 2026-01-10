@@ -1,6 +1,5 @@
 #include <cstdio>
 
-
 #include "list.h"
 #include "debug_asserts.h"
 

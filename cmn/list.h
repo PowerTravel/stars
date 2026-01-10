@@ -38,7 +38,6 @@ struct list {
     utils::Copy(sizeof(T), Data, Position->Data);
   }
 
-
   inline T* GetPtr(element* Element) const {
     T* Result = Element->Data;
     return Result;

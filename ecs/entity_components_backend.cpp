@@ -446,8 +446,8 @@ entity_manager* CreateEntityManager(u32 EntityChunkCount, u32 EntityMapChunkCoun
   Result->EntityList = NewChunkList(&Result->Arena, sizeof(entity), EntityChunkCount);
   Result->EntityComponentLinks = NewChunkList(&Result->Arena, sizeof(entity_component_link), EntityMapChunkCount);
 
-#if HANDMADE_SLOW
-  for(s32 i = 0; i<ComponentCount; i++)
+#if JWIN_SLOW
+  for(s32 i = 0; i < ComponentCount; i++)
   {
     Assert(Result->ComponentTypeVector[i].Type);
   }

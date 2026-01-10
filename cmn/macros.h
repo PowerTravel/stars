@@ -29,6 +29,8 @@
 {                                                  \
   (Element)->Previous->Next = (Element)->Next;     \
   (Element)->Next->Previous = (Element)->Previous; \
+  (Element)->Next = 0;                             \
+  (Element)->Previous = 0;                         \
 }
 
 #define ListCount( Sentinel, Type, Counter )  \
@@ -43,6 +45,7 @@
 }
 
 
+#define ListOffsetOf(type, Member) (uintptr_t) &(((type *)0)->Member)
 #define ListAdvanceBytePointer(Pointer, ByteCount) ((uint8_t*)Pointer) + (ByteCount);
 #define ListRetreatBytePointer(Pointer, ByteCount) ((uint8_t*)Pointer) - (ByteCount);
 #define ListAdvanceByType(Pointer, Type) ListAdvanceBytePointer(Pointer, sizeof(Type));

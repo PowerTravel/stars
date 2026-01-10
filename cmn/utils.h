@@ -36,7 +36,7 @@ namespace utils {
   #ifdef COMPILER_MSVC
     result.found = _BitScanReverse( (unsigned long*) &result.index, value);
   #else
-    for(uint32_t test = 31; test >= 0; test--)
+    for(int32_t test = 31; test >= 0; test--)
     {
       uint32_t mask = (1 << test);
       if( (value & mask ) != 0)
