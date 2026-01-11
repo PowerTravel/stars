@@ -1,12 +1,22 @@
 #include "debug.h"
 #include "platform/jwin_platform_input.h"
-#if 1
+
 extern memory_arena* GlobalPersistentArena;
 extern memory_arena* GlobalTransientArena;
 extern memory_arena* GlobalFrameTransientArena;
 extern debug_state* GlobalDebugState;
-
-
+extern debug_table* GlobalDebugTable;
+file_local void ClearFrame(debug_frame* Frame)
+{
+  TIMED_FUNCTION();
+  Frame->BeginClock         = 0;
+  Frame->EndClock           = 0;
+  Frame->WallSecondsElapsed = 0;
+  Frame->FrameBarLaneCount  = 0;
+  Frame->Threads.Clear();
+  Frame->Blocks.Clear();
+  Frame->Statistics.Clear(true);
+}
 
 file_local void ResetCollation()
 {
@@ -15,12 +25,13 @@ file_local void ResetCollation()
   DebugState->SelectedFrame = 0;
   DebugState->ThreadSelected = true;
   DebugState->SelectedThreadIndex = 0;
-  DebugState->FunctionList.Clear();
-  for(u32 FrameIndex = 0;
-          FrameIndex < ArrayCount(DebugState->Frames);
-          ++FrameIndex)
+  for (int i = 0; i < MAX_DEBUG_TRANSLATION_UNITS; ++i)
   {
-    debug_frame* Frame = DebugState->Frames+FrameIndex;
+    DebugState->FunctionList[i].Clear();
+  }
+
+  for(size_t i = 0; i < DebugState->Frames.Size(); ++i) {
+    debug_frame* Frame = &DebugState->Frames[i];
     ClearFrame(Frame);
   }
 }
@@ -31,16 +42,22 @@ DEBUGGetState()
   {
     GlobalDebugState = BootstrapPushStruct(debug_state, Arena);
 
-    GlobalDebugState->FunctionList = vector_list<debug_record_entry>(&GlobalDebugState->Arena, MAX_DEBUG_RECORD_COUNT*MAX_DEBUG_TRANSLATION_UNITS);
+    for (int i = 0; i < MAX_DEBUG_TRANSLATION_UNITS; ++i)
+    {
+      GlobalDebugState->FunctionList[i] = b_array_dbg<debug_record_entry>::Create(MAX_DEBUG_RECORD_COUNT);
+    }
 
+    const size_t TotalFrameCount = MAX_DEBUG_FRAME_COUNT;
+    GlobalDebugState->Frames = b_array_dbg<debug_frame>::Create(TotalFrameCount);
     for(u32 FrameIndex = 0;
-        FrameIndex < ArrayCount(GlobalDebugState->Frames);
+        FrameIndex < TotalFrameCount;
         ++FrameIndex)
     {
-      debug_frame* Frame = GlobalDebugState->Frames+FrameIndex;
+      debug_frame* Frame = &GlobalDebugState->Frames[FrameIndex];
       Frame->MaxBlockCount = MAX_BLOCKS_PER_FRAME;
-      Frame->Blocks = PushArray( &GlobalDebugState->Arena, Frame->MaxBlockCount, debug_block);
-      Frame->Statistics = vector_list<debug_statistics>(&GlobalDebugState->Arena, MAX_DEBUG_FUNCTION_COUNT);
+      Frame->Blocks     = b_array_dbg<debug_block>::Create(Frame->MaxBlockCount);
+      Frame->Threads    = b_array_dbg<debug_thread>::Create(MAX_THREAD_COUNT);
+      Frame->Statistics = b_array_dbg<debug_statistics>::Create(MAX_DEBUG_RECORD_COUNT);
     }
   }
 
@@ -229,7 +246,7 @@ file_local debug_thread* GetDebugThread(debug_frame* Frame, u16 ThreadID)
       ThreadArrayIndex < MAX_THREAD_COUNT;
       ++ThreadArrayIndex)
   {
-    debug_thread* Thread = Frame->Threads + ThreadArrayIndex;
+    debug_thread* Thread = &Frame->Threads[ThreadArrayIndex];
     if(!Thread->ID)
     {
       Result = Thread;
@@ -263,9 +280,7 @@ s32 CompareDebugStatistics(void* A, void* B)
   return Result;
 }
 
-#endif
-
-file_local debug_record_entry* GetRecordFrom(debug_block* OpenBlock)
+file_local inline debug_record_entry* GetRecordFrom(debug_block* OpenBlock)
 {
   debug_record_entry* Result = OpenBlock ? OpenBlock->Record : 0;
   return Result;
@@ -277,50 +292,49 @@ file_local inline u32 GetRecordIndexFromEvent( debug_event* Event )
   return Result;
 }
 
-void ClearFrame(debug_frame* Frame)
-{
-  TIMED_FUNCTION();
-  Frame->BeginClock         = 0;
-  Frame->EndClock           = 0;
-  Frame->WallSecondsElapsed = 0;
-  Frame->FrameBarLaneCount  = 0;
-  Frame->Threads            = b_array_dbg<debug_thread>::Create(MAX_DEBUG_THREAD_COUNT);
-  Frame->Blocks             = b_array_dbg<debug_block>::Create(MAX_DEBUG_RECORD_COUNT);
-  Frame->Statistics         = list_dbg<debug_statistics>::Create();
-}
-
-file_local void BeginFrame(debug_frame* Frame, debug_event* Event){
+file_local inline void BeginFrame(debug_frame* Frame, debug_event* Event){
   ClearFrame(Frame);
   Frame->BeginClock = Event->Clock;
 }
 
-file_local void EndFrame(debug_frame* Frame, debug_event* Event){
+file_local inline void EndFrame(debug_frame* Frame, debug_event* Event){
   Frame->EndClock = Event->Clock;
   Frame->WallSecondsElapsed = Event->SecondsElapsed;
 }
 
-file_local list_dbg<debug_frame>::element* GetNextFrameElement(list_dbg<debug_frame>& Frames, list_dbg<debug_frame>::element* FrameElement ) {
-  static const u32 MaxFrameCount = MAX_DEBUG_EVENT_ARRAY_COUNT;
-  list_dbg<debug_frame>::element* CurrentFrame = 0;
-  if(Frames.Size() < MaxFrameCount)
-  {
-    Frames.PushBack({});
-    CurrentFrame = Frames.Last();
-  }else{
-    CurrentFrame = CurrentFrame->Next;
-    if(Frames.IsEnd(CurrentFrame))
-    {
-      CurrentFrame = Frames.First();
-    }
-  }
-  return CurrentFrame;
+file_local inline debug_frame* GetNextFrame(debug_state* DebugState) {
+  DebugState->CurrentFrameIndex = ++DebugState->CurrentFrameIndex % MAX_DEBUG_FRAME_COUNT;
+  debug_frame* Result = &DebugState->Frames[DebugState->CurrentFrameIndex];
+  return Result;
 }
 
 file_local debug_frame* FlipFrame(debug_state* DebugState, debug_event* Event) {
-  EndFrame(DebugState->Frames.GetPtr(DebugState->CurrentFrame), Event);
-  DebugState->CurrentFrame = GetNextFrameElement(DebugState->Frames, DebugState->CurrentFrame);
-  BeginFrame(DebugState->Frames.GetPtr(DebugState->CurrentFrame), Event);
-  return DebugState->Frames.GetPtr(DebugState->CurrentFrame);
+  debug_frame* Frame = &DebugState->Frames[DebugState->CurrentFrameIndex];
+  EndFrame(Frame, Event);
+  Frame = GetNextFrame(DebugState);
+  BeginFrame(Frame, Event);
+  return Frame;
+}
+
+file_local inline b32 IsInitiated(debug_record_entry* RecordEntry)
+{ 
+  return (RecordEntry->BlockName[0] != '\0');
+}
+
+file_local inline b32 IsInitiated(debug_statistics* Stat)
+{ 
+  return (Stat->Record != 0);
+}
+
+file_local debug_record_entry* GetOrCreateRecord(b_array_dbg<debug_record_entry> FunctionList[], debug_record* Record, debug_event* Event)
+{
+  debug_record_entry* Result = &FunctionList[Event->TranslationUnit][Event->DebugRecordIndex];
+  if(!IsInitiated(Result))
+  {
+    jstr::CopyStringsUnchecked(Record->BlockName, Result->BlockName); 
+    Result->LineNumber = Record->LineNumber;
+  }
+  return Result;
 }
 
 void CollateDebugRecords()
@@ -328,19 +342,16 @@ void CollateDebugRecords()
   debug_state* DebugState = DEBUGGetState();
 
   // Start on the frame after the one we are writing to
-  u32 DebugTableFrame = GlobalDebugTable->CurrentEventArrayIndex - 1;
-  if(GlobalDebugTable->CurrentEventArrayIndex == 0)
+  u32 DebugTableFrame = GlobalDebugTable->CurrentFrameIndex - 1;
+  if(GlobalDebugTable->CurrentFrameIndex == 0)
   {
-    DebugTableFrame = MAX_DEBUG_EVENT_ARRAY_COUNT-1;
+    DebugTableFrame = MAX_DEBUG_FRAME_COUNT-1;
   }
 
-
   // Get the persistent function list from the debug state
-  list_dbg<debug_record_entry>* FunctionList = &DebugState->FunctionList;
+  b_array_dbg<debug_record_entry>* FunctionLists = DebugState->FunctionList;
 
-
-
-  debug_frame* Frame = DebugState->Frames.GetPtr(DebugState->CurrentFrame);
+  debug_frame* Frame = &DebugState->Frames[DebugState->CurrentFrameIndex];
   BEGIN_BLOCK(ProfileCollation);
   u32 EventCount = GlobalDebugTable->EventCount[DebugTableFrame];
   for(u32 EventIndex = 0;
@@ -348,10 +359,8 @@ void CollateDebugRecords()
           ++EventIndex)
   {
     // Get the record and event from the debug table
-    debug_event*  Event       = GlobalDebugTable->Events[DebugTableFrame] + EventIndex;
-    debug_record* DebugRecord = (GlobalDebugTable->Records[Event->TranslationUnit] + Event->DebugRecordIndex);
-
-    u32 RecordIndex = GetRecordIndexFromEvent(Event);
+    debug_event*  Event       = &GlobalDebugTable->Events[DebugTableFrame][EventIndex];
+    debug_record* DebugRecord = &GlobalDebugTable->Records[Event->TranslationUnit][Event->DebugRecordIndex];
 
     switch(Event->Type)
     {
@@ -361,28 +370,10 @@ void CollateDebugRecords()
       }break;
       case DebugEvent_BeginBlock:
       {
-        debug_record_entry* RecordEntry = 0;
-        if(!FunctionList->Exists(RecordIndex))
-        {
-          debug_record_entry Entry{};
-          jstr::CopyStringsUnchecked(DebugRecord->BlockName, Entry.BlockName); 
-          Entry.LineNumber = DebugRecord->LineNumber;
-          RecordEntry = FunctionList->PushBack(Entry, RecordIndex);
-        }else{
-          RecordEntry = FunctionList->GetFromVector(RecordIndex);
-        }
-        
-        debug_thread* Thread = GetDebugThread(Frame, Event->TC.ThreadID);
-        debug_block* Block = Frame->FirstFreeBlock++;
-        *Frame->FirstFreeBlock = {};
-        midx BlockCount = Block - Frame->Blocks;
-        if(BlockCount >= MAX_BLOCKS_PER_FRAME)
-        {
-          // TODO: Handle this case somehow by growing the Block-vector by chunks
-          //       For now just change the MAX_BLOCKS_PER_FRAME if we hit this assert
-          Assert(0);
-        }
+        debug_record_entry* RecordEntry = GetOrCreateRecord(FunctionLists, DebugRecord, Event);
 
+        debug_thread* Thread = GetDebugThread(Frame, Event->TC.ThreadID);
+        debug_block* Block = Frame->Blocks.PushBack();
         Block->Record = RecordEntry;
         Block->ThreadIndex = Thread->ID;
         Block->BeginClock = Event->Clock - Frame->BeginClock;
@@ -412,51 +403,49 @@ void CollateDebugRecords()
       }break;
       case DebugEvent_EndBlock:
       {
-        if(Frame->FirstFreeBlock)
+        debug_record_entry* RecordEntry = &FunctionLists[Event->TranslationUnit][Event->DebugRecordIndex];
+        Assert(IsInitiated(RecordEntry));
+
+        debug_thread* Thread = GetDebugThread(Frame, Event->TC.ThreadID);
+        Assert(Thread->OpenBlock);
+        debug_block* Block = Thread->OpenBlock;
+        Block->EndClock = Event->Clock - Frame->BeginClock;
+
+        debug_event* OpeningEvent = &Block->OpeningEvent;
+        Assert(OpeningEvent->TC.ThreadID      == Event->TC.ThreadID);
+        Assert(OpeningEvent->DebugRecordIndex == Event->DebugRecordIndex);
+        Assert(OpeningEvent->TranslationUnit  == Event->TranslationUnit);
+
+        Thread->ClosedBlock = Block;
+        
+        Thread->OpenBlock = Block->Parent;
+        
+        // Get the  statistics list for the current frame;
+        u32 Hash = utils::djb2_hash(RecordEntry->BlockName);
+        u32 HashedIndex = Hash % MAX_DEBUG_RECORD_COUNT;
+        debug_statistics* Statistic = &Frame->Statistics[HashedIndex];
+        b32 EntryFound = false;
+        while(IsInitiated(Statistic))
         {
-          debug_record_entry* RecordEntry = FunctionList->GetFromVector(RecordIndex);
-          Assert(FunctionList->Exists(RecordIndex));
-
-          debug_thread* Thread = GetDebugThread(Frame, Event->TC.ThreadID);
-          Assert(Thread->OpenBlock);
-          debug_block* Block = Thread->OpenBlock;
-          Block->EndClock = Event->Clock - Frame->BeginClock;
-
-          debug_event* OpeningEvent = &Block->OpeningEvent;
-          Assert(OpeningEvent->TC.ThreadID      == Event->TC.ThreadID);
-          Assert(OpeningEvent->DebugRecordIndex == Event->DebugRecordIndex);
-          Assert(OpeningEvent->TranslationUnit  == Event->TranslationUnit);
-
-          Thread->ClosedBlock = Block;
-          
-          Thread->OpenBlock = Block->Parent;
-          
-          // Get the  statistics list for the current frame;
-          list_dbg<debug_statistics>* FrameStatistics = &Frame->Statistics;
-          u32 Hash = utils::djb2_hash(RecordEntry->BlockName);
-          u32 HashedIndex = Hash % FrameStatistics->maxSize();
-          debug_statistics* Statistic = 0;
-          b32 EntryFound = false;
-          while(FrameStatistics->Exists(HashedIndex))
+          if(jstr::ExactlyEquals(Statistic->Record->BlockName, RecordEntry->BlockName))
           {
-            Statistic = FrameStatistics->GetFromVector(HashedIndex);
-            if(jstr::ExactlyEquals(Statistic->Record->BlockName, RecordEntry->BlockName))
-            {
-              EntryFound = true;
-              break;
-            }
-            ++HashedIndex;
+            EntryFound = true;
+            break;
           }
 
-          if(!EntryFound)
-          {
-            debug_statistics Stats = {};
-            BeginDebugStatistics(&Stats, RecordEntry);
-            Statistic = FrameStatistics->PushBack(Stats, HashedIndex);
+          if(++HashedIndex > MAX_DEBUG_RECORD_COUNT){
+            HashedIndex = 0;
           }
 
-          AccumulateStatistic(Statistic, (r32)(Block->EndClock - Block->BeginClock));
+          Statistic = &Frame->Statistics[HashedIndex];
         }
+
+        if(!EntryFound)
+        {
+          BeginDebugStatistics(Statistic, RecordEntry);
+        }
+
+        AccumulateStatistic(Statistic, (r32)(Block->EndClock - Block->BeginClock));
       }break;
     }
   }
@@ -490,9 +479,8 @@ DebugRewriteConfigFile()
 }
 #endif
 #define DebugRecords_Main_Count __COUNTER__
-global_variable debug_table* GlobalDebugTable = 0;
 
-extern "C" DEBUG_APPLICATION_FRAME_END(DEBUGApplicationFrameEnd)
+DEBUG_APPLICATION_FRAME_END(DebugFrameEnd)
 {
   #if JWIN_PROFILE
   GlobalDebugTable = Memory->DebugTable;
@@ -500,26 +488,26 @@ extern "C" DEBUG_APPLICATION_FRAME_END(DEBUGApplicationFrameEnd)
   if(!GlobalDebugTable) return;
   GlobalDebugTable->RecordCount[TRANSLATION_UNIT_INDEX] = DebugRecords_Main_Count; // This stores the amount of records found is the first translation unit, (The Game)
   // Increment which event-array we should  be writing to. (Each frame writes into it's own array)
-  ++GlobalDebugTable->CurrentEventArrayIndex;
-  if(GlobalDebugTable->CurrentEventArrayIndex >= ArrayCount(GlobalDebugTable->Events))
+  ++GlobalDebugTable->CurrentFrameIndex;
+  if(GlobalDebugTable->CurrentFrameIndex >= MAX_DEBUG_FRAME_COUNT)
   {
     // Wrap if we reached the final array
-    GlobalDebugTable->CurrentEventArrayIndex=0;
+    GlobalDebugTable->CurrentFrameIndex=0;
   }
   
-  // Shift CurrentEventArrayIndex to the high bits of ArrayIndex_EventIndex.
-  //  The old value of ArrayIndex_EventIndex is returned by AtomicExchangeu64
+  // Shift CurrentFrameIndex to the high bits of FrameIndex_EventIndex.
+  //  The old value of FrameIndex_EventIndex is returned by AtomicExchangeu64
   // Note the low bits "EventIndex" is zeroed out since we wanna start writing from the top of the array next frame.
   // EventIndex is incremented each time we run through a TIMED_FUNCTION macro
 
   // Sets the first argument to be equal to the second argument, returns the previous value of the first argument.
-  u64 ArrayIndex_EventIndex = AtomicExchangeu64(&GlobalDebugTable->EventArrayIndex_EventIndex,          // The new value is stored in this variable
-                                               ((u64)GlobalDebugTable->CurrentEventArrayIndex << 32));  // This is the new value
+  u64 FrameIndex_EventIndex = AtomicExchangeu64(&GlobalDebugTable->FrameIndex_EventIndex,          // The new value is stored in this variable
+                                               ((u64)GlobalDebugTable->CurrentFrameIndex << 32));  // This is the new value
 
-  u32 EventArrayIndex = (ArrayIndex_EventIndex >> 32);         // The event array index we just finished writing to
-  u32 EventCount = (ArrayIndex_EventIndex & 0xFFFFFFFF);       // The number of events encountered last frame
-  GlobalDebugTable->EventCount[EventArrayIndex] = EventCount;  // The frame "EventArrayIndex" saw "EventCount" Recorded Events
-#if 0
+  u32 FrameIndex = (FrameIndex_EventIndex >> 32);         // The event array index we just finished writing to
+  u32 EventCount = (FrameIndex_EventIndex & 0xFFFFFFFF);       // The number of events encountered last frame
+  Platform.DEBUGPrint("%d %d\n", FrameIndex, EventCount);
+  GlobalDebugTable->EventCount[FrameIndex] = EventCount;  // The frame "FrameIndex" saw "EventCount" Recorded Events
 
   debug_state* DebugState = DEBUGGetState();
   if(DebugState)
@@ -533,7 +521,6 @@ extern "C" DEBUG_APPLICATION_FRAME_END(DEBUGApplicationFrameEnd)
       CollateDebugRecords();
     }
   }
-  #endif
   #endif
 }
 
@@ -559,7 +546,7 @@ MENU_DRAW(DrawStatistics)
   ScopedMemory Memory(GlobalGameState->TransientArena);
   memory_arena* Arena = GlobalGameState->TransientArena;
   
-  vector_list<debug_statistics> CumulativeStats = vector_list<debug_statistics>(GlobalGameState->TransientArena, MAX_DEBUG_FUNCTION_COUNT);
+  vector_list<debug_statistics> CumulativeStats = vector_list<debug_statistics>(GlobalGameState->TransientArena, MAX_DEBUG_RECORD_COUNT);
   vector_list<debug_record_entry>* DebugFunctions = &DebugState->FunctionList;
   END_BLOCK(AllocatingMemory);
   // TODO: This loop is super slow and it's unecessary to loop through it all every frame.

@@ -1,5 +1,5 @@
 #pragma once
-#if 1
+
 #include "commons/types.h"
 #include "commons/intrinsics.h"
 #include "cmn/bucket_array.h"
@@ -51,13 +51,10 @@ struct debug_statistics
 // The information for the frame
 #define MAX_BLOCKS_PER_FRAME 16384
 #define MAX_THREAD_COUNT 16
-#define MAX_DEBUG_FRAME_COUNT 60
-#define MAX_DEBUG_FUNCTION_COUNT 256
 
 //#define MAX_DEBUG_EVENT_ARRAY_COUNT 120  // How many frames we are tracking
 //#define MAX_DEBUG_TRANSLATION_UNITS (2)  // How many translation units we have
 //#define MAX_DEBUG_EVENT_COUNT (8*65536)
-//#define MAX_DEBUG_RECORD_COUNT (65536)
 
 struct debug_block
 {
@@ -77,10 +74,10 @@ struct debug_thread
 {
   u32 ID;
   u32 LaneIndex;
-  list_dbg<debug_block>::element* FirstBlock;
-  list_dbg<debug_block>::element* OpenBlock;
-  list_dbg<debug_block>::element* ClosedBlock;
-  list_dbg<debug_block>::element* SelectedBlock;
+  debug_block* FirstBlock;
+  debug_block* OpenBlock;
+  debug_block* ClosedBlock;
+  debug_block* SelectedBlock;
 };
 
 struct debug_frame
@@ -92,9 +89,9 @@ struct debug_frame
   u32 FrameBarLaneCount;
 
   midx MaxBlockCount;
-  b_array_dbg<debug_block>   Blocks;
-  b_array_dbg<debug_thread>  Threads;
-  list_dbg<debug_statistics> Statistics;
+  b_array_dbg<debug_block>      Blocks;
+  b_array_dbg<debug_thread>     Threads;
+  b_array_dbg<debug_statistics> Statistics;
 };
 
 
@@ -102,7 +99,7 @@ struct debug_state
 {
   b32 Initialized;
 
-  //b32 Paused;
+  b32 Paused;
 
   memory_arena Arena;
   temporary_memory StatisticsTemp;
@@ -113,11 +110,11 @@ struct debug_state
   b32 ThreadSelected;
   u32 SelectedThreadIndex;
   
-  list_dbg<debug_frame>::element* CurrentFrame;
-  list_dbg<debug_frame> Frames;
+  size_t CurrentFrameIndex;
+  b_array_dbg<debug_frame> Frames;
 
   // Keeps a global record of all seen functions and their execution time and hit cout.
-  list_dbg<debug_record_entry> FunctionList;
+  b_array_dbg<debug_record_entry> FunctionList[MAX_DEBUG_TRANSLATION_UNITS];
 
   // b32 Compiling;
   // debug_executing_process Compiler;
@@ -125,17 +122,14 @@ struct debug_state
 
 struct DebugStateAllocators
 {
-  CMN_MALLOC_FUNCTION {
+  static CMN_MALLOC_FUNCTION {
     return PushSize(&GlobalDebugState->Arena, sz);
   };
-  CMN_REALLOC_FUNCTION {
+  static CMN_REALLOC_FUNCTION {
     Assert(0); // Don't wanna use this, should never be used
     return p;
   };
-  CMN_FREE_FUNCTION {
+  static CMN_FREE_FUNCTION {
 
   };
 };
-
-
-#endif

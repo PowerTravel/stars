@@ -2,6 +2,7 @@
 #include <cstdint> // uint32_t etc
 
 #include "allocators.h"
+#include "utils.h"
 
 #ifndef Assert
 #define Assert(Expression) if(!(Expression)){ *(int *)0 = 0;}
@@ -16,25 +17,27 @@ namespace cmn {
 template <typename T, typename Allocator>
 struct bucket_array {
 
+  struct bucket_index{
+    size_t BucketIndex;
+    size_t IndexInBucket;
+  };
+
   struct bucket {
     T* Data;
     bucket* Next;
   };
 
-  inline size_t GetIndexInBucket(size_t i){
-    size_t Result = i%m_bucketSize;
-    return Result;
-  }
-
-  inline size_t GetBucketIndex(size_t i){
-    size_t IndexInBucket = GetIndexInBucket(i);
-    size_t Result = (i - IndexInBucket)/m_bucketSize;
+  inline bucket_index GetBucketIndex(size_t i){
+    bucket_index Result = {};
+    Result.IndexInBucket = i%m_bucketSize;
+    Result.BucketIndex = (i - Result.IndexInBucket)/m_bucketSize;
     return Result;
   }
   
-  bucket* GetBucket(size_t BucketIndex){
+  bucket* GetBucket(const bucket_index& BucketIndex) {
+    size_t Index = BucketIndex.BucketIndex;
     bucket* Result = m_firstBucket;
-    while(BucketIndex--){
+    while(Index--){
       Result = Result->Next;
     }
     return Result;
@@ -71,6 +74,18 @@ struct bucket_array {
     return Result;
   }
 
+  void Clear(bool ZeroMemory = false) {
+    m_count = 0;
+    m_lastBucket = m_firstBucket;
+    if(ZeroMemory){
+      bucket* Bucket = m_firstBucket;
+      while(Bucket){
+        utils::Zero(sizeof(T)*m_bucketSize, (uint8_t*) Bucket->Data);
+        Bucket = Bucket->Next;
+      }
+    }
+  };
+
   void Delete() {
 
     bucket* Bucket = m_firstBucket;
@@ -92,14 +107,13 @@ struct bucket_array {
   size_t BucketSize()        {return m_bucketSize;};
   T* At(size_t i){
     Assert(i<Reserved());
-    size_t BucketIndex = GetBucketIndex(i);
+    bucket_index BucketIndex = GetBucketIndex(i);
     bucket* Bucket = GetBucket(BucketIndex);
-    size_t IndexInBucket = GetIndexInBucket(i);
-    return &Bucket->Data[IndexInBucket];
+    return &Bucket->Data[BucketIndex.IndexInBucket];
   }
 
   T  operator[](size_t i) const {return *At(i);}
-  T& operator[](int i)          {return *At(i);}
+  T& operator[](size_t i)       {return *At(i);}
   T  Front()              const {Assert(m_count>0); return *At(0);}
   T& Front()                    {Assert(m_count>0); return *At(0);}
   T* FrontPtr()                 {return m_count ? At(0) : 0;}
@@ -107,14 +121,32 @@ struct bucket_array {
   T& Back()                     {Assert(m_count>0); return *At(m_count-1);}
   T* BackPtr()                  {return m_count ? At(m_count-1) : 0;}
 
-  void PushBack(const T& Value){
+  T* PushBack(const T& Value){
     if(m_count >= Reserved())
     {
       PushNewBucket();
     }
-    size_t Index = GetIndexInBucket(m_count++);
-    T* DataPtr = &m_lastBucket->Data[Index];
+    bucket_index BucketIndex = GetBucketIndex(m_count++);
+    bucket* Bucket = m_lastBucket;
+    if(BucketIndex.BucketIndex < m_bucketCount){
+      Bucket = GetBucket(BucketIndex);
+    }
+    T* DataPtr = &Bucket->Data[BucketIndex.IndexInBucket];
     *DataPtr   = Value;
+    return DataPtr;
+  }
+  T* PushBack(){
+    if(m_count >= Reserved())
+    {
+      PushNewBucket();
+    }
+    bucket_index BucketIndex = GetBucketIndex(m_count++);
+    bucket* Bucket = m_lastBucket;
+    if(BucketIndex.BucketIndex < m_bucketCount){
+      Bucket = GetBucket(BucketIndex);
+    }
+    T* DataPtr = &Bucket->Data[BucketIndex.IndexInBucket];
+    return DataPtr;
   }
 
   T PopBack(){

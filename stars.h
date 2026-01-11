@@ -81,14 +81,7 @@ global_variable float GlobalTime = 0;
 global_variable window_size_pixel GlobalWindowSize = {};
 #if JWIN_PROFILE
 global_variable debug_table* GlobalDebugTable;
-#endif
-#if 0
-#if JWIN_PROFILE
-global_variable debug_table GlobalDebugTable_;
-debug_table* GlobalDebugTable = &GlobalDebugTable_;
-#else
-debug_table* GlobalDebugTable = 0;
-#endif
+global_variable struct debug_state* GlobalDebugState;
 #endif
 
 // Global Singleton Getter

@@ -29,7 +29,7 @@
 #include "io/obj.cpp"
 #include "render/render.cpp"
 #include "render/font.cpp"
-//#include "debug.cpp"
+#include "debug.cpp"
 #include "containers/linked_memory_unit_tests.h"
 #include "io/gltf.h"
 #include "asset_manager/gltf_mapper.h"
@@ -473,7 +473,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   GlobalAssetManager   = GlobalState->AssetManager;
   GlobalEntityManager  = GlobalState->World.EntityManager;
   GlobalWindowSize     = WindowSizePixel(RenderCommands, RenderCommands->WindowInfo.Width, RenderCommands->WindowInfo.Height);
+  #if JWIN_PROFILE
   GlobalDebugTable     = Memory->DebugTable;
+  #endif
 
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
@@ -631,5 +633,5 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 
 
 extern "C" DEBUG_APPLICATION_FRAME_END(DEBUGApplicationFrameEnd){
-  
+  DebugFrameEnd(Memory, Input);
 }
