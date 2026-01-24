@@ -131,7 +131,7 @@ namespace render {
 
   r32 GetDescenOffset(u32 FontEnum, r32 FontSize);
   r32 GetLineSpacing(u32 FontEnum, r32 FontSize);
-  v2 GetTextSize(u32 FontEnum, r32 FontSize, const c8* Text);
+  v2  GetTextSize(u32 FontEnum, r32 FontSize, const c8* Text);
 
   // Note: Merge this into maybe DrawSprite. Somehting like
   // void DrawSprite(v2 PixelPos, rect2f PixelClipRect, v4 TextureCoords, asset::texture* Texture);

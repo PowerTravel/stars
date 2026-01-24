@@ -717,6 +717,7 @@ file_local void DrawSDF(render_group* RenderGroup, render_list<overlay_sdf>& Ove
 
 void RenderScene(m4 ProjectionMatrix, m4 ViewMatrix)
 {
+  TIMED_FUNCTION();
   SCOPED_TRANSIENT_ARENA;
   renderer* Renderer = GlobalRenderer;
   render_group* RenderGroup = Renderer->RenderGroup;

@@ -96,30 +96,6 @@ void LoadMaterials()
   LoadMaterial(TextureKey, {0.05f,      0.05f,      0.0f,      1.00f}, {0.5f,        0.5f,        0.4f,        1.00f}, {0.7f,         0.7f,         0.04f,       1.00f}, 128 * 0.078125f,     "yellow_rubber");
 }
 
-
-#if 0
-  struct render_tree_data {
-    mesh_id Mesh;
-    camera_id Camera;
-    bool HasTransform;
-    m4 Transform;
-  };
-#endif
-
-
-/*
-M
- P1
- P2
- P3
-
-L
- G1
- G2
- G3
-
-*/
-
 void SetRenderComponent(ecs::entity_id* Entity, asset::mesh::primitive* Primitive)
 {
   if(!ecs::HasComponents(GetEntityManager(), Entity, ecs::flag::RENDER))
@@ -392,6 +368,9 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
     {
       imgui::app::ToggleMenu();
     }
+    if(jwin::Pushed(Input->Keyboard.Key_P)) {
+      GlobalDebugState->Paused = !GlobalDebugState->Paused;
+    }
   }
 
   { 
@@ -402,26 +381,26 @@ void SceneInput(camera* Camera, jwin::device_input* Input)
     {
       if(!jwin::Active(Input->Mouse.Button[jwin::MouseButton_Middle]))
       {
-        if(Input->Mouse.dX != 0)
+        if(Abs(Input->Mouse.dX) > 0.0001 )
         {
           //RotateAround(Camera, -5*Input->Mouse.dX, Up);
           RotateCameraAroundWorldAxis(Camera, -2*Input->Mouse.dX, V3(0,1,0) );
           //RotateCamera(Camera, 2*Input->Mouse.dX, V3(0,-1,0) );
         }
-        if(Input->Mouse.dY != 0)
+        if(Abs(Input->Mouse.dY) > 0.0001 )
         {
           RotateCamera(Camera, 2*Input->Mouse.dY, V3(1,0,0) );      
           v3 CamPos = GetCameraPosition(Camera);
         }
       }else{
-        if(Input->Mouse.dX != 0)
+        if(Abs(Input->Mouse.dX) > 0.0001 )
         {
           RotateAround(Camera, -5*Input->Mouse.dX, WUp);
           char Buf[32] = {};
           jstr::ToString( WRight.E, 2, ArrayCount(Buf), Buf );
           Platform.DEBUGPrint("Right   : %s\n", Buf);
         }
-        if(Input->Mouse.dY != 0)
+        if(Abs(Input->Mouse.dY) > 0.0001 )
         {
           RotateAround(Camera, -5*Input->Mouse.dY, -WRight);
           char Buf[32] = {};
@@ -461,6 +440,150 @@ void PowerOfTwoMiddles(u32 MaxNum){
   }
 }
 
+#if JWIN_PROFILE
+
+void DrawLane(debug_frame* SelectedFrame, debug_block* SelectedBlock){
+  const r32 BotEdge = 0.1;
+  const r32 TopEdge = 0.15;
+  const r32 LeftEdge = 0.9;
+  const r32 RightEdge = 1.3;
+  const r32 LaneWidth = (RightEdge - LeftEdge) / (r32) MAX_DEBUG_FRAME_COUNT;
+  const r32 TimeBot = 0;
+  const r32 TimeTop = 1/60.0;
+
+  const u64 Start = SelectedFrame->BeginClock;
+  const u64 End   = SelectedFrame->EndClock;
+
+  r32 T = 0;
+  debug_block* Block = SelectedBlock;
+  if(Block)
+  {
+    r32 Left  = LinearRemap(Block->BeginClock, Start, End, LeftEdge, RightEdge);
+    r32 Right = LinearRemap(Block->EndClock, Start, End, LeftEdge, RightEdge);
+
+    rect2f OverlayRect = Rect2f(Left, BotEdge, Right - Left, TopEdge - BotEdge);
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(OverlayRect), V4(1,T,1,1));
+    Platform.DEBUGPrint("%1.2f, %1.2f\n",Block->BeginClock-Start, End-Block->EndClock);
+
+  }
+}
+
+void DrawFunctionLanes()
+{
+  const r32 BotEdge = 0.1;
+  const r32 TopEdge = 0.4;
+  const r32 LeftEdge = 0.1;
+  const r32 RightEdge = 0.8;
+  const r32 LaneWidth = (RightEdge - LeftEdge) / (r32) MAX_DEBUG_FRAME_COUNT;
+  const r32 TimeBot = 0;
+  const r32 TimeTop = 1/60.0;
+  
+  static debug_block* SelectedBlock = 0;
+  static debug_frame* SelectedFrame = 0;
+
+  r32 Top = Lerp(1/60.0, BotEdge, TopEdge);
+
+  render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect2f(LeftEdge, BotEdge, RightEdge-LeftEdge, TopEdge-BotEdge)), V4(0,0,0,1));
+  if(GlobalDebugState)
+  {
+    v2 MousePos = V2(GlobalInput->Mouse.X, GlobalInput->Mouse.Y);
+    debug_state* DebugState = GlobalDebugState;
+
+    r32 X = LeftEdge;
+
+    size_t StartFrame = DebugState->CurrentFrameIndex+1;
+    if(StartFrame >= MAX_DEBUG_FRAME_COUNT){
+      StartFrame = 0;
+    }
+
+
+    c8* MouseOverRecord = 0;
+    debug_block* HotBlock = 0;
+    debug_frame* HotFrame = 0;
+    v2 PixelSize = PixelToCanonicalSpace(V2(1,1));
+    size_t FrameIndex = 0;
+    r32 MaxTime = 0;
+    while (FrameIndex < MAX_DEBUG_FRAME_COUNT)
+    {
+      if(FrameIndex != DebugState->CurrentFrameIndex)
+      {
+        debug_frame* Frame = &DebugState->Frames[FrameIndex];
+        r32 T = 0;
+        debug_thread* Thread = &Frame->Threads[0];
+        debug_block* Block = Thread->FirstBlock;
+        while(Block) {
+          size_t ClockCount = Block->EndClock - Block->BeginClock;
+          r64 WallCount = (ClockCount) / (GlobalDebugTable->PerfCounterFrequency*8);
+          if(WallCount > MaxTime){
+            MaxTime = WallCount;
+          }
+          r32 dt = WallCount;
+          r32 Bot = Lerp(T, BotEdge, TopEdge);
+          T+=dt;
+          r32 Top = Lerp(T, BotEdge, TopEdge);
+
+          rect2f OverlayRect = Rect2f(X, Bot, LaneWidth, Top - Bot);
+          if(SelectedFrame && SelectedFrame == Frame){
+            render::DrawOverlayQuadCanonicalSpace(Shrink(CenteredRect(OverlayRect),-PixelSize*0.5), V4(1,1,0,1));
+          }
+          render::DrawOverlayQuadCanonicalSpace(Shrink(CenteredRect(OverlayRect),PixelSize*0.5), V4(1,T,1,1));
+
+          if(Intersects(OverlayRect, MousePos))
+          {
+            HotBlock = Block;
+            HotFrame = Frame;
+          }
+
+          Block = Block->Next;
+        }
+      }
+      X+=LaneWidth;
+      FrameIndex++;
+    }
+
+    if(HotBlock)
+    {
+      u32 DummyFontEnum = 0;
+      r32 FontSize = 16;
+      r32 LineSpacing = render::GetLineSpacing(DummyFontEnum, FontSize);
+      r32 TextWidth = render::GetTextSize(DummyFontEnum, FontSize, MouseOverRecord).X;
+      v2 TextSize =V2(TextWidth, LineSpacing);
+      render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect2f(MousePos, TextSize)), V4(0.3,0.3,0.3,1));
+      v2 TextPos = MousePos + V2(0, render::GetDescenOffset(DummyFontEnum, FontSize));
+      render::DrawTextCanonicalSpace(TextPos, FontSize, (utf8_byte const *) HotBlock->Record->BlockName, V4(0.9,0.9,0.9,1));
+
+      if(jwin::Pushed(GlobalInput->Mouse.Button[jwin::MouseButton_Left])) {
+        SelectedBlock = HotBlock;
+        SelectedFrame = HotFrame;
+      }
+    }else{
+      if(jwin::Pushed(GlobalInput->Mouse.Button[jwin::MouseButton_Left])) {
+        SelectedBlock = 0;
+        SelectedFrame = 0;
+      }
+    }
+
+    if(SelectedBlock) {
+      if(SelectedBlock->Record)
+      {
+        u32 DummyFontEnum = 0;
+        r32 FontSize = 16;
+        r32 LineSpacing = render::GetLineSpacing(DummyFontEnum, FontSize);
+        r32 TextWidth = render::GetTextSize(DummyFontEnum, FontSize, MouseOverRecord).X;
+        v2 TextSize = V2(TextWidth, LineSpacing);
+        render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect2f(MousePos, TextSize)), V4(0.3,0.3,0.3,1));
+        v2 TextPos = MousePos + V2(0, render::GetDescenOffset(DummyFontEnum, FontSize));
+        render::DrawTextCanonicalSpace(TextPos+V2(0.1,0.1), FontSize, (utf8_byte const *) SelectedBlock->Record->BlockName, V4(0.9,0.9,0.9,1));
+
+
+        DrawLane(SelectedFrame, SelectedBlock);
+
+      }
+    }
+  }
+}
+#endif
+
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
 {
@@ -476,6 +599,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   #if JWIN_PROFILE
   GlobalDebugTable     = Memory->DebugTable;
   #endif
+
+  TIMED_FUNCTION();
 
   ResetRenderGroup(RenderCommands->RenderGroup);
   platform_offscreen_buffer* OffscreenBuffer = &RenderCommands->PlatformOffscreenBuffer;
@@ -575,8 +700,8 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
     // Test hierarchichal positioning
     if(ecs::IsValid(&GlobalState->FloorEntity))
     {
-      ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
-      FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,1,0)));
+      //ecs::position::component* FloorPos = GetPositionComponent(&GlobalState->FloorEntity);
+      //FloorPos->RelativeRotation = QuaternionMultiplication(FloorPos->RelativeRotation, RotateQuaternion( 0.01, V3(0,1,0)));
     }
   }
 
@@ -597,29 +722,9 @@ extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)
   UpdateViewMatrix(&GlobalState->Camera);
   DrawAllRenderObjects();
   
-  #if 1
   imgui::app::DoMenu();
-  #else
-  static imgui::id DebugID1 = imgui::NewButtonID();
-  static imgui::id DebugID2 = imgui::NewButtonID();
-  rect2f DebugSquare1 = Rect2f(0.15,0.15,0.5,0.5);
-  rect2f DebugSquare2 = Rect2f(0.45,0.15,0.5,0.5);
-  
-  //Platform.DEBUGPrint("Button 1 Returned True\n");
-  imgui::region_styling DebugStyling = {};
-  DebugStyling.InactiveColor = imgui::GetColor(&GlobalState->ColorTable, "taupe");
-  DebugStyling.ActiveAndHotColor = imgui::GetColor(&GlobalState->ColorTable, "taupe gray");
-  DebugStyling.ActiveColor = imgui::GetColor(&GlobalState->ColorTable, "sandy taupe");
-  DebugStyling.HotColor = imgui::GetColor(&GlobalState->ColorTable, "rose taupe");
-  DebugStyling.SelectedColor = imgui::GetColor(&GlobalState->ColorTable, "purple taupe");
-  DebugStyling.ShadowColor = V4(0,0,0,1);
-  DebugStyling.ClickOffset = PixelToCanonicalSpace(V2(10,10));
-  DebugStyling.ShadowOffset = PixelToCanonicalSpace(V2(10,10));
 
-  u32 ButtonResult = imgui::DoButton(GlobalImguiContext, DebugID1, DebugSquare1);
-  
-  imgui::DrawButton(ButtonResult, DebugSquare1, DebugStyling);
-#endif
+  DrawFunctionLanes();
 
   imgui::End();
   //if(GlobalRenderer->ActiveCamera)

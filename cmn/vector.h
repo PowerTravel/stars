@@ -47,17 +47,25 @@ struct vector {
     m_count = 0;
   }
 
-  bool   Empty()                {return m_count==0;};
-  size_t Size()                 {return m_count;};
-  size_t Reserved()             {return m_reservedCount;};
-  T  operator[](size_t i) const {Assert(i<m_reservedCount); return m_data[i];};
-  T& operator[](size_t i)       {Assert(i<m_reservedCount); return m_data[i];};
-  T  Back()               const {Assert(m_count>0);         return m_data[m_count-1];};
-  T& Back()                     {Assert(m_count>0);         return m_data[m_count-1];};
-  T* BackPtr()                  {return m_count ? &m_data[m_count-1] : 0;};
-  T& Front()                    {Assert(m_count>0); return m_data[0];};
-  T  Front()              const {Assert(m_count>0); return m_data[0];};
-  T* FrontPtr()                 {return m_count ? &m_data[0] : 0;};
+
+  bool   Empty()             {return m_count==0;};
+  size_t Size()              {return m_count;};
+  size_t Reserved()          {return m_reservedCount;};
+  T  operator[](int i) const {Assert(i<m_reservedCount); return m_data[i];};
+  T& operator[](int i)       {Assert(i<m_reservedCount); return m_data[i];};
+  T  Back()            const {Assert(m_count>0);         return m_data[m_count-1];};
+  T& Back()                  {Assert(m_count>0);         return m_data[m_count-1];};
+  T* BackPtr()               {return m_count ? &m_data[m_count-1] : 0;};
+  T& Front()                 {Assert(m_count>0); return m_data[0];};
+  T  Front()           const {Assert(m_count>0); return m_data[0];};
+  T* FrontPtr()              {return m_count ? &m_data[0] : 0;};
+
+  void Clear(bool ZeroMemory = false) {
+    m_count = 0;
+    if(ZeroMemory) {
+      utils::Zero(sizeof(T)*m_reservedCount, (uint8_t*) m_data);
+    }
+  };
 
   void PushBack(const T& Value){
     if(m_count >= m_reservedCount)

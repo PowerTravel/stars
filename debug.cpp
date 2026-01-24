@@ -13,8 +13,8 @@ file_local void ClearFrame(debug_frame* Frame)
   Frame->EndClock           = 0;
   Frame->WallSecondsElapsed = 0;
   Frame->FrameBarLaneCount  = 0;
-  Frame->Threads.Clear();
-  Frame->Blocks.Clear();
+  Frame->Threads.Clear(true);
+  Frame->Blocks.Clear(true);
   Frame->Statistics.Clear(true);
 }
 
@@ -27,7 +27,8 @@ file_local void ResetCollation()
   DebugState->SelectedThreadIndex = 0;
   for (int i = 0; i < MAX_DEBUG_TRANSLATION_UNITS; ++i)
   {
-    DebugState->FunctionList[i].Clear();
+    DebugState->FunctionList[i].Clear(true);
+    GlobalDebugTable->Records[i].Clear(true);
   }
 
   for(size_t i = 0; i < DebugState->Frames.Size(); ++i) {
@@ -374,6 +375,7 @@ void CollateDebugRecords()
 
         debug_thread* Thread = GetDebugThread(Frame, Event->TC.ThreadID);
         debug_block* Block = Frame->Blocks.PushBack();
+        *Block = {};
         Block->Record = RecordEntry;
         Block->ThreadIndex = Thread->ID;
         Block->BeginClock = Event->Clock - Frame->BeginClock;
@@ -404,48 +406,49 @@ void CollateDebugRecords()
       case DebugEvent_EndBlock:
       {
         debug_record_entry* RecordEntry = &FunctionLists[Event->TranslationUnit][Event->DebugRecordIndex];
-        Assert(IsInitiated(RecordEntry));
+        if(IsInitiated(RecordEntry)) {
 
-        debug_thread* Thread = GetDebugThread(Frame, Event->TC.ThreadID);
-        Assert(Thread->OpenBlock);
-        debug_block* Block = Thread->OpenBlock;
-        Block->EndClock = Event->Clock - Frame->BeginClock;
+          debug_thread* Thread = GetDebugThread(Frame, Event->TC.ThreadID);
+          Assert(Thread->OpenBlock);
+          debug_block* Block = Thread->OpenBlock;
+          Block->EndClock = Event->Clock - Frame->BeginClock;
 
-        debug_event* OpeningEvent = &Block->OpeningEvent;
-        Assert(OpeningEvent->TC.ThreadID      == Event->TC.ThreadID);
-        Assert(OpeningEvent->DebugRecordIndex == Event->DebugRecordIndex);
-        Assert(OpeningEvent->TranslationUnit  == Event->TranslationUnit);
+          debug_event* OpeningEvent = &Block->OpeningEvent;
+          Assert(OpeningEvent->TC.ThreadID      == Event->TC.ThreadID);
+          Assert(OpeningEvent->DebugRecordIndex == Event->DebugRecordIndex);
+          Assert(OpeningEvent->TranslationUnit  == Event->TranslationUnit);
 
-        Thread->ClosedBlock = Block;
-        
-        Thread->OpenBlock = Block->Parent;
-        
-        // Get the  statistics list for the current frame;
-        u32 Hash = utils::djb2_hash(RecordEntry->BlockName);
-        u32 HashedIndex = Hash % MAX_DEBUG_RECORD_COUNT;
-        debug_statistics* Statistic = &Frame->Statistics[HashedIndex];
-        b32 EntryFound = false;
-        while(IsInitiated(Statistic))
-        {
-          if(jstr::ExactlyEquals(Statistic->Record->BlockName, RecordEntry->BlockName))
+          Thread->ClosedBlock = Block;
+          
+          Thread->OpenBlock = Block->Parent;
+          
+          // Get the  statistics list for the current frame;
+          u32 Hash = utils::djb2_hash(RecordEntry->BlockName);
+          u32 HashedIndex = Hash % MAX_DEBUG_RECORD_COUNT;
+          debug_statistics* Statistic = &Frame->Statistics[HashedIndex];
+          b32 EntryFound = false;
+          while(IsInitiated(Statistic))
           {
-            EntryFound = true;
-            break;
+            if(jstr::ExactlyEquals(Statistic->Record->BlockName, RecordEntry->BlockName))
+            {
+              EntryFound = true;
+              break;
+            }
+
+            if(++HashedIndex > MAX_DEBUG_RECORD_COUNT){
+              HashedIndex = 0;
+            }
+
+            Statistic = &Frame->Statistics[HashedIndex];
           }
 
-          if(++HashedIndex > MAX_DEBUG_RECORD_COUNT){
-            HashedIndex = 0;
+          if(!EntryFound)
+          {
+            BeginDebugStatistics(Statistic, RecordEntry);
           }
 
-          Statistic = &Frame->Statistics[HashedIndex];
+          AccumulateStatistic(Statistic, (r32)(Block->EndClock - Block->BeginClock));
         }
-
-        if(!EntryFound)
-        {
-          BeginDebugStatistics(Statistic, RecordEntry);
-        }
-
-        AccumulateStatistic(Statistic, (r32)(Block->EndClock - Block->BeginClock));
       }break;
     }
   }
@@ -514,9 +517,8 @@ DEBUG_APPLICATION_FRAME_END(DebugFrameEnd)
   {
     if(Input->ExecutableReloaded)
     {
-      ResetCollation();
-    }
-    if(!DebugState->Paused)
+      ResetCollation(); // Cannot collate this frame because last frame may have junk data in 
+    }else if(!DebugState->Paused)
     {
       CollateDebugRecords();
     }

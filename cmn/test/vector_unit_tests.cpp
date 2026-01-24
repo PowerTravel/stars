@@ -179,6 +179,54 @@ void Test2_BasicPushPop_CustomAllocators()
   DBG_Assert(gFreeCount, 1, "Free Call Count"); 
 }
 
+void Test_Clear()
+{
+  size_t Count  = 100;
+  vector_dbg<int> v = vector_dbg<int>::Create(Count);
+  for (int i = 0; i < Count; ++i)
+  {
+    v.PushBack(Count-i);
+  }
+
+  DBG_Assert(v.Reserved(),  Count, "Reserved Size");
+  DBG_Assert(v.Size(),      Count, "Size");
+  DBG_Assert(gMallocCount,  1, "Malloc Call Count");
+  DBG_Assert(gReallocCount, 0, "Realloc Call Count");
+  DBG_Assert(gFreeCount,    0, "Free Call Count");
+
+  // Test Clear without zeroing
+  v.Clear();
+  DBG_Assert(v.Reserved(),  Count, "Reserved Size");
+  DBG_Assert(v.Size(),      0, "Size");
+
+  // Fill again, make sure no new mallocs are needed.
+  for (int i = 0; i < Count; ++i)
+  {
+    v.PushBack(i);
+    DBG_Assert(*v.At(i), i, "Value from At()");
+    DBG_Assert(v[i],     i, "Value from []");
+  }
+  DBG_Assert(v.Reserved(),  Count, "Reserved Size");
+  DBG_Assert(v.Size(),      Count, "Size");
+  DBG_Assert(gMallocCount,  1, "Malloc Call Count");
+  DBG_Assert(gReallocCount, 0, "Realloc Call Count");
+  DBG_Assert(gFreeCount,    0, "Free Call Count");
+
+  // Clear but tell it to zero the memory
+  v.Clear(true);
+  for (int i = 0; i < Count; ++i)
+  {
+    DBG_Assert(*v.At(i), 0, "Value from At()");
+    DBG_Assert(v[i],     0, "Value from []");
+  }
+
+  v.Delete();
+
+  DBG_Assert(gMallocCount,  1, "Malloc Call Count");
+  DBG_Assert(gReallocCount, 0, "Realloc Call Count");
+  DBG_Assert(gFreeCount,    1, "Free Call Count");
+}
+
 int main(int argc, char* argv[]){
   gShouldPrint = argc > 1;
   DBG_RunTest(TestConstructor);
