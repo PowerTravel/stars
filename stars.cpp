@@ -442,31 +442,116 @@ void PowerOfTwoMiddles(u32 MaxNum){
 
 #if JWIN_PROFILE
 
-void DrawLane(debug_frame* SelectedFrame, debug_block* SelectedBlock){
-  const r32 BotEdge = 0.1;
-  const r32 TopEdge = 0.15;
-  const r32 LeftEdge = 0.9;
-  const r32 RightEdge = 1.3;
-  const r32 LaneWidth = (RightEdge - LeftEdge) / (r32) MAX_DEBUG_FRAME_COUNT;
-  const r32 TimeBot = 0;
-  const r32 TimeTop = 1/60.0;
+static void DrawText(v2 Pos, const char* Text, r32 FontSize, b32 Background){
+  u32 DummyFontEnum = 0;
+  r32 LineSpacing = render::GetLineSpacing(DummyFontEnum, FontSize);
+  if(Background) {
+    r32 TextWidth = render::GetTextSize(DummyFontEnum, FontSize, Text).X;
+    v2 TextSize =V2(TextWidth, LineSpacing);
+    render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect2f(Pos, TextSize)), V4(0.3,0.3,0.3,1));
+  }
+  v2 TextPos = Pos + V2(0, render::GetDescenOffset(DummyFontEnum, FontSize));
+  render::DrawTextCanonicalSpace(TextPos, FontSize, (utf8_byte const *) Text, V4(0.9,0.9,0.9,1));
+}
 
-  const u64 Start = SelectedFrame->BeginClock;
-  const u64 End   = SelectedFrame->EndClock;
+static b32 MouseOver(rect2f Rect, v2* MousePosResult = 0){
+  v2 MousePos = V2(GlobalInput->Mouse.X, GlobalInput->Mouse.Y);
+  r32 Result = Intersects(Rect, MousePos);
+  if(MousePosResult){
+    *MousePosResult = MousePos;
+  }
+  return Result;
+}
 
-  r32 T = 0;
-  debug_block* Block = SelectedBlock;
-  if(Block)
-  {
-    r32 Left  = LinearRemap(Block->BeginClock, Start, End, LeftEdge, RightEdge);
-    r32 Right = LinearRemap(Block->EndClock, Start, End, LeftEdge, RightEdge);
-
-    rect2f OverlayRect = Rect2f(Left, BotEdge, Right - Left, TopEdge - BotEdge);
+void DrawThread(debug_thread* Thread, u64 FrameLength, rect2f Rect){
+  debug_block* Block = Thread->FirstBlock;
+  v2 MousePos = {};
+  debug_block* HotBlock = 0;
+  while(Block) {
+    r32 X0 = LinearRemap(Block->BeginClock, 0, FrameLength, Left(Rect), Right(Rect));
+    r32 X1 = LinearRemap(Block->EndClock,   0, FrameLength, Left(Rect), Right(Rect));
+    r32 T = Unlerp(X0, Left(Rect), Right(Rect));
+    rect2f OverlayRect = Rect2f(X0, Rect.Y, X1 - X0, Rect.H);
+    if(MouseOver(OverlayRect, &MousePos)){
+       HotBlock = Block;
+    }
+    
     render::DrawOverlayQuadCanonicalSpace(CenteredRect(OverlayRect), V4(1,T,1,1));
-    Platform.DEBUGPrint("%1.2f, %1.2f\n",Block->BeginClock-Start, End-Block->EndClock);
+    //Platform.DEBUGPrint("%1.2f, %1.2f, %1.2f, %1.2f\n", OverlayRect.X, OverlayRect.Y, OverlayRect.W,OverlayRect.H);
+    //Platform.DEBUGPrint("%1.2f, %1.2f\n", Block->BeginClock-Start, End-Block->EndClock);
+    Block = Block->Next;
+  }
+  if(HotBlock)
+  {
+    DrawText(MousePos, HotBlock->Record->BlockName, 16, true);
+  }
+  Platform.DEBUGPrint("\n");
+}
 
+void DrawFrame(debug_frame* SelectedFrame){
+  const r32 Width = 1.0;
+  const r32 Height = 1.0;
+  const r32 X0 = 0.1;
+  const r32 Y0 = 0.9;
+
+  const u64 FrameStart  = SelectedFrame->BeginClock;
+  const u64 FrameEnd    = SelectedFrame->EndClock;
+  const u64 FrameLength = FrameEnd-FrameStart;
+
+  const rect2f FrameRect = Rect2f(X0, Y0, Width, Height);
+
+//  Platform.DEBUGPrint("Frame      %1.2lld - %1.2lld = %1.2lld\n", FrameEnd, FrameStart, FrameLength);
+/*
+  const u64 BlockStart  = SelectedBlock->BeginClock;
+  const u64 BlockEnd    = SelectedBlock->EndClock;
+  const u64 BlockLength = BlockEnd-BlockStart;
+  Platform.DEBUGPrint("Block      %1.2lld - %1.2lld = %1.2lld\n", BlockEnd, BlockStart, BlockLength);
+
+  r32 BlockStartPercentage  = Unlerp(BlockStart,  0, FrameLength);
+  r32 BlockEndPercentage    = Unlerp(BlockEnd,    0, FrameLength);
+  r32 BlockLengthPercentage = Unlerp(BlockLength, 0, FrameLength);
+  Platform.DEBUGPrint("Percentage %1.2f - %1.2f = %1.2f\n", BlockEndPercentage, BlockStartPercentage, BlockLengthPercentage);
+*/
+
+  v2 MousePos = {};
+  u32 TotFrames = SelectedFrame->Threads.Reserved();
+  r32 FrameLaneHeight = Height / TotFrames;
+  r32 Y = 0;
+  for (int i = 0; i < TotFrames; ++i)
+  {
+    debug_thread* Thread = &SelectedFrame->Threads[i];
+    u32 TotThreads = SelectedFrame->Threads.Reserved();
+    rect2f ThreadRect = Split(FrameRect, i, 0, TotThreads, 1);
+
+    const u64 FrameStart  = SelectedFrame->BeginClock;
+    const u64 FrameEnd    = SelectedFrame->EndClock;
+    const u64 FrameLength = FrameEnd-FrameStart;
+
+    DrawThread(Thread, FrameLength, ThreadRect);
   }
 }
+
+rect2f InterpolateRect(r32 t, rect2f StartRect, rect2f EndRect){
+  r32 X = Lerp(t, StartRect.X, EndRect.X);
+  r32 Y = Lerp(t, StartRect.Y, EndRect.Y);
+  r32 W = Lerp(t, StartRect.W, EndRect.W);
+  r32 H = Lerp(t, StartRect.H, EndRect.H);
+
+  rect2f Result = Rect2f(X,Y,W,H);
+  return Result;
+}
+
+v4 InterpolateColor(r32 t, v4 StartColor, v4 EndColor){
+  r32 R = Lerp(t, StartColor.X, EndColor.X);
+  r32 G = Lerp(t, StartColor.Y, EndColor.Y);
+  r32 B = Lerp(t, StartColor.Z, EndColor.Z);
+  r32 A = Lerp(t, StartColor.W, EndColor.W);
+
+  v4 Result = V4(R,G,B,A);
+  return Result;
+}
+
+
 
 void DrawFunctionLanes()
 {
@@ -477,9 +562,13 @@ void DrawFunctionLanes()
   const r32 LaneWidth = (RightEdge - LeftEdge) / (r32) MAX_DEBUG_FRAME_COUNT;
   const r32 TimeBot = 0;
   const r32 TimeTop = 1/60.0;
-  
-  static debug_block* SelectedBlock = 0;
-  static debug_frame* SelectedFrame = 0;
+
+  static r32 tp = 0;
+  tp += GlobalInput->deltaTime;
+  if(tp > Tau32){
+    tp -= Tau32;
+  }
+  r32 ts = 0.5 * (Sin(tp) + 1);
 
   r32 Top = Lerp(1/60.0, BotEdge, TopEdge);
 
@@ -496,10 +585,8 @@ void DrawFunctionLanes()
       StartFrame = 0;
     }
 
-
-    c8* MouseOverRecord = 0;
-    debug_block* HotBlock = 0;
     debug_frame* HotFrame = 0;
+    debug_block* HotBlock = 0;
     v2 PixelSize = PixelToCanonicalSpace(V2(1,1));
     size_t FrameIndex = 0;
     r32 MaxTime = 0;
@@ -523,15 +610,15 @@ void DrawFunctionLanes()
           r32 Top = Lerp(T, BotEdge, TopEdge);
 
           rect2f OverlayRect = Rect2f(X, Bot, LaneWidth, Top - Bot);
-          if(SelectedFrame && SelectedFrame == Frame){
+          if(GlobalDebugState->SelectedFrame && GlobalDebugState->SelectedFrame == Frame){
             render::DrawOverlayQuadCanonicalSpace(Shrink(CenteredRect(OverlayRect),-PixelSize*0.5), V4(1,1,0,1));
           }
           render::DrawOverlayQuadCanonicalSpace(Shrink(CenteredRect(OverlayRect),PixelSize*0.5), V4(1,T,1,1));
 
-          if(Intersects(OverlayRect, MousePos))
+          if(MouseOver(OverlayRect))
           {
-            HotBlock = Block;
             HotFrame = Frame;
+            HotBlock = Block;
           }
 
           Block = Block->Next;
@@ -541,48 +628,31 @@ void DrawFunctionLanes()
       FrameIndex++;
     }
 
-    if(HotBlock)
-    {
-      u32 DummyFontEnum = 0;
-      r32 FontSize = 16;
-      r32 LineSpacing = render::GetLineSpacing(DummyFontEnum, FontSize);
-      r32 TextWidth = render::GetTextSize(DummyFontEnum, FontSize, MouseOverRecord).X;
-      v2 TextSize =V2(TextWidth, LineSpacing);
-      render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect2f(MousePos, TextSize)), V4(0.3,0.3,0.3,1));
-      v2 TextPos = MousePos + V2(0, render::GetDescenOffset(DummyFontEnum, FontSize));
-      render::DrawTextCanonicalSpace(TextPos, FontSize, (utf8_byte const *) HotBlock->Record->BlockName, V4(0.9,0.9,0.9,1));
+    if(HotBlock){
+      DrawText(MousePos, HotBlock->Record->BlockName, 16, true);
+    }
 
+    if(HotFrame) {
       if(jwin::Pushed(GlobalInput->Mouse.Button[jwin::MouseButton_Left])) {
-        SelectedBlock = HotBlock;
-        SelectedFrame = HotFrame;
+        GlobalDebugState->SelectedFrame = HotFrame;
       }
     }else{
       if(jwin::Pushed(GlobalInput->Mouse.Button[jwin::MouseButton_Left])) {
-        SelectedBlock = 0;
-        SelectedFrame = 0;
+        GlobalDebugState->SelectedFrame = 0;
       }
     }
 
-    if(SelectedBlock) {
-      if(SelectedBlock->Record)
-      {
-        u32 DummyFontEnum = 0;
-        r32 FontSize = 16;
-        r32 LineSpacing = render::GetLineSpacing(DummyFontEnum, FontSize);
-        r32 TextWidth = render::GetTextSize(DummyFontEnum, FontSize, MouseOverRecord).X;
-        v2 TextSize = V2(TextWidth, LineSpacing);
-        render::DrawOverlayQuadCanonicalSpace(CenteredRect(Rect2f(MousePos, TextSize)), V4(0.3,0.3,0.3,1));
-        v2 TextPos = MousePos + V2(0, render::GetDescenOffset(DummyFontEnum, FontSize));
-        render::DrawTextCanonicalSpace(TextPos+V2(0.1,0.1), FontSize, (utf8_byte const *) SelectedBlock->Record->BlockName, V4(0.9,0.9,0.9,1));
-
-
-        DrawLane(SelectedFrame, SelectedBlock);
-
-      }
+    if(GlobalDebugState->SelectedFrame) {
+      //DrawText(MousePos, HotBlock->Record->BlockName, 16, true);
+      DrawFrame(GlobalDebugState->SelectedFrame);
+      GlobalDebugState->Paused = true;
+    }else{
+      GlobalDebugState->Paused = false;
     }
   }
 }
 #endif
+
 
 // void ApplicationUpdateAndRender(application_memory* Memory, application_render_commands* RenderCommands, jwin::device_input* Input)
 extern "C" JWIN_UPDATE_AND_RENDER(ApplicationUpdateAndRender)

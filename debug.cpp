@@ -23,8 +23,8 @@ file_local void ResetCollation()
   debug_state* DebugState = DEBUGGetState();
   DebugState->CurrentFrameIndex = 0;
   DebugState->SelectedFrame = 0;
-  DebugState->ThreadSelected = true;
-  DebugState->SelectedThreadIndex = 0;
+  DebugState->SelectedThread = 0;
+  
   for (int i = 0; i < MAX_DEBUG_TRANSLATION_UNITS; ++i)
   {
     DebugState->FunctionList[i].Clear(true);
@@ -67,7 +67,9 @@ DEBUGGetState()
     // Transient Memory Begin
     GlobalDebugState->Initialized = true;
     GlobalDebugState->Paused = false;
-    GlobalDebugState->ThreadSelected = true;
+    GlobalDebugState->SelectedThread = 0;
+    GlobalDebugState->SelectedFrame = 0;
+
 
     // Config state
     //GlobalDebugState->ConfigMultiThreaded = MULTI_THREADED;
@@ -509,7 +511,7 @@ DEBUG_APPLICATION_FRAME_END(DebugFrameEnd)
 
   u32 FrameIndex = (FrameIndex_EventIndex >> 32);         // The event array index we just finished writing to
   u32 EventCount = (FrameIndex_EventIndex & 0xFFFFFFFF);       // The number of events encountered last frame
-  Platform.DEBUGPrint("%d %d\n", FrameIndex, EventCount);
+//  Platform.DEBUGPrint("%d %d\n", FrameIndex, EventCount);
   GlobalDebugTable->EventCount[FrameIndex] = EventCount;  // The frame "FrameIndex" saw "EventCount" Recorded Events
 
   debug_state* DebugState = DEBUGGetState();

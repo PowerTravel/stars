@@ -105,11 +105,9 @@ struct debug_state
   temporary_memory StatisticsTemp;
 
   // This is a rolling buffer that holds all data for all frames
+  debug_thread* SelectedThread;
   debug_frame* SelectedFrame;
-  
-  b32 ThreadSelected;
-  u32 SelectedThreadIndex;
-  
+
   size_t CurrentFrameIndex;
   b_array_dbg<debug_frame> Frames;
 
