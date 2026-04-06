@@ -2,6 +2,7 @@
 #include "platform/jwin_platform_memory.h"
 #include "entity_list.h"
 #include "color_list.h"
+#include "frame_times.h"
 
 namespace imgui {
 namespace app {
@@ -16,12 +17,17 @@ menu_bar* CreateMenuBar(memory_arena* Arena){
   FormatString(EntityTree.Name, sizeof(EntityTree.Name), "%s", "EntityTree");
   EntityTree.ButtonID = NewButtonID();
 
+  menu_bar::item FrameTimes = {};
+  FormatString(FrameTimes.Name, sizeof(FrameTimes.Name), "%s", "FrameTimes");
+  FrameTimes.ButtonID = NewButtonID();
+
   menu_bar::item Windows = {};
   FormatString(Windows.Name, sizeof(Windows.Name), "%s", "Windows");
   Windows.ButtonID = NewButtonID();
-  Windows.Items = cmn::vector_p<menu_bar::item>::Create(2);
+  Windows.Items = cmn::vector_p<menu_bar::item>::Create(3);
   Windows.Items.PushBack(ColorList);
   Windows.Items.PushBack(EntityTree);
+  Windows.Items.PushBack(FrameTimes);
 
   menu_bar* Result = PushStruct(Arena, menu_bar);
   Result->TopItems = cmn::vector_p<menu_bar::item>::Create(1);
@@ -74,8 +80,9 @@ b32 DoMenuBar(){
           if(ImguiButton(GlobalImguiContext, SubItem->ButtonID, ButtonBackgroundRect)){
             switch(j)
             {
-              case 0: { GlobalState->ApplicationMenu.ColorListActive = !GlobalState->ApplicationMenu.ColorListActive; } break;
+              case 0: { GlobalState->ApplicationMenu.ColorListActive  = !GlobalState->ApplicationMenu.ColorListActive;  } break;
               case 1: { GlobalState->ApplicationMenu.EntityListActive = !GlobalState->ApplicationMenu.EntityListActive; } break;
+              case 2: { GlobalState->ApplicationMenu.FrameTimesActive = !GlobalState->ApplicationMenu.FrameTimesActive; } break;
             }
           };
           v4 ButtonColor = ImguiGetButtonColor(SubItem->ButtonID, ImguiDefaultButtonColor());
@@ -136,9 +143,11 @@ menu CreateAppllicationMenu(memory_arena* Arena, context* ImguiContext, u32 Colo
   Result.MenuBar = CreateMenuBar(Arena);
   Result.ColorList = CreateColorList(Arena, ColorCount);
   Result.EntityList = CreateEntityList(Arena);
+  Result.FrameTimes = CreateFrameTimes(Arena, GlobalDebugState);
   Result.MenuBarActive = false;
   Result.ColorListActive = false;
   Result.EntityListActive = false;
+  Result.FrameTimesActive = false;
   Result.EnclosingRegion = Rect2f(0,0,GetAspectRatio(), 1 - Result.MenuBar->HeaderBarRegion.H);
   Result.DefaultStyling = GetDefaultStyling();
   return Result;
@@ -159,6 +168,11 @@ void DoMenu(){
     {
       render::NewOverlayLevel();
       DrawEntityTree(&GlobalState->ApplicationMenu);
+    }
+    if(GlobalState->ApplicationMenu.FrameTimesActive)
+    {
+      render::NewOverlayLevel();
+      DrawFrameTimes(&GlobalState->ApplicationMenu);
     }
   }
 }

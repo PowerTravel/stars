@@ -43,6 +43,9 @@ struct menu {
   struct entity_list* EntityList;
   b32 EntityListActive;
 
+  struct frame_times* FrameTimes;
+  b32 FrameTimesActive;
+
   styling DefaultStyling;
 };
 

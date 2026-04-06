@@ -6,6 +6,7 @@ extern memory_arena* GlobalTransientArena;
 extern memory_arena* GlobalFrameTransientArena;
 extern debug_state* GlobalDebugState;
 extern debug_table* GlobalDebugTable;
+
 file_local void ClearFrame(debug_frame* Frame)
 {
   TIMED_FUNCTION();
