@@ -7,7 +7,9 @@ namespace imgui {
 namespace app {
 
 struct frame_times {
-  imgui_bordered_window BorderWindow;
+  imgui_bordered_window FramesWindow;
+  imgui_bordered_window ThreadsWindow;
+  b32 ThreadsWindowActive;
   debug_state* DebugState;
 };
 

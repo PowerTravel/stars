@@ -60,11 +60,11 @@ void DrawThread(debug_thread* Thread, u64 FrameLength, rect2f Rect){
   Platform.DEBUGPrint("\n");
 }
 
-void DrawFrame(debug_frame* SelectedFrame){
-  const r32 Width = 1.0;
-  const r32 Height = 0.4;
-  const r32 X0 = 0.6;
-  const r32 Y0 = 0.5;
+void DrawFrame(debug_frame* SelectedFrame, frame_times* FrameTimes, rect2f MenuRegion){
+  const r32 Width = MenuRegion.W;
+  const r32 Height = MenuRegion.H;
+  const r32 X0 = MenuRegion.X;
+  const r32 Y0 = MenuRegion.Y;
 
   const u64 FrameStart  = SelectedFrame->BeginClock;
   const u64 FrameEnd    = SelectedFrame->EndClock;
@@ -126,8 +126,10 @@ v4 InterpolateColor(r32 t, v4 StartColor, v4 EndColor){
 }
 
 
-void DrawFunctionLanes(rect2f MenuRegion)
+void DrawFunctionLanes(frame_times* FrameTimes)
 {
+  DoImguiBorderWindow(&FrameTimes->FramesWindow, GlobalState->ApplicationMenu.EnclosingRegion, "FrameTimes");
+  rect2f MenuRegion = GetContentRect(&FrameTimes->FramesWindow);
   const r32 BotEdge = Bot(MenuRegion);
   const r32 TopEdge = Top(MenuRegion);
   const r32 LeftEdge = Left(MenuRegion);
@@ -211,23 +213,29 @@ void DrawFunctionLanes(rect2f MenuRegion)
       if(jwin::Pushed(GlobalInput->Mouse.Button[jwin::MouseButton_Left])) {
         GlobalDebugState->SelectedFrame = HotFrame;
       }
-    }else{
-      if(jwin::Pushed(GlobalInput->Mouse.Button[jwin::MouseButton_Left])) {
-        GlobalDebugState->SelectedFrame = 0;
-      }
     }
 
+
     if(GlobalDebugState->SelectedFrame) {
-      //DrawText(MousePos, HotBlock->Record->BlockName, 16, true);
-      DrawFrame(GlobalDebugState->SelectedFrame);
       GlobalDebugState->Paused = true;
     }else{
       GlobalDebugState->Paused = false;
     }
   }
 }
+
+void DrawThreadsWindow(frame_times* FrameTimes) {
+  if(GlobalDebugState->SelectedFrame){
+    DoImguiBorderWindow(&FrameTimes->ThreadsWindow, GlobalState->ApplicationMenu.EnclosingRegion, "FrameTimes");
+    rect2f MenuRegion = GetContentRect(&FrameTimes->ThreadsWindow);
+    render::NewOverlayLevel();
+    DoImguiBorderWindow(&FrameTimes->FramesWindow, GlobalState->ApplicationMenu.EnclosingRegion, "Thread");
+    DrawFrame(GlobalDebugState->SelectedFrame, FrameTimes, MenuRegion);
+  }
+}
+
 #else
-void DrawFunctionLanes(rect2f MenuRegion){
+void DrawFunctionLanes(frame_times* FrameTimes){
 
 }
 #endif
@@ -235,14 +243,22 @@ void DrawFunctionLanes(rect2f MenuRegion){
 frame_times* CreateFrameTimes(memory_arena* Arena, debug_state* DebugState){
   frame_times* Result = PushStruct(Arena, frame_times);
   r32 RowHeight = GlobalRenderer->Font.GetLineSpacingCanonicalSpace(GlobalImguiContext->FontSize);
-  Result->BorderWindow      = ImguiBorderedWindow(Rect2f(V2(0.5,0.5), V2(0.3,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
+  Result->FramesWindow      = ImguiBorderedWindow(Rect2f(V2(0.4,0.4), V2(1.0,0.5)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
+  Result->ThreadsWindow     = ImguiBorderedWindow(Rect2f(V2(0.4,0.0), V2(1.0,0.4)), PixelToCanonicalSpace(V2(3,3)), RowHeight);
+  Result->ThreadsWindowActive = false;
   return Result;
 }
 
-void DrawFrameTimes(menu* AppImgui){
-  DoImguiBorderWindow(&AppImgui->FrameTimes->BorderWindow, GlobalState->ApplicationMenu.EnclosingRegion, "FrameTimes");
-  rect2f ContentRect = GetContentRect(&AppImgui->FrameTimes->BorderWindow);
-  DrawFunctionLanes(ContentRect);
+void DrawFrameTimes(menu* AppImgui) {
+  // Clear Selected Frame
+  rect2f FramesRegion = AppImgui->FrameTimes->FramesWindow.Region;
+  rect2f ThreadsRegion = AppImgui->FrameTimes->ThreadsWindow.Region;
+  if(GlobalDebugState->SelectedFrame && jwin::Pushed(GlobalInput->Mouse.Button[jwin::MouseButton_Left]) && !MouseOver(FramesRegion) && !MouseOver(ThreadsRegion)) {
+    GlobalDebugState->SelectedFrame = 0;
+  }
+
+  DrawFunctionLanes(AppImgui->FrameTimes);
+  DrawThreadsWindow(AppImgui->FrameTimes);
 }
 
 } //namespace app
